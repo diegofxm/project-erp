@@ -1,0 +1,8 @@
+# Material real de referencia: certificados, llaves privadas, credenciales DIAN,
+# RUT y facturas reales con datos de terceros. Nunca debe llegar al historial de git.
+/docs/reference/
+
+# Puente de desarrollo en paralelo entre los módulos ubl21dian/api-dian — es local del
+# entorno de quien desarrolla, no parte del código versionado.
+/go.work
+/go.work.sum

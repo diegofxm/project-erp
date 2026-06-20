@@ -1,0 +1,7 @@
+code,name,description
+CC,Cédula de Ciudadanía,Documento de identidad para personas naturales colombianas
+CE,Cédula de Extranjería,Documento de identidad para extranjeros residentes
+NIT,Número de Identificación Tributaria,Documento de identificación tributaria para empresas
+TI,Tarjeta de Identidad,Documento de identidad para menores de edad
+PP,Pasaporte,Documento de identidad internacional
+RC,Registro Civil,Documento de identidad para menores sin TI

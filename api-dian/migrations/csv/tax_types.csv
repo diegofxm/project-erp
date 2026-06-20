@@ -1,0 +1,6 @@
+code,name,description
+01,IVA,Impuesto al Valor Agregado
+02,IC,Impuesto al Consumo
+03,ICA,Impuesto de Industria y Comercio
+04,INC,Impuesto Nacional al Consumo
+ZZ,No aplica,No aplica impuesto

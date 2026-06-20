@@ -1,0 +1,11 @@
+code,name,description
+NIU,Unidad,Unidad de medida genérica
+KGM,Kilogramo,Unidad de masa
+LTR,Litro,Unidad de volumen
+MTR,Metro,Unidad de longitud
+M2,Metro Cuadrado,Unidad de área
+M3,Metro Cúbico,Unidad de volumen
+HUR,Hora,Unidad de tiempo
+DAY,Día,Unidad de tiempo
+MON,Mes,Unidad de tiempo
+ANN,Año,Unidad de tiempo

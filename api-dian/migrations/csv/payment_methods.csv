@@ -1,0 +1,7 @@
+code,name,description
+10,Efectivo,Pago en efectivo
+20,Débito,Tarjeta débito
+30,Crédito,Tarjeta de crédito
+42,Transferencia,Transferencia bancaria
+47,Cheque,Pago con cheque
+48,Otros,Otros medios de pago
