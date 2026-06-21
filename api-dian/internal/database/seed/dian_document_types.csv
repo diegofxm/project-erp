@@ -1,0 +1,4 @@
+code,name,description
+01,Factura electrónica de Venta,Factura electrónica de venta nacional
+91,Nota Crédito,Nota crédito que referencia una factura electrónica
+92,Nota Débito,Nota débito que referencia una factura electrónica

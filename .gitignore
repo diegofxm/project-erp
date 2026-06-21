@@ -6,3 +6,20 @@
 # entorno de quien desarrolla, no parte del código versionado.
 /go.work
 /go.work.sum
+
+# Credenciales y configuración local de api-dian
+api-dian/.env
+api-dian/.env.*
+!api-dian/.env.example
+
+# Binarios compilados
+api-dian.exe
+ubl21dian.exe
+/bin/
+/dist/
+
+# Test cache y cobertura
+*.test
+*.out
+coverage.html
+coverage.txt

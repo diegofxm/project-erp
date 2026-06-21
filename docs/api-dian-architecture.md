@@ -127,20 +127,93 @@ Invoice Model (con Issuer + Party + Items embebidos)
 
 ## 4. Estructura del Proyecto API-DIAN
 
+> Igual que en la sección 2: esto refleja lo que ya existe (Fase 2.1-2.2), no solo el plan
+> original. Mismos patrones que `core-bank` (config/logger/database/server), sin `cache` ni
+> `telemetry` — no hacen falta todavía aquí.
+
 ```
 api-dian/
-├── cmd/server/main.go
+├── cmd/server/main.go        # bootstrap: config → logger → database → seed → server
 ├── internal/
-│   ├── model/            # Issuer, NumberingRange, Invoice, CreditNote, DebitNote, DocumentStatus
-│   ├── service/          # orquesta ubl21dian + control atómico de consecutivo
-│   ├── repository/       # persistencia de lo anterior, nada más
-│   ├── handler/
-│   └── routes/
-├── ubl21dian/
-└── config/
+│   ├── config/                # Config + Load() desde variables de entorno
+│   ├── logger/                 # Zap, igual patrón que core-bank
+│   ├── database/
+│   │   ├── database.go          # pgxpool + Migrate() (golang-migrate embebido)
+│   │   ├── seed.go               # Seed() — catálogos DIAN desde seed/*.csv, idempotente
+│   │   ├── migrations/           # *.sql — solo esquema (DDL), nunca datos de catálogo
+│   │   └── seed/                 # *.csv — datos de catálogos, separados del esquema
+│   ├── cryptutil/                # Encrypt/Decrypt AES-256-GCM — lo usan issuers y numbering,
+│   │                              # vive aparte para que ninguno dependa del otro
+│   ├── sqlutil/                    # Placeholders($1..$n) — evita desalinear columnas vs $N
+│   │                                # a mano (causó 2 bugs reales en Fase 2.5/2.6)
+│   ├── server/                      # http.Server, routes(), /health
+│   ├── issuers/                      # emisor/tenant: datos + credenciales DIAN cifradas
+│   ├── numbering/                      # rangos de numeración + ClaimNext atómico (UPDATE de una fila)
+│   ├── documents/                      # orquesta ubl21dian (Invoice/CreditNote/DebitNote) —
+│   │                                    # el único paquete que lo importa directamente
+│   └── api/                             # capa HTTP — primera vez que esto se expone por red
+│       ├── api.go                        # New()/NewFromServices(), Handler(), rutas
+│       ├── dto.go                         # contrato JSON, independiente de domain.* de ubl21dian
+│       ├── handler_issuers.go              # issuers + numbering-ranges
+│       ├── handler_documents.go             # invoices/credit-notes/debit-notes/documents
+│       ├── middleware/                       # RequestID/Logging/Recovery, igual que core-bank
+│       └── response/                          # WriteJSON/WriteError/classify()
 ```
 
-`Issuer` aquí es configuración de tenant (NIT, razón social, régimen fiscal, referencia al certificado, Software ID/PIN, resoluciones de numeración) — **no** es un módulo de CRM. `Customer` y los `Items` de una factura **no son entidades propias**: llegan embebidos en el payload de creación de cada documento y se persisten como snapshot dentro del documento emitido (porque eso es lo que la ley exige conservar), sin CRUD ni reglas de negocio propias sobre ellos.
+Por qué `migrations/*.sql` y `seed/*.csv` están separados: una migración es esquema
+versionado (no se vuelve a tocar una vez aplicada); un catálogo DIAN es dato de referencia que
+puede necesitar refrescarse (la DIAN ajusta una descripción, o se completa un catálogo
+parcial) sin que eso amerite escribir una migración nueva cada vez. Ambos viven dentro de
+`internal/database/` porque `//go:embed` solo puede empotrar archivos del propio árbol de
+paquete — por eso no es una carpeta `migrations/` suelta en la raíz del proyecto (error
+inicial de la Fase 0, corregido en la Fase 2.2).
+
+### 4.1 Mapa de dependencias internas
+
+Por qué el orden de las sub-fases es ese (2.3 y 2.4 no están "sueltas" — son la base que
+necesita 2.5, y por eso no dependen entre sí, pueden construirse en cualquier orden):
+
+```
+config, logger, cryptutil      (sin dependencias entre sí — cryptutil es la única utilidad
+        ↓                       compartida por issuers/numbering, no es una dependencia
+     database                   entre ellos, solo un utilitario común de cifrado)
+        ↓
+   ┌────┴────┐
+ issuers   numbering            (ambos usan database+cryptutil; independientes entre sí)
+   └────┬────┘
+        ↓
+    documents                    (usa issuers + numbering + ubl21dian — el ÚNICO paquete
+        ↓                         de api-dian que importa ubl21dian directamente)
+       api                        (usa documents + issuers; expone HTTP)
+        ↓
+     server                        (conecta todo + /health — ya existe desde la Fase 2.1)
+```
+
+**Regla de naming**: ninguna tabla ni paquete compartido por varios tipos de documento se
+nombra según su primer caso de uso. Es la misma regla que ya aplica en `ubl21dian` para
+`cufe`/`cude`/`securitycode` (sección 2) — se reforzó acá el 2026-06-20 al corregir
+`invoice_type_codes` → `dian_document_types` (ver sección 9.6: ese catálogo es compartido por
+Invoice/CreditNote/DebitNote y a futuro más documentos, no solo de la factura) y
+`document_types` → `identification_types` (para no colisionar conceptualmente con el catálogo
+anterior — dos cosas distintas no deberían competir por el mismo nombre genérico).
+
+### 4.2 Por qué `issuers` y no `companies`
+
+UBL llama a quien emite el documento el *AccountingSupplierParty* — "Issuer" es la traducción
+estándar de ese rol en terminología de facturación electrónica. Se descarta deliberadamente
+"companies" porque es el nombre que tenía el proyecto legacy retirado, donde "company"
+arrastraba CRM completo (contactos, KYC, etc.) — `issuers` aquí es la configuración mínima de
+tenant para *emitir*: NIT, razón social, régimen fiscal, referencia al certificado, Software
+ID/PIN, resoluciones de numeración. **No** es un módulo de CRM.
+
+Si en el futuro existe un CRM real con la empresa completa, esa tabla `companies` vive en
+**otro sistema/servicio**, no dentro de `api-dian` — el mismo patrón que ya usa `core-bank`
+(el ledger no tiene KYC completo de sus clientes, asume que vive afuera). `issuers` y un
+eventual `companies` externo describirían la misma empresa real desde dos ángulos distintos
+("bounded context"): no es duplicación accidental, es separación de responsabilidades a
+propósito. `api-dian` no debe crecer para absorber lo que le corresponde a un CRM.
+
+`Customer` y los `Items` de una factura **no son entidades propias**: llegan embebidos en el payload de creación de cada documento y se persisten como snapshot dentro del documento emitido (porque eso es lo que la ley exige conservar), sin CRUD ni reglas de negocio propias sobre ellos.
 
 ---
 
@@ -154,15 +227,20 @@ HTTP → Handler → Service → Repository → UBL21-DIAN → DIAN
 
 ## 6. Endpoints
 
+> Esto ya existe (Fase 2.7), no es solo el plan. `POST /invoices`/`credit-notes`/`debit-notes`
+> construyen, firman y — si el ambiente lo permite — envían en la misma llamada (no hay un
+> `/send` separado: separar "crear" de "enviar" no tenía un caso de uso real una vez que
+> `ubl21dian` ya hace las dos cosas en un solo pipeline).
+
 ```
-POST /issuers                          # alta de un emisor/tenant (config DIAN)
-POST /issuers/{id}/numbering-ranges    # registrar resolución de numeración
-POST /invoices                         # payload incluye receptor + items embebidos
-POST /invoices/{id}/send
-POST /credit-notes
-POST /debit-notes
-GET  /documents/status/{trackId}
-GET  /numbering-ranges/{id}/consumption
+POST /api/v1/issuers                              # alta de emisor/tenant
+GET  /api/v1/issuers/{id}                         # consultar emisor (nunca expone secretos)
+POST /api/v1/issuers/{id}/numbering-ranges        # registrar rango de numeración
+GET  /api/v1/numbering-ranges/{id}                # consultar rango (nunca expone technical_key)
+POST /api/v1/invoices                             # construir + firmar (+ enviar si aplica)
+POST /api/v1/credit-notes
+POST /api/v1/debit-notes
+GET  /api/v1/documents/{id}                       # documento emitido, con su XML firmado
 GET  /health
 ```
 
@@ -247,6 +325,271 @@ desplegar de verdad, se publica `ubl21dian` en un repo real con un tag (`v0.1.0`
 agrega `require github.com/diegofxm/ubl21dian v0.1.0` al `go.mod` de `api-dian`, y se quita (o
 se deja de usar) el `go.work` — ahí es donde Go vuelve a resolver la dependencia "de verdad".
 
-### 9.6 Próximo paso
+### 9.6 Fase 2 (`api-dian`) — en marcha
 
-Fase 2: el orquestador `api-dian` (persistencia, numeración atómica, API REST) sobre el motor ya construido. La hoja de ruta de la sección 9.2 se retoma después de tener Invoice/CreditNote/DebitNote funcionando de punta a punta a través del orquestador.
+Framework HTTP: `net/http` nativo (ServeMux de Go 1.22+), no Fiber — decidido el 2026-06-20
+para mantener consistencia con `core-bank`; el cuello de botella real de este sistema es la
+DIAN/la base de datos, no el ruteo HTTP.
+
+| Sub-fase | Contenido | Estado |
+|---|---|---|
+| 2.1 | Bootstrap: config/logger/database/server, `/health` | ✅ Verificado contra Postgres real |
+| 2.2 | Esquema + seed de catálogos DIAN (8 catálogos, ver 9.4) | ✅ Verificado: seed idempotente, conteos estables tras re-ejecutar |
+| 2.3 | `internal/issuers` — alta de emisor/tenant, credenciales cifradas | ✅ Verificado contra Postgres real (cifrado confirmado en crudo + roundtrip) |
+| 2.4 | `internal/numbering` — claim atómico de consecutivo | ✅ Verificado: 300 reclamos concurrentes reales contra Postgres, exactamente {1..300} sin duplicados ni huecos |
+| 2.5 | `internal/documents` — orquestar `ubl21dian` para Invoice | ✅ Verificado: pipeline completo contra la DIAN real (certificado y credenciales reales), ver 9.10 |
+| 2.6 | Extender 2.5 a CreditNote/DebitNote | ✅ Verificado localmente contra Postgres real (sin red DIAN, ver 9.11) |
+| 2.7 | `internal/api` — handlers/routes/middleware | ✅ Verificado con servidor real + curl (ver 9.12) |
+| 2.8 | Prueba real end-to-end vía HTTP completo | Pendiente |
+
+**Catálogos cargados en 2.2** (`internal/database/seed/*.csv`, idempotente vía `ON CONFLICT`):
+currencies, departments, identification_types (CC/CE/NIT/TI/PP/RC), municipalities,
+payment_methods, tax_types, unit_measures, dian_document_types (solo 01/91/92 — lo que
+`ubl21dian` ya soporta; ver 4.1 sobre por qué no se llama `invoice_type_codes`).
+
+**Huecos conocidos de datos, no de arquitectura** — pendientes de una fuente oficial antes de
+completarse:
+- `departments`/`municipalities` están incompletos frente al catálogo real DANE/DIVIPOLA (24
+  de 33 departamentos, 10 de ~1.102 municipios — solo lo que ya traía el proyecto legacy).
+- `tax_level_codes`, `credit_note_concepts`, `debit_note_concepts`, `countries`,
+  `type_organizations`, `type_regimes` no están cargados: el Anexo Técnico 1.9 remite esas
+  tablas a la "Caja de Herramientas Factura Electrónica" (un `.xlsx` de la DIAN que no está en
+  este repositorio, secciones 13.2.7.4/13.2.7.5) — no se inventaron códigos de cumplimiento
+  tributario sin esa fuente.
+
+### 9.7 Fase 2.3 (`internal/issuers`) — completa
+
+Mismo patrón que `core-bank/internal/customers` (model/errors/repository/postgres/memory/
+service, con `Service` validando antes de delegar al `Repository`). Diferencia clave: las
+credenciales DIAN (`software_pin`, `certificate`, `certificate_password`) se cifran con
+AES-256-GCM (`internal/issuers/secrets.go`) antes de tocar Postgres — la clave sale de
+`ISSUER_SECRETS_KEY` (variable de entorno, 32 bytes en base64, `openssl rand -base64 32`),
+nunca de la base de datos. `SoftwareID` no se cifra: es un identificador de registro ante la
+DIAN, no una contraseña.
+
+Verificado contra la base de datos real (no solo con el repositorio en memoria de los tests):
+se registró un emisor de prueba, se confirmó por consulta directa que `software_pin` y
+`certificate` NO son legibles en texto plano en las columnas crudas, se releyó a través del
+servicio y los tres secretos descifraron exactamente igual al original, y se borró el
+registro de prueba al terminar.
+
+`technical_key` (la clave técnica de CUFE) **no** vive en `issuers`: es propia de cada
+resolución/rango de numeración, no del emisor — se agrega en la Fase 2.4.
+
+### 9.8 Fase 2.4 (`internal/numbering`) — completa
+
+`numbering_ranges` es una sola tabla genérica (no una por tipo de documento), con
+`dian_document_type_code` distinguiendo Invoice/CreditNote/DebitNote/futuro — misma regla de
+naming de la sección 4.1. `range_to` es `NULL` cuando el tipo de documento no tiene tope
+impuesto por una resolución DIAN (hoy todos lo tienen seteado, pero el esquema ya soporta el
+caso sin tope sin necesitar otra migración).
+
+`ClaimNext` reclama el siguiente consecutivo con un único `UPDATE ... RETURNING` — Postgres
+serializa las escrituras concurrentes sobre la misma fila, así que no hace falta
+`SELECT ... FOR UPDATE` explícito. Extraje el cifrado AES-256-GCM de `issuers` a
+`internal/cryptutil` en este paso, porque `numbering` también necesita cifrar un secreto
+(`technical_key`) y duplicar código de cifrado es exactamente el tipo de cosa que no se debe
+duplicar.
+
+**Verificado contra Postgres real, no solo el repositorio en memoria de los tests**: 300
+goroutines reclamando al mismo tiempo sobre el mismo rango (conexiones reales del pool, no
+simuladas) devolvieron exactamente `{1..300}`, sin duplicados ni huecos, 0 errores; el
+siguiente reclamo tras agotar el rango falló con `ErrRangeExhausted` como se esperaba.
+
+`technical_key` vive aquí, no en `issuers` — es propia de cada resolución, y solo la usa
+`cufe.Compute` (Invoice); CreditNote/DebitNote usan `SoftwarePIN` de `issuers` vía
+`cude.Compute`, no esto.
+
+### 9.10 Fase 2.5 (`internal/documents`) — completa
+
+El primer paquete de `api-dian` que importa `ubl21dian` directamente. `Service.IssueInvoice`
+reproduce exactamente el pipeline de `ubl21dian/soap/realsend_test.go` (Fase 1.7), pero
+orquestado: carga el `Issuer` → carga y reclama el `NumberingRange` (`ClaimNext`) → construye
+`domain.Invoice` → `cufe.Compute` → `securitycode.Compute` → `qr.URL` →
+`builder.BuildInvoice` → `signer.Sign` → `zip.Build` → `soap.SendTestSetAsync` →
+`dian.Interpret` → persiste. Usa el patrón de "ports" angostos (`IssuerPort`/
+`NumberingPort`, mismo patrón que `core-bank/internal/transfers/ports.go`) en vez de depender
+de los `*Service` concretos, para poder probarse con fakes sin necesitar Postgres real.
+
+**Extensión a `issuers` descubierta en este paso**: faltaban campos para construir un
+`domain.Party` completo del emisor (`EntityTypeCode`, `TaxSchemeCode`/`TaxSchemeName`,
+`LiabilityCodes`, `MerchantRegistrationNumber`) — se agregaron en la migración
+`000005_issuers_party_fields`, con defaults confirmados contra la factura real de la Fase 1.7
+(`EntityTypeCode "1"`, `TaxSchemeCode "ZZ"`).
+
+`documents` es UNA tabla genérica (no una por tipo de documento), con `customer`/`lines`/
+`payment_means` como snapshots JSONB pass-through — mismo principio que el resto del
+proyecto. `Totals` y `HeaderTaxes` se calculan automáticamente a partir de `Lines` (no se le
+pide al llamador que los calcule y posiblemente los deje inconsistentes).
+
+**Limitación ya resuelta (ver sección 9.14)**: en su momento `ubl21dian/soap` solo exponía
+`SendTestSetAsync` — `SendBillSync`/`SendBillAsync` se agregaron después, y resultaron ser la
+forma de seguir probando contra habilitación incluso con el set de pruebas ya cerrado.
+`IssueInvoice` por ahora solo intenta enviar si el emisor está en habilitación y el rango
+tiene `TestSetID` (vía `SendTestSetAsync`) — integrar `SendBillSync` al orquestador queda
+pendiente, ver 9.14.
+
+**Verificado contra la DIAN real** (certificado, credenciales y rango de numeración reales de
+`docs/reference/`, no simulados): se registró un emisor real, un rango real, y se emitió una
+factura completa — construida, firmada (XML de 14.206 bytes con `<ds:Signature>` real),
+enviada por SOAP, y se recibió un `ZipKey` real de la DIAN. El sondeo (`GetStatusZip`) devolvió
+`StatusCode "2"`, `IsValid false`, con la descripción real:
+*"Set de prueba con identificador ... se encuentra Aceptado."* — es decir, el set de pruebas
+de habilitación de la Fase 1.7 ya está cerrado (esperado, no es un defecto de este código). Al
+construir esta verificación se encontró y corrigió un bug real: las dos primeras versiones de
+`Create` (en `issuers` y en `documents`) tenían menos placeholders SQL (`$1..$N`) que columnas
+— typeo que ningún test con repositorio en memoria podía detectar, solo Postgres real. También
+se descubrió que `dian.Result.StatusDescription` (el texto humano útil) se estaba perdiendo —
+solo se persistía `StatusMessage` (vacío en la respuesta real) — corregido agregando
+`dian_status_description` como columna propia.
+
+### 9.11 Fase 2.6 (CreditNote/DebitNote en `internal/documents`) — completa
+
+`IssueCreditNote`/`IssueDebitNote` reutilizan exactamente el mismo pipeline que `IssueInvoice`
+(refactorizado en `preparedIssuance`/`buildNoteBase`/`finalizeAndSend`, compartido por los
+tres) — la única diferencia real es `cude.Compute` en vez de `cufe.Compute` (usa
+`SoftwarePIN`, no la clave técnica del rango) y `builder.BuildCreditNote`/`BuildDebitNote` en
+vez de `BuildInvoice`. `documents` sigue siendo una sola tabla: `billing_reference` y
+`discrepancy_response` (JSONB, nulos en Invoice) y `note_type_code` (solo CreditNote —
+DebitNote no tiene ese campo en `ubl21dian`) son las únicas columnas nuevas.
+
+**Decisión explícita del usuario**: verificación 100% local para esta fase, sin tocar la red
+de la DIAN — el set de pruebas de habilitación de la Fase 1.7/1.9 ya está cerrado
+("Aceptado"), y el portal ya ofrece el paso a producción pero el usuario decidió no activarlo
+todavía. `IssueInvoice`/`IssueCreditNote`/`IssueDebitNote` se probaron con un emisor en
+ambiente "producción" sin `TestSetID` — eso hace que `finalizeAndSend` construya, firme y
+persista, pero nunca intente la rama de envío SOAP (mismo código de producción real, pero sin
+ejecutar la parte que requeriría red). Verificado contra Postgres real (no solo el repo en
+memoria): se crearon Invoice + CreditNote + DebitNote reales en la base, se releyeron desde
+Postgres (no desde el objeto en memoria), y `billing_reference`/`discrepancy_response`/
+`note_type_code` confirmaron el roundtrip JSONB correcto para los tres tipos.
+
+**2 bugs reales más encontrados por esa verificación** (ningún test con repo en memoria los
+detecta):
+- `issuers.PostgresRepository.Create` insertaba `liability_codes` (columna `NOT NULL`) como
+  `NULL` cuando el slice de Go era `nil` — el `DEFAULT '{}'` de la columna solo aplica si la
+  columna se omite del INSERT, no si se manda `NULL` explícito.
+- Se extrajo `internal/sqlutil.Placeholders(n)` — genera `$1,$2,...,$n` a partir de
+  `len(args)`, así el conteo de placeholders nunca puede desalinearse de las columnas otra vez
+  (la causa raíz de los 2 bugs de Fase 2.5). Tanto `issuers` como `documents` ya lo usan.
+
+### 9.12 Fase 2.7 (`internal/api`) — completa
+
+Mismo patrón que `core-bank/internal/api`: middleware (`RequestID` → `Logging` → `Recovery`,
+de afuera hacia adentro), `response.WriteJSON`/`WriteError`/`classify()` mapeando los errores
+de dominio de `issuers`/`numbering`/`documents` a códigos HTTP, y un único `API` struct que
+agrupa los tres servicios. `internal/api/dto.go` define el contrato JSON **independiente**
+de los tipos de `domain.*` de `ubl21dian` (que no tienen tags JSON y pueden cambiar libremente
+— solo `internal/documents` debe conocer `ubl21dian` directamente, ver sección 4.1).
+
+Decisiones de seguridad explícitas en los DTOs de respuesta: `issuerResponse` nunca incluye
+`Certificate`/`SoftwarePIN`/`CertificatePassword` (ni cifrados); `numberingRangeResponse`
+nunca incluye `TechnicalKey` — una vez guardados, la API no los vuelve a exponer.
+
+No hay un `POST /invoices/{id}/send` separado del `POST /invoices` original (sí estaba en el
+plan original, sección 6) — se eliminó porque ya no tenía un caso de uso real: `IssueInvoice`
+ya construye, firma y envía (si aplica) en una sola llamada de servicio; separar "crear" de
+"enviar" en la API hubiera sido una distinción sin contenido real detrás.
+
+**Verificado con el servidor real, no solo `httptest`**: se levantó `cmd/server` contra
+Postgres real, y con `curl` se creó un emisor (certificado autofirmado de prueba, igual que en
+las fases anteriores), un rango de numeración, y se emitió una factura completa — la
+respuesta trajo un CUFE real, una URL de QR real, y el XML firmado completo con
+`<ds:Signature>`, certificado embebido y `SignedProperties` de XAdES. Se confirmó que la
+respuesta del emisor NO contiene `certificate_base64` ni `software_pin`. Registros de prueba
+eliminados al terminar.
+
+### 9.14 `SendBillSync`/`SendBillAsync` agregados a `ubl21dian` — habilitación sigue disponible
+
+Pregunta que se resolvió el 2026-06-21: una vez el set de pruebas oficial de la Fase 1.7/1.9
+quedó "Aceptado" (cerrado, `SendTestSetAsync` ya no acepta más envíos para ese `TestSetID`),
+¿la DIAN sigue aceptando envíos contra habilitación con las operaciones normales de envío
+(`SendBillSync`/`SendBillAsync`), o bloquea todo envío adicional una vez completada la
+certificación?
+
+**Resultado: sigue disponible.** Se implementaron ambas operaciones en `ubl21dian/soap`
+(`operations.go`), confirmadas contra el WSDL real (`docs/reference/wsdl/`):
+
+- **`SendBillSync(fileName, content)`** — un solo documento, síncrono, devuelve `*DianResponse`
+  de inmediato (mismo tipo que `GetStatus`/`GetStatusZip`, no `UploadDocumentResponse`). No
+  lleva `testSetId`.
+- **`SendBillAsync(fileName, content)`** — uno o varios documentos, asíncrono, devuelve
+  `*UploadDocumentResponse` (`ZipKey`), el resultado real se consulta después con
+  `GetStatusZip` — mismo patrón que `SendTestSetAsync`, también sin `testSetId`.
+
+**Verificado contra la DIAN real** (`soap/realsend_sync_test.go`, `TestSendBillSync_Real`): un
+primer intento falló por un error propio de la prueba (faltaban `StartDate`/`EndDate` del
+rango de numeración — la DIAN lo señaló con precisión: reglas `FAB07a`/`FAB08a`/`ZB01`). Tras
+corregirlo, la DIAN **autorizó la factura de verdad**: `StatusCode "00"`,
+`"Procesado Correctamente."`, `"La Factura electrónica SETP990059896, ha sido autorizada."`
+— con el set de pruebas oficial ya cerrado desde hace varias fases. Esto confirma que
+habilitación seguirá disponible para pruebas de regresión durante el resto del proyecto, sin
+necesidad de pedir un set de pruebas nuevo ni pasar a producción.
+
+Queda una notificación no bloqueante (`FAJ43b`: el nombre informado no coincide exactamente
+con el registrado en el RUT para ese NIT) — es solo "Notificación", no "Rechazo", no afectó el
+`StatusCode 00`.
+
+### 9.15 `SendBillSync` integrado a `internal/documents.Service` — primer envío real a través
+del orquestador completo
+
+`finalizeAndSend` (`internal/documents/service.go`) ahora enruta así:
+
+- `iss.Environment != Habilitación` **o** `nr.Environment != Habilitación` → solo construye y
+  firma, nunca envía (doble candado a propósito — antes de `SendBillSync` esto dependía solo
+  de `TestSetID`, pero ahora habilitación envía de verdad incluso sin él, así que hacía falta
+  un segundo seguro contra un envío accidental a producción).
+- Habilitación + `TestSetID` presente → `sendAndUpdate` (camino viejo, `SendTestSetAsync`,
+  asíncrono, sondea `GetStatusZip`).
+- Habilitación + sin `TestSetID` → `sendSyncAndUpdate` (nuevo, `SendBillSync`, síncrono, la
+  respuesta final llega en la misma llamada, sin `ZipKey` ni sondeo).
+
+Las pruebas unitarias/`httptest` que antes usaban un emisor en habilitación sin `TestSetID`
+para probar la ruta "no se envía" tuvieron que migrarse a `Environment: Producción` — ese es
+ahora el único ambiente que nunca intenta red real (ver `internal/documents/service_test.go`,
+`internal/api/api_test.go`).
+
+**Verificado contra la DIAN real a través del orquestador completo** (no solo `ubl21dian`
+directo) — `documents.Service.IssueInvoice` con un emisor/rango reales, sin `TestSetID`: el
+primer intento fue rechazado (`StatusCode 99`, "errores en campos mandatorios") y reveló **dos
+bugs reales, nunca antes detectados** porque ningún test previo había llegado a un envío real
+a través de la API:
+
+1. **`partyFromIssuer` nunca llenaba `Address.CityName`/`StateName`** — solo `CityCode`/
+   `StateCode`. La DIAN exige el nombre, no solo el código. Fix: `issuers.Issuer` ahora tiene
+   `DepartmentName`/`MunicipalityName`, poblados con un JOIN contra `departments`/
+   `municipalities` en `GetByID`/`GetByNIT` (`internal/issuers/postgres.go`,
+   `issuerSelectWithNames`) — deliberadamente fuera de `Create()`, para no duplicar el dato
+   del catálogo.
+
+2. **El catálogo `identification_types` (sembrado en la Fase 2.2) tenía los códigos
+   equivocados** — abreviaturas legibles ("CC", "NIT", "CE"...) en vez de los códigos
+   numéricos oficiales de la DIAN ("13", "31", "22"...) que `cbc:CompanyID.@schemeName` /
+   `sts:ProviderID.@schemeName` esperan literalmente (`ubl21dian/builder/party.go`,
+   `extensions.go`). Confirmado contra la factura real ya autorizada
+   (`soap/realsend_sync_test.go`, que usa `"13"`/`"31"` directamente). Fix: CSV/migración
+   corregidos a los 11 códigos numéricos reales (`11,12,13,21,22,31,41,42,47,50,91`); catálogo
+   real reseembrado, el único emisor real existente (creado por Postman) migrado de `"NIT"` a
+   `"31"`.
+
+3. **Bug adicional, mismo origen** (rechazo `FAB23`+`FAB22b`): `softwareProviderFromIssuer`
+   reutilizaba `iss.IdentificationTypeCode` para el proveedor de software — pero la DIAN
+   registra a todo proveedor de software/facturador electrónico por NIT (código `"31"`)
+   **sin importar el tipo de identificación personal del emisor** (un emisor persona natural
+   se identifica como `"13"` en `Supplier.Identification`, pero siempre `"31"` en
+   `SoftwareProvider.ProviderIdentification` — mismo número, distinto rol). Fix: `"31"`
+   ahora fijo en `softwareProviderFromIssuer`, no heredado del emisor.
+
+Tras los tres fixes: **`StatusCode "00"`, "Procesado Correctamente.", "La Factura electrónica
+SETP990000000, ha sido autorizada."** — primera factura real autorizada a través de la cadena
+completa `documents.Service` → `ubl21dian` → DIAN, sin `TestSetID`. Queda únicamente la
+notificación no bloqueante `FAJ43b` (nombre no coincide con el RUT), ya documentada en 9.14.
+
+### 9.16 Próximo paso
+
+Fase 2.8 (prueba real end-to-end vía HTTP completo) queda prácticamente cubierta por la
+verificación de 9.15 — solo falta repetirla pasando por el servidor HTTP real (curl/Postman)
+en vez de llamar a `documents.Service` directo, como ya se hizo en la Fase 2.7. Antes de eso,
+en marcha: diseño de `internal/auth` (decisión del usuario: autenticación propia, no
+proveedor externo) y revisión de alcance de Customers/Products/Listados-reportes para
+terminar el orquestador (ver sección 8 "Fuera de alcance").
