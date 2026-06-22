@@ -33,6 +33,13 @@ type issueInvoiceRequest struct {
 	PaymentMeans     []paymentMeanDTO `json:"payment_means,omitempty"`
 	Note             string           `json:"note,omitempty"`
 	CurrencyCode     string           `json:"currency_code,omitempty"`
+
+	// CustomerID es opcional — referencia de solo trazabilidad a un cliente guardado en
+	// internal/customers (ver documents.IssueInvoiceRequest.CustomerID). NUNCA reemplaza
+	// "customer": el snapshot pass-through sigue siendo obligatorio y es lo que se firma.
+	// documents.Service.prepare verifica que pertenezca a este mismo emisor
+	// (ErrCustomerIssuerMismatch), igual criterio que numbering_range_id.
+	CustomerID string `json:"customer_id,omitempty"`
 }
 
 type issueNoteRequest struct {
@@ -44,6 +51,7 @@ type issueNoteRequest struct {
 	CurrencyCode        string                  `json:"currency_code,omitempty"`
 	BillingReference    billingReferenceDTO     `json:"billing_reference"`
 	DiscrepancyResponse *discrepancyResponseDTO `json:"discrepancy_response,omitempty"`
+	CustomerID          string                  `json:"customer_id,omitempty"` // opcional, ver issueInvoiceRequest.CustomerID
 }
 
 type issueCreditNoteRequest struct {
@@ -69,6 +77,10 @@ type documentResponse struct {
 	DianStatusCode        string    `json:"dian_status_code,omitempty"`
 	DianStatusDescription string    `json:"dian_status_description,omitempty"`
 	DianStatusMessage     string    `json:"dian_status_message,omitempty"`
+
+	// CustomerID es solo trazabilidad — ver documents.Document.CustomerID. nil si la factura
+	// no referenció un cliente guardado.
+	CustomerID *uuid.UUID `json:"customer_id,omitempty"`
 }
 
 func documentToResponse(d *documents.Document) documentResponse {
@@ -76,6 +88,7 @@ func documentToResponse(d *documents.Document) documentResponse {
 		ID:                    d.ID,
 		IssuerID:              d.IssuerID,
 		NumberingRangeID:      d.NumberingRangeID,
+		CustomerID:            d.CustomerID,
 		DianDocumentTypeCode:  d.DianDocumentTypeCode,
 		Prefix:                d.Prefix,
 		Number:                d.Number,
@@ -102,6 +115,10 @@ func (a *API) handleIssueInvoice(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	customerID, ok := parseOptionalUUIDField(w, req.CustomerID, "customer_id")
+	if !ok {
+		return
+	}
 
 	doc, err := a.documents.IssueInvoice(r.Context(), documents.IssueInvoiceRequest{
 		IssuerID:         middleware.GetTenantID(r.Context()),
@@ -111,6 +128,7 @@ func (a *API) handleIssueInvoice(w http.ResponseWriter, r *http.Request) {
 		PaymentMeans:     paymentMeansToDomain(req.PaymentMeans),
 		Note:             req.Note,
 		CurrencyCode:     req.CurrencyCode,
+		CustomerID:       customerID,
 	})
 	if err != nil {
 		response.WriteError(w, err)
@@ -249,6 +267,10 @@ func toServiceNoteRequest(w http.ResponseWriter, issuerID uuid.UUID, req issueNo
 	if !ok {
 		return documents.IssueNoteRequest{}, false
 	}
+	customerID, ok := parseOptionalUUIDField(w, req.CustomerID, "customer_id")
+	if !ok {
+		return documents.IssueNoteRequest{}, false
+	}
 
 	out := documents.IssueNoteRequest{
 		IssuerID:         issuerID,
@@ -258,6 +280,7 @@ func toServiceNoteRequest(w http.ResponseWriter, issuerID uuid.UUID, req issueNo
 		PaymentMeans:     paymentMeansToDomain(req.PaymentMeans),
 		Note:             req.Note,
 		CurrencyCode:     req.CurrencyCode,
+		CustomerID:       customerID,
 		BillingReference: documents.BillingReferenceInput{
 			Prefix:    req.BillingReference.Prefix,
 			Number:    req.BillingReference.Number,

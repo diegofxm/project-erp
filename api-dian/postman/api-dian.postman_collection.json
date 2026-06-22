@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "api-dian",
-    "description": "Pruebas manuales de la API de api-dian (Fase 2.7-2.9). El certificado embebido en 'Registrar emisor + usuario' es uno autofirmado generado solo para pruebas (no es el certificado real de la DIAN) — sirve para construir y firmar XML localmente, nunca para enviar a la DIAN de verdad. Los requests están encadenados con variables de colección: corre las carpetas en orden y cada paso captura automáticamente los IDs/token que necesita el siguiente. Todo excepto Health y Auth exige el header Authorization: Bearer {{accessToken}}, capturado automáticamente al registrarse/iniciar sesión — 'un usuario = un emisor', así que ningún request manda issuer_id: siempre se toma del token.",
+    "description": "Pruebas manuales de la API de api-dian (Fase 2.7-2.11). El certificado embebido en 'Registrar emisor + usuario' es uno autofirmado generado solo para pruebas (no es el certificado real de la DIAN) — sirve para construir y firmar XML localmente, nunca para enviar a la DIAN de verdad. Los requests están encadenados con variables de colección: corre las carpetas en orden y cada paso captura automáticamente los IDs/token que necesita el siguiente. Todo excepto Health y Auth exige el header Authorization: Bearer {{accessToken}}, capturado automáticamente al registrarse/iniciar sesión — 'un usuario = un emisor', así que ningún request manda issuer_id: siempre se toma del token. Customers/Products son catálogos de conveniencia (no cambian cómo se emiten documentos — invoices sigue recibiendo customer/lines pass-through).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -13,7 +13,9 @@
     { "key": "debitNoteRangeId", "value": "" },
     { "key": "invoiceDocumentId", "value": "" },
     { "key": "invoicePrefix", "value": "" },
-    { "key": "invoiceCufe", "value": "" }
+    { "key": "invoiceCufe", "value": "" },
+    { "key": "customerId", "value": "" },
+    { "key": "productId", "value": "" }
   ],
   "auth": {
     "type": "bearer",
@@ -255,9 +257,10 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "customer_id es opcional — solo trazabilidad a un cliente guardado (ver carpeta '3. Customers'), nunca reemplaza 'customer'. Si {{customerId}} está vacío, se manda como cadena vacía y la API lo trata como 'no se mandó' (sin error). Para probarlo de verdad: corre primero 'POST Crear cliente' en la carpeta de Customers.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"numbering_range_id\": \"{{invoiceRangeId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Servicio de prueba (Postman)\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ]\n}",
+              "raw": "{\n  \"numbering_range_id\": \"{{invoiceRangeId}}\",\n  \"customer_id\": \"{{customerId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Servicio de prueba (Postman)\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ]\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/api/v1/invoices", "host": ["{{baseUrl}}"], "path": ["api", "v1", "invoices"] }
@@ -325,6 +328,142 @@
                 { "key": "offset", "value": "0" }
               ]
             }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Customers (catálogo)",
+      "item": [
+        {
+          "name": "POST Crear cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('customerId', body.id); }",
+                  "pm.test('201 Created', () => pm.response.code === 201);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identification\": { \"number\": \"900111222\", \"type_code\": \"31\" },\n  \"name\": \"Cliente Recurrente S.A.S.\",\n  \"address\": { \"line\": \"Calle 50\", \"city_code\": \"11001\", \"city_name\": \"Bogotá\" },\n  \"email\": \"cliente@recurrente.test\",\n  \"phone\": \"3001234567\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/customers", "host": ["{{baseUrl}}"], "path": ["api", "v1", "customers"] }
+          }
+        },
+        {
+          "name": "GET Listar mis clientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/customers", "host": ["{{baseUrl}}"], "path": ["api", "v1", "customers"] }
+          }
+        },
+        {
+          "name": "GET Consultar cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/customers/{{customerId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "customers", "{{customerId}}"] }
+          }
+        },
+        {
+          "name": "PUT Actualizar cliente",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identification\": { \"number\": \"900111222\", \"type_code\": \"31\" },\n  \"name\": \"Cliente Recurrente S.A.S. (actualizado)\",\n  \"email\": \"cliente@recurrente.test\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/customers/{{customerId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "customers", "{{customerId}}"] }
+          }
+        },
+        {
+          "name": "DELETE Eliminar cliente",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/customers/{{customerId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "customers", "{{customerId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Products (catálogo)",
+      "item": [
+        {
+          "name": "POST Crear producto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('productId', body.id); }",
+                  "pm.test('201 Created', () => pm.response.code === 201);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Licencia mensual de software\",\n  \"unit_code\": \"94\",\n  \"unit_price_cents\": 5000000,\n  \"item_code\": \"LIC-001\",\n  \"item_type_code\": \"999\",\n  \"item_type_name\": \"Estándar de adopción del contribuyente\",\n  \"tax_type_code\": \"01\",\n  \"tax_type_name\": \"IVA\",\n  \"tax_percent\": 19\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/products", "host": ["{{baseUrl}}"], "path": ["api", "v1", "products"] }
+          }
+        },
+        {
+          "name": "GET Listar mis productos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/products", "host": ["{{baseUrl}}"], "path": ["api", "v1", "products"] }
+          }
+        },
+        {
+          "name": "GET Consultar producto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "PUT Actualizar producto",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Licencia mensual de software\",\n  \"unit_code\": \"94\",\n  \"unit_price_cents\": 6000000,\n  \"tax_type_code\": \"01\",\n  \"tax_type_name\": \"IVA\",\n  \"tax_percent\": 19\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "products", "{{productId}}"] }
+          }
+        },
+        {
+          "name": "DELETE Eliminar producto",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "products", "{{productId}}"] }
           }
         }
       ]

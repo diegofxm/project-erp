@@ -41,10 +41,10 @@ type DiscrepancyResponseInput struct {
 // todos en la MISMA tabla (DianDocumentTypeCode distingue cuál es, igual regla de naming que
 // dian_document_types) — no una tabla por tipo.
 //
-// Customer, Lines y PaymentMeans son snapshots de solo lectura (pass-through, sin tablas
-// customers/products propias — ver docs/api-dian-architecture.md sección 4.2): se reciben en
+// Customer, Lines y PaymentMeans son snapshots de solo lectura (pass-through): se reciben en
 // el payload de emisión y se persisten tal cual, porque eso es lo que la ley exige conservar
-// junto al documento, no porque api-dian los gestione como entidades propias.
+// junto al documento — nunca se reconstruyen a partir de customers/products ni de nada que
+// pueda cambiar después de emitir (ver docs/api-dian-architecture.md sección 9.21).
 type Document struct {
 	ID                   uuid.UUID
 	IssuerID             uuid.UUID
@@ -61,6 +61,12 @@ type Document struct {
 	Lines        []domain.Line
 	PaymentMeans []domain.PaymentMean
 	Totals       domain.Totals
+
+	// CustomerID es una referencia OPCIONAL y de solo trazabilidad a internal/customers — NO
+	// es la fuente de verdad del documento (eso sigue siendo Customer, arriba) ni participa en
+	// construir el XML. nil si la petición no traía un cliente guardado. Ver
+	// docs/api-dian-architecture.md sección 9.21 para el porqué de esta separación.
+	CustomerID *uuid.UUID
 
 	// Solo aplican a CreditNote/DebitNote — nil en Invoice.
 	BillingReference    *BillingReferenceInput

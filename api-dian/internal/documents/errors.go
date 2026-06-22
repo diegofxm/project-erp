@@ -24,4 +24,10 @@ var (
 	// consecutivos de la resolución DIAN de OTRO emisor. Con internal/auth en juego, además
 	// cierra la puerta a que un usuario emita documentos usando el rango de otro tenant.
 	ErrNumberingRangeIssuerMismatch = errors.New("documents: el rango de numeración no pertenece a este emisor")
+
+	// ErrCustomerIssuerMismatch indica que el CustomerID opcional (trazabilidad, ver model.go)
+	// no pertenece al emisor con el que se intenta emitir — mismo criterio que
+	// ErrNumberingRangeIssuerMismatch: nunca confiar en que un ID referenciado por el cliente
+	// realmente le pertenece sin comprobarlo.
+	ErrCustomerIssuerMismatch = errors.New("documents: el cliente referenciado no pertenece a este emisor")
 )

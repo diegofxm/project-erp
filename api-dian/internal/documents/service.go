@@ -55,11 +55,12 @@ type Service struct {
 	repo      Repository
 	issuers   IssuerPort
 	numbering NumberingPort
+	customers CustomerPort
 }
 
 // New crea el servicio de documentos.
-func New(repo Repository, issuerPort IssuerPort, numberingPort NumberingPort) *Service {
-	return &Service{repo: repo, issuers: issuerPort, numbering: numberingPort}
+func New(repo Repository, issuerPort IssuerPort, numberingPort NumberingPort, customerPort CustomerPort) *Service {
+	return &Service{repo: repo, issuers: issuerPort, numbering: numberingPort, customers: customerPort}
 }
 
 // IssueInvoiceRequest es el payload de emisión de una Factura Electrónica de Venta.
@@ -73,6 +74,10 @@ type IssueInvoiceRequest struct {
 	PaymentMeans     []domain.PaymentMean
 	Note             string
 	CurrencyCode     string // default "COP" si vacío
+
+	// CustomerID es opcional — referencia de solo trazabilidad a internal/customers (ver
+	// model.go). nil si la petición no traía un cliente guardado.
+	CustomerID *uuid.UUID
 }
 
 // IssueNoteRequest es el payload común de CreditNote y DebitNote — ambas referencian un
@@ -87,6 +92,7 @@ type IssueNoteRequest struct {
 	CurrencyCode        string
 	BillingReference    BillingReferenceInput
 	DiscrepancyResponse *DiscrepancyResponseInput
+	CustomerID          *uuid.UUID // opcional, ver IssueInvoiceRequest.CustomerID
 }
 
 // IssueCreditNoteRequest extiende IssueNoteRequest con lo único que CreditNote tiene y
@@ -111,7 +117,7 @@ func (s *Service) IssueInvoice(ctx context.Context, req IssueInvoiceRequest) (*D
 		return nil, err
 	}
 
-	p, err := s.prepare(ctx, req.IssuerID, req.NumberingRangeID, invoiceDianDocumentType)
+	p, err := s.prepare(ctx, req.IssuerID, req.NumberingRangeID, invoiceDianDocumentType, req.CustomerID)
 	if err != nil {
 		return nil, err
 	}
@@ -167,6 +173,7 @@ func (s *Service) IssueInvoice(ctx context.Context, req IssueInvoiceRequest) (*D
 		IssueTime:            inv.IssueTime,
 		CurrencyCode:         currency,
 		Customer:             req.Customer,
+		CustomerID:           req.CustomerID,
 		Lines:                req.Lines,
 		PaymentMeans:         req.PaymentMeans,
 		Totals:               totals,
@@ -184,7 +191,7 @@ func (s *Service) IssueCreditNote(ctx context.Context, req IssueCreditNoteReques
 		return nil, err
 	}
 
-	p, err := s.prepare(ctx, req.IssuerID, req.NumberingRangeID, creditNoteDianDocumentType)
+	p, err := s.prepare(ctx, req.IssuerID, req.NumberingRangeID, creditNoteDianDocumentType, req.CustomerID)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +229,7 @@ func (s *Service) IssueDebitNote(ctx context.Context, req IssueNoteRequest) (*Do
 		return nil, err
 	}
 
-	p, err := s.prepare(ctx, req.IssuerID, req.NumberingRangeID, debitNoteDianDocumentType)
+	p, err := s.prepare(ctx, req.IssuerID, req.NumberingRangeID, debitNoteDianDocumentType, req.CustomerID)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +300,7 @@ type preparedIssuance struct {
 	now    time.Time
 }
 
-func (s *Service) prepare(ctx context.Context, issuerID, rangeID uuid.UUID, expectedDianDocType string) (*preparedIssuance, error) {
+func (s *Service) prepare(ctx context.Context, issuerID, rangeID uuid.UUID, expectedDianDocType string, customerID *uuid.UUID) (*preparedIssuance, error) {
 	iss, err := s.issuers.GetIssuer(ctx, issuerID)
 	if err != nil {
 		return nil, err
@@ -307,6 +314,15 @@ func (s *Service) prepare(ctx context.Context, issuerID, rangeID uuid.UUID, expe
 	}
 	if nr.DianDocumentTypeCode != expectedDianDocType {
 		return nil, ErrWrongDocumentType
+	}
+	if customerID != nil {
+		c, err := s.customers.GetCustomer(ctx, *customerID)
+		if err != nil {
+			return nil, err
+		}
+		if c.IssuerID != issuerID {
+			return nil, ErrCustomerIssuerMismatch
+		}
 	}
 
 	number, err := s.numbering.ClaimNext(ctx, rangeID)
@@ -376,6 +392,7 @@ func documentFromNoteBase(base domain.Invoice, dianDocType string, number int64,
 		IssueTime:            base.IssueTime,
 		CurrencyCode:         base.CurrencyCode,
 		Customer:             req.Customer,
+		CustomerID:           req.CustomerID,
 		Lines:                req.Lines,
 		PaymentMeans:         req.PaymentMeans,
 		Totals:               base.Totals,

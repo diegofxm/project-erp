@@ -6,9 +6,11 @@ import (
 	"net/http"
 
 	"github.com/diegofxm/api-dian/internal/auth"
+	"github.com/diegofxm/api-dian/internal/customers"
 	"github.com/diegofxm/api-dian/internal/documents"
 	"github.com/diegofxm/api-dian/internal/issuers"
 	"github.com/diegofxm/api-dian/internal/numbering"
+	"github.com/diegofxm/api-dian/internal/products"
 )
 
 // Error es el JSON body devuelto en respuestas no-2xx.
@@ -35,7 +37,9 @@ func classify(err error) (int, string) {
 	switch {
 	case errors.Is(err, issuers.ErrIssuerNotFound),
 		errors.Is(err, numbering.ErrRangeNotFound),
-		errors.Is(err, documents.ErrDocumentNotFound):
+		errors.Is(err, documents.ErrDocumentNotFound),
+		errors.Is(err, customers.ErrCustomerNotFound),
+		errors.Is(err, products.ErrProductNotFound):
 		return http.StatusNotFound, err.Error()
 
 	// ── 401 ──────────────────────────────────────────────────────────────────
@@ -68,14 +72,20 @@ func classify(err error) (int, string) {
 		errors.Is(err, auth.ErrEmptyEmail),
 		errors.Is(err, auth.ErrEmptyPassword),
 		errors.Is(err, auth.ErrPasswordTooShort),
-		errors.Is(err, auth.ErrEmptyName):
+		errors.Is(err, auth.ErrEmptyName),
+		errors.Is(err, customers.ErrEmptyName),
+		errors.Is(err, customers.ErrEmptyIdentification),
+		errors.Is(err, products.ErrEmptyDescription),
+		errors.Is(err, products.ErrEmptyUnitCode),
+		errors.Is(err, products.ErrInvalidUnitPrice):
 		return http.StatusBadRequest, err.Error()
 
 	// ── 422 (regla de negocio: la petición está bien formada pero no se puede
 	//         cumplir tal como está) ───────────────────────────────────────────
 	case errors.Is(err, numbering.ErrRangeExhausted),
 		errors.Is(err, documents.ErrWrongDocumentType),
-		errors.Is(err, documents.ErrNumberingRangeIssuerMismatch):
+		errors.Is(err, documents.ErrNumberingRangeIssuerMismatch),
+		errors.Is(err, documents.ErrCustomerIssuerMismatch):
 		return http.StatusUnprocessableEntity, err.Error()
 	}
 

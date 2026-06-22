@@ -23,9 +23,11 @@ import (
 
 	"github.com/diegofxm/api-dian/internal/api"
 	"github.com/diegofxm/api-dian/internal/auth"
+	"github.com/diegofxm/api-dian/internal/customers"
 	"github.com/diegofxm/api-dian/internal/documents"
 	"github.com/diegofxm/api-dian/internal/issuers"
 	"github.com/diegofxm/api-dian/internal/numbering"
+	"github.com/diegofxm/api-dian/internal/products"
 )
 
 // ── Setup ────────────────────────────────────────────────────────────────────────────────────
@@ -59,11 +61,13 @@ func newTestEnv(t *testing.T) *testEnv {
 
 	issuerSvc := issuers.New(issuers.NewMemoryRepository())
 	numberingSvc := numbering.New(numbering.NewMemoryRepository())
-	docsSvc := documents.New(documents.NewMemoryRepository(), issuerSvc, numberingSvc)
+	customersSvc := customers.New(customers.NewMemoryRepository())
+	productsSvc := products.New(products.NewMemoryRepository())
+	docsSvc := documents.New(documents.NewMemoryRepository(), issuerSvc, numberingSvc, customersSvc)
 	tokens := auth.NewTokenIssuer([]byte("clave-de-prueba-no-usar-en-produccion"))
 	authSvc := auth.New(auth.NewMemoryRepository(), issuerSvc, tokens)
 
-	a := api.NewFromServices(log, issuerSvc, numberingSvc, docsSvc, authSvc, tokens)
+	a := api.NewFromServices(log, issuerSvc, numberingSvc, docsSvc, authSvc, tokens, customersSvc, productsSvc)
 
 	return &testEnv{handler: a.Handler()}
 }
@@ -437,6 +441,68 @@ func TestAPI_IssueInvoice_OtherTenantRange(t *testing.T) {
 	assert.Equal(t, http.StatusUnprocessableEntity, rw.Code)
 }
 
+func createTestCustomer(t *testing.T, env *testEnv, token string) string {
+	t.Helper()
+	rw := env.doAuth(t, "POST", "/api/v1/customers", token, testCustomer())
+	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	return got["id"].(string)
+}
+
+func TestAPI_IssueInvoice_WithCustomerID_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, token, "01", "SETP")
+	customerID := createTestCustomer(t, env, token)
+
+	body := testCustomer()
+	rw := env.doAuth(t, "POST", "/api/v1/invoices", token, map[string]any{
+		"numbering_range_id": rangeID,
+		"customer":           body,
+		"lines":              testLines(),
+		"customer_id":        customerID,
+	})
+
+	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.Equal(t, customerID, got["customer_id"])
+}
+
+func TestAPI_IssueInvoice_OtherTenantCustomerID(t *testing.T) {
+	env := newTestEnv(t)
+	_, tokenA := registerTestIssuer(t, env)
+	_, tokenB := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, tokenA, "01", "SETP")
+	customerIDFromB := createTestCustomer(t, env, tokenB)
+
+	// El emisor A no debe poder emitir referenciando el cliente del emisor B.
+	rw := env.doAuth(t, "POST", "/api/v1/invoices", tokenA, map[string]any{
+		"numbering_range_id": rangeID,
+		"customer":           testCustomer(),
+		"lines":              testLines(),
+		"customer_id":        customerIDFromB,
+	})
+
+	assert.Equal(t, http.StatusUnprocessableEntity, rw.Code)
+}
+
+func TestAPI_IssueInvoice_InvalidCustomerID(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, token, "01", "SETP")
+
+	rw := env.doAuth(t, "POST", "/api/v1/invoices", token, map[string]any{
+		"numbering_range_id": rangeID,
+		"customer":           testCustomer(),
+		"lines":              testLines(),
+		"customer_id":        "no-es-un-uuid",
+	})
+
+	assert.Equal(t, http.StatusBadRequest, rw.Code)
+}
+
 func TestAPI_IssueCreditNote_OK(t *testing.T) {
 	env := newTestEnv(t)
 	_, token := registerTestIssuer(t, env)
@@ -576,6 +642,242 @@ func TestAPI_ListDocuments_InvalidLimit(t *testing.T) {
 	_, token := registerTestIssuer(t, env)
 	rw := env.doAuth(t, "GET", "/api/v1/documents?limit=no-es-un-numero", token, nil)
 	assert.Equal(t, http.StatusBadRequest, rw.Code)
+}
+
+// ── Customers ────────────────────────────────────────────────────────────────────────────────
+
+func TestAPI_CreateCustomer_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+
+	rw := env.doAuth(t, "POST", "/api/v1/customers", token, testCustomer())
+	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.Equal(t, "Consumidor Final", got["name"])
+	assert.NotEmpty(t, got["id"])
+}
+
+func TestAPI_CreateCustomer_NoToken(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "POST", "/api/v1/customers", testCustomer())
+	assert.Equal(t, http.StatusUnauthorized, rw.Code)
+}
+
+func TestAPI_CreateCustomer_MissingName(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+
+	c := testCustomer()
+	delete(c, "name")
+	rw := env.doAuth(t, "POST", "/api/v1/customers", token, c)
+	assert.Equal(t, http.StatusBadRequest, rw.Code)
+}
+
+func TestAPI_GetCustomer_NotFound(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+	rw := env.doAuth(t, "GET", "/api/v1/customers/"+uuid.New().String(), token, nil)
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+func TestAPI_GetCustomer_OtherTenant(t *testing.T) {
+	env := newTestEnv(t)
+	_, tokenA := registerTestIssuer(t, env)
+	_, tokenB := registerTestIssuer(t, env)
+
+	createRw := env.doAuth(t, "POST", "/api/v1/customers", tokenA, testCustomer())
+	require.Equal(t, http.StatusCreated, createRw.Code)
+	var created map[string]any
+	decode(t, createRw, &created)
+
+	rw := env.doAuth(t, "GET", "/api/v1/customers/"+created["id"].(string), tokenB, nil)
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+func TestAPI_ListCustomers_OnlyOwnTenant(t *testing.T) {
+	env := newTestEnv(t)
+	_, tokenA := registerTestIssuer(t, env)
+	_, tokenB := registerTestIssuer(t, env)
+
+	require.Equal(t, http.StatusCreated, env.doAuth(t, "POST", "/api/v1/customers", tokenA, testCustomer()).Code)
+	require.Equal(t, http.StatusCreated, env.doAuth(t, "POST", "/api/v1/customers", tokenA, testCustomer()).Code)
+	require.Equal(t, http.StatusCreated, env.doAuth(t, "POST", "/api/v1/customers", tokenB, testCustomer()).Code)
+
+	rw := env.doAuth(t, "GET", "/api/v1/customers", tokenA, nil)
+	require.Equal(t, http.StatusOK, rw.Code)
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.Len(t, got["customers"].([]any), 2)
+}
+
+func TestAPI_UpdateCustomer_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+
+	createRw := env.doAuth(t, "POST", "/api/v1/customers", token, testCustomer())
+	require.Equal(t, http.StatusCreated, createRw.Code)
+	var created map[string]any
+	decode(t, createRw, &created)
+
+	updated := testCustomer()
+	updated["name"] = "Nombre Nuevo"
+	rw := env.doAuth(t, "PUT", "/api/v1/customers/"+created["id"].(string), token, updated)
+	require.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.Equal(t, "Nombre Nuevo", got["name"])
+}
+
+func TestAPI_UpdateCustomer_OtherTenant(t *testing.T) {
+	env := newTestEnv(t)
+	_, tokenA := registerTestIssuer(t, env)
+	_, tokenB := registerTestIssuer(t, env)
+
+	createRw := env.doAuth(t, "POST", "/api/v1/customers", tokenA, testCustomer())
+	require.Equal(t, http.StatusCreated, createRw.Code)
+	var created map[string]any
+	decode(t, createRw, &created)
+
+	rw := env.doAuth(t, "PUT", "/api/v1/customers/"+created["id"].(string), tokenB, testCustomer())
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+func TestAPI_DeleteCustomer_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+
+	createRw := env.doAuth(t, "POST", "/api/v1/customers", token, testCustomer())
+	require.Equal(t, http.StatusCreated, createRw.Code)
+	var created map[string]any
+	decode(t, createRw, &created)
+
+	rw := env.doAuth(t, "DELETE", "/api/v1/customers/"+created["id"].(string), token, nil)
+	assert.Equal(t, http.StatusNoContent, rw.Code)
+
+	rw = env.doAuth(t, "GET", "/api/v1/customers/"+created["id"].(string), token, nil)
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+func TestAPI_DeleteCustomer_OtherTenant(t *testing.T) {
+	env := newTestEnv(t)
+	_, tokenA := registerTestIssuer(t, env)
+	_, tokenB := registerTestIssuer(t, env)
+
+	createRw := env.doAuth(t, "POST", "/api/v1/customers", tokenA, testCustomer())
+	require.Equal(t, http.StatusCreated, createRw.Code)
+	var created map[string]any
+	decode(t, createRw, &created)
+
+	rw := env.doAuth(t, "DELETE", "/api/v1/customers/"+created["id"].(string), tokenB, nil)
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+// ── Products ─────────────────────────────────────────────────────────────────────────────────
+
+func testProduct() map[string]any {
+	return map[string]any{
+		"description":      "Servicio de consultoría",
+		"unit_code":        "94",
+		"unit_price_cents": 100000,
+		"item_code":        "SVC-001",
+		"item_type_code":   "999",
+		"item_type_name":   "Estándar de adopción del contribuyente",
+		"tax_type_code":    "01",
+		"tax_type_name":    "IVA",
+		"tax_percent":      19,
+	}
+}
+
+func TestAPI_CreateProduct_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+
+	rw := env.doAuth(t, "POST", "/api/v1/products", token, testProduct())
+	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.Equal(t, "Servicio de consultoría", got["description"])
+	assert.NotEmpty(t, got["id"])
+}
+
+func TestAPI_CreateProduct_NoToken(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "POST", "/api/v1/products", testProduct())
+	assert.Equal(t, http.StatusUnauthorized, rw.Code)
+}
+
+func TestAPI_CreateProduct_MissingDescription(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+
+	p := testProduct()
+	delete(p, "description")
+	rw := env.doAuth(t, "POST", "/api/v1/products", token, p)
+	assert.Equal(t, http.StatusBadRequest, rw.Code)
+}
+
+func TestAPI_ListProducts_OnlyOwnTenant(t *testing.T) {
+	env := newTestEnv(t)
+	_, tokenA := registerTestIssuer(t, env)
+	_, tokenB := registerTestIssuer(t, env)
+
+	require.Equal(t, http.StatusCreated, env.doAuth(t, "POST", "/api/v1/products", tokenA, testProduct()).Code)
+	require.Equal(t, http.StatusCreated, env.doAuth(t, "POST", "/api/v1/products", tokenB, testProduct()).Code)
+
+	rw := env.doAuth(t, "GET", "/api/v1/products", tokenA, nil)
+	require.Equal(t, http.StatusOK, rw.Code)
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.Len(t, got["products"].([]any), 1)
+}
+
+func TestAPI_UpdateProduct_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+
+	createRw := env.doAuth(t, "POST", "/api/v1/products", token, testProduct())
+	require.Equal(t, http.StatusCreated, createRw.Code)
+	var created map[string]any
+	decode(t, createRw, &created)
+
+	updated := testProduct()
+	updated["unit_price_cents"] = 200000
+	rw := env.doAuth(t, "PUT", "/api/v1/products/"+created["id"].(string), token, updated)
+	require.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.EqualValues(t, 200000, got["unit_price_cents"])
+}
+
+func TestAPI_DeleteProduct_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+
+	createRw := env.doAuth(t, "POST", "/api/v1/products", token, testProduct())
+	require.Equal(t, http.StatusCreated, createRw.Code)
+	var created map[string]any
+	decode(t, createRw, &created)
+
+	rw := env.doAuth(t, "DELETE", "/api/v1/products/"+created["id"].(string), token, nil)
+	assert.Equal(t, http.StatusNoContent, rw.Code)
+
+	rw = env.doAuth(t, "GET", "/api/v1/products/"+created["id"].(string), token, nil)
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+func TestAPI_DeleteProduct_OtherTenant(t *testing.T) {
+	env := newTestEnv(t)
+	_, tokenA := registerTestIssuer(t, env)
+	_, tokenB := registerTestIssuer(t, env)
+
+	createRw := env.doAuth(t, "POST", "/api/v1/products", tokenA, testProduct())
+	require.Equal(t, http.StatusCreated, createRw.Code)
+	var created map[string]any
+	decode(t, createRw, &created)
+
+	rw := env.doAuth(t, "DELETE", "/api/v1/products/"+created["id"].(string), tokenB, nil)
+	assert.Equal(t, http.StatusNotFound, rw.Code)
 }
 
 // ── Middleware ───────────────────────────────────────────────────────────────────────────────

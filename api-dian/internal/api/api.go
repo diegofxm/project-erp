@@ -9,13 +9,15 @@ import (
 	"github.com/diegofxm/api-dian/internal/api/middleware"
 	"github.com/diegofxm/api-dian/internal/api/response"
 	"github.com/diegofxm/api-dian/internal/auth"
+	"github.com/diegofxm/api-dian/internal/customers"
 	"github.com/diegofxm/api-dian/internal/database"
 	"github.com/diegofxm/api-dian/internal/documents"
 	"github.com/diegofxm/api-dian/internal/issuers"
 	"github.com/diegofxm/api-dian/internal/numbering"
+	"github.com/diegofxm/api-dian/internal/products"
 )
 
-// API agrupa los cuatro servicios de dominio y expone el http.Handler.
+// API agrupa los seis servicios de dominio y expone el http.Handler.
 type API struct {
 	log       *zap.Logger
 	issuers   *issuers.Service
@@ -23,19 +25,23 @@ type API struct {
 	documents *documents.Service
 	auth      *auth.Service
 	tokens    *auth.TokenIssuer
+	customers *customers.Service
+	products  *products.Service
 }
 
-// New conecta los cuatro dominios sobre una sola base de datos y devuelve la API.
+// New conecta los seis dominios sobre una sola base de datos y devuelve la API.
 // authJWTSecret firma los tokens de sesión (HS256) — deliberadamente distinto de
 // issuerSecretsKey (ver internal/config.Config.AuthJWTSecret).
 func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byte) *API {
 	issuerSvc := issuers.New(issuers.NewPostgresRepository(db.Pool, issuerSecretsKey))
 	numberingSvc := numbering.New(numbering.NewPostgresRepository(db.Pool, issuerSecretsKey))
-	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc)
+	customersSvc := customers.New(customers.NewPostgresRepository(db.Pool))
+	productsSvc := products.New(products.NewPostgresRepository(db.Pool))
+	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc, customersSvc)
 	tokens := auth.NewTokenIssuer(authJWTSecret)
 	authSvc := auth.New(auth.NewPostgresRepository(db.Pool), issuerSvc, tokens)
 
-	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens)
+	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc)
 }
 
 // NewFromServices crea una API a partir de servicios ya construidos — útil para tests que
@@ -47,8 +53,13 @@ func NewFromServices(
 	documentsSvc *documents.Service,
 	authSvc *auth.Service,
 	tokens *auth.TokenIssuer,
+	customersSvc *customers.Service,
+	productsSvc *products.Service,
 ) *API {
-	return &API{log: log, issuers: issuerSvc, numbering: numberingSvc, documents: documentsSvc, auth: authSvc, tokens: tokens}
+	return &API{
+		log: log, issuers: issuerSvc, numbering: numberingSvc, documents: documentsSvc,
+		auth: authSvc, tokens: tokens, customers: customersSvc, products: productsSvc,
+	}
 }
 
 // Handler devuelve el http.Handler del subárbol /api/v1 con el middleware aplicado.
@@ -83,6 +94,9 @@ func (a *API) Handler() http.Handler {
 //	POST   /api/v1/debit-notes                            → emitir Nota Débito
 //	GET    /api/v1/documents                              → listar documentos del emisor propio (filtros + ?limit=&offset=)
 //	GET    /api/v1/documents/{id}                         → consultar documento (debe ser del emisor propio)
+//
+//	POST/GET/PUT/DELETE /api/v1/customers[/{id}]          → catálogo de adquirientes (conveniencia, ver internal/customers)
+//	POST/GET/PUT/DELETE /api/v1/products[/{id}]           → catálogo de ítems/servicios (conveniencia, ver internal/products)
 func (a *API) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/register", a.handleRegister)
 	mux.HandleFunc("POST /api/v1/auth/login", a.handleLogin)
@@ -100,6 +114,18 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("POST /api/v1/debit-notes", a.handleIssueDebitNote)
 	handle("GET /api/v1/documents", a.handleListDocuments)
 	handle("GET /api/v1/documents/{id}", a.handleGetDocument)
+
+	handle("POST /api/v1/customers", a.handleCreateCustomer)
+	handle("GET /api/v1/customers", a.handleListCustomers)
+	handle("GET /api/v1/customers/{id}", a.handleGetCustomer)
+	handle("PUT /api/v1/customers/{id}", a.handleUpdateCustomer)
+	handle("DELETE /api/v1/customers/{id}", a.handleDeleteCustomer)
+
+	handle("POST /api/v1/products", a.handleCreateProduct)
+	handle("GET /api/v1/products", a.handleListProducts)
+	handle("GET /api/v1/products/{id}", a.handleGetProduct)
+	handle("PUT /api/v1/products/{id}", a.handleUpdateProduct)
+	handle("DELETE /api/v1/products/{id}", a.handleDeleteProduct)
 }
 
 // ── helpers compartidos ─────────────────────────────────────────────────────────────────────
@@ -121,4 +147,18 @@ func parseUUIDField(w http.ResponseWriter, raw, field string) (uuid.UUID, bool) 
 		return uuid.Nil, false
 	}
 	return id, true
+}
+
+// parseOptionalUUIDField es como parseUUIDField, pero para campos que SÍ pueden venir vacíos
+// (ej. customer_id en una emisión, ver handler_documents.go) — "" es válido y significa "no
+// se mandó", no un error.
+func parseOptionalUUIDField(w http.ResponseWriter, raw, field string) (*uuid.UUID, bool) {
+	if raw == "" {
+		return nil, true
+	}
+	id, ok := parseUUIDField(w, raw, field)
+	if !ok {
+		return nil, false
+	}
+	return &id, true
 }

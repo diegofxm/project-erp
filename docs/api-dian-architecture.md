@@ -155,12 +155,17 @@ api-dian/
 │   │   ├── service.go                     # Register (crea emisor+usuario juntos) / Login
 │   │   ├── token.go                        # TokenIssuer: firma/valida JWT (HS256)
 │   │   └── password.go                      # hash/verify con bcrypt
+│   ├── customers/                       # catálogo de adquirientes — conveniencia, no la
+│   │                                      # fuente de verdad del documento (ver 4.2/9.21)
+│   ├── products/                        # catálogo de ítems/servicios — misma lógica
 │   └── api/                             # capa HTTP — primera vez que esto se expone por red
 │       ├── api.go                        # New()/NewFromServices(), Handler(), rutas
 │       ├── dto.go                         # contrato JSON, independiente de domain.* de cofacture
 │       ├── handler_auth.go                 # register/login (únicas rutas públicas)
 │       ├── handler_issuers.go              # issuers/me + numbering-ranges (protegidas)
 │       ├── handler_documents.go             # invoices/credit-notes/debit-notes/documents
+│       ├── handler_customers.go              # CRUD de customers
+│       ├── handler_products.go                # CRUD de products
 │       ├── middleware/                       # RequestID/Logging/Recovery/Auth
 │       └── response/                          # WriteJSON/WriteError/classify()
 ```
@@ -186,15 +191,18 @@ config, logger, cryptutil      (sin dependencias entre sí — cryptutil es la �
    ┌────┴────┐
  issuers   numbering            (ambos usan database+cryptutil; independientes entre sí)
    └────┬────┘
-        ├──────────────┐
-        ↓              ↓
-    documents         auth      (documents usa issuers+numbering+cofacture; auth usa SOLO
-        ↓              ↓         issuers — RegisterIssuer al crear el primer usuario admin,
-        └──────┬───────┘         mismo patrón de "ports" angostos que documents)
-               ↓
-              api                 (usa documents + issuers + auth; expone HTTP — middleware.Auth
-                ↓                  protege todo excepto /auth/register y /auth/login)
-             server                 (conecta todo + /health — ya existe desde la Fase 2.1)
+        ├──────────────┬──────────────┐
+        ↓              ↓              ↓
+       auth        customers       products    (customers/products solo usan database —
+        ↓              ↓              ↓         ninguno depende de issuers en Go, solo
+        │              ↓              │         issuer_id como FK a nivel de tabla)
+        │          documents ←────────┘         (documents usa issuers+numbering+cofacture+
+        │              ↓                         customers — CustomerPort, ver 9.23: solo para
+        └──────┬───────┘                         validar que un CustomerID opcional pertenezca
+               ↓                                 al mismo emisor, nunca para construir el XML)
+              api          (usa los seis servicios; expone HTTP — middleware.Auth
+                ↓           protege todo excepto /auth/register y /auth/login)
+             server          (conecta todo + /health — ya existe desde la Fase 2.1)
 ```
 
 **Regla de naming**: ninguna tabla ni paquete compartido por varios tipos de documento se
@@ -266,6 +274,12 @@ POST /api/v1/credit-notes
 POST /api/v1/debit-notes
 GET  /api/v1/documents                            # listar mis documentos (filtros + ?limit=&offset=)
 GET  /api/v1/documents/{id}                       # documento emitido (debe ser del emisor propio; si no, 404)
+
+POST/GET     /api/v1/customers[/{id}]             # catálogo de adquirientes (conveniencia, ver 9.21)
+PUT/DELETE   /api/v1/customers/{id}
+POST/GET     /api/v1/products[/{id}]              # catálogo de ítems/servicios (conveniencia, ver 9.21)
+PUT/DELETE   /api/v1/products/{id}
+
 GET  /health
 ```
 
@@ -275,10 +289,13 @@ GET  /health
 
 - COFACTURE no conoce HTTP ni DB.
 - API-DIAN no conoce firma ni XML.
-- API-DIAN no es un CRM ni un ERP: no gestiona clientes ni productos como catálogos propios
-  (llegan como snapshot en el payload de cada documento). Usuarios/auth sí viven aquí —
-  replanteo explícito de 2026-06-21 (sección 9.17): API-DIAN es el backend completo, no una
-  pieza dentro de un ecosistema con un servicio de identidad aparte.
+- API-DIAN no es un CRM ni un ERP: `customers`/`products` son catálogos de conveniencia, no
+  perfiles completos (sin KYC, sin inventario/stock) — y NUNCA son la fuente de verdad de un
+  documento ya emitido: cada factura sigue guardando su propio snapshot (`documents.customer`/
+  `documents.lines`, JSONB), pass-through puro, exactamente igual que antes de que existieran
+  estos catálogos (sección 9.21). Usuarios/auth sí viven aquí — replanteo explícito de
+  2026-06-21 (sección 9.17): API-DIAN es el backend completo, no una pieza dentro de un
+  ecosistema con un servicio de identidad aparte.
 
 ---
 
@@ -288,8 +305,8 @@ Decisión consciente, no descuido — si se necesitan, se integran como servicio
 
 | Función | Por qué no vive aquí |
 |---|---|
-| CRM de Companies/Customers (contactos, direcciones, KYC) | No lo exige la DIAN; el XML solo necesita un snapshot al momento de emitir. **Decisión 2026-06-21: diferido, no descartado** — se construye cuando el frontend real necesite autocompletar, no antes (sección 9.18); el orquestador ya funciona sin él |
-| Catálogo de Productos / Inventario (precios, stock) | Mismo motivo que Customers; los items llegan en el payload de la factura. Misma decisión: diferido hasta que haya un consumidor real |
+| ~~Catálogo de Customers (autocompletar, sin retipear)~~ | **Ya no aplica — construido en `internal/customers` (Fase 2.11, sección 9.21)**. Sigue NO siendo CRM (sin KYC) ni la fuente de verdad del documento (eso sigue siendo el snapshot pass-through) |
+| ~~Catálogo de Products (ítems/servicios reutilizables)~~ | **Ya no aplica — construido en `internal/products` (Fase 2.11, sección 9.21)**. Sin inventario/stock — solo los datos DIAN del ítem para no retipearlos |
 | ~~Usuarios, roles, multi-tenant auth~~ | **Ya no aplica — construido en `internal/auth` (Fase 2.9)**. Replanteo de 2026-06-21: API-DIAN es el backend completo, no hay servicio de identidad externo en esta topología |
 | PDF / representación gráfica | No es parte del esquema XML del anexo técnico; servicio de render aparte si se necesita |
 | Notificaciones (email/SMS al receptor) | Servicio de notificaciones externo |
@@ -372,6 +389,7 @@ DIAN/la base de datos, no el ruteo HTTP.
 | 2.8 | Prueba real end-to-end vía HTTP completo (`SendBillSync`) | ✅ Verificado con servidor real + curl, ver 9.16 |
 | 2.9 | `internal/auth` — usuarios, login, JWT, aislamiento entre tenants | ✅ Verificado con servidor real + curl, ver 9.17 |
 | 2.10 | Listados (`GET /numbering-ranges`, `GET /documents`) | ✅ Verificado con servidor real + curl, ver 9.19 |
+| 2.11 | `internal/customers`/`internal/products` — catálogos de conveniencia | ✅ Verificado con servidor real + curl, ver 9.21 |
 
 **Catálogos cargados en 2.2** (`internal/database/seed/*.csv`, idempotente vía `ON CONFLICT`):
 currencies, departments, identification_types (códigos numéricos oficiales DIAN: 13 cédula,
@@ -733,11 +751,119 @@ hecha hoy.
   devuelven nada del otro; filtro por tipo de documento y por `limit` confirmados con
   resultados exactos; sin token, ambos devuelven 401.
 
-### 9.20 Próximo paso
+### 9.20 Replanteo: Customers/Products se construyen ya, no se difieren más
+
+El usuario retomó la decisión de 9.18 (2026-06-22) y pidió revisarla: con la disciplina de
+`core-bank` ya aplicada a auth/listados, ¿tiene sentido seguir diferiendo Customers/Products
+solo porque no hay frontend todavía? Conclusión, separando los dos casos:
+
+- **Customers**: bajo riesgo (mismo patrón CRUD que el resto de `api-dian`) y casi seguro
+  necesario desde el primer día de cualquier frontend real — no hay forma de armar una
+  pantalla de "crear factura" sin de dónde elegir el cliente. Se construye ya.
+- **Products**: el usuario confirmó que sí necesita un catálogo de ítems con sus valores DIAN
+  (precio, código de ítem, impuesto por defecto) para no retipearlos en cada factura — el
+  patrón real que describió ("una tabla donde cada compañía coloca cada ítem con todos sus
+  valores para insertarlos") es exactamente lo que un catálogo de conveniencia resuelve. Se
+  construye ya también, aunque el frontend siga sin fecha definida.
+
+Importante: esto NO cambia cómo se emiten documentos. `POST /invoices`/`credit-notes`/
+`debit-notes` siguen recibiendo `customer`/`lines` pass-through, igual que siempre — el
+catálogo es de dónde el frontend copia esos datos antes de armar la petición, no un nuevo
+parámetro de la emisión. Ver 9.21 para el detalle de la implementación.
+
+### 9.21 `internal/customers`/`internal/products` — completo y verificado real
+
+CRUD completo (crear/consultar/listar/actualizar/eliminar) para ambos catálogos, acotados al
+emisor autenticado — mismo patrón que el resto de `api-dian` (repository/postgres/memory/
+service), primeras operaciones de mutación-por-ID de todo el proyecto (hasta ahora solo había
+creación y lectura). `Update`/`Delete` acotan directamente en el SQL
+(`WHERE id = $1 AND issuer_id = $2`) en vez de depender de que cada handler futuro recuerde
+comparar el dueño antes de mutar — más estricto que el patrón "leer y comparar" que usan
+`GetNumberingRange`/`GetDocument`, justificado porque mutar es más riesgoso que leer.
+
+- **`customers.Customer`** reutiliza `cofacture/domain.Party` tal cual (mismo tipo que ya usa
+  `documents` para el campo `Customer` de una factura) — no se duplicó la lista de campos en
+  un struct propio. Se agregó `partyFromDomain()` en `internal/api/dto.go` (inverso de
+  `partyDTO.toDomain()`, que antes solo existía en una dirección porque ningún endpoint
+  necesitaba devolver un `Party` en la respuesta).
+- **`products.Product`** es un struct propio, deliberadamente angosto: sin `Quantity`,
+  `LineExtensionCents` ni una lista de impuestos (eso es dato de USO, de una factura concreta,
+  no de catálogo) — solo un impuesto por defecto (`TaxTypeCode`/`TaxTypeName`/`TaxPercent`),
+  de conveniencia.
+- **Dos bugs reales encontrados y corregidos** al verificar contra Postgres real (ninguno
+  detectado por los tests con repos en memoria, igual patrón que bugs anteriores de esta
+  fase):
+  1. `customers`: `tax_scheme_code`/`tax_scheme_name` son FK a `tax_types(code)`, pero el
+     código mandaba cadena vacía (no `NULL` de verdad) cuando el cliente no especificaba
+     régimen tributario — violaba la FK. Fix: `nullableString()` antes del INSERT/UPDATE,
+     mismo criterio que ya usan las columnas de dirección.
+  2. `products`: la migración original FK-aba `unit_code` contra `unit_measures(code)` — pero
+     ese catálogo solo tiene 10 códigos de muestra (NIU/KGM/LTR...) frente al estándar real
+     completo (UN/ECE Rec. 20, cientos de códigos). El código `"94"` — el mismo que usan los
+     tests reales contra la DIAN y que obtuvo `StatusCode 00` — no estaba en esas 10 filas: la
+     FK habría bloqueado un producto válido. Fix: se quitó la FK (la migración y la BD real ya
+     corregidas) — mismo criterio que `domain.Line.UnitCode`, que tampoco se valida contra
+     catálogo por vivir en JSONB sin FK. Mismo hueco de datos ya conocido que
+     `departments`/`municipalities` (sección 9.6) — no se inventó un catálogo completo sin la
+     fuente oficial.
+- **Verificado contra Postgres real vía curl** (17/17 pruebas): crear/consultar/listar/
+  actualizar/eliminar para ambos catálogos, aislamiento completo entre dos emisores de prueba
+  (404 al intentar leer o mutar el recurso de otro tenant), validaciones de entrada (400 sin
+  nombre/identificación/descripción/unidad, precio negativo), 401 sin token.
+
+### 9.22 `documents.customer_id` — trazabilidad opcional hacia el catálogo de clientes
+
+El usuario notó que `customers`/`products`/`users`/`payment_methods`/`unit_measures` se veían
+"sueltas" en el esquema y pidió revisar las relaciones reales contra el código. Conclusión
+(separando dos motivos distintos):
+
+- `users`/`customers`/`products` SÍ están conectadas (`issuer_id → issuers`) — son hojas: nada
+  las referencia de vuelta, lo cual es correcto, no un descuido.
+- `payment_methods`/`unit_measures` están huérfanas por un motivo previo a esta fase:
+  `documents.lines`/`documents.payment_means` siempre han sido JSONB (snapshot pass-through),
+  nunca columnas normalizadas, así que ningún código de esos catálogos vive en una columna con
+  FK posible — viven dentro del blob JSON, sin validar contra catálogo (confirmado en
+  `validateBase()`, que solo exige no-vacío, nunca cruza contra un catálogo).
+- `documents.customer`/`documents.lines` NO referencian `customers`/`products` — **deliberado**:
+  la DIAN exige que un documento conserve el snapshot exacto del momento de emitir, para
+  siempre; una FK viva permitiría que editar/borrar un cliente cambiara retroactivamente
+  facturas ya autorizadas, violando esa retención legal.
+
+**Decisión y mejora aplicada**: agregar `documents.customer_id` como referencia OPCIONAL y de
+**solo trazabilidad** (no para `products`/`lines`: una factura tiene varias líneas, hacerlo
+bien ahí exigiría sacar `lines` de JSONB a una tabla propia, un cambio de fondo no justificado
+todavía).
+
+- **Migración**: el `ALTER TABLE documents ADD COLUMN customer_id ...` se agregó dentro de
+  `000007_customers.up/down.sql` (no como archivo nuevo) — no puede ir en `000005_documents`
+  porque en ese punto de la secuencia `customers` todavía no existe; la FK fallaría en una
+  instalación nueva desde cero. `down.sql` deshace primero el `ALTER TABLE` y luego borra
+  `customers`, en ese orden (la FK lo exige). `ON DELETE SET NULL`: borrar un cliente nunca
+  rompe ni borra documentos ya emitidos, solo desvincula la trazabilidad. Nullable: una
+  factura con datos sueltos simplemente no la tiene.
+- **`documents.CustomerPort`** (nuevo, en `ports.go`): lo único que `documents` necesita de
+  `customers` — verificar, cuando llega un `CustomerID` opcional, que pertenece al mismo
+  emisor (`ErrCustomerIssuerMismatch`, 422 — mismo criterio que
+  `ErrNumberingRangeIssuerMismatch`). Si el `CustomerID` no existe en absoluto, se propaga
+  `customers.ErrCustomerNotFound` (404) sin necesidad de un caso nuevo en `classify()`.
+  Esto agrega una arista nueva al grafo de dependencias: `documents → customers` (ver 4.1).
+- **No se serializa en ningún XML ni viaja a la DIAN** — cero impacto en el cumplimiento del
+  Anexo Técnico; el snapshot (`documents.customer`, JSONB) sigue siendo lo único que se firma
+  y se envía, exactamente igual que antes de que existiera esta columna.
+- **Verificado contra Postgres real vía curl** (11/11 pruebas, sin tocar los datos reales de
+  pruebas manuales del usuario que ya existían en `issuers`/`users`): emitir con `customer_id`
+  propio (200, lo persiste y lo devuelve), emitir sin `customer_id` (sigue funcionando igual
+  que siempre, campo ausente por `omitempty`), `customer_id` de otro emisor (422),
+  `customer_id` inexistente (404), y el caso crítico — **borrar el cliente después de emitir
+  la factura no rompe la factura**: queda con `customer_id = NULL`, mismo `document_key`,
+  recuperable normalmente.
+
+### 9.23 Próximo paso
 
 Sin tareas pendientes explícitas en este momento — Fase 2 (`api-dian`) cubre hoy: bootstrap,
-catálogos, emisores, numeración, documentos (Invoice/CreditNote/DebitNote, construir+firmar+
-enviar), auth con aislamiento entre tenants, y listados. Lo diferido (Customers/Products,
-Documento Soporte/RADIAN/Nómina, PDF/Notificaciones) tiene su trigger de retomado explícito en
-las secciones 9.18 y 8 — no son items "olvidados", son decisiones de alcance con criterio
-escrito de cuándo reabrirlas.
+catálogos DIAN, emisores, numeración, documentos (Invoice/CreditNote/DebitNote,
+construir+firmar+enviar, con trazabilidad opcional a un cliente guardado), auth con
+aislamiento entre tenants, listados, y los catálogos de Customers/Products. Lo que sigue
+diferido (Documento Soporte/RADIAN/Nómina, PDF/Notificaciones) tiene su razón documentada en
+la sección 8 — son otra familia de documento DIAN o están bien delegados a un servicio
+externo, no son items "olvidados".

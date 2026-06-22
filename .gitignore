@@ -2,7 +2,7 @@
 # RUT y facturas reales con datos de terceros. Nunca debe llegar al historial de git.
 /docs/reference/
 
-# Puente de desarrollo en paralelo entre los módulos ubl21dian/api-dian — es local del
+# Puente de desarrollo en paralelo entre los módulos cofacture/api-dian — es local del
 # entorno de quien desarrolla, no parte del código versionado.
 /go.work
 /go.work.sum
@@ -14,7 +14,7 @@ api-dian/.env.*
 
 # Binarios compilados
 api-dian.exe
-ubl21dian.exe
+cofacture.exe
 /bin/
 /dist/
 

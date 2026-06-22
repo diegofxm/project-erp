@@ -155,6 +155,40 @@ func linesToDomain(lines []lineDTO) []domain.Line {
 	return out
 }
 
+// partyFromDomain es el inverso de partyDTO.toDomain() — lo necesita handler_customers.go
+// para serializar un Customer guardado (domain.Party) de vuelta a JSON. No existía antes
+// porque ningún endpoint necesitaba devolver un Party en la respuesta: invoices/credit-notes/
+// debit-notes solo lo reciben (pass-through), nunca lo devuelven tal cual.
+func partyFromDomain(p domain.Party) partyDTO {
+	dto := partyDTO{
+		EntityTypeCode: p.EntityTypeCode,
+		Identification: identificationDTO{
+			Number:           p.Identification.Number,
+			TypeCode:         p.Identification.TypeCode,
+			VerificationCode: p.Identification.VerificationCode,
+		},
+		Name:                       p.Name,
+		TaxSchemeCode:              p.TaxSchemeCode,
+		TaxSchemeName:              p.TaxSchemeName,
+		LiabilityCodes:             p.LiabilityCodes,
+		Phone:                      p.Phone,
+		Email:                      p.Email,
+		MerchantRegistrationNumber: p.MerchantRegistrationNumber,
+	}
+	if p.Address != (domain.Address{}) {
+		dto.Address = &addressDTO{
+			Line:        p.Address.Line,
+			CityCode:    p.Address.CityCode,
+			CityName:    p.Address.CityName,
+			StateCode:   p.Address.StateCode,
+			StateName:   p.Address.StateName,
+			CountryCode: p.Address.CountryCode,
+			CountryName: p.Address.CountryName,
+		}
+	}
+	return dto
+}
+
 func paymentMeansToDomain(pms []paymentMeanDTO) []domain.PaymentMean {
 	out := make([]domain.PaymentMean, len(pms))
 	for i, pm := range pms {

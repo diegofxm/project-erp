@@ -3,6 +3,7 @@ package documents
 import (
 	"context"
 
+	"github.com/diegofxm/api-dian/internal/customers"
 	"github.com/diegofxm/api-dian/internal/issuers"
 	"github.com/diegofxm/api-dian/internal/numbering"
 	"github.com/google/uuid"
@@ -19,4 +20,13 @@ type IssuerPort interface {
 type NumberingPort interface {
 	GetRange(ctx context.Context, id uuid.UUID) (*numbering.NumberingRange, error)
 	ClaimNext(ctx context.Context, id uuid.UUID) (int64, error)
+}
+
+// CustomerPort define lo que documents necesita del catálogo de clientes — solo para
+// verificar, cuando el llamador manda un CustomerID opcional, que ese cliente pertenece al
+// mismo emisor (mismo criterio que NumberingPort con el rango: nunca se confía en que el
+// cliente referenciado sea del emisor correcto sin comprobarlo). El catálogo en sí no
+// participa en construir el XML — eso sigue siendo pass-through puro (ver model.go).
+type CustomerPort interface {
+	GetCustomer(ctx context.Context, id uuid.UUID) (*customers.Customer, error)
 }

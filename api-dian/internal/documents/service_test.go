@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/diegofxm/api-dian/internal/customers"
 	"github.com/diegofxm/api-dian/internal/documents"
 	"github.com/diegofxm/api-dian/internal/issuers"
 	"github.com/diegofxm/api-dian/internal/numbering"
@@ -44,6 +45,20 @@ func (f *fakeNumberingPort) GetRange(_ context.Context, _ uuid.UUID) (*numbering
 func (f *fakeNumberingPort) ClaimNext(_ context.Context, _ uuid.UUID) (int64, error) {
 	f.next++
 	return f.next, nil
+}
+
+// fakeCustomerPort es un doble mínimo para el CustomerID opcional (ver model.go) — la
+// mayoría de los tests no lo necesitan (CustomerID nil), por eso customer queda nil por
+// defecto: nunca se llama GetCustomer si el request no trae CustomerID.
+type fakeCustomerPort struct {
+	customer *customers.Customer
+}
+
+func (f *fakeCustomerPort) GetCustomer(_ context.Context, _ uuid.UUID) (*customers.Customer, error) {
+	if f.customer == nil {
+		return nil, customers.ErrCustomerNotFound
+	}
+	return f.customer, nil
 }
 
 func testIssuer() *issuers.Issuer {
@@ -117,6 +132,7 @@ func TestIssueInvoice_BuildsSignsAndPersists(t *testing.T) {
 		documents.NewMemoryRepository(),
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
 	)
 
 	doc, err := svc.IssueInvoice(context.Background(), testRequest(iss.ID, nr.ID))
@@ -141,6 +157,7 @@ func TestIssueInvoice_ClaimsSequentialNumbers(t *testing.T) {
 		documents.NewMemoryRepository(),
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
 	)
 
 	first, err := svc.IssueInvoice(context.Background(), testRequest(iss.ID, nr.ID))
@@ -162,6 +179,7 @@ func TestIssueInvoice_WrongDocumentType(t *testing.T) {
 		documents.NewMemoryRepository(),
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
 	)
 
 	_, err := svc.IssueInvoice(context.Background(), testRequest(iss.ID, nr.ID))
@@ -177,10 +195,68 @@ func TestIssueInvoice_NumberingRangeIssuerMismatch(t *testing.T) {
 		documents.NewMemoryRepository(),
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
 	)
 
 	_, err := svc.IssueInvoice(context.Background(), testRequest(iss.ID, nr.ID))
 	assert.ErrorIs(t, err, documents.ErrNumberingRangeIssuerMismatch)
+}
+
+func TestIssueInvoice_WithCustomerID_OK(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	cust := &customers.Customer{ID: uuid.New(), IssuerID: iss.ID}
+
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{customer: cust},
+	)
+
+	req := testRequest(iss.ID, nr.ID)
+	req.CustomerID = &cust.ID
+	doc, err := svc.IssueInvoice(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, doc.CustomerID)
+	assert.Equal(t, cust.ID, *doc.CustomerID)
+}
+
+func TestIssueInvoice_CustomerIssuerMismatch(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	otroEmisorID := uuid.New()
+	cust := &customers.Customer{ID: uuid.New(), IssuerID: otroEmisorID} // cliente de OTRO emisor
+
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{customer: cust},
+	)
+
+	req := testRequest(iss.ID, nr.ID)
+	req.CustomerID = &cust.ID
+	_, err := svc.IssueInvoice(context.Background(), req)
+	assert.ErrorIs(t, err, documents.ErrCustomerIssuerMismatch)
+}
+
+func TestIssueInvoice_CustomerIDNotFound(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{}, // sin customer configurado -> GetCustomer siempre falla
+	)
+
+	req := testRequest(iss.ID, nr.ID)
+	missing := uuid.New()
+	req.CustomerID = &missing
+	_, err := svc.IssueInvoice(context.Background(), req)
+	assert.ErrorIs(t, err, customers.ErrCustomerNotFound)
 }
 
 func TestIssueInvoice_Validations(t *testing.T) {
@@ -190,6 +266,7 @@ func TestIssueInvoice_Validations(t *testing.T) {
 		documents.NewMemoryRepository(),
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
 	)
 
 	tests := []struct {
@@ -268,6 +345,7 @@ func TestIssueCreditNote_BuildsSignsAndPersists(t *testing.T) {
 		documents.NewMemoryRepository(),
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
 	)
 
 	req := documents.IssueCreditNoteRequest{
@@ -296,6 +374,7 @@ func TestIssueDebitNote_BuildsSignsAndPersists(t *testing.T) {
 		documents.NewMemoryRepository(),
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
 	)
 
 	doc, err := svc.IssueDebitNote(context.Background(), testNoteRequest(iss.ID, nr.ID))
@@ -320,6 +399,7 @@ func TestIssueCreditNote_DifferentCUDEThanInvoiceCUFE(t *testing.T) {
 		documents.NewMemoryRepository(),
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
 	)
 
 	req := documents.IssueCreditNoteRequest{
@@ -338,6 +418,7 @@ func TestIssueCreditNote_MissingBillingReference(t *testing.T) {
 		documents.NewMemoryRepository(),
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
 	)
 
 	req := documents.IssueCreditNoteRequest{
@@ -357,6 +438,7 @@ func TestIssueDebitNote_WrongDocumentType(t *testing.T) {
 		documents.NewMemoryRepository(),
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
 	)
 
 	_, err := svc.IssueDebitNote(context.Background(), testNoteRequest(iss.ID, nr.ID))
@@ -390,7 +472,7 @@ func seedDocument(t *testing.T, repo documents.Repository, issuerID uuid.UUID, d
 
 func TestListDocuments_FiltersByIssuer(t *testing.T) {
 	repo := documents.NewMemoryRepository()
-	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{})
+	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{}, &fakeCustomerPort{})
 	issuerA, issuerB := uuid.New(), uuid.New()
 
 	seedDocument(t, repo, issuerA, "01", "accepted", time.Now())
@@ -404,7 +486,7 @@ func TestListDocuments_FiltersByIssuer(t *testing.T) {
 
 func TestListDocuments_FiltersByTypeAndStatus(t *testing.T) {
 	repo := documents.NewMemoryRepository()
-	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{})
+	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{}, &fakeCustomerPort{})
 	issuerID := uuid.New()
 
 	seedDocument(t, repo, issuerID, "01", "accepted", time.Now())
@@ -426,7 +508,7 @@ func TestListDocuments_FiltersByTypeAndStatus(t *testing.T) {
 
 func TestListDocuments_FiltersByDateRange(t *testing.T) {
 	repo := documents.NewMemoryRepository()
-	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{})
+	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{}, &fakeCustomerPort{})
 	issuerID := uuid.New()
 
 	seedDocument(t, repo, issuerID, "01", "accepted", time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC))
@@ -444,7 +526,7 @@ func TestListDocuments_FiltersByDateRange(t *testing.T) {
 
 func TestListDocuments_LimitNormalization(t *testing.T) {
 	repo := documents.NewMemoryRepository()
-	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{})
+	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{}, &fakeCustomerPort{})
 	issuerID := uuid.New()
 
 	for i := 0; i < 5; i++ {
