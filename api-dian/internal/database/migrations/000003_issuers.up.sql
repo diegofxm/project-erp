@@ -17,6 +17,13 @@
 -- (internal/issuers/secrets.go), nunca en texto plano. La clave de cifrado viene de la
 -- variable de entorno ISSUER_SECRETS_KEY, no de esta base de datos.
 --
+-- software_id/software_pin/certificate/certificate_password son NULLABLE porque el registro
+-- inicial (POST /auth/register) ya no los exige — el "espacio de empresa" (NIT, razón
+-- social, dirección) se completa primero, y software/certificado se cargan después,
+-- independientemente, vía PUT /issuers/me, en el orden en que el usuario los vaya
+-- consiguiendo (ver docs/api-dian-architecture.md sección 9.25). documents.Service los exige
+-- recién al confirmar un documento (ErrIssuerNotReadyToIssue si faltan), nunca antes.
+--
 -- created_at/updated_at van al final de la tabla por convención en todo este esquema (ver
 -- docs/api-dian-architecture.md sección 4.1) — nunca intercalados entre columnas de negocio.
 CREATE TABLE issuers (
@@ -37,10 +44,10 @@ CREATE TABLE issuers (
     tax_scheme_name                  TEXT      NOT NULL DEFAULT 'No aplica',
     liability_codes                   TEXT[]   NOT NULL DEFAULT '{}',
     merchant_registration_number       TEXT,
-    software_id                  TEXT         NOT NULL,
-    software_pin                 BYTEA        NOT NULL,
-    certificate                  BYTEA        NOT NULL,
-    certificate_password         BYTEA        NOT NULL,
+    software_id                  TEXT,
+    software_pin                 BYTEA,
+    certificate                  BYTEA,
+    certificate_password         BYTEA,
     is_active                    BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at                   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at                   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

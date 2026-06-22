@@ -21,9 +21,27 @@ type ListFilter struct {
 
 // Repository define las operaciones de persistencia de documentos.
 type Repository interface {
+	// Create persiste un documento NUEVO — hoy siempre llega con Status == StatusDraft (ver
+	// Service.CreateInvoiceDraft/CreateCreditNoteDraft/CreateDebitNoteDraft): sin
+	// prefix/number/document_key/issue_date/issue_time/qr_url/signed_xml todavía.
 	Create(ctx context.Context, d Document) (*Document, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*Document, error)
 	UpdateDianStatus(ctx context.Context, id uuid.UUID, status Status, trackID, statusCode, statusDescription, statusMessage string) error
+
+	// UpdateDraft reemplaza los campos editables de un borrador (todo lo que no depende de
+	// reclamar un número) — solo aplica mientras Status == StatusDraft, devuelve
+	// ErrDocumentNotDraft si no.
+	UpdateDraft(ctx context.Context, d Document) (*Document, error)
+
+	// Confirm persiste los campos que solo se conocen al confirmar (prefix/number/
+	// document_key/issue_date/issue_time/qr_url/signed_xml/status) para un documento que
+	// hasta ahora era un borrador — devuelve ErrDocumentNotDraft si ya no lo es (ej. doble
+	// confirmación concurrente).
+	Confirm(ctx context.Context, d Document) (*Document, error)
+
+	// Delete elimina un borrador — solo aplica mientras Status == StatusDraft, devuelve
+	// ErrDocumentNotDraft si no (un documento confirmado es inmutable para siempre).
+	Delete(ctx context.Context, id uuid.UUID) error
 
 	// ListByIssuer devuelve los documentos de un emisor que cumplan filter, más recientes
 	// primero (por fecha de emisión, luego por creación).

@@ -46,8 +46,9 @@ const (
 	debitNoteDianDocumentType  = "92"
 )
 
-// Service orquesta la emisión de documentos DIAN: reclama numeración, construye y firma el
-// XML con cofacture, lo envía por SOAP, interpreta la respuesta, y persiste el resultado.
+// Service orquesta el ciclo de vida de documentos DIAN: crear borradores, editarlos,
+// confirmarlos (reclamar numeración, construir y firmar el XML con cofacture, enviar por
+// SOAP, interpretar la respuesta), y persistir el resultado.
 //
 // Es el ÚNICO paquete de api-dian que importa cofacture directamente — ver
 // docs/api-dian-architecture.md sección 4.1.
@@ -63,9 +64,9 @@ func New(repo Repository, issuerPort IssuerPort, numberingPort NumberingPort, cu
 	return &Service{repo: repo, issuers: issuerPort, numbering: numberingPort, customers: customerPort}
 }
 
-// IssueInvoiceRequest es el payload de emisión de una Factura Electrónica de Venta.
-// Customer/Lines/PaymentMeans son pass-through: llegan tal cual y se persisten como
-// snapshot junto con el documento (ver model.go).
+// IssueInvoiceRequest es el payload de una Factura Electrónica de Venta — sirve tanto para
+// crear el borrador como para reemplazarlo por completo en una actualización. Customer/Lines/
+// PaymentMeans son pass-through: llegan tal cual y se persisten como snapshot (ver model.go).
 type IssueInvoiceRequest struct {
 	IssuerID         uuid.UUID
 	NumberingRangeID uuid.UUID
@@ -104,29 +105,218 @@ type IssueCreditNoteRequest struct {
 	CreditNoteTypeCode string
 }
 
-// IssueInvoice construye, firma y — si el ambiente lo permite — envía una Factura
-// Electrónica de Venta, persistiendo el resultado en cualquier caso.
+// ── Crear / editar / eliminar borradores ────────────────────────────────────────────────────
 //
-// El envío real (SendBillSync/SendBillAsync de producción) todavía no existe en cofacture
-// (solo SendTestSetAsync, de habilitación) — si el emisor está en producción o el rango no
-// tiene un TestSetID, el documento queda construido y firmado (StatusBuilt) sin enviarse; eso
-// no es un error de esta llamada, es una limitación conocida (ver
-// docs/api-dian-architecture.md sección 9.10).
-func (s *Service) IssueInvoice(ctx context.Context, req IssueInvoiceRequest) (*Document, error) {
+// Ningún CreateXDraft/UpdateXDraft reclama número, firma ni envía — eso solo pasa en
+// ConfirmDocument. Así un error de captura no quema un consecutivo real de la DIAN (ver
+// docs/api-dian-architecture.md sección 9.25).
+
+// CreateInvoiceDraft valida y persiste un borrador de Factura Electrónica de Venta.
+func (s *Service) CreateInvoiceDraft(ctx context.Context, req IssueInvoiceRequest) (*Document, error) {
 	if err := validateBase(req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer); err != nil {
 		return nil, err
 	}
+	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, invoiceDianDocumentType, req.CustomerID); err != nil {
+		return nil, err
+	}
+	applyCustomerDefaults(&req.Customer)
 
-	p, err := s.prepare(ctx, req.IssuerID, req.NumberingRangeID, invoiceDianDocumentType, req.CustomerID)
+	draft := Document{
+		IssuerID:             req.IssuerID,
+		NumberingRangeID:     req.NumberingRangeID,
+		DianDocumentTypeCode: invoiceDianDocumentType,
+		CurrencyCode:         defaultCurrency(req.CurrencyCode),
+		Note:                 req.Note,
+		Customer:             req.Customer,
+		CustomerID:           req.CustomerID,
+		Lines:                req.Lines,
+		PaymentMeans:         req.PaymentMeans,
+		Totals:               computeTotals(req.Lines),
+		Status:               StatusDraft,
+	}
+	return s.repo.Create(ctx, draft)
+}
+
+// UpdateInvoiceDraft reemplaza por completo los datos de un borrador de Factura existente —
+// solo mientras siga en borrador (ErrDocumentNotDraft si no) y solo si pertenece al emisor
+// dado (ErrDocumentNotFound si no, mismo criterio "indistinguible de no-existe" que el resto
+// de la API).
+func (s *Service) UpdateInvoiceDraft(ctx context.Context, id uuid.UUID, req IssueInvoiceRequest) (*Document, error) {
+	if err := validateBase(req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer); err != nil {
+		return nil, err
+	}
+	if err := s.requireOwnDraft(ctx, req.IssuerID, id); err != nil {
+		return nil, err
+	}
+	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, invoiceDianDocumentType, req.CustomerID); err != nil {
+		return nil, err
+	}
+	applyCustomerDefaults(&req.Customer)
+
+	draft := Document{
+		ID:                   id,
+		IssuerID:             req.IssuerID,
+		NumberingRangeID:     req.NumberingRangeID,
+		DianDocumentTypeCode: invoiceDianDocumentType,
+		CurrencyCode:         defaultCurrency(req.CurrencyCode),
+		Note:                 req.Note,
+		Customer:             req.Customer,
+		CustomerID:           req.CustomerID,
+		Lines:                req.Lines,
+		PaymentMeans:         req.PaymentMeans,
+		Totals:               computeTotals(req.Lines),
+		Status:               StatusDraft,
+	}
+	return s.repo.UpdateDraft(ctx, draft)
+}
+
+// CreateCreditNoteDraft valida y persiste un borrador de Nota Crédito.
+func (s *Service) CreateCreditNoteDraft(ctx context.Context, req IssueCreditNoteRequest) (*Document, error) {
+	if err := validateNoteRequest(req.IssueNoteRequest); err != nil {
+		return nil, err
+	}
+	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, creditNoteDianDocumentType, req.CustomerID); err != nil {
+		return nil, err
+	}
+	draft := noteDraftFromRequest(req.IssueNoteRequest, creditNoteDianDocumentType)
+	draft.NoteTypeCode = req.CreditNoteTypeCode
+	return s.repo.Create(ctx, draft)
+}
+
+// UpdateCreditNoteDraft reemplaza por completo los datos de un borrador de Nota Crédito
+// existente — mismas reglas que UpdateInvoiceDraft.
+func (s *Service) UpdateCreditNoteDraft(ctx context.Context, id uuid.UUID, req IssueCreditNoteRequest) (*Document, error) {
+	if err := validateNoteRequest(req.IssueNoteRequest); err != nil {
+		return nil, err
+	}
+	if err := s.requireOwnDraft(ctx, req.IssuerID, id); err != nil {
+		return nil, err
+	}
+	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, creditNoteDianDocumentType, req.CustomerID); err != nil {
+		return nil, err
+	}
+	draft := noteDraftFromRequest(req.IssueNoteRequest, creditNoteDianDocumentType)
+	draft.ID = id
+	draft.NoteTypeCode = req.CreditNoteTypeCode
+	return s.repo.UpdateDraft(ctx, draft)
+}
+
+// CreateDebitNoteDraft valida y persiste un borrador de Nota Débito.
+func (s *Service) CreateDebitNoteDraft(ctx context.Context, req IssueNoteRequest) (*Document, error) {
+	if err := validateNoteRequest(req); err != nil {
+		return nil, err
+	}
+	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, debitNoteDianDocumentType, req.CustomerID); err != nil {
+		return nil, err
+	}
+	draft := noteDraftFromRequest(req, debitNoteDianDocumentType)
+	return s.repo.Create(ctx, draft)
+}
+
+// UpdateDebitNoteDraft reemplaza por completo los datos de un borrador de Nota Débito
+// existente — mismas reglas que UpdateInvoiceDraft.
+func (s *Service) UpdateDebitNoteDraft(ctx context.Context, id uuid.UUID, req IssueNoteRequest) (*Document, error) {
+	if err := validateNoteRequest(req); err != nil {
+		return nil, err
+	}
+	if err := s.requireOwnDraft(ctx, req.IssuerID, id); err != nil {
+		return nil, err
+	}
+	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, debitNoteDianDocumentType, req.CustomerID); err != nil {
+		return nil, err
+	}
+	draft := noteDraftFromRequest(req, debitNoteDianDocumentType)
+	draft.ID = id
+	return s.repo.UpdateDraft(ctx, draft)
+}
+
+// DeleteDraft elimina un borrador — solo mientras siga en borrador y pertenezca al emisor dado.
+func (s *Service) DeleteDraft(ctx context.Context, issuerID, id uuid.UUID) error {
+	if err := s.requireOwnDraft(ctx, issuerID, id); err != nil {
+		return err
+	}
+	return s.repo.Delete(ctx, id)
+}
+
+// requireOwnDraft centraliza el chequeo que Update*Draft/DeleteDraft repiten: el documento
+// existe, pertenece a issuerID (si no, ErrDocumentNotFound — mismo 404 indistinguible que el
+// resto de la API), y sigue en borrador (si no, ErrDocumentNotDraft).
+func (s *Service) requireOwnDraft(ctx context.Context, issuerID, id uuid.UUID) error {
+	d, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if d.IssuerID != issuerID {
+		return ErrDocumentNotFound
+	}
+	if d.Status != StatusDraft {
+		return ErrDocumentNotDraft
+	}
+	return nil
+}
+
+func noteDraftFromRequest(req IssueNoteRequest, dianDocType string) Document {
+	d := Document{
+		IssuerID:             req.IssuerID,
+		NumberingRangeID:     req.NumberingRangeID,
+		DianDocumentTypeCode: dianDocType,
+		CurrencyCode:         defaultCurrency(req.CurrencyCode),
+		Note:                 req.Note,
+		Customer:             req.Customer,
+		CustomerID:           req.CustomerID,
+		Lines:                req.Lines,
+		PaymentMeans:         req.PaymentMeans,
+		Totals:               computeTotals(req.Lines),
+		Status:               StatusDraft,
+	}
+	applyCustomerDefaults(&d.Customer)
+	billingRef := billingReferenceInputCopy(req.BillingReference)
+	d.BillingReference = &billingRef
+	d.DiscrepancyResponse = req.DiscrepancyResponse
+	return d
+}
+
+func billingReferenceInputCopy(b BillingReferenceInput) BillingReferenceInput {
+	return b
+}
+
+// ── Confirmar (reclamar número, construir, firmar, enviar) ─────────────────────────────────
+
+// ConfirmDocument reclama el consecutivo real, construye y firma el XML, y —si el ambiente lo
+// permite— lo envía a la DIAN, para un borrador ya creado. Es el ÚNICO punto de todo el
+// servicio donde se "gasta" un número real — antes de esto, el documento se puede editar o
+// eliminar libremente.
+func (s *Service) ConfirmDocument(ctx context.Context, issuerID, id uuid.UUID) (*Document, error) {
+	d, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if d.IssuerID != issuerID {
+		return nil, ErrDocumentNotFound
+	}
+	if d.Status != StatusDraft {
+		return nil, ErrDocumentNotDraft
+	}
+
+	switch d.DianDocumentTypeCode {
+	case invoiceDianDocumentType:
+		return s.confirmInvoice(ctx, d)
+	case creditNoteDianDocumentType:
+		return s.confirmCreditNote(ctx, d)
+	case debitNoteDianDocumentType:
+		return s.confirmDebitNote(ctx, d)
+	default:
+		return nil, fmt.Errorf("documents: tipo de documento desconocido %q", d.DianDocumentTypeCode)
+	}
+}
+
+func (s *Service) confirmInvoice(ctx context.Context, d *Document) (*Document, error) {
+	p, err := s.claimAndLoadCert(ctx, d)
 	if err != nil {
 		return nil, err
 	}
 
-	currency := defaultCurrency(req.CurrencyCode)
-	applyCustomerDefaults(&req.Customer)
-	totals := computeTotals(req.Lines)
-	headerTaxes := aggregateTaxes(req.Lines)
-
+	headerTaxes := aggregateTaxes(d.Lines)
 	inv := domain.Invoice{
 		ProfileID:         invoiceProfileID,
 		EnvironmentCode:   string(p.iss.Environment),
@@ -140,16 +330,16 @@ func (s *Service) IssueInvoice(ctx context.Context, req IssueInvoiceRequest) (*D
 		IssueDate: p.now.Format("2006-01-02"),
 		IssueTime: p.now.Format("15:04:05-07:00"),
 
-		CurrencyCode: currency,
-		Note:         req.Note,
+		CurrencyCode: d.CurrencyCode,
+		Note:         d.Note,
 
 		Supplier: partyFromIssuer(p.iss),
-		Customer: req.Customer,
+		Customer: d.Customer,
 
-		PaymentMeans: req.PaymentMeans,
+		PaymentMeans: d.PaymentMeans,
 		HeaderTaxes:  headerTaxes,
-		Totals:       totals,
-		Lines:        req.Lines,
+		Totals:       d.Totals,
+		Lines:        d.Lines,
 
 		NumberingRange:   numberingRangeFromRange(p.nr),
 		SoftwareProvider: softwareProviderFromIssuer(p.iss),
@@ -159,103 +349,106 @@ func (s *Service) IssueInvoice(ctx context.Context, req IssueInvoiceRequest) (*D
 	inv.SoftwareSecurityCode = securitycode.Compute(p.iss.SoftwareID, p.iss.SoftwarePIN, inv.Prefix+inv.Number)
 	inv.QRURL = qr.URL(inv.EnvironmentCode, inv.CUFE)
 
-	doc, err := builder.BuildInvoice(inv)
+	xmlDoc, err := builder.BuildInvoice(inv)
 	if err != nil {
 		return nil, fmt.Errorf("construir XML: %w", err)
 	}
 
-	partial := Document{
-		DianDocumentTypeCode: invoiceDianDocumentType,
-		Prefix:               inv.Prefix,
-		Number:               p.number,
-		DocumentKey:          inv.CUFE,
-		IssueDate:            p.now,
-		IssueTime:            inv.IssueTime,
-		CurrencyCode:         currency,
-		Customer:             req.Customer,
-		CustomerID:           req.CustomerID,
-		Lines:                req.Lines,
-		PaymentMeans:         req.PaymentMeans,
-		Totals:               totals,
-		QRURL:                inv.QRURL,
-	}
+	d.Prefix, d.Number, d.DocumentKey = inv.Prefix, p.number, inv.CUFE
+	d.IssueDate, d.IssueTime, d.QRURL = p.now, inv.IssueTime, inv.QRURL
 
-	return s.finalizeAndSend(ctx, doc, p, partial, zip.KindInvoice)
+	return s.finalizeAndSend(ctx, xmlDoc, p, d, zip.KindInvoice)
 }
 
-// IssueCreditNote construye, firma y — si el ambiente lo permite — envía una Nota Crédito.
-// Reutiliza el mismo pipeline que IssueInvoice, salvo CUDE en vez de CUFE y BuildCreditNote
-// en vez de BuildInvoice.
-func (s *Service) IssueCreditNote(ctx context.Context, req IssueCreditNoteRequest) (*Document, error) {
-	if err := validateNoteRequest(req.IssueNoteRequest); err != nil {
-		return nil, err
-	}
-
-	p, err := s.prepare(ctx, req.IssuerID, req.NumberingRangeID, creditNoteDianDocumentType, req.CustomerID)
+func (s *Service) confirmCreditNote(ctx context.Context, d *Document) (*Document, error) {
+	p, err := s.claimAndLoadCert(ctx, d)
 	if err != nil {
 		return nil, err
 	}
 
-	base := s.buildNoteBase(req.IssueNoteRequest, p, creditNoteProfileID, creditNoteOperationTypeCode, creditNoteHashType, creditNoteDianDocumentType)
-
+	base := s.noteBaseFromDraft(d, p, creditNoteProfileID, creditNoteOperationTypeCode, creditNoteHashType, creditNoteDianDocumentType)
 	cn := domain.CreditNote{
 		Invoice:             base,
-		CreditNoteTypeCode:  req.CreditNoteTypeCode,
-		BillingReference:    billingReferenceFromInput(req.BillingReference),
-		DiscrepancyResponse: discrepancyResponseFromInput(req.DiscrepancyResponse),
+		CreditNoteTypeCode:  d.NoteTypeCode,
+		BillingReference:    billingReferenceFromInput(*d.BillingReference),
+		DiscrepancyResponse: discrepancyResponseFromInput(d.DiscrepancyResponse),
 	}
 
 	cn.CUFE = cude.Compute(cn.Invoice, p.iss.SoftwarePIN)
 	cn.SoftwareSecurityCode = securitycode.Compute(p.iss.SoftwareID, p.iss.SoftwarePIN, cn.Prefix+cn.Number)
 	cn.QRURL = qr.URL(cn.EnvironmentCode, cn.CUFE)
 
-	doc, err := builder.BuildCreditNote(cn)
+	xmlDoc, err := builder.BuildCreditNote(cn)
 	if err != nil {
 		return nil, fmt.Errorf("construir XML: %w", err)
 	}
 
-	partial := documentFromNoteBase(cn.Invoice, creditNoteDianDocumentType, p.number, cn.CUFE, req.IssueNoteRequest)
-	partial.BillingReference = &req.BillingReference
-	partial.DiscrepancyResponse = req.DiscrepancyResponse
-	partial.NoteTypeCode = req.CreditNoteTypeCode
+	d.Prefix, d.Number, d.DocumentKey = cn.Prefix, p.number, cn.CUFE
+	d.IssueDate, d.IssueTime, d.QRURL = p.now, cn.IssueTime, cn.QRURL
 
-	return s.finalizeAndSend(ctx, doc, p, partial, zip.KindCreditNote)
+	return s.finalizeAndSend(ctx, xmlDoc, p, d, zip.KindCreditNote)
 }
 
-// IssueDebitNote construye, firma y — si el ambiente lo permite — envía una Nota Débito.
-// A diferencia de CreditNote, DebitNote no tiene un campo de tipo propio en cofacture.
-func (s *Service) IssueDebitNote(ctx context.Context, req IssueNoteRequest) (*Document, error) {
-	if err := validateNoteRequest(req); err != nil {
-		return nil, err
-	}
-
-	p, err := s.prepare(ctx, req.IssuerID, req.NumberingRangeID, debitNoteDianDocumentType, req.CustomerID)
+func (s *Service) confirmDebitNote(ctx context.Context, d *Document) (*Document, error) {
+	p, err := s.claimAndLoadCert(ctx, d)
 	if err != nil {
 		return nil, err
 	}
 
-	base := s.buildNoteBase(req, p, debitNoteProfileID, debitNoteOperationTypeCode, debitNoteHashType, debitNoteDianDocumentType)
-
+	base := s.noteBaseFromDraft(d, p, debitNoteProfileID, debitNoteOperationTypeCode, debitNoteHashType, debitNoteDianDocumentType)
 	dn := domain.DebitNote{
 		Invoice:             base,
-		BillingReference:    billingReferenceFromInput(req.BillingReference),
-		DiscrepancyResponse: discrepancyResponseFromInput(req.DiscrepancyResponse),
+		BillingReference:    billingReferenceFromInput(*d.BillingReference),
+		DiscrepancyResponse: discrepancyResponseFromInput(d.DiscrepancyResponse),
 	}
 
 	dn.CUFE = cude.Compute(dn.Invoice, p.iss.SoftwarePIN)
 	dn.SoftwareSecurityCode = securitycode.Compute(p.iss.SoftwareID, p.iss.SoftwarePIN, dn.Prefix+dn.Number)
 	dn.QRURL = qr.URL(dn.EnvironmentCode, dn.CUFE)
 
-	doc, err := builder.BuildDebitNote(dn)
+	xmlDoc, err := builder.BuildDebitNote(dn)
 	if err != nil {
 		return nil, fmt.Errorf("construir XML: %w", err)
 	}
 
-	partial := documentFromNoteBase(dn.Invoice, debitNoteDianDocumentType, p.number, dn.CUFE, req)
-	partial.BillingReference = &req.BillingReference
-	partial.DiscrepancyResponse = req.DiscrepancyResponse
+	d.Prefix, d.Number, d.DocumentKey = dn.Prefix, p.number, dn.CUFE
+	d.IssueDate, d.IssueTime, d.QRURL = p.now, dn.IssueTime, dn.QRURL
 
-	return s.finalizeAndSend(ctx, doc, p, partial, zip.KindDebitNote)
+	return s.finalizeAndSend(ctx, xmlDoc, p, d, zip.KindDebitNote)
+}
+
+// noteBaseFromDraft construye el domain.Invoice embebido que comparten CreditNote y
+// DebitNote, a partir de un borrador ya persistido — equivalente a lo que antes era
+// buildNoteBase a partir de la petición HTTP directamente.
+func (s *Service) noteBaseFromDraft(d *Document, p *preparedIssuance, profileID, operationTypeCode, hashType, dianDocType string) domain.Invoice {
+	headerTaxes := aggregateTaxes(d.Lines)
+	return domain.Invoice{
+		ProfileID:         profileID,
+		EnvironmentCode:   string(p.iss.Environment),
+		OperationTypeCode: operationTypeCode,
+		DocumentTypeCode:  dianDocType,
+		HashType:          hashType,
+
+		Prefix: p.nr.Prefix,
+		Number: strconv.FormatInt(p.number, 10),
+
+		IssueDate: p.now.Format("2006-01-02"),
+		IssueTime: p.now.Format("15:04:05-07:00"),
+
+		CurrencyCode: d.CurrencyCode,
+		Note:         d.Note,
+
+		Supplier: partyFromIssuer(p.iss),
+		Customer: d.Customer,
+
+		PaymentMeans: d.PaymentMeans,
+		HeaderTaxes:  headerTaxes,
+		Totals:       d.Totals,
+		Lines:        d.Lines,
+
+		NumberingRange:   numberingRangeFromRange(p.nr),
+		SoftwareProvider: softwareProviderFromIssuer(p.iss),
+	}
 }
 
 // GetDocument devuelve un documento por ID.
@@ -288,9 +481,9 @@ func (s *Service) ListDocuments(ctx context.Context, issuerID uuid.UUID, filter 
 
 // ── Preparación común (emisor, rango, consecutivo, certificado) ───────────────────────────
 
-// preparedIssuance agrupa lo que los tres IssueXxx necesitan antes de construir su propio
-// modelo de dominio — carga el emisor y el rango UNA sola vez, valida el tipo de documento,
-// reclama el consecutivo, y carga el certificado.
+// preparedIssuance agrupa lo que confirmInvoice/confirmCreditNote/confirmDebitNote necesitan.
+// validateForIssuance llena iss/nr (se puede validar en el borrador, sin gastar nada);
+// claimAndLoadCert llena number/cert/key/now (solo al confirmar, gasta un número real).
 type preparedIssuance struct {
 	iss    *issuers.Issuer
 	nr     *numbering.NumberingRange
@@ -300,7 +493,11 @@ type preparedIssuance struct {
 	now    time.Time
 }
 
-func (s *Service) prepare(ctx context.Context, issuerID, rangeID uuid.UUID, expectedDianDocType string, customerID *uuid.UUID) (*preparedIssuance, error) {
+// validateForIssuance carga emisor + rango y valida que el rango pertenezca a este emisor, le
+// corresponda al tipo de documento esperado, y que el CustomerID opcional (si lo hay) también
+// pertenezca a este emisor — todo verificable sin reclamar ningún número, por eso se corre
+// tanto al crear/editar un borrador como, de nuevo, al confirmarlo.
+func (s *Service) validateForIssuance(ctx context.Context, issuerID, rangeID uuid.UUID, expectedDianDocType string, customerID *uuid.UUID) (*preparedIssuance, error) {
 	iss, err := s.issuers.GetIssuer(ctx, issuerID)
 	if err != nil {
 		return nil, err
@@ -324,87 +521,46 @@ func (s *Service) prepare(ctx context.Context, issuerID, rangeID uuid.UUID, expe
 			return nil, ErrCustomerIssuerMismatch
 		}
 	}
+	return &preparedIssuance{iss: iss, nr: nr}, nil
+}
 
-	number, err := s.numbering.ClaimNext(ctx, rangeID)
+// claimAndLoadCert es el paso que de verdad "gasta" un número: re-valida (defensivo, en caso
+// de que algo cambiara entre crear el borrador y confirmarlo), exige que el emisor ya tenga
+// software/certificado configurados (ErrIssuerNotReadyToIssue si no — ver
+// docs/api-dian-architecture.md sección 9.25 sobre configuración gradual del emisor), reclama
+// el consecutivo, y carga el certificado para firmar.
+func (s *Service) claimAndLoadCert(ctx context.Context, d *Document) (*preparedIssuance, error) {
+	p, err := s.validateForIssuance(ctx, d.IssuerID, d.NumberingRangeID, d.DianDocumentTypeCode, d.CustomerID)
+	if err != nil {
+		return nil, err
+	}
+	if p.iss.SoftwareID == "" || p.iss.SoftwarePIN == "" || len(p.iss.Certificate) == 0 {
+		return nil, ErrIssuerNotReadyToIssue
+	}
+
+	number, err := s.numbering.ClaimNext(ctx, d.NumberingRangeID)
 	if err != nil {
 		return nil, err
 	}
 
-	cert, key, err := signer.LoadPKCS12(iss.Certificate, iss.CertificatePassword)
+	cert, key, err := signer.LoadPKCS12(p.iss.Certificate, p.iss.CertificatePassword)
 	if err != nil {
 		return nil, fmt.Errorf("cargar certificado del emisor: %w", err)
 	}
 
-	return &preparedIssuance{
-		iss: iss, nr: nr, number: number, cert: cert, key: key,
-		now: time.Now().In(domain.Bogota),
-	}, nil
-}
-
-// buildNoteBase construye el domain.Invoice embebido que comparten CreditNote y DebitNote —
-// idéntico a IssueInvoice salvo los valores fijos (ProfileID/OperationTypeCode/HashType) y
-// que no lleva CUFE/SoftwareSecurityCode/QRURL todavía (eso lo calcula cada llamador con la
-// fórmula correcta: cude.Compute en vez de cufe.Compute).
-func (s *Service) buildNoteBase(req IssueNoteRequest, p *preparedIssuance, profileID, operationTypeCode, hashType, dianDocType string) domain.Invoice {
-	applyCustomerDefaults(&req.Customer)
-	currency := defaultCurrency(req.CurrencyCode)
-	totals := computeTotals(req.Lines)
-	headerTaxes := aggregateTaxes(req.Lines)
-
-	return domain.Invoice{
-		ProfileID:         profileID,
-		EnvironmentCode:   string(p.iss.Environment),
-		OperationTypeCode: operationTypeCode,
-		DocumentTypeCode:  dianDocType,
-		HashType:          hashType,
-
-		Prefix: p.nr.Prefix,
-		Number: strconv.FormatInt(p.number, 10),
-
-		IssueDate: p.now.Format("2006-01-02"),
-		IssueTime: p.now.Format("15:04:05-07:00"),
-
-		CurrencyCode: currency,
-		Note:         req.Note,
-
-		Supplier: partyFromIssuer(p.iss),
-		Customer: req.Customer,
-
-		PaymentMeans: req.PaymentMeans,
-		HeaderTaxes:  headerTaxes,
-		Totals:       totals,
-		Lines:        req.Lines,
-
-		NumberingRange:   numberingRangeFromRange(p.nr),
-		SoftwareProvider: softwareProviderFromIssuer(p.iss),
-	}
-}
-
-// documentFromNoteBase arma el Document parcial (sin SignedXML/Status) a partir del Invoice
-// embebido ya construido — comparte exactamente los mismos campos que IssueInvoice persiste.
-func documentFromNoteBase(base domain.Invoice, dianDocType string, number int64, documentKey string, req IssueNoteRequest) Document {
-	return Document{
-		DianDocumentTypeCode: dianDocType,
-		Prefix:               base.Prefix,
-		Number:               number,
-		DocumentKey:          documentKey,
-		IssueDate:            time.Time{}, // se completa abajo por el llamador con p.now
-		IssueTime:            base.IssueTime,
-		CurrencyCode:         base.CurrencyCode,
-		Customer:             req.Customer,
-		CustomerID:           req.CustomerID,
-		Lines:                req.Lines,
-		PaymentMeans:         req.PaymentMeans,
-		Totals:               base.Totals,
-		QRURL:                base.QRURL,
-	}
+	p.number = number
+	p.cert = cert
+	p.key = key
+	p.now = time.Now().In(domain.Bogota)
+	return p, nil
 }
 
 // ── Firma, serialización, persistencia y envío (compartido por los tres tipos) ────────────
 
-// finalizeAndSend firma el documento ya construido, lo serializa, lo persiste, y —si el
-// ambiente lo permite— lo envía. Common tail de IssueInvoice/IssueCreditNote/IssueDebitNote.
-func (s *Service) finalizeAndSend(ctx context.Context, doc *etree.Document, p *preparedIssuance, partial Document, kind zip.DocumentKind) (*Document, error) {
+// finalizeAndSend firma el documento ya construido, lo serializa, persiste la confirmación
+// del borrador (d.ID ya existía desde la creación), y —si el ambiente lo permite— lo envía.
+// Common tail de confirmInvoice/confirmCreditNote/confirmDebitNote.
+func (s *Service) finalizeAndSend(ctx context.Context, doc *etree.Document, p *preparedIssuance, d *Document, kind zip.DocumentKind) (*Document, error) {
 	placeholder, err := builder.SignaturePlaceholder(doc)
 	if err != nil {
 		return nil, fmt.Errorf("crear placeholder de firma: %w", err)
@@ -420,13 +576,10 @@ func (s *Service) finalizeAndSend(ctx context.Context, doc *etree.Document, p *p
 		return nil, fmt.Errorf("serializar XML firmado: %w", err)
 	}
 
-	partial.IssuerID = p.iss.ID
-	partial.NumberingRangeID = p.nr.ID
-	partial.IssueDate = p.now
-	partial.SignedXML = string(xmlBytes)
-	partial.Status = StatusBuilt
+	d.SignedXML = string(xmlBytes)
+	d.Status = StatusBuilt
 
-	created, err := s.repo.Create(ctx, partial)
+	created, err := s.repo.Confirm(ctx, *d)
 	if err != nil {
 		return nil, err
 	}

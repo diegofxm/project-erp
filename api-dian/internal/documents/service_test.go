@@ -124,10 +124,21 @@ func testRequest(issuerID, rangeID uuid.UUID) documents.IssueInvoiceRequest {
 	}
 }
 
-func TestIssueInvoice_BuildsSignsAndPersists(t *testing.T) {
+// issueInvoice crea el borrador y lo confirma de una — equivalente al viejo IssueInvoice de
+// una sola llamada, para los tests que solo les importa el resultado final ya firmado.
+func issueInvoice(t *testing.T, svc *documents.Service, req documents.IssueInvoiceRequest) *documents.Document {
+	t.Helper()
+	draft, err := svc.CreateInvoiceDraft(context.Background(), req)
+	require.NoError(t, err)
+	require.Equal(t, documents.StatusDraft, draft.Status)
+	confirmed, err := svc.ConfirmDocument(context.Background(), req.IssuerID, draft.ID)
+	require.NoError(t, err)
+	return confirmed
+}
+
+func TestCreateInvoiceDraft_OK(t *testing.T) {
 	iss := testIssuer()
 	nr := testNumberingRange(iss.ID)
-
 	svc := documents.New(
 		documents.NewMemoryRepository(),
 		&fakeIssuerPort{issuer: iss},
@@ -135,8 +146,27 @@ func TestIssueInvoice_BuildsSignsAndPersists(t *testing.T) {
 		&fakeCustomerPort{},
 	)
 
-	doc, err := svc.IssueInvoice(context.Background(), testRequest(iss.ID, nr.ID))
+	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
 	require.NoError(t, err)
+
+	assert.Equal(t, documents.StatusDraft, draft.Status)
+	assert.Zero(t, draft.Number, "un borrador no reclama número")
+	assert.Empty(t, draft.DocumentKey, "un borrador no tiene CUFE todavía")
+	assert.Empty(t, draft.SignedXML, "un borrador no está firmado todavía")
+	assert.Equal(t, int64(10000), draft.Totals.LineExtensionCents, "los totales sí se calculan desde el borrador")
+}
+
+func TestConfirmDocument_BuildsSignsAndPersists(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+	)
+
+	doc := issueInvoice(t, svc, testRequest(iss.ID, nr.ID))
 
 	assert.Equal(t, "SETP", doc.Prefix)
 	assert.Equal(t, int64(1), doc.Number)
@@ -150,7 +180,7 @@ func TestIssueInvoice_BuildsSignsAndPersists(t *testing.T) {
 	assert.Equal(t, int64(10000), doc.Totals.PayableCents)
 }
 
-func TestIssueInvoice_ClaimsSequentialNumbers(t *testing.T) {
+func TestConfirmDocument_ClaimsSequentialNumbers(t *testing.T) {
 	iss := testIssuer()
 	nr := testNumberingRange(iss.ID)
 	svc := documents.New(
@@ -160,17 +190,158 @@ func TestIssueInvoice_ClaimsSequentialNumbers(t *testing.T) {
 		&fakeCustomerPort{},
 	)
 
-	first, err := svc.IssueInvoice(context.Background(), testRequest(iss.ID, nr.ID))
-	require.NoError(t, err)
-	second, err := svc.IssueInvoice(context.Background(), testRequest(iss.ID, nr.ID))
-	require.NoError(t, err)
+	first := issueInvoice(t, svc, testRequest(iss.ID, nr.ID))
+	second := issueInvoice(t, svc, testRequest(iss.ID, nr.ID))
 
 	assert.Equal(t, int64(1), first.Number)
 	assert.Equal(t, int64(2), second.Number)
 	assert.NotEqual(t, first.DocumentKey, second.DocumentKey)
 }
 
-func TestIssueInvoice_WrongDocumentType(t *testing.T) {
+func TestConfirmDocument_NotDraft(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+	)
+
+	doc := issueInvoice(t, svc, testRequest(iss.ID, nr.ID))
+
+	_, err := svc.ConfirmDocument(context.Background(), iss.ID, doc.ID)
+	assert.ErrorIs(t, err, documents.ErrDocumentNotDraft, "confirmar dos veces no debe gastar un segundo número")
+}
+
+func TestConfirmDocument_OtherIssuer(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+	)
+
+	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
+	require.NoError(t, err)
+
+	_, err = svc.ConfirmDocument(context.Background(), uuid.New(), draft.ID)
+	assert.ErrorIs(t, err, documents.ErrDocumentNotFound)
+}
+
+func TestConfirmDocument_IssuerNotReady(t *testing.T) {
+	iss := testIssuer()
+	iss.SoftwareID, iss.SoftwarePIN, iss.Certificate = "", "", nil // emisor sin configurar todavía
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+	)
+
+	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
+	require.NoError(t, err, "crear el borrador NO debe exigir software/certificado todavía")
+
+	_, err = svc.ConfirmDocument(context.Background(), iss.ID, draft.ID)
+	assert.ErrorIs(t, err, documents.ErrIssuerNotReadyToIssue)
+}
+
+func TestUpdateInvoiceDraft_OK(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+	)
+
+	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
+	require.NoError(t, err)
+
+	updated := testRequest(iss.ID, nr.ID)
+	updated.Lines[0].Description = "Servicio corregido"
+	updated.Lines[0].LineExtensionCents = 20000
+	updated.Lines[0].UnitPriceCents = 20000
+
+	got, err := svc.UpdateInvoiceDraft(context.Background(), draft.ID, updated)
+	require.NoError(t, err)
+	assert.Equal(t, "Servicio corregido", got.Lines[0].Description)
+	assert.Equal(t, int64(20000), got.Totals.LineExtensionCents)
+}
+
+func TestUpdateInvoiceDraft_NotDraft(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+	)
+
+	doc := issueInvoice(t, svc, testRequest(iss.ID, nr.ID))
+
+	_, err := svc.UpdateInvoiceDraft(context.Background(), doc.ID, testRequest(iss.ID, nr.ID))
+	assert.ErrorIs(t, err, documents.ErrDocumentNotDraft, "un documento ya confirmado es inmutable")
+}
+
+func TestUpdateInvoiceDraft_OtherIssuer(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+	)
+
+	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
+	require.NoError(t, err)
+
+	otroReq := testRequest(uuid.New(), nr.ID)
+	_, err = svc.UpdateInvoiceDraft(context.Background(), draft.ID, otroReq)
+	assert.ErrorIs(t, err, documents.ErrDocumentNotFound)
+}
+
+func TestDeleteDraft_OK(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+	)
+
+	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
+	require.NoError(t, err)
+
+	require.NoError(t, svc.DeleteDraft(context.Background(), iss.ID, draft.ID))
+	_, err = svc.GetDocument(context.Background(), draft.ID)
+	assert.ErrorIs(t, err, documents.ErrDocumentNotFound)
+}
+
+func TestDeleteDraft_NotDraft(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+	)
+
+	doc := issueInvoice(t, svc, testRequest(iss.ID, nr.ID))
+
+	err := svc.DeleteDraft(context.Background(), iss.ID, doc.ID)
+	assert.ErrorIs(t, err, documents.ErrDocumentNotDraft, "un documento ya confirmado nunca se borra")
+}
+
+func TestCreateInvoiceDraft_WrongDocumentType(t *testing.T) {
 	iss := testIssuer()
 	nr := testNumberingRange(iss.ID)
 	nr.DianDocumentTypeCode = "91" // rango de Nota Crédito, no de Factura
@@ -182,11 +353,11 @@ func TestIssueInvoice_WrongDocumentType(t *testing.T) {
 		&fakeCustomerPort{},
 	)
 
-	_, err := svc.IssueInvoice(context.Background(), testRequest(iss.ID, nr.ID))
-	assert.ErrorIs(t, err, documents.ErrWrongDocumentType)
+	_, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
+	assert.ErrorIs(t, err, documents.ErrWrongDocumentType, "el tipo se valida desde el borrador, no solo al confirmar")
 }
 
-func TestIssueInvoice_NumberingRangeIssuerMismatch(t *testing.T) {
+func TestCreateInvoiceDraft_NumberingRangeIssuerMismatch(t *testing.T) {
 	iss := testIssuer()
 	otroEmisorID := uuid.New() // el rango pertenece a OTRO emisor, no a iss
 	nr := testNumberingRange(otroEmisorID)
@@ -198,11 +369,11 @@ func TestIssueInvoice_NumberingRangeIssuerMismatch(t *testing.T) {
 		&fakeCustomerPort{},
 	)
 
-	_, err := svc.IssueInvoice(context.Background(), testRequest(iss.ID, nr.ID))
+	_, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
 	assert.ErrorIs(t, err, documents.ErrNumberingRangeIssuerMismatch)
 }
 
-func TestIssueInvoice_WithCustomerID_OK(t *testing.T) {
+func TestCreateInvoiceDraft_WithCustomerID_OK(t *testing.T) {
 	iss := testIssuer()
 	nr := testNumberingRange(iss.ID)
 	cust := &customers.Customer{ID: uuid.New(), IssuerID: iss.ID}
@@ -216,13 +387,13 @@ func TestIssueInvoice_WithCustomerID_OK(t *testing.T) {
 
 	req := testRequest(iss.ID, nr.ID)
 	req.CustomerID = &cust.ID
-	doc, err := svc.IssueInvoice(context.Background(), req)
+	draft, err := svc.CreateInvoiceDraft(context.Background(), req)
 	require.NoError(t, err)
-	require.NotNil(t, doc.CustomerID)
-	assert.Equal(t, cust.ID, *doc.CustomerID)
+	require.NotNil(t, draft.CustomerID)
+	assert.Equal(t, cust.ID, *draft.CustomerID)
 }
 
-func TestIssueInvoice_CustomerIssuerMismatch(t *testing.T) {
+func TestCreateInvoiceDraft_CustomerIssuerMismatch(t *testing.T) {
 	iss := testIssuer()
 	nr := testNumberingRange(iss.ID)
 	otroEmisorID := uuid.New()
@@ -237,11 +408,11 @@ func TestIssueInvoice_CustomerIssuerMismatch(t *testing.T) {
 
 	req := testRequest(iss.ID, nr.ID)
 	req.CustomerID = &cust.ID
-	_, err := svc.IssueInvoice(context.Background(), req)
+	_, err := svc.CreateInvoiceDraft(context.Background(), req)
 	assert.ErrorIs(t, err, documents.ErrCustomerIssuerMismatch)
 }
 
-func TestIssueInvoice_CustomerIDNotFound(t *testing.T) {
+func TestCreateInvoiceDraft_CustomerIDNotFound(t *testing.T) {
 	iss := testIssuer()
 	nr := testNumberingRange(iss.ID)
 
@@ -255,11 +426,11 @@ func TestIssueInvoice_CustomerIDNotFound(t *testing.T) {
 	req := testRequest(iss.ID, nr.ID)
 	missing := uuid.New()
 	req.CustomerID = &missing
-	_, err := svc.IssueInvoice(context.Background(), req)
+	_, err := svc.CreateInvoiceDraft(context.Background(), req)
 	assert.ErrorIs(t, err, customers.ErrCustomerNotFound)
 }
 
-func TestIssueInvoice_Validations(t *testing.T) {
+func TestCreateInvoiceDraft_Validations(t *testing.T) {
 	iss := testIssuer()
 	nr := testNumberingRange(iss.ID)
 	svc := documents.New(
@@ -284,7 +455,7 @@ func TestIssueInvoice_Validations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := testRequest(iss.ID, nr.ID)
 			tt.mutate(&req)
-			_, err := svc.IssueInvoice(context.Background(), req)
+			_, err := svc.CreateInvoiceDraft(context.Background(), req)
 			assert.ErrorIs(t, err, tt.wantErr)
 		})
 	}
@@ -338,6 +509,26 @@ func debitNoteRangeFor(issuerID uuid.UUID) *numbering.NumberingRange {
 	return nr
 }
 
+// issueCreditNote/issueDebitNote: crear el borrador y confirmarlo de una, mismo criterio que
+// issueInvoice.
+func issueCreditNote(t *testing.T, svc *documents.Service, req documents.IssueCreditNoteRequest) *documents.Document {
+	t.Helper()
+	draft, err := svc.CreateCreditNoteDraft(context.Background(), req)
+	require.NoError(t, err)
+	confirmed, err := svc.ConfirmDocument(context.Background(), req.IssuerID, draft.ID)
+	require.NoError(t, err)
+	return confirmed
+}
+
+func issueDebitNote(t *testing.T, svc *documents.Service, req documents.IssueNoteRequest) *documents.Document {
+	t.Helper()
+	draft, err := svc.CreateDebitNoteDraft(context.Background(), req)
+	require.NoError(t, err)
+	confirmed, err := svc.ConfirmDocument(context.Background(), req.IssuerID, draft.ID)
+	require.NoError(t, err)
+	return confirmed
+}
+
 func TestIssueCreditNote_BuildsSignsAndPersists(t *testing.T) {
 	iss := testIssuer()
 	nr := creditNoteRangeFor(iss.ID)
@@ -352,8 +543,7 @@ func TestIssueCreditNote_BuildsSignsAndPersists(t *testing.T) {
 		IssueNoteRequest:   testNoteRequest(iss.ID, nr.ID),
 		CreditNoteTypeCode: "2",
 	}
-	doc, err := svc.IssueCreditNote(context.Background(), req)
-	require.NoError(t, err)
+	doc := issueCreditNote(t, svc, req)
 
 	assert.Equal(t, "SETPNC", doc.Prefix)
 	assert.Equal(t, "91", doc.DianDocumentTypeCode)
@@ -377,8 +567,7 @@ func TestIssueDebitNote_BuildsSignsAndPersists(t *testing.T) {
 		&fakeCustomerPort{},
 	)
 
-	doc, err := svc.IssueDebitNote(context.Background(), testNoteRequest(iss.ID, nr.ID))
-	require.NoError(t, err)
+	doc := issueDebitNote(t, svc, testNoteRequest(iss.ID, nr.ID))
 
 	assert.Equal(t, "SETPND", doc.Prefix)
 	assert.Equal(t, "92", doc.DianDocumentTypeCode)
@@ -406,12 +595,11 @@ func TestIssueCreditNote_DifferentCUDEThanInvoiceCUFE(t *testing.T) {
 		IssueNoteRequest:   testNoteRequest(iss.ID, nr.ID),
 		CreditNoteTypeCode: "2",
 	}
-	doc, err := svc.IssueCreditNote(context.Background(), req)
-	require.NoError(t, err)
+	doc := issueCreditNote(t, svc, req)
 	assert.Len(t, doc.DocumentKey, 96, "CUDE es SHA-384 en hex, 96 caracteres")
 }
 
-func TestIssueCreditNote_MissingBillingReference(t *testing.T) {
+func TestCreateCreditNoteDraft_MissingBillingReference(t *testing.T) {
 	iss := testIssuer()
 	nr := creditNoteRangeFor(iss.ID)
 	svc := documents.New(
@@ -427,11 +615,11 @@ func TestIssueCreditNote_MissingBillingReference(t *testing.T) {
 	}
 	req.BillingReference = documents.BillingReferenceInput{}
 
-	_, err := svc.IssueCreditNote(context.Background(), req)
+	_, err := svc.CreateCreditNoteDraft(context.Background(), req)
 	assert.ErrorIs(t, err, documents.ErrMissingBillingReference)
 }
 
-func TestIssueDebitNote_WrongDocumentType(t *testing.T) {
+func TestCreateDebitNoteDraft_WrongDocumentType(t *testing.T) {
 	iss := testIssuer()
 	nr := testNumberingRange(iss.ID) // rango de Invoice ("01"), no de DebitNote
 	svc := documents.New(
@@ -441,14 +629,14 @@ func TestIssueDebitNote_WrongDocumentType(t *testing.T) {
 		&fakeCustomerPort{},
 	)
 
-	_, err := svc.IssueDebitNote(context.Background(), testNoteRequest(iss.ID, nr.ID))
+	_, err := svc.CreateDebitNoteDraft(context.Background(), testNoteRequest(iss.ID, nr.ID))
 	assert.ErrorIs(t, err, documents.ErrWrongDocumentType)
 }
 
 // ── Listado ──────────────────────────────────────────────────────────────────────────────────
 
-// seedDocument inserta un documento directamente en repo (sin pasar por IssueInvoice — no
-// hace falta firmar de verdad para probar filtros de listado).
+// seedDocument inserta un documento directamente en repo (sin pasar por CreateInvoiceDraft —
+// no hace falta firmar de verdad para probar filtros de listado).
 func seedDocument(t *testing.T, repo documents.Repository, issuerID uuid.UUID, docType, status string, issueDate time.Time) {
 	t.Helper()
 	_, err := repo.Create(context.Background(), documents.Document{

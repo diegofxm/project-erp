@@ -2,6 +2,7 @@ package issuers_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/diegofxm/api-dian/internal/issuers"
@@ -10,8 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// newService usa un validador permisivo (nunca rechaza) — estos tests prueban lógica de
+// dominio (NIT duplicado, campos vacíos, actualización parcial...), no el parseo real de un
+// .p12. El parseo real se prueba aparte en TestUpdateIssuer_InvalidCertificate con un
+// validador doble que sí falla, y en internal/api (vía documents.ValidateCertificate real).
 func newService() *issuers.Service {
-	return issuers.New(issuers.NewMemoryRepository())
+	return issuers.New(issuers.NewMemoryRepository(), func([]byte, string) error { return nil })
 }
 
 func validIssuer() issuers.Issuer {
@@ -63,9 +68,6 @@ func TestRegisterIssuer_Validations(t *testing.T) {
 	}{
 		{"sin NIT", func(i *issuers.Issuer) { i.NIT = "" }, issuers.ErrEmptyNIT},
 		{"sin razón social", func(i *issuers.Issuer) { i.BusinessName = "" }, issuers.ErrEmptyBusinessName},
-		{"sin software ID", func(i *issuers.Issuer) { i.SoftwareID = "" }, issuers.ErrEmptySoftwareID},
-		{"sin PIN", func(i *issuers.Issuer) { i.SoftwarePIN = "" }, issuers.ErrEmptySoftwarePIN},
-		{"sin certificado", func(i *issuers.Issuer) { i.Certificate = nil }, issuers.ErrEmptyCertificate},
 		{"ambiente inválido", func(i *issuers.Issuer) { i.Environment = "9" }, issuers.ErrInvalidEnvironment},
 	}
 
@@ -78,6 +80,129 @@ func TestRegisterIssuer_Validations(t *testing.T) {
 			assert.ErrorIs(t, err, tt.wantErr)
 		})
 	}
+}
+
+// TestRegisterIssuer_WithoutCredentials_OK confirma el cambio central de esta fase: el
+// registro inicial ya NO exige software/PIN/certificado — solo los datos que la DIAN pide del
+// emisor mismo. Se completan después, independientemente, vía UpdateIssuer (ver
+// docs/api-dian-architecture.md sección 9.25).
+func TestRegisterIssuer_WithoutCredentials_OK(t *testing.T) {
+	iss := validIssuer()
+	iss.SoftwareID, iss.SoftwarePIN, iss.Certificate, iss.CertificatePassword = "", "", nil, ""
+
+	got, err := newService().RegisterIssuer(context.Background(), iss)
+	require.NoError(t, err)
+	assert.Empty(t, got.SoftwareID)
+	assert.Empty(t, got.Certificate)
+}
+
+func TestUpdateIssuer_OK(t *testing.T) {
+	svc := newService()
+	iss := validIssuer()
+	iss.SoftwareID, iss.SoftwarePIN, iss.Certificate, iss.CertificatePassword = "", "", nil, ""
+	created, err := svc.RegisterIssuer(context.Background(), iss)
+	require.NoError(t, err)
+
+	softwareID := "software-id-nuevo"
+	pin := "54321"
+	pwd := "clave-certificado-nueva"
+	updated, err := svc.UpdateIssuer(context.Background(), created.ID, issuers.UpdateIssuerRequest{
+		SoftwareID:          &softwareID,
+		SoftwarePIN:         &pin,
+		Certificate:         []byte("contenido-p12-nuevo"),
+		CertificatePassword: &pwd,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, softwareID, updated.SoftwareID)
+	assert.Equal(t, pin, updated.SoftwarePIN)
+	assert.Equal(t, []byte("contenido-p12-nuevo"), updated.Certificate)
+	assert.Equal(t, pwd, updated.CertificatePassword)
+}
+
+// TestUpdateIssuer_PartialUpdate confirma el requisito explícito del usuario: completar
+// software/resolución/certificado INDEPENDIENTEMENTE, en el orden en que se vayan
+// consiguiendo — actualizar solo SoftwareID no debe tocar lo que ya se había cargado antes.
+func TestUpdateIssuer_PartialUpdate(t *testing.T) {
+	svc := newService()
+	created, err := svc.RegisterIssuer(context.Background(), validIssuer())
+	require.NoError(t, err)
+
+	newPIN := "99999"
+	updated, err := svc.UpdateIssuer(context.Background(), created.ID, issuers.UpdateIssuerRequest{
+		SoftwarePIN: &newPIN,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, newPIN, updated.SoftwarePIN)
+	assert.Equal(t, created.SoftwareID, updated.SoftwareID, "no se tocó, debe seguir igual")
+	assert.Equal(t, created.Certificate, updated.Certificate, "no se tocó, debe seguir igual")
+}
+
+func TestUpdateIssuer_EmptyValueRejected(t *testing.T) {
+	svc := newService()
+	created, err := svc.RegisterIssuer(context.Background(), validIssuer())
+	require.NoError(t, err)
+
+	empty := ""
+	tests := []struct {
+		name    string
+		req     issuers.UpdateIssuerRequest
+		wantErr error
+	}{
+		{"software_id vacío", issuers.UpdateIssuerRequest{SoftwareID: &empty}, issuers.ErrEmptySoftwareID},
+		{"software_pin vacío", issuers.UpdateIssuerRequest{SoftwarePIN: &empty}, issuers.ErrEmptySoftwarePIN},
+		{"certificado vacío", issuers.UpdateIssuerRequest{Certificate: []byte{}}, issuers.ErrEmptyCertificate},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := svc.UpdateIssuer(context.Background(), created.ID, tt.req)
+			assert.ErrorIs(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestUpdateIssuer_NotFound(t *testing.T) {
+	svc := newService()
+	softwareID := "x"
+	_, err := svc.UpdateIssuer(context.Background(), uuid.New(), issuers.UpdateIssuerRequest{SoftwareID: &softwareID})
+	assert.ErrorIs(t, err, issuers.ErrIssuerNotFound)
+}
+
+// TestUpdateIssuer_InvalidCertificate confirma el hallazgo de la sección 9.26 del
+// architecture doc: subir un .p12 corrupto o con la contraseña equivocada debe fallar AQUÍ,
+// con un error de dominio claro, no recién al confirmar un documento.
+func TestUpdateIssuer_InvalidCertificate(t *testing.T) {
+	rejecting := func([]byte, string) error { return errors.New("contraseña incorrecta") }
+	svc := issuers.New(issuers.NewMemoryRepository(), rejecting)
+	created, err := svc.RegisterIssuer(context.Background(), validIssuer())
+	require.NoError(t, err)
+
+	pwd := "clave-nueva"
+	_, err = svc.UpdateIssuer(context.Background(), created.ID, issuers.UpdateIssuerRequest{
+		Certificate:         []byte("p12-corrupto"),
+		CertificatePassword: &pwd,
+	})
+	assert.ErrorIs(t, err, issuers.ErrInvalidCertificate)
+}
+
+// TestUpdateIssuer_CertificateWithoutPasswordSkipsValidation confirma que la validación NO
+// se dispara cuando la combinación certificado+contraseña todavía está incompleta — el
+// usuario puede subir el certificado hoy y la contraseña la próxima semana (configuración
+// gradual, sección 9.25) sin que se le rechace una combinación que nunca pretendió completar
+// todavía. El validador "explota" si se llama, para probar que de verdad nunca se invoca.
+func TestUpdateIssuer_CertificateWithoutPasswordSkipsValidation(t *testing.T) {
+	exploding := func([]byte, string) error { t.Fatal("el validador no debería llamarse todavía"); return nil }
+	svc := issuers.New(issuers.NewMemoryRepository(), exploding)
+	iss := validIssuer()
+	iss.SoftwareID, iss.SoftwarePIN, iss.Certificate, iss.CertificatePassword = "", "", nil, ""
+	created, err := svc.RegisterIssuer(context.Background(), iss)
+	require.NoError(t, err)
+
+	updated, err := svc.UpdateIssuer(context.Background(), created.ID, issuers.UpdateIssuerRequest{
+		Certificate: []byte("p12-de-prueba"),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []byte("p12-de-prueba"), updated.Certificate)
+	assert.Empty(t, updated.CertificatePassword, "todavía no se completó, sigue vacía")
 }
 
 func TestGetIssuer_NotFound(t *testing.T) {

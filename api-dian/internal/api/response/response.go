@@ -49,7 +49,8 @@ func classify(err error) (int, string) {
 
 	// ── 409 ──────────────────────────────────────────────────────────────────
 	case errors.Is(err, issuers.ErrNITAlreadyExists),
-		errors.Is(err, auth.ErrEmailAlreadyExists):
+		errors.Is(err, auth.ErrEmailAlreadyExists),
+		errors.Is(err, documents.ErrDocumentNotDraft):
 		return http.StatusConflict, err.Error()
 
 	// ── 400 (validación / datos faltantes) ────────────────────────────────────
@@ -58,6 +59,7 @@ func classify(err error) (int, string) {
 		errors.Is(err, issuers.ErrEmptySoftwareID),
 		errors.Is(err, issuers.ErrEmptySoftwarePIN),
 		errors.Is(err, issuers.ErrEmptyCertificate),
+		errors.Is(err, issuers.ErrInvalidCertificate),
 		errors.Is(err, issuers.ErrInvalidEnvironment),
 		errors.Is(err, numbering.ErrMissingIssuer),
 		errors.Is(err, numbering.ErrMissingDocumentType),
@@ -86,7 +88,8 @@ func classify(err error) (int, string) {
 	case errors.Is(err, numbering.ErrRangeExhausted),
 		errors.Is(err, documents.ErrWrongDocumentType),
 		errors.Is(err, documents.ErrNumberingRangeIssuerMismatch),
-		errors.Is(err, documents.ErrCustomerIssuerMismatch):
+		errors.Is(err, documents.ErrCustomerIssuerMismatch),
+		errors.Is(err, documents.ErrIssuerNotReadyToIssue):
 		return http.StatusUnprocessableEntity, err.Error()
 	}
 

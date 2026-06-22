@@ -63,6 +63,66 @@ func (r *MemoryRepository) UpdateDianStatus(_ context.Context, id uuid.UUID, sta
 	return nil
 }
 
+// UpdateDraft reemplaza los campos editables de un borrador — solo mientras Status ==
+// StatusDraft, mismo criterio que PostgresRepository.UpdateDraft.
+func (r *MemoryRepository) UpdateDraft(_ context.Context, d Document) (*Document, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	existing, ok := r.docs[d.ID]
+	if !ok || existing.Status != StatusDraft {
+		return nil, ErrDocumentNotDraft
+	}
+
+	d.IssuerID = existing.IssuerID
+	d.DianDocumentTypeCode = existing.DianDocumentTypeCode
+	d.Status = StatusDraft
+	d.CreatedAt = existing.CreatedAt
+	d.UpdatedAt = time.Now().UTC()
+	r.docs[d.ID] = &d
+
+	cp := d
+	return &cp, nil
+}
+
+// Confirm persiste los campos que solo se conocen al confirmar — solo mientras Status ==
+// StatusDraft (defensivo contra doble confirmación concurrente).
+func (r *MemoryRepository) Confirm(_ context.Context, d Document) (*Document, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	existing, ok := r.docs[d.ID]
+	if !ok || existing.Status != StatusDraft {
+		return nil, ErrDocumentNotDraft
+	}
+
+	existing.Prefix = d.Prefix
+	existing.Number = d.Number
+	existing.DocumentKey = d.DocumentKey
+	existing.IssueDate = d.IssueDate
+	existing.IssueTime = d.IssueTime
+	existing.QRURL = d.QRURL
+	existing.SignedXML = d.SignedXML
+	existing.Status = d.Status
+	existing.UpdatedAt = time.Now().UTC()
+
+	cp := *existing
+	return &cp, nil
+}
+
+// Delete elimina un borrador — solo mientras Status == StatusDraft.
+func (r *MemoryRepository) Delete(_ context.Context, id uuid.UUID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	existing, ok := r.docs[id]
+	if !ok || existing.Status != StatusDraft {
+		return ErrDocumentNotDraft
+	}
+	delete(r.docs, id)
+	return nil
+}
+
 func (r *MemoryRepository) ListByIssuer(_ context.Context, issuerID uuid.UUID, filter ListFilter) ([]*Document, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -89,9 +149,6 @@ func (r *MemoryRepository) ListByIssuer(_ context.Context, issuerID uuid.UUID, f
 	}
 
 	sort.Slice(matched, func(i, j int) bool {
-		if !matched[i].IssueDate.Equal(matched[j].IssueDate) {
-			return matched[i].IssueDate.After(matched[j].IssueDate)
-		}
 		return matched[i].CreatedAt.After(matched[j].CreatedAt)
 	})
 

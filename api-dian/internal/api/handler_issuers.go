@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -97,6 +98,51 @@ func issuerFromRequest(req createIssuerRequest, cert []byte) issuers.Issuer {
 // hace falta un {id} en el path: siempre es el propio (middleware.GetTenantID).
 func (a *API) handleGetMyIssuer(w http.ResponseWriter, r *http.Request) {
 	iss, err := a.issuers.GetIssuer(r.Context(), middleware.GetTenantID(r.Context()))
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, issuerToResponse(iss))
+}
+
+// updateIssuerRequest completa software/PIN/certificado DESPUÉS del registro — todos los
+// campos son opcionales (punteros nil = "no tocar"), porque el usuario los va consiguiendo
+// independientemente, no necesariamente el mismo día que se registra (ver
+// docs/api-dian-architecture.md sección 9.25). CertificateBase64 es *string, no string: hay
+// que distinguir "no mandó este campo" (nil) de "lo mandó vacío" (string vacío, que
+// issuers.Service.UpdateIssuer rechaza con ErrEmptyCertificate).
+type updateIssuerRequest struct {
+	SoftwareID          *string `json:"software_id,omitempty"`
+	SoftwarePIN         *string `json:"software_pin,omitempty"`
+	CertificateBase64   *string `json:"certificate_base64,omitempty"`
+	CertificatePassword *string `json:"certificate_password,omitempty"`
+}
+
+// handleUpdateMyIssuer completa/reemplaza software/PIN/certificado del emisor autenticado —
+// "un usuario = un emisor", igual que handleGetMyIssuer, nunca recibe un {id} en el path.
+func (a *API) handleUpdateMyIssuer(w http.ResponseWriter, r *http.Request) {
+	var req updateIssuerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
+		return
+	}
+
+	svcReq := issuers.UpdateIssuerRequest{
+		SoftwareID:          req.SoftwareID,
+		SoftwarePIN:         req.SoftwarePIN,
+		CertificatePassword: req.CertificatePassword,
+	}
+	if req.CertificateBase64 != nil {
+		cert, err := base64.StdEncoding.DecodeString(*req.CertificateBase64)
+		if err != nil {
+			response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "certificate_base64 no es base64 válido"})
+			return
+		}
+		svcReq.Certificate = cert
+	}
+
+	iss, err := a.issuers.UpdateIssuer(r.Context(), middleware.GetTenantID(r.Context()), svcReq)
 	if err != nil {
 		response.WriteError(w, err)
 		return

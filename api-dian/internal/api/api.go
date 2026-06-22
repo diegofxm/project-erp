@@ -33,7 +33,7 @@ type API struct {
 // authJWTSecret firma los tokens de sesión (HS256) — deliberadamente distinto de
 // issuerSecretsKey (ver internal/config.Config.AuthJWTSecret).
 func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byte) *API {
-	issuerSvc := issuers.New(issuers.NewPostgresRepository(db.Pool, issuerSecretsKey))
+	issuerSvc := issuers.New(issuers.NewPostgresRepository(db.Pool, issuerSecretsKey), documents.ValidateCertificate)
 	numberingSvc := numbering.New(numbering.NewPostgresRepository(db.Pool, issuerSecretsKey))
 	customersSvc := customers.New(customers.NewPostgresRepository(db.Pool))
 	productsSvc := products.New(products.NewPostgresRepository(db.Pool))
@@ -86,12 +86,18 @@ func (a *API) Handler() http.Handler {
 //	(middleware.GetTenantID), nunca de algo que el cliente pueda elegir.
 //
 //	GET    /api/v1/issuers/me                            → consultar el emisor propio
+//	PUT    /api/v1/issuers/me                            → completar software/PIN/certificado del emisor propio (ver 9.25)
 //	POST   /api/v1/numbering-ranges                      → registrar rango de numeración del emisor propio
 //	GET    /api/v1/numbering-ranges                      → listar rangos del emisor propio (?dian_document_type_code=)
 //	GET    /api/v1/numbering-ranges/{id}                  → consultar rango (debe ser del emisor propio)
-//	POST   /api/v1/invoices                               → emitir Factura Electrónica de Venta
-//	POST   /api/v1/credit-notes                           → emitir Nota Crédito
-//	POST   /api/v1/debit-notes                            → emitir Nota Débito
+//	POST   /api/v1/invoices                               → crear borrador de Factura (sin reclamar número)
+//	PUT    /api/v1/invoices/{id}                          → reemplazar un borrador de Factura
+//	POST   /api/v1/credit-notes                           → crear borrador de Nota Crédito
+//	PUT    /api/v1/credit-notes/{id}                      → reemplazar un borrador de Nota Crédito
+//	POST   /api/v1/debit-notes                            → crear borrador de Nota Débito
+//	PUT    /api/v1/debit-notes/{id}                        → reemplazar un borrador de Nota Débito
+//	POST   /api/v1/documents/{id}/confirm                  → reclamar número + firmar + enviar (ver 9.25)
+//	DELETE /api/v1/documents/{id}                         → eliminar un borrador (debe seguir en borrador)
 //	GET    /api/v1/documents                              → listar documentos del emisor propio (filtros + ?limit=&offset=)
 //	GET    /api/v1/documents/{id}                         → consultar documento (debe ser del emisor propio)
 //
@@ -105,13 +111,19 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle := func(pattern string, h http.HandlerFunc) { mux.Handle(pattern, protect(h)) }
 
 	handle("GET /api/v1/issuers/me", a.handleGetMyIssuer)
+	handle("PUT /api/v1/issuers/me", a.handleUpdateMyIssuer)
 	handle("POST /api/v1/numbering-ranges", a.handleCreateNumberingRange)
 	handle("GET /api/v1/numbering-ranges", a.handleListNumberingRanges)
 	handle("GET /api/v1/numbering-ranges/{id}", a.handleGetNumberingRange)
 
-	handle("POST /api/v1/invoices", a.handleIssueInvoice)
-	handle("POST /api/v1/credit-notes", a.handleIssueCreditNote)
-	handle("POST /api/v1/debit-notes", a.handleIssueDebitNote)
+	handle("POST /api/v1/invoices", a.handleCreateInvoice)
+	handle("PUT /api/v1/invoices/{id}", a.handleUpdateInvoice)
+	handle("POST /api/v1/credit-notes", a.handleCreateCreditNote)
+	handle("PUT /api/v1/credit-notes/{id}", a.handleUpdateCreditNote)
+	handle("POST /api/v1/debit-notes", a.handleCreateDebitNote)
+	handle("PUT /api/v1/debit-notes/{id}", a.handleUpdateDebitNote)
+	handle("POST /api/v1/documents/{id}/confirm", a.handleConfirmDocument)
+	handle("DELETE /api/v1/documents/{id}", a.handleDeleteDocument)
 	handle("GET /api/v1/documents", a.handleListDocuments)
 	handle("GET /api/v1/documents/{id}", a.handleGetDocument)
 

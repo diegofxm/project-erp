@@ -55,6 +55,24 @@ func (r *MemoryRepository) GetByID(_ context.Context, id uuid.UUID) (*Issuer, er
 	return &cp, nil
 }
 
+func (r *MemoryRepository) Update(_ context.Context, iss Issuer) (*Issuer, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	existing, ok := r.byID[iss.ID]
+	if !ok {
+		return nil, ErrIssuerNotFound
+	}
+	existing.SoftwareID = iss.SoftwareID
+	existing.SoftwarePIN = iss.SoftwarePIN
+	existing.Certificate = iss.Certificate
+	existing.CertificatePassword = iss.CertificatePassword
+	existing.UpdatedAt = time.Now().UTC()
+
+	cp := *existing
+	return &cp, nil
+}
+
 func (r *MemoryRepository) GetByNIT(_ context.Context, nit string) (*Issuer, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -250,10 +250,12 @@ HTTP → Handler → Service → Repository → COFACTURE → DIAN
 
 ## 6. Endpoints
 
-> Esto ya existe (Fase 2.7-2.9), no es solo el plan. `POST /invoices`/`credit-notes`/
-> `debit-notes` construyen, firman y — si el ambiente lo permite — envían en la misma llamada
-> (no hay un `/send` separado: separar "crear" de "enviar" no tenía un caso de uso real una
-> vez que `cofacture` ya hace las dos cosas en un solo pipeline).
+> Esto ya existe (Fase 2.7-2.25), no es solo el plan. Desde 9.25: `POST /invoices`/
+> `credit-notes`/`debit-notes` crean un BORRADOR (sin reclamar número, sin firmar, sin
+> enviar) — se puede editar (`PUT .../{id}`) o eliminar (`DELETE /documents/{id}`) libremente
+> mientras siga en borrador. Construir, firmar, y enviar (si el ambiente lo permite) pasa todo
+> junto en `POST /documents/{id}/confirm`, el único punto donde se "gasta" un número real de
+> la DIAN — separar esto de la creación evita quemar un consecutivo por un error de captura.
 >
 > Todo excepto `/auth/*` y `/health` exige `Authorization: Bearer <token>`. "Un usuario = un
 > emisor" (sección 9.17): ningún endpoint recibe `issuer_id` del cliente — siempre se toma del
@@ -262,18 +264,24 @@ HTTP → Handler → Service → Repository → COFACTURE → DIAN
 > autenticado es implícito.
 
 ```
-POST /api/v1/auth/register                        # crea el emisor Y su primer usuario admin (público)
+POST /api/v1/auth/register                        # crea el emisor (datos mínimos DIAN) Y su primer usuario admin (público)
 POST /api/v1/auth/login                           # inicia sesión, devuelve el token (público)
 
 GET  /api/v1/issuers/me                           # consultar el emisor propio (nunca expone secretos)
+PUT  /api/v1/issuers/me                           # completar software/PIN/certificado, parcial (ver 9.25)
 POST /api/v1/numbering-ranges                     # registrar rango del emisor propio
 GET  /api/v1/numbering-ranges                     # listar mis rangos (?dian_document_type_code=, sin paginar)
 GET  /api/v1/numbering-ranges/{id}                # consultar rango (debe ser del emisor propio; si no, 404)
-POST /api/v1/invoices                             # construir + firmar (+ enviar si aplica)
+POST /api/v1/invoices                             # crear borrador (sin reclamar número)
+PUT  /api/v1/invoices/{id}                        # reemplazar un borrador
 POST /api/v1/credit-notes
+PUT  /api/v1/credit-notes/{id}
 POST /api/v1/debit-notes
+PUT  /api/v1/debit-notes/{id}
+POST /api/v1/documents/{id}/confirm               # reclamar número + firmar + enviar si aplica (ver 9.25)
+DELETE /api/v1/documents/{id}                     # eliminar un borrador (404 si no es del emisor, 409 si ya no es borrador)
 GET  /api/v1/documents                            # listar mis documentos (filtros + ?limit=&offset=)
-GET  /api/v1/documents/{id}                       # documento emitido (debe ser del emisor propio; si no, 404)
+GET  /api/v1/documents/{id}                       # documento (debe ser del emisor propio; si no, 404)
 
 POST/GET     /api/v1/customers[/{id}]             # catálogo de adquirientes (conveniencia, ver 9.21)
 PUT/DELETE   /api/v1/customers/{id}
@@ -894,7 +902,20 @@ arrancando en `range_from` (comportamiento viejo intacto); un rango con
 tocaron los emisores/usuarios reales de pruebas manuales del usuario que ya existían en la
 base.
 
-### 9.24 Próximo paso
+**Guía para el frontend (cuando se construya)**: `next_number` NO debe ser un input visible
+por defecto en el formulario de "agregar resolución" — la mayoría de resoluciones nuevas nunca
+se han usado, así que mostrar un campo técnico de entrada confundiría el caso común. Patrón
+recomendado:
+
+1. Campo oculto detrás de un toggle/checkbox: *"¿Esta resolución ya tiene facturas emitidas
+   fuera de este sistema?"*
+2. Si se marca, revelar un input en términos de negocio (no el nombre técnico `next_number`):
+   *"¿Cuál es el próximo número a emitir?"*
+3. Validar en el cliente que el valor caiga dentro de `[range_from, range_to]` antes de
+   enviar — mismo chequeo que ya hace el backend (`ErrNextNumberOutOfRange`, 400) — para dar
+   feedback inmediato en vez de esperar la respuesta del servidor.
+
+### 9.24 Próximo paso (histórico — superado por 9.25)
 
 Sin tareas pendientes explícitas en este momento — Fase 2 (`api-dian`) cubre hoy: bootstrap,
 catálogos DIAN, emisores, numeración (incluyendo retomar una secuencia real ya usada),
@@ -906,3 +927,217 @@ DIAN o están bien delegados a un servicio externo, no son items "olvidados". Pr
 real: el usuario va a hacer pruebas de punta a punta con datos reales vía Postman (emisor real
 + certificado real + resolución real + cliente + productos + los tres documentos, incluyendo
 envío real a la DIAN).
+
+### 9.25 Borrador/confirmación de documentos + configuración gradual del emisor
+
+El usuario describió el flujo de UX de un proyecto anterior (no DIAN, pero con el mismo patrón
+de facturación electrónica) y pidió comparar si `api-dian` ya soportaba ese flujo: (1) CRUD de
+usuarios; (2) CRUD de "companies" con SOLO los datos que la DIAN exige, más un espacio
+SEPARADO para ir cargando software/resolución/certificado independientemente, mientras se van
+consiguiendo esos datos; (3)(4) CRUD completo de customers/productos; (5) CRUD de invoice, y
+en un paso APARTE, firmar+enviar, verificando la respuesta para cerrar el ciclo.
+
+**Comparación contra el código real** (grep, no memoria):
+
+- Customers/Products: coinciden exactamente — CRUD completo ya existe (9.21).
+- Users CRUD: NO existe más allá de register/login. Preguntado explícitamente — el usuario
+  confirmó que **no lo necesita**: "un usuario por empresa basta por ahora". El modelo
+  "un usuario = un emisor" se queda como está, a propósito.
+- Configuración gradual del emisor: NO existía — `POST /auth/register` exigía
+  software_id/software_pin/certificate_base64/certificate_password TODOS de una, sin forma de
+  completarlos después.
+- Invoice CRUD + firmar/enviar aparte: NO existía — `IssueInvoice`/`IssueCreditNote`/
+  `IssueDebitNote` reclamaban número, construían, firmaban y enviaban en una sola llamada
+  atómica (decisión explícita de una fase anterior, 9.15). Esto entraba en tensión directa con
+  un riesgo real señalado en esta conversación: como reclamar el número pasa en el mismo
+  instante que crear el documento, un error de captura (línea mal escrita, cliente
+  equivocado) quema un consecutivo real de la DIAN sin forma de deshacerlo.
+
+El usuario confirmó, vía pregunta explícita, las tres decisiones:
+
+1. **Separar** "crear/revisar" de "confirmar → firmar y enviar" (recomendado y elegido).
+2. **No** agregar Users CRUD — un usuario por emisor sigue siendo suficiente.
+3. **Sí** permitir completar software/PIN/certificado después del registro, aclarando
+   explícitamente: lo que en el código se llama `numbering` es lo que en lenguaje humano se
+   lee como "resolución" — **no es un pedido de rename**, es el mismo patrón que ya existe con
+   `issuers` representando "empresa" sin llamarse así en el código (9.7). El nombre de dominio
+   (`numbering`, `issuers`) describe la responsabilidad técnica; la UI puede (y debe) usar el
+   término que el usuario de negocio reconoce ("resolución", "empresa").
+
+**Implementación — borrador/confirmación (`internal/documents`)**:
+
+- `Document` gana `StatusDraft` (nuevo, antes del ciclo `built→sent→accepted/rejected/
+  send_error`) y un campo `Note` persistido desde la creación del borrador (antes solo vivía
+  en la petición HTTP, se perdía si la emisión no era atómica).
+- `prefix`/`number`/`document_key`/`issue_date`/`issue_time`/`qr_url`/`signed_xml` pasan a ser
+  NULLABLE en la tabla `documents` (editada en sitio en `000005_documents.up.sql` — la tabla
+  estaba vacía de datos reales, mismo criterio que la convención de migraciones ya establecida)
+  — `uq_documents_range_number` sigue siendo válida porque Postgres nunca considera dos NULL
+  iguales entre sí, así que varios borradores sin número conviven sin chocar.
+- `documents.Service` se reorganiza en dos fases:
+  - `validateForIssuance` (emisor existe, rango pertenece al emisor y al tipo de documento
+    correcto, cliente opcional pertenece al emisor) corre TANTO al crear/editar un borrador
+    como, de nuevo, al confirmar — para fallar rápido sin costo en el borrador, y
+    defensivamente otra vez al confirmar.
+  - `claimAndLoadCert` (exige software/certificado listos, reclama el consecutivo real,
+    carga el certificado) corre SOLO al confirmar — es el único punto de todo el servicio
+    donde se "gasta" un número.
+  - `CreateInvoiceDraft`/`CreateCreditNoteDraft`/`CreateDebitNoteDraft`,
+    `UpdateInvoiceDraft`/`UpdateCreditNoteDraft`/`UpdateDebitNoteDraft`, `DeleteDraft` y
+    `ConfirmDocument` reemplazan a los antiguos `IssueInvoice`/`IssueCreditNote`/
+    `IssueDebitNote` (que hacían todo en una sola llamada).
+- Nuevos errores: `ErrDocumentNotDraft` (editar/eliminar/confirmar algo que ya no es borrador
+  — 409) y `ErrIssuerNotReadyToIssue` (confirmar sin software/certificado configurados — 422,
+  mensaje de dominio claro en vez de un error de bajo nivel al parsear un certificado vacío).
+- Nuevas rutas HTTP: `PUT /invoices/{id}` (y credit-notes/debit-notes), `DELETE
+  /documents/{id}` (compartido entre los tres tipos — borrar no depende del tipo), `POST
+  /documents/{id}/confirm` (compartido, despacha según `dian_document_type_code`).
+
+**Implementación — configuración gradual del emisor (`internal/issuers`)**:
+
+- `validateIssuer` ya NO exige `software_id`/`software_pin`/`certificate` al registrar — solo
+  los datos que la DIAN pide del emisor mismo (NIT, razón social, ubicación, ambiente).
+- `software_id TEXT`/`software_pin BYTEA`/`certificate BYTEA`/`certificate_password BYTEA` se
+  vuelven NULLABLE en `000003_issuers.up.sql` (editado en sitio) — `cryptutil.Encrypt`/
+  `Decrypt` ya manejaban un plaintext/ciphertext vacío como NULL simétrico, así que esto no
+  rompía nada existente, solo destrababa el caso "todavía no configurado".
+- `issuers.Service.UpdateIssuer` (nuevo) hace una actualización PARCIAL a propósito —
+  cada puntero `nil` significa "no tocar este campo" — porque el usuario va completando
+  software/PIN/certificado en el orden en que los consiga, sin tener que reenviar lo que ya
+  cargó antes. Un valor explícitamente vacío (`""`) se rechaza (`ErrEmptySoftwareID`/
+  `ErrEmptySoftwarePIN`/`ErrEmptyCertificate`) — casi siempre es un error de quien llama, nunca
+  una forma válida de "borrar" la credencial.
+- Nueva ruta `PUT /issuers/me` — mismo criterio "un usuario = un emisor" que
+  `GET /issuers/me`, nunca recibe un `{id}` en el path.
+
+**Verificado contra Postgres real** (vía curl, certificado autofirmado de prueba, sin tocar
+los emisores/usuarios reales del usuario — 4 issuers/4 users intactos antes y después):
+registro sin credenciales → crear borrador → editar borrador (PUT) → confirmar SIN
+credenciales (422, `ErrIssuerNotReadyToIssue`, mensaje exacto) → `PUT /issuers/me` con
+software/PIN/certificado → confirmar de nuevo (200, número real reclamado, CUFE calculado,
+XML firmado con `<ds:Signature>`, intento de envío real a la DIAN habilitación que termina en
+`send_error` porque el certificado es autofirmado, no uno real de la DIAN — comportamiento
+esperado, no un bug) → intentar eliminar el documento ya confirmado (409) → intentar
+confirmarlo otra vez (409). Los datos de prueba creados durante la verificación (1 issuer, 1
+user, 1 numbering_range, 1 document) se eliminaron al cerrar la prueba.
+
+### 9.26 Preguntas de configuración del emisor — multi-tenencia, vigencia de resoluciones, notificaciones
+
+Tras construir 9.25, el usuario hizo pruebas en Postman y surgieron cuatro preguntas de
+diseño. Quedan documentadas aquí como **decisiones de alcance explícitas, no huecos
+olvidados** — mismo criterio que la sección 8.
+
+**(a) Multi-empresa / multi-sucursal — qué ya funciona y qué no.**
+
+- **Multi-sucursal por prefijo SÍ funciona hoy, sin cambios**: `numbering_ranges` no tiene
+  ninguna restricción de unicidad sobre `(issuer_id, dian_document_type_code)` —
+  un mismo emisor puede tener varios rangos de tipo "01" con prefijos distintos
+  (ej. `SETP` para la sede principal, `SETB` para una sucursal), cada uno con su propia
+  resolución/vigencia/clave técnica. `documents.Service.validateForIssuance` solo exige que
+  el rango pertenezca al emisor y al tipo de documento — nunca exige que sea "el único" rango
+  de ese tipo.
+- **Multi-empresa (un usuario administrando varios NITs/emisores) NO funciona**: el modelo
+  "un usuario = un emisor" (sección 9.17) fija un único `issuer_id` por usuario desde el
+  registro, horneado en el JWT (`middleware.GetTenantID`) — no hay forma de que un mismo
+  login cambie entre emisores ni de asociar un segundo NIT al mismo usuario.
+- **Múltiples software_id/certificados por emisor NO funciona**: `issuers.Issuer` guarda
+  `SoftwareID`/`Certificate`/`CertificatePassword` como columnas sueltas (no una tabla hija
+  con una lista) — es una restricción estructural, no una validación que rechace un segundo
+  valor. Cargar un certificado nuevo reemplaza al anterior, sin historial.
+
+**Decisión (2026-06-22): documentar y diferir, no construir todavía.** No hay un caso de uso
+concreto hoy que necesite multi-empresa ni multi-credencial por emisor — construirlo sin esa
+necesidad sería diseñar para un futuro hipotético. Vale la pena anotar la asimetría de costo
+para cuando haga falta decidir: hoy, con solo 4 issuers/4 users de prueba en la base real, el
+cambio de modelo (de "un usuario tiene un `issuer_id`" a una relación muchos-a-muchos
+usuario↔emisor) es barato — toca el JWT, `middleware`, `auth`, y una migración de esquema sin
+datos de producción reales en juego. Una vez existan usuarios/emisores reales de producción,
+el mismo cambio exige migrar datos existentes y pensar en sesiones/tokens ya emitidos — deja
+de ser gratis. Si el usuario confirma que SÍ va a necesitar multi-empresa pronto, es mejor
+señal para hacerlo ahora que esperar.
+
+**(b) Vigencia de resoluciones — confirmado el hueco, queda pendiente a propósito.**
+
+Verificado línea por línea: `numbering.PostgresRepository.ClaimNext` solo valida
+`is_active = TRUE` y que no se haya agotado `range_to` — **nunca compara contra `valid_to`**.
+Una resolución vencida sigue reclamando números para siempre, igual que en el sistema gratuito
+de la DIAN que el usuario usaba antes. La diferencia es que ese sistema al menos permite que
+quede vencida sin romperse; aquí tampoco se rompe, pero no hay ningún aviso: ni un estado
+calculado (`expired`/`expiring_soon`), ni un endpoint para editar `valid_to` (no existe
+`PUT /numbering-ranges/{id}`, solo `POST`/`GET`), ni infraestructura de notificación (no hay
+SMTP/push/cron en todo el proyecto, verificado por grep). Si se confirma un documento con una
+resolución vencida, hoy el error solo llegaría como un rechazo de la propia DIAN, no como un
+aviso preventivo de `api-dian`.
+
+**Decisión: queda pendiente, sin tocar el esquema todavía.** A diferencia de (a), aquí no hay
+urgencia de timing — `valid_to` YA existe como columna desde la Fase 2.4, así que calcular un
+estado (`expired`/`expiring_soon`) o agregar un endpoint de actualización es lógica pura,
+agregable en cualquier momento sin migración de datos. No hay costo por esperar.
+
+**(c) Notificaciones (email/push) — reafirmada la decisión ya tomada en la sección 8.**
+
+El usuario preguntó explícitamente si `api-dian` debería tener un módulo de SMTP/email (a
+futuro, para mandarle la factura al customer) o si eso debería vivir en el frontend —
+señalando su preferencia general por mantener el menor número de responsabilidades posible
+dentro de este servicio. La sección 8 ya había decidido esto antes de que existiera ninguna
+necesidad concreta: *"Notificaciones (email/SMS al receptor) → Servicio de notificaciones
+externo"*. Se reafirma esa decisión con el mismo razonamiento: `api-dian` es el orquestador
+DIAN, no un servicio de comunicaciones. Cuando haga falta enviar la factura al cliente, la
+recomendación es que `api-dian` solo **exponga** lo necesario (el XML firmado, el CUFE/QR, o
+un endpoint para descargar el documento ya confirmado) y que el envío en sí lo haga otra
+pieza — no necesariamente el frontend del navegador (un correo no se manda bien desde JS en el
+cliente, por credenciales SMTP expuestas), sino preferiblemente un servicio/función pequeña y
+aparte (lo que en core-bank se llamaría un "worker" de notificaciones), consumida vía su propia
+API. Ni variables de entorno de SMTP ni plantillas de correo viven dentro de este repo.
+
+**(d) Subida de certificado — flujo real explicado, y un hueco real corregido.**
+
+El usuario preguntó cómo sería el flujo real (más allá de Postman) para subir un `.p12`:
+input de archivo o drag-and-drop → `FileReader` del navegador lo convierte a base64,
+client-side → el frontend manda el mismo JSON que hoy se manda a mano
+(`certificate_base64`/`certificate_password`) por HTTPS → `api-dian` decodifica esos bytes de
+vuelta al `.p12` original, los cifra (AES-256-GCM) y los guarda tal cual → solo al confirmar
+un documento, `cofacture/signer.LoadPKCS12` los decodifica de verdad (en memoria, sin PEM, sin
+archivos temporales, sin `openssl` — confirmado, no hay ninguna conversión a PEM en el flujo
+real, `LoadPEM` en `cofacture/signer` solo se usa en un test local de Fase 1).
+
+Al explicar ese flujo se encontró un hueco real: `issuers.Service.UpdateIssuer` nunca
+intentaba parsear el `.p12` que recibía — un archivo corrupto o una contraseña equivocada se
+guardaban sin error, y la falla solo aparecía después, al confirmar el primer documento, como
+un 500 genérico ("error interno del servidor"), no un mensaje claro.
+
+**Fix (2026-06-22)**: `UpdateIssuer` ahora valida, cuando la llamada toca `Certificate` o
+`CertificatePassword` y el emisor queda con AMBOS no vacíos después del merge, que de verdad
+formen un `.p12` legible — devuelve `ErrInvalidCertificate` (400) si no. Si la combinación
+sigue incompleta (ej. se sube el certificado pero la contraseña se va a completar después,
+configuración gradual de 9.25), la validación se omite a propósito: no sería justo rechazar
+algo que el usuario nunca pretendió que fuera completo todavía.
+
+El reto de diseño fue mantener la regla de la sección 4.1 ("`documents` es el único paquete
+que importa `cofacture` directamente") sin romperla: `internal/issuers` ganó un puerto angosto
+nuevo, `CertificateValidator` (`func(certificate []byte, password string) error`, mismo
+patrón que `documents.IssuerPort`/`NumberingPort`/`CustomerPort`), inyectado en `issuers.New`.
+La implementación real (`documents.ValidateCertificate`, una función nueva y simple que envuelve
+`signer.LoadPKCS12`) vive en `internal/documents` —el único sitio permitido— y se inyecta desde
+`internal/api` al construir `issuerSvc`. `internal/issuers` sigue sin importar `cofacture` ni
+`documents` en ningún archivo de producción.
+
+Verificado contra Postgres real vía curl, sin tocar los issuers/users reales del usuario:
+certificado base64 válido pero no-p12 → 400 con el mensaje de `ErrInvalidCertificate`
+exacto; certificado real + contraseña correcta → 200; actualizar solo `software_id` sin tocar
+el certificado → 200, sin disparar la validación (confirmado con un validador que falla la
+prueba si se llama, en `TestUpdateIssuer_CertificateWithoutPasswordSkipsValidation`). Datos de
+prueba eliminados al cerrar.
+
+### 9.28 Próximo paso
+
+Sin tareas pendientes explícitas — el flujo de emisión ahora es: crear borrador → revisar/
+editar/eliminar libremente → confirmar (reclama número + firma + envía), y el emisor se puede
+registrar con los datos mínimos y completar software/certificado después, vía
+`PUT /issuers/me`. Pendiente real: que el usuario conecte un frontend a este flujo y, cuando
+consiga un certificado real de la DIAN (no autofirmado), confirme un documento de verdad en
+habilitación para validar el envío real con `SendBillSync`/`SendTestSetAsync` end-to-end bajo
+el nuevo flujo de dos pasos (ya validado end-to-end con un certificado de prueba, sección
+9.25). Decisiones de alcance pendientes de construir cuando haga falta: multi-empresa/
+multi-credencial por emisor, vigencia/notificación de resoluciones, envío de notificaciones
+(las tres documentadas en la sección 9.26, no son huecos olvidados).

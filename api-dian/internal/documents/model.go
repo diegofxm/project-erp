@@ -12,6 +12,11 @@ import (
 type Status string
 
 const (
+	// StatusDraft: validado y persistido (customer/lines), pero SIN número reclamado, SIN
+	// firmar, SIN enviar — el usuario puede revisar/editar/eliminar libremente. Pasar de aquí
+	// a StatusBuilt (vía POST /documents/{id}/confirm) es el único punto donde se "gasta" un
+	// número real de la DIAN, justo para no quemar consecutivos en borradores con errores.
+	StatusDraft     Status = "draft"
 	StatusBuilt     Status = "built"      // construido y firmado, todavía no enviado
 	StatusSent      Status = "sent"       // enviado a la DIAN, esperando resultado
 	StatusAccepted  Status = "accepted"   // la DIAN lo validó
@@ -45,6 +50,10 @@ type DiscrepancyResponseInput struct {
 // el payload de emisión y se persisten tal cual, porque eso es lo que la ley exige conservar
 // junto al documento — nunca se reconstruyen a partir de customers/products ni de nada que
 // pueda cambiar después de emitir (ver docs/api-dian-architecture.md sección 9.21).
+// Prefix/Number/DocumentKey/IssueDate/IssueTime/QRURL/SignedXML están vacíos (zero value)
+// mientras Status == StatusDraft — recién se llenan en Confirm, nunca antes. Un Number == 0
+// o un DocumentKey == "" siempre significa "todavía no confirmado", nunca un dato real (un
+// número real nunca es 0, ver numbering.validateRange: RangeFrom > 0).
 type Document struct {
 	ID                   uuid.UUID
 	IssuerID             uuid.UUID
@@ -61,6 +70,10 @@ type Document struct {
 	Lines        []domain.Line
 	PaymentMeans []domain.PaymentMean
 	Totals       domain.Totals
+	// Note se guarda desde la creación del borrador (no solo al confirmar) porque
+	// cofacture/domain.Invoice.Note la necesita al construir el XML, y eso ya no pasa en el
+	// mismo instante que la creación — antes vivía solo en la petición HTTP, nunca persistida.
+	Note string
 
 	// CustomerID es una referencia OPCIONAL y de solo trazabilidad a internal/customers — NO
 	// es la fuente de verdad del documento (eso sigue siendo Customer, arriba) ni participa en

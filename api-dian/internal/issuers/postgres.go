@@ -92,6 +92,41 @@ func (r *PostgresRepository) Create(ctx context.Context, iss Issuer) (*Issuer, e
 	return &iss, nil
 }
 
+// Update persiste software_id/software_pin/certificate/certificate_password — los únicos
+// campos editables vía UpdateIssuer (ver service.go), cifrando PIN/certificado/password con
+// el mismo esquema que Create.
+func (r *PostgresRepository) Update(ctx context.Context, iss Issuer) (*Issuer, error) {
+	encPIN, err := cryptutil.Encrypt(r.key, []byte(iss.SoftwarePIN))
+	if err != nil {
+		return nil, fmt.Errorf("cifrar software_pin: %w", err)
+	}
+	encCert, err := cryptutil.Encrypt(r.key, iss.Certificate)
+	if err != nil {
+		return nil, fmt.Errorf("cifrar certificate: %w", err)
+	}
+	encCertPwd, err := cryptutil.Encrypt(r.key, []byte(iss.CertificatePassword))
+	if err != nil {
+		return nil, fmt.Errorf("cifrar certificate_password: %w", err)
+	}
+
+	// software_id se manda tal cual (nunca como NULL explícito) aunque la columna lo permita
+	// — igual que Create: iss.SoftwareID == "" se guarda como cadena vacía. scan() lee la
+	// columna directo a un string de Go (no *string); un NULL real ahí rompería el Scan.
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE issuers SET
+			software_id = $1, software_pin = $2, certificate = $3, certificate_password = $4, updated_at = $5
+		WHERE id = $6`,
+		iss.SoftwareID, encPIN, encCert, encCertPwd, time.Now().UTC(), iss.ID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update issuer: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrIssuerNotFound
+	}
+	return r.GetByID(ctx, iss.ID)
+}
+
 func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Issuer, error) {
 	row := r.pool.QueryRow(ctx, issuerSelectWithNames+` WHERE i.id = $1`, id)
 	return r.scan(row)

@@ -59,7 +59,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
 	log := zap.NewNop()
 
-	issuerSvc := issuers.New(issuers.NewMemoryRepository())
+	issuerSvc := issuers.New(issuers.NewMemoryRepository(), documents.ValidateCertificate)
 	numberingSvc := numbering.New(numbering.NewMemoryRepository())
 	customersSvc := customers.New(customers.NewMemoryRepository())
 	productsSvc := products.New(products.NewMemoryRepository())
@@ -241,6 +241,88 @@ func TestAPI_GetMyIssuer_InvalidToken(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rw.Code)
 }
 
+// registerRequestWithoutCredentials es registerRequest sin software_id/software_pin/
+// certificate_base64/certificate_password — confirma que el registro inicial ya no los exige
+// (ver docs/api-dian-architecture.md sección 9.25): solo los datos que la DIAN pide del
+// emisor mismo.
+func registerRequestWithoutCredentials(t *testing.T, email string) map[string]any {
+	req := registerRequest(t, email)
+	issuer := req["issuer"].(map[string]any)
+	delete(issuer, "software_id")
+	delete(issuer, "software_pin")
+	delete(issuer, "certificate_base64")
+	delete(issuer, "certificate_password")
+	return req
+}
+
+func TestAPI_Register_WithoutCredentials_OK(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequestWithoutCredentials(t, "admin@empresa.test"))
+	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
+}
+
+func TestAPI_UpdateMyIssuer_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+
+	rw := env.doAuth(t, "PUT", "/api/v1/issuers/me", token, map[string]any{
+		"software_id":          "software-id-nuevo",
+		"software_pin":         "54321",
+		"certificate_base64":   selfSignedP12Base64(t),
+		"certificate_password": "clave-de-prueba",
+	})
+	require.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.NotContains(t, got, "software_pin", "el secreto nunca debe salir en la respuesta")
+}
+
+func TestAPI_UpdateMyIssuer_Partial(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+
+	// Solo software_id — software_pin/certificado ya cargados en el registro no deben tocarse.
+	rw := env.doAuth(t, "PUT", "/api/v1/issuers/me", token, map[string]any{
+		"software_id": "software-id-actualizado",
+	})
+	assert.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
+}
+
+func TestAPI_UpdateMyIssuer_EmptyValueRejected(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+
+	rw := env.doAuth(t, "PUT", "/api/v1/issuers/me", token, map[string]any{
+		"software_id": "",
+	})
+	assert.Equal(t, http.StatusBadRequest, rw.Code)
+}
+
+func TestAPI_UpdateMyIssuer_NoToken(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "PUT", "/api/v1/issuers/me", map[string]any{"software_id": "x"})
+	assert.Equal(t, http.StatusUnauthorized, rw.Code)
+}
+
+// TestAPI_ConfirmDocument_IssuerNotReady es el cierre del ciclo de configuración gradual: un
+// emisor registrado SIN software/certificado puede crear borradores (no se exige nada
+// todavía) pero no confirmarlos — error de dominio claro, no un fallo de bajo nivel al
+// intentar parsear un certificado vacío.
+func TestAPI_ConfirmDocument_IssuerNotReady(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequestWithoutCredentials(t, "sin-credenciales@empresa.test"))
+	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
+	var auth map[string]any
+	decode(t, rw, &auth)
+	token := auth["token"].(string)
+
+	rangeID := createTestRange(t, env, token, "01", "SETP")
+	draft := createDraftInvoice(t, env, token, rangeID)
+
+	confirmRw := confirmDocument(env, t, token, draft["id"].(string))
+	assert.Equal(t, http.StatusUnprocessableEntity, confirmRw.Code, confirmRw.Body.String())
+}
+
 // ── Numbering ranges ─────────────────────────────────────────────────────────────────────────
 
 func createTestRange(t *testing.T, env *testEnv, token, docType, prefix string) string {
@@ -381,24 +463,180 @@ func testLines() []map[string]any {
 	}}
 }
 
-func TestAPI_IssueInvoice_OK(t *testing.T) {
-	env := newTestEnv(t)
-	_, token := registerTestIssuer(t, env)
-	rangeID := createTestRange(t, env, token, "01", "SETP")
-
+// createDraftInvoice crea un borrador de Factura (sin reclamar número, ver
+// docs/api-dian-architecture.md sección 9.25) y devuelve el body decodificado.
+func createDraftInvoice(t *testing.T, env *testEnv, token, rangeID string) map[string]any {
+	t.Helper()
 	rw := env.doAuth(t, "POST", "/api/v1/invoices", token, map[string]any{
 		"numbering_range_id": rangeID,
 		"customer":           testCustomer(),
 		"lines":              testLines(),
 	})
-
 	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
 	var got map[string]any
 	decode(t, rw, &got)
+	return got
+}
+
+func confirmDocument(env *testEnv, t *testing.T, token, id string) *httptest.ResponseRecorder {
+	t.Helper()
+	return env.doAuth(t, "POST", "/api/v1/documents/"+id+"/confirm", token, nil)
+}
+
+// issueInvoiceViaAPI crea el borrador y lo confirma de una — para los tests a los que solo
+// les importa el resultado final ya firmado, no el paso intermedio de borrador.
+func issueInvoiceViaAPI(t *testing.T, env *testEnv, token, rangeID string) map[string]any {
+	t.Helper()
+	draft := createDraftInvoice(t, env, token, rangeID)
+	rw := confirmDocument(env, t, token, draft["id"].(string))
+	require.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	return got
+}
+
+func TestAPI_CreateInvoiceDraft_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, token, "01", "SETP")
+
+	draft := createDraftInvoice(t, env, token, rangeID)
+	assert.Equal(t, "draft", draft["status"])
+	assert.Empty(t, draft["number"], "un borrador no reclama número")
+	assert.Empty(t, draft["document_key"], "un borrador no tiene CUFE todavía")
+	assert.Empty(t, draft["signed_xml"], "un borrador no está firmado todavía")
+}
+
+func TestAPI_ConfirmDocument_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, token, "01", "SETP")
+
+	got := issueInvoiceViaAPI(t, env, token, rangeID)
 	assert.Equal(t, "SETP", got["prefix"])
 	assert.Equal(t, "built", got["status"])
 	assert.NotEmpty(t, got["document_key"])
 	assert.Contains(t, got["signed_xml"], "<ds:Signature")
+}
+
+func TestAPI_ConfirmDocument_NotDraft(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, token, "01", "SETP")
+
+	doc := issueInvoiceViaAPI(t, env, token, rangeID)
+
+	rw := confirmDocument(env, t, token, doc["id"].(string))
+	assert.Equal(t, http.StatusConflict, rw.Code, "confirmar dos veces no debe gastar un segundo número")
+}
+
+func TestAPI_ConfirmDocument_NotFound(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+
+	rw := confirmDocument(env, t, token, uuid.New().String())
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+func TestAPI_ConfirmDocument_OtherTenant(t *testing.T) {
+	env := newTestEnv(t)
+	_, tokenA := registerTestIssuer(t, env)
+	_, tokenB := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, tokenA, "01", "SETP")
+
+	draft := createDraftInvoice(t, env, tokenA, rangeID)
+
+	// El emisor B no debe poder confirmar un borrador del emisor A — mismo 404 que si no existiera.
+	rw := confirmDocument(env, t, tokenB, draft["id"].(string))
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+func TestAPI_UpdateInvoiceDraft_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, token, "01", "SETP")
+
+	draft := createDraftInvoice(t, env, token, rangeID)
+
+	lines := testLines()
+	lines[0]["description"] = "Servicio corregido"
+	rw := env.doAuth(t, "PUT", "/api/v1/invoices/"+draft["id"].(string), token, map[string]any{
+		"numbering_range_id": rangeID,
+		"customer":           testCustomer(),
+		"lines":              lines,
+	})
+	require.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.Equal(t, "draft", got["status"])
+}
+
+func TestAPI_UpdateInvoiceDraft_NotDraft(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, token, "01", "SETP")
+
+	doc := issueInvoiceViaAPI(t, env, token, rangeID)
+
+	rw := env.doAuth(t, "PUT", "/api/v1/invoices/"+doc["id"].(string), token, map[string]any{
+		"numbering_range_id": rangeID,
+		"customer":           testCustomer(),
+		"lines":              testLines(),
+	})
+	assert.Equal(t, http.StatusConflict, rw.Code, "un documento ya confirmado es inmutable")
+}
+
+func TestAPI_UpdateInvoiceDraft_OtherTenant(t *testing.T) {
+	env := newTestEnv(t)
+	_, tokenA := registerTestIssuer(t, env)
+	_, tokenB := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, tokenA, "01", "SETP")
+
+	draft := createDraftInvoice(t, env, tokenA, rangeID)
+
+	rw := env.doAuth(t, "PUT", "/api/v1/invoices/"+draft["id"].(string), tokenB, map[string]any{
+		"numbering_range_id": rangeID,
+		"customer":           testCustomer(),
+		"lines":              testLines(),
+	})
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+func TestAPI_DeleteDraft_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, token, "01", "SETP")
+
+	draft := createDraftInvoice(t, env, token, rangeID)
+
+	rw := env.doAuth(t, "DELETE", "/api/v1/documents/"+draft["id"].(string), token, nil)
+	assert.Equal(t, http.StatusNoContent, rw.Code)
+
+	rw = env.doAuth(t, "GET", "/api/v1/documents/"+draft["id"].(string), token, nil)
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+func TestAPI_DeleteDraft_NotDraft(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, token, "01", "SETP")
+
+	doc := issueInvoiceViaAPI(t, env, token, rangeID)
+
+	rw := env.doAuth(t, "DELETE", "/api/v1/documents/"+doc["id"].(string), token, nil)
+	assert.Equal(t, http.StatusConflict, rw.Code, "un documento ya confirmado nunca se borra")
+}
+
+func TestAPI_DeleteDraft_OtherTenant(t *testing.T) {
+	env := newTestEnv(t)
+	_, tokenA := registerTestIssuer(t, env)
+	_, tokenB := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, tokenA, "01", "SETP")
+
+	draft := createDraftInvoice(t, env, tokenA, rangeID)
+
+	rw := env.doAuth(t, "DELETE", "/api/v1/documents/"+draft["id"].(string), tokenB, nil)
+	assert.Equal(t, http.StatusNotFound, rw.Code)
 }
 
 func TestAPI_IssueInvoice_NoToken(t *testing.T) {
@@ -509,14 +747,7 @@ func TestAPI_IssueCreditNote_OK(t *testing.T) {
 	invoiceRangeID := createTestRange(t, env, token, "01", "SETP")
 	cnRangeID := createTestRange(t, env, token, "91", "SETPNC")
 
-	invRw := env.doAuth(t, "POST", "/api/v1/invoices", token, map[string]any{
-		"numbering_range_id": invoiceRangeID,
-		"customer":           testCustomer(),
-		"lines":              testLines(),
-	})
-	require.Equal(t, http.StatusCreated, invRw.Code)
-	var inv map[string]any
-	decode(t, invRw, &inv)
+	inv := issueInvoiceViaAPI(t, env, token, invoiceRangeID)
 
 	rw := env.doAuth(t, "POST", "/api/v1/credit-notes", token, map[string]any{
 		"numbering_range_id":    cnRangeID,
@@ -534,8 +765,18 @@ func TestAPI_IssueCreditNote_OK(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
 	var got map[string]any
 	decode(t, rw, &got)
-	assert.Equal(t, "SETPNC", got["prefix"])
+	// Un borrador no reclama prefix/number todavía (ver model.go) — eso solo se llena al
+	// confirmar. La identidad de un borrador es el numbering_range_id, no el prefix.
+	assert.Equal(t, cnRangeID, got["numbering_range_id"])
 	assert.Equal(t, "91", got["dian_document_type_code"])
+	assert.Equal(t, "draft", got["status"], "el borrador de la nota tampoco se confirma solo")
+
+	confirmRw := confirmDocument(env, t, token, got["id"].(string))
+	require.Equal(t, http.StatusOK, confirmRw.Code, confirmRw.Body.String())
+	var confirmed map[string]any
+	decode(t, confirmRw, &confirmed)
+	assert.Equal(t, "SETPNC", confirmed["prefix"])
+	assert.Equal(t, "built", confirmed["status"])
 }
 
 func TestAPI_IssueCreditNote_MissingBillingReference(t *testing.T) {
@@ -565,14 +806,7 @@ func TestAPI_GetDocument_OK(t *testing.T) {
 	_, token := registerTestIssuer(t, env)
 	rangeID := createTestRange(t, env, token, "01", "SETP")
 
-	createRw := env.doAuth(t, "POST", "/api/v1/invoices", token, map[string]any{
-		"numbering_range_id": rangeID,
-		"customer":           testCustomer(),
-		"lines":              testLines(),
-	})
-	require.Equal(t, http.StatusCreated, createRw.Code)
-	var created map[string]any
-	decode(t, createRw, &created)
+	created := issueInvoiceViaAPI(t, env, token, rangeID)
 
 	rw := env.doAuth(t, "GET", "/api/v1/documents/"+created["id"].(string), token, nil)
 	require.Equal(t, http.StatusOK, rw.Code)
@@ -587,14 +821,7 @@ func TestAPI_GetDocument_OtherTenant(t *testing.T) {
 	_, tokenB := registerTestIssuer(t, env)
 	rangeID := createTestRange(t, env, tokenA, "01", "SETP")
 
-	createRw := env.doAuth(t, "POST", "/api/v1/invoices", tokenA, map[string]any{
-		"numbering_range_id": rangeID,
-		"customer":           testCustomer(),
-		"lines":              testLines(),
-	})
-	require.Equal(t, http.StatusCreated, createRw.Code)
-	var created map[string]any
-	decode(t, createRw, &created)
+	created := createDraftInvoice(t, env, tokenA, rangeID)
 
 	// El emisor B no debe poder ver el documento del emisor A — mismo 404 que si no existiera.
 	rw := env.doAuth(t, "GET", "/api/v1/documents/"+created["id"].(string), tokenB, nil)
@@ -608,22 +835,11 @@ func TestAPI_ListDocuments_OnlyOwnAndFiltered(t *testing.T) {
 	rangeA := createTestRange(t, env, tokenA, "01", "SETP")
 	rangeB := createTestRange(t, env, tokenB, "01", "SETP")
 
-	for i := 0; i < 2; i++ {
-		rw := env.doAuth(t, "POST", "/api/v1/invoices", tokenA, map[string]any{
-			"numbering_range_id": rangeA,
-			"customer":           testCustomer(),
-			"lines":              testLines(),
-		})
-		require.Equal(t, http.StatusCreated, rw.Code)
-	}
-	rw := env.doAuth(t, "POST", "/api/v1/invoices", tokenB, map[string]any{
-		"numbering_range_id": rangeB,
-		"customer":           testCustomer(),
-		"lines":              testLines(),
-	})
-	require.Equal(t, http.StatusCreated, rw.Code)
+	createDraftInvoice(t, env, tokenA, rangeA)
+	createDraftInvoice(t, env, tokenA, rangeA)
+	createDraftInvoice(t, env, tokenB, rangeB)
 
-	rw = env.doAuth(t, "GET", "/api/v1/documents", tokenA, nil)
+	rw := env.doAuth(t, "GET", "/api/v1/documents", tokenA, nil)
 	require.Equal(t, http.StatusOK, rw.Code)
 	var got map[string]any
 	decode(t, rw, &got)

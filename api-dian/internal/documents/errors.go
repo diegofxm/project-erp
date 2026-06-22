@@ -30,4 +30,15 @@ var (
 	// ErrNumberingRangeIssuerMismatch: nunca confiar en que un ID referenciado por el cliente
 	// realmente le pertenece sin comprobarlo.
 	ErrCustomerIssuerMismatch = errors.New("documents: el cliente referenciado no pertenece a este emisor")
+
+	// ErrDocumentNotDraft: Update/Delete solo aplican mientras Status == StatusDraft — una vez
+	// confirmado (número reclamado, firmado, posiblemente enviado), el documento es inmutable
+	// para siempre, mismo principio que "nunca mutar un documento ya firmado" (ver model.go).
+	ErrDocumentNotDraft = errors.New("documents: el documento ya fue confirmado, no se puede editar ni eliminar")
+
+	// ErrIssuerNotReadyToIssue: el emisor todavía no tiene software_id/software_pin/
+	// certificado configurados (ver internal/issuers) — no se puede confirmar (firmar) un
+	// documento sin esos datos. Mensaje propio, más claro que el error de bajo nivel que
+	// lanzaría signer.LoadPKCS12 al recibir un certificado vacío.
+	ErrIssuerNotReadyToIssue = errors.New("documents: el emisor todavía no tiene software/certificado configurados — complétalos con PUT /issuers/me antes de confirmar")
 )

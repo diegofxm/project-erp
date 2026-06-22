@@ -23,3 +23,6 @@ cofacture.exe
 *.out
 coverage.html
 coverage.txt
+
+# Frentend proyectado a futuro
+/frontend

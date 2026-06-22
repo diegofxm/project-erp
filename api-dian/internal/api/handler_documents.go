@@ -12,20 +12,23 @@ import (
 	"github.com/google/uuid"
 )
 
-// issueInvoiceRequest, issueCreditNoteRequest e issueDebitNoteRequest son los payloads
-// públicos de emisión — Customer/Lines/PaymentMeans son pass-through puro (ver
-// docs/api-dian-architecture.md sección 4.2): llegan tal cual y se persisten como snapshot.
+// issueInvoiceRequest, issueCreditNoteRequest e issueNoteRequest son los payloads públicos
+// de Invoice/CreditNote/DebitNote — sirven tanto para crear un borrador (POST) como para
+// reemplazarlo por completo (PUT, solo mientras siga en borrador). Customer/Lines/
+// PaymentMeans son pass-through puro (ver docs/api-dian-architecture.md sección 4.2): llegan
+// tal cual y se persisten como snapshot — nunca se reclama número, firma ni envía aquí, eso
+// solo pasa en POST /documents/{id}/confirm (ver sección 9.25).
 //
 // IssuerID NO es un campo del body — siempre es el emisor del usuario autenticado
 // (middleware.GetTenantID), nunca algo que el cliente pueda elegir; así un usuario nunca
-// puede emitir documentos a nombre de otro emisor.
+// puede crear/editar documentos a nombre de otro emisor.
 //
 // NumberingRangeID es string, no uuid.UUID: un uuid.UUID vacío o mal formado hace fallar el
 // propio json.Decode (antes de llegar a validar nada), lo que se reportaba como el genérico
 // "JSON inválido" sin decir cuál campo era — confuso de depurar (pasó de verdad probando con
 // Postman). Decodificar como string siempre funciona; el UUID se valida después con un
-// mensaje claro (parseUUIDField). documents.Service.prepare además verifica que el rango
-// pertenezca a este mismo emisor (ErrNumberingRangeIssuerMismatch).
+// mensaje claro (parseUUIDField). documents.Service.validateForIssuance además verifica que
+// el rango pertenezca a este mismo emisor (ErrNumberingRangeIssuerMismatch).
 type issueInvoiceRequest struct {
 	NumberingRangeID string           `json:"numbering_range_id"`
 	Customer         partyDTO         `json:"customer"`
@@ -37,7 +40,7 @@ type issueInvoiceRequest struct {
 	// CustomerID es opcional — referencia de solo trazabilidad a un cliente guardado en
 	// internal/customers (ver documents.IssueInvoiceRequest.CustomerID). NUNCA reemplaza
 	// "customer": el snapshot pass-through sigue siendo obligatorio y es lo que se firma.
-	// documents.Service.prepare verifica que pertenezca a este mismo emisor
+	// documents.Service.validateForIssuance verifica que pertenezca a este mismo emisor
 	// (ErrCustomerIssuerMismatch), igual criterio que numbering_range_id.
 	CustomerID string `json:"customer_id,omitempty"`
 }
@@ -59,32 +62,34 @@ type issueCreditNoteRequest struct {
 	CreditNoteTypeCode string `json:"credit_note_type_code"`
 }
 
-// documentResponse es la representación pública de un documento emitido — incluye el XML
-// firmado completo (retención legal) y el estado de la DIAN, no solo el de api-dian.
+// documentResponse es la representación pública de un documento — Prefix/Number/DocumentKey/
+// IssueDate/QRURL/SignedXML son punteros/omitempty: nil mientras Status == "draft", porque
+// todavía no se reclamó número ni se firmó (ver documents.Document).
 type documentResponse struct {
-	ID                    uuid.UUID `json:"id"`
-	IssuerID              uuid.UUID `json:"issuer_id"`
-	NumberingRangeID      uuid.UUID `json:"numbering_range_id"`
-	DianDocumentTypeCode  string    `json:"dian_document_type_code"`
-	Prefix                string    `json:"prefix"`
-	Number                int64     `json:"number"`
-	DocumentKey           string    `json:"document_key"`
-	IssueDate             time.Time `json:"issue_date"`
-	QRURL                 string    `json:"qr_url"`
-	SignedXML             string    `json:"signed_xml"`
-	Status                string    `json:"status"`
-	DianTrackID           string    `json:"dian_track_id,omitempty"`
-	DianStatusCode        string    `json:"dian_status_code,omitempty"`
-	DianStatusDescription string    `json:"dian_status_description,omitempty"`
-	DianStatusMessage     string    `json:"dian_status_message,omitempty"`
+	ID                    uuid.UUID  `json:"id"`
+	IssuerID              uuid.UUID  `json:"issuer_id"`
+	NumberingRangeID      uuid.UUID  `json:"numbering_range_id"`
+	DianDocumentTypeCode  string     `json:"dian_document_type_code"`
+	Prefix                string     `json:"prefix,omitempty"`
+	Number                int64      `json:"number,omitempty"`
+	DocumentKey           string     `json:"document_key,omitempty"`
+	IssueDate             *time.Time `json:"issue_date,omitempty"`
+	Note                  string     `json:"note,omitempty"`
+	QRURL                 string     `json:"qr_url,omitempty"`
+	SignedXML             string     `json:"signed_xml,omitempty"`
+	Status                string     `json:"status"`
+	DianTrackID           string     `json:"dian_track_id,omitempty"`
+	DianStatusCode        string     `json:"dian_status_code,omitempty"`
+	DianStatusDescription string     `json:"dian_status_description,omitempty"`
+	DianStatusMessage     string     `json:"dian_status_message,omitempty"`
 
-	// CustomerID es solo trazabilidad — ver documents.Document.CustomerID. nil si la factura
-	// no referenció un cliente guardado.
+	// CustomerID es solo trazabilidad — ver documents.Document.CustomerID. nil si el
+	// documento no referenció un cliente guardado.
 	CustomerID *uuid.UUID `json:"customer_id,omitempty"`
 }
 
 func documentToResponse(d *documents.Document) documentResponse {
-	return documentResponse{
+	resp := documentResponse{
 		ID:                    d.ID,
 		IssuerID:              d.IssuerID,
 		NumberingRangeID:      d.NumberingRangeID,
@@ -93,7 +98,7 @@ func documentToResponse(d *documents.Document) documentResponse {
 		Prefix:                d.Prefix,
 		Number:                d.Number,
 		DocumentKey:           d.DocumentKey,
-		IssueDate:             d.IssueDate,
+		Note:                  d.Note,
 		QRURL:                 d.QRURL,
 		SignedXML:             d.SignedXML,
 		Status:                string(d.Status),
@@ -102,25 +107,63 @@ func documentToResponse(d *documents.Document) documentResponse {
 		DianStatusDescription: d.DianStatusDescription,
 		DianStatusMessage:     d.DianStatusMessage,
 	}
+	if !d.IssueDate.IsZero() {
+		resp.IssueDate = &d.IssueDate
+	}
+	return resp
 }
 
-func (a *API) handleIssueInvoice(w http.ResponseWriter, r *http.Request) {
+// ── Invoice ──────────────────────────────────────────────────────────────────────────────────
+
+func (a *API) handleCreateInvoice(w http.ResponseWriter, r *http.Request) {
+	req, ok := decodeIssueInvoiceRequest(w, r)
+	if !ok {
+		return
+	}
+
+	doc, err := a.documents.CreateInvoiceDraft(r.Context(), req)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	response.WriteJSON(w, http.StatusCreated, documentToResponse(doc))
+}
+
+func (a *API) handleUpdateInvoice(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+	req, ok := decodeIssueInvoiceRequest(w, r)
+	if !ok {
+		return
+	}
+
+	doc, err := a.documents.UpdateInvoiceDraft(r.Context(), id, req)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	response.WriteJSON(w, http.StatusOK, documentToResponse(doc))
+}
+
+func decodeIssueInvoiceRequest(w http.ResponseWriter, r *http.Request) (documents.IssueInvoiceRequest, bool) {
 	var req issueInvoiceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
-		return
+		return documents.IssueInvoiceRequest{}, false
 	}
 
 	rangeID, ok := parseUUIDField(w, req.NumberingRangeID, "numbering_range_id")
 	if !ok {
-		return
+		return documents.IssueInvoiceRequest{}, false
 	}
 	customerID, ok := parseOptionalUUIDField(w, req.CustomerID, "customer_id")
 	if !ok {
-		return
+		return documents.IssueInvoiceRequest{}, false
 	}
 
-	doc, err := a.documents.IssueInvoice(r.Context(), documents.IssueInvoiceRequest{
+	return documents.IssueInvoiceRequest{
 		IssuerID:         middleware.GetTenantID(r.Context()),
 		NumberingRangeID: rangeID,
 		Customer:         req.Customer.toDomain(),
@@ -129,59 +172,176 @@ func (a *API) handleIssueInvoice(w http.ResponseWriter, r *http.Request) {
 		Note:             req.Note,
 		CurrencyCode:     req.CurrencyCode,
 		CustomerID:       customerID,
-	})
+	}, true
+}
+
+// ── Credit Note ──────────────────────────────────────────────────────────────────────────────
+
+func (a *API) handleCreateCreditNote(w http.ResponseWriter, r *http.Request) {
+	req, ok := decodeIssueCreditNoteRequest(w, r)
+	if !ok {
+		return
+	}
+
+	doc, err := a.documents.CreateCreditNoteDraft(r.Context(), req)
 	if err != nil {
 		response.WriteError(w, err)
 		return
 	}
-
 	response.WriteJSON(w, http.StatusCreated, documentToResponse(doc))
 }
 
-func (a *API) handleIssueCreditNote(w http.ResponseWriter, r *http.Request) {
+func (a *API) handleUpdateCreditNote(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+	req, ok := decodeIssueCreditNoteRequest(w, r)
+	if !ok {
+		return
+	}
+
+	doc, err := a.documents.UpdateCreditNoteDraft(r.Context(), id, req)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	response.WriteJSON(w, http.StatusOK, documentToResponse(doc))
+}
+
+func decodeIssueCreditNoteRequest(w http.ResponseWriter, r *http.Request) (documents.IssueCreditNoteRequest, bool) {
 	var req issueCreditNoteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
-		return
+		return documents.IssueCreditNoteRequest{}, false
 	}
 
 	noteReq, ok := toServiceNoteRequest(w, middleware.GetTenantID(r.Context()), req.issueNoteRequest)
 	if !ok {
-		return
+		return documents.IssueCreditNoteRequest{}, false
 	}
 
-	doc, err := a.documents.IssueCreditNote(r.Context(), documents.IssueCreditNoteRequest{
+	return documents.IssueCreditNoteRequest{
 		IssueNoteRequest:   noteReq,
 		CreditNoteTypeCode: req.CreditNoteTypeCode,
-	})
-	if err != nil {
-		response.WriteError(w, err)
-		return
-	}
-
-	response.WriteJSON(w, http.StatusCreated, documentToResponse(doc))
+	}, true
 }
 
-func (a *API) handleIssueDebitNote(w http.ResponseWriter, r *http.Request) {
-	var req issueNoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
-		return
-	}
+// ── Debit Note ───────────────────────────────────────────────────────────────────────────────
 
-	noteReq, ok := toServiceNoteRequest(w, middleware.GetTenantID(r.Context()), req)
+func (a *API) handleCreateDebitNote(w http.ResponseWriter, r *http.Request) {
+	req, ok := decodeIssueNoteRequest(w, r)
 	if !ok {
 		return
 	}
 
-	doc, err := a.documents.IssueDebitNote(r.Context(), noteReq)
+	doc, err := a.documents.CreateDebitNoteDraft(r.Context(), req)
 	if err != nil {
 		response.WriteError(w, err)
 		return
 	}
-
 	response.WriteJSON(w, http.StatusCreated, documentToResponse(doc))
 }
+
+func (a *API) handleUpdateDebitNote(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+	req, ok := decodeIssueNoteRequest(w, r)
+	if !ok {
+		return
+	}
+
+	doc, err := a.documents.UpdateDebitNoteDraft(r.Context(), id, req)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	response.WriteJSON(w, http.StatusOK, documentToResponse(doc))
+}
+
+func decodeIssueNoteRequest(w http.ResponseWriter, r *http.Request) (documents.IssueNoteRequest, bool) {
+	var req issueNoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
+		return documents.IssueNoteRequest{}, false
+	}
+	return toServiceNoteRequest(w, middleware.GetTenantID(r.Context()), req)
+}
+
+func toServiceNoteRequest(w http.ResponseWriter, issuerID uuid.UUID, req issueNoteRequest) (documents.IssueNoteRequest, bool) {
+	rangeID, ok := parseUUIDField(w, req.NumberingRangeID, "numbering_range_id")
+	if !ok {
+		return documents.IssueNoteRequest{}, false
+	}
+	customerID, ok := parseOptionalUUIDField(w, req.CustomerID, "customer_id")
+	if !ok {
+		return documents.IssueNoteRequest{}, false
+	}
+
+	out := documents.IssueNoteRequest{
+		IssuerID:         issuerID,
+		NumberingRangeID: rangeID,
+		Customer:         req.Customer.toDomain(),
+		Lines:            linesToDomain(req.Lines),
+		PaymentMeans:     paymentMeansToDomain(req.PaymentMeans),
+		Note:             req.Note,
+		CurrencyCode:     req.CurrencyCode,
+		CustomerID:       customerID,
+		BillingReference: documents.BillingReferenceInput{
+			Prefix:    req.BillingReference.Prefix,
+			Number:    req.BillingReference.Number,
+			CUFE:      req.BillingReference.CUFE,
+			IssueDate: req.BillingReference.IssueDate,
+		},
+	}
+	if req.DiscrepancyResponse != nil {
+		out.DiscrepancyResponse = &documents.DiscrepancyResponseInput{
+			ReferenceID:  req.DiscrepancyResponse.ReferenceID,
+			ResponseCode: req.DiscrepancyResponse.ResponseCode,
+			Description:  req.DiscrepancyResponse.Description,
+		}
+	}
+	return out, true
+}
+
+// ── Confirmar / eliminar (compartido por los tres tipos) ───────────────────────────────────
+
+// handleConfirmDocument reclama el consecutivo real, construye, firma, y —si el ambiente lo
+// permite— envía un borrador ya creado. Único punto donde se "gasta" un número real de la
+// DIAN — antes de esto, el documento se podía editar o eliminar libremente (ver sección 9.25
+// del architecture doc).
+func (a *API) handleConfirmDocument(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+
+	doc, err := a.documents.ConfirmDocument(r.Context(), middleware.GetTenantID(r.Context()), id)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	response.WriteJSON(w, http.StatusOK, documentToResponse(doc))
+}
+
+// handleDeleteDocument elimina un borrador — solo mientras siga en borrador
+// (documents.ErrDocumentNotDraft si ya fue confirmado) y pertenezca al emisor autenticado.
+func (a *API) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+
+	if err := a.documents.DeleteDraft(r.Context(), middleware.GetTenantID(r.Context()), id); err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ── Listado / consulta ───────────────────────────────────────────────────────────────────────
 
 // handleListDocuments devuelve los documentos del emisor autenticado, opcionalmente
 // filtrados por ?dian_document_type_code=&status=&from=&to= (fechas YYYY-MM-DD, sobre
@@ -260,40 +420,4 @@ func (a *API) handleGetDocument(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.WriteJSON(w, http.StatusOK, documentToResponse(doc))
-}
-
-func toServiceNoteRequest(w http.ResponseWriter, issuerID uuid.UUID, req issueNoteRequest) (documents.IssueNoteRequest, bool) {
-	rangeID, ok := parseUUIDField(w, req.NumberingRangeID, "numbering_range_id")
-	if !ok {
-		return documents.IssueNoteRequest{}, false
-	}
-	customerID, ok := parseOptionalUUIDField(w, req.CustomerID, "customer_id")
-	if !ok {
-		return documents.IssueNoteRequest{}, false
-	}
-
-	out := documents.IssueNoteRequest{
-		IssuerID:         issuerID,
-		NumberingRangeID: rangeID,
-		Customer:         req.Customer.toDomain(),
-		Lines:            linesToDomain(req.Lines),
-		PaymentMeans:     paymentMeansToDomain(req.PaymentMeans),
-		Note:             req.Note,
-		CurrencyCode:     req.CurrencyCode,
-		CustomerID:       customerID,
-		BillingReference: documents.BillingReferenceInput{
-			Prefix:    req.BillingReference.Prefix,
-			Number:    req.BillingReference.Number,
-			CUFE:      req.BillingReference.CUFE,
-			IssueDate: req.BillingReference.IssueDate,
-		},
-	}
-	if req.DiscrepancyResponse != nil {
-		out.DiscrepancyResponse = &documents.DiscrepancyResponseInput{
-			ReferenceID:  req.DiscrepancyResponse.ReferenceID,
-			ResponseCode: req.DiscrepancyResponse.ResponseCode,
-			Description:  req.DiscrepancyResponse.Description,
-		}
-	}
-	return out, true
 }
