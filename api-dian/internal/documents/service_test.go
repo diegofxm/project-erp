@@ -3,6 +3,7 @@ package documents_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/diegofxm/api-dian/internal/documents"
 	"github.com/diegofxm/api-dian/internal/issuers"
@@ -165,6 +166,21 @@ func TestIssueInvoice_WrongDocumentType(t *testing.T) {
 
 	_, err := svc.IssueInvoice(context.Background(), testRequest(iss.ID, nr.ID))
 	assert.ErrorIs(t, err, documents.ErrWrongDocumentType)
+}
+
+func TestIssueInvoice_NumberingRangeIssuerMismatch(t *testing.T) {
+	iss := testIssuer()
+	otroEmisorID := uuid.New() // el rango pertenece a OTRO emisor, no a iss
+	nr := testNumberingRange(otroEmisorID)
+
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+	)
+
+	_, err := svc.IssueInvoice(context.Background(), testRequest(iss.ID, nr.ID))
+	assert.ErrorIs(t, err, documents.ErrNumberingRangeIssuerMismatch)
 }
 
 func TestIssueInvoice_Validations(t *testing.T) {
@@ -345,4 +361,106 @@ func TestIssueDebitNote_WrongDocumentType(t *testing.T) {
 
 	_, err := svc.IssueDebitNote(context.Background(), testNoteRequest(iss.ID, nr.ID))
 	assert.ErrorIs(t, err, documents.ErrWrongDocumentType)
+}
+
+// ── Listado ──────────────────────────────────────────────────────────────────────────────────
+
+// seedDocument inserta un documento directamente en repo (sin pasar por IssueInvoice — no
+// hace falta firmar de verdad para probar filtros de listado).
+func seedDocument(t *testing.T, repo documents.Repository, issuerID uuid.UUID, docType, status string, issueDate time.Time) {
+	t.Helper()
+	_, err := repo.Create(context.Background(), documents.Document{
+		IssuerID:             issuerID,
+		NumberingRangeID:     uuid.New(),
+		DianDocumentTypeCode: docType,
+		Prefix:               "SETP",
+		Number:               1,
+		DocumentKey:          "cufe-de-prueba",
+		IssueDate:            issueDate,
+		IssueTime:            "10:00:00-05:00",
+		CurrencyCode:         "COP",
+		Customer:             domain.Party{Name: "Consumidor Final"},
+		Lines:                []domain.Line{{Description: "x", Quantity: 1}},
+		QRURL:                "https://catalogo-vpfe.dian.gov.co/document/searchqr?...",
+		SignedXML:            "<xml/>",
+		Status:               documents.Status(status),
+	})
+	require.NoError(t, err)
+}
+
+func TestListDocuments_FiltersByIssuer(t *testing.T) {
+	repo := documents.NewMemoryRepository()
+	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{})
+	issuerA, issuerB := uuid.New(), uuid.New()
+
+	seedDocument(t, repo, issuerA, "01", "accepted", time.Now())
+	seedDocument(t, repo, issuerA, "91", "built", time.Now())
+	seedDocument(t, repo, issuerB, "01", "accepted", time.Now())
+
+	got, err := svc.ListDocuments(context.Background(), issuerA, documents.ListFilter{})
+	require.NoError(t, err)
+	assert.Len(t, got, 2, "solo los documentos del emisor A")
+}
+
+func TestListDocuments_FiltersByTypeAndStatus(t *testing.T) {
+	repo := documents.NewMemoryRepository()
+	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{})
+	issuerID := uuid.New()
+
+	seedDocument(t, repo, issuerID, "01", "accepted", time.Now())
+	seedDocument(t, repo, issuerID, "01", "rejected", time.Now())
+	seedDocument(t, repo, issuerID, "91", "accepted", time.Now())
+
+	onlyInvoices, err := svc.ListDocuments(context.Background(), issuerID, documents.ListFilter{DianDocumentTypeCode: "01"})
+	require.NoError(t, err)
+	assert.Len(t, onlyInvoices, 2)
+
+	onlyAccepted, err := svc.ListDocuments(context.Background(), issuerID, documents.ListFilter{Status: documents.StatusAccepted})
+	require.NoError(t, err)
+	assert.Len(t, onlyAccepted, 2)
+
+	both, err := svc.ListDocuments(context.Background(), issuerID, documents.ListFilter{DianDocumentTypeCode: "01", Status: documents.StatusAccepted})
+	require.NoError(t, err)
+	assert.Len(t, both, 1)
+}
+
+func TestListDocuments_FiltersByDateRange(t *testing.T) {
+	repo := documents.NewMemoryRepository()
+	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{})
+	issuerID := uuid.New()
+
+	seedDocument(t, repo, issuerID, "01", "accepted", time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC))
+	seedDocument(t, repo, issuerID, "01", "accepted", time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC))
+	seedDocument(t, repo, issuerID, "01", "accepted", time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC))
+
+	got, err := svc.ListDocuments(context.Background(), issuerID, documents.ListFilter{
+		From: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		To:   time.Date(2025, 12, 31, 0, 0, 0, 0, time.UTC),
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, 2025, got[0].IssueDate.Year())
+}
+
+func TestListDocuments_LimitNormalization(t *testing.T) {
+	repo := documents.NewMemoryRepository()
+	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{})
+	issuerID := uuid.New()
+
+	for i := 0; i < 5; i++ {
+		seedDocument(t, repo, issuerID, "01", "accepted", time.Now())
+	}
+
+	// Limit <= 0 toma el default, nunca "sin límite".
+	got, err := svc.ListDocuments(context.Background(), issuerID, documents.ListFilter{Limit: 0})
+	require.NoError(t, err)
+	assert.Len(t, got, 5)
+
+	limited, err := svc.ListDocuments(context.Background(), issuerID, documents.ListFilter{Limit: 2})
+	require.NoError(t, err)
+	assert.Len(t, limited, 2)
+
+	overMax, err := svc.ListDocuments(context.Background(), issuerID, documents.ListFilter{Limit: documents.MaxListLimit + 1000})
+	require.NoError(t, err)
+	assert.LessOrEqual(t, len(overMax), documents.MaxListLimit)
 }

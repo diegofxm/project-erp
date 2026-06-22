@@ -36,12 +36,21 @@ type Config struct {
 	// (AES-256-GCM) — nunca se guarda en texto plano en la base de datos. 32 bytes, base64.
 	// Generar con: openssl rand -base64 32
 	IssuerSecretsKey []byte
+
+	// AuthJWTSecret firma los tokens de sesión de internal/auth (HS256) — deliberadamente
+	// distinta de IssuerSecretsKey (cifra datos en reposo, no firma tokens; no deben
+	// compartir clave). Mínimo 32 bytes, base64. Generar con: openssl rand -base64 32
+	AuthJWTSecret []byte
 }
 
 func Load() (*Config, error) {
 	issuerSecretsKey, err := base64.StdEncoding.DecodeString(getEnv("ISSUER_SECRETS_KEY", ""))
 	if err != nil {
 		return nil, fmt.Errorf("ISSUER_SECRETS_KEY no es base64 válido: %w", err)
+	}
+	authJWTSecret, err := base64.StdEncoding.DecodeString(getEnv("AUTH_JWT_SECRET", ""))
+	if err != nil {
+		return nil, fmt.Errorf("AUTH_JWT_SECRET no es base64 válido: %w", err)
 	}
 
 	cfg := &Config{
@@ -54,6 +63,7 @@ func Load() (*Config, error) {
 		DatabaseMinConn:  int32(getEnvInt("DATABASE_MIN_CONN", 5)),
 		LogLevel:         getEnv("LOG_LEVEL", "info"),
 		IssuerSecretsKey: issuerSecretsKey,
+		AuthJWTSecret:    authJWTSecret,
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -77,6 +87,9 @@ func (c *Config) validate() error {
 	}
 	if len(c.IssuerSecretsKey) != 32 {
 		return fmt.Errorf("ISSUER_SECRETS_KEY debe decodificar a 32 bytes (AES-256), tiene %d", len(c.IssuerSecretsKey))
+	}
+	if len(c.AuthJWTSecret) < 32 {
+		return fmt.Errorf("AUTH_JWT_SECRET debe decodificar a al menos 32 bytes, tiene %d", len(c.AuthJWTSecret))
 	}
 	return nil
 }

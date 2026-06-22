@@ -2,6 +2,7 @@ package numbering
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -67,4 +68,23 @@ func (r *MemoryRepository) ClaimNext(_ context.Context, id uuid.UUID) (int64, er
 	nr.CurrentNumber++
 	nr.UpdatedAt = time.Now().UTC()
 	return nr.CurrentNumber, nil
+}
+
+func (r *MemoryRepository) ListByIssuer(_ context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var out []*NumberingRange
+	for _, nr := range r.ranges {
+		if nr.IssuerID != issuerID {
+			continue
+		}
+		if dianDocumentTypeCode != "" && nr.DianDocumentTypeCode != dianDocumentTypeCode {
+			continue
+		}
+		cp := *nr
+		out = append(out, &cp)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
 }

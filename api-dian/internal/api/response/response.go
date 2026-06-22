@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/diegofxm/api-dian/internal/auth"
 	"github.com/diegofxm/api-dian/internal/documents"
 	"github.com/diegofxm/api-dian/internal/issuers"
 	"github.com/diegofxm/api-dian/internal/numbering"
@@ -37,8 +38,14 @@ func classify(err error) (int, string) {
 		errors.Is(err, documents.ErrDocumentNotFound):
 		return http.StatusNotFound, err.Error()
 
+	// ── 401 ──────────────────────────────────────────────────────────────────
+	case errors.Is(err, auth.ErrInvalidCredentials),
+		errors.Is(err, auth.ErrUserInactive):
+		return http.StatusUnauthorized, err.Error()
+
 	// ── 409 ──────────────────────────────────────────────────────────────────
-	case errors.Is(err, issuers.ErrNITAlreadyExists):
+	case errors.Is(err, issuers.ErrNITAlreadyExists),
+		errors.Is(err, auth.ErrEmailAlreadyExists):
 		return http.StatusConflict, err.Error()
 
 	// ── 400 (validación / datos faltantes) ────────────────────────────────────
@@ -57,13 +64,18 @@ func classify(err error) (int, string) {
 		errors.Is(err, documents.ErrMissingNumberingRange),
 		errors.Is(err, documents.ErrEmptyLines),
 		errors.Is(err, documents.ErrMissingCustomer),
-		errors.Is(err, documents.ErrMissingBillingReference):
+		errors.Is(err, documents.ErrMissingBillingReference),
+		errors.Is(err, auth.ErrEmptyEmail),
+		errors.Is(err, auth.ErrEmptyPassword),
+		errors.Is(err, auth.ErrPasswordTooShort),
+		errors.Is(err, auth.ErrEmptyName):
 		return http.StatusBadRequest, err.Error()
 
 	// ── 422 (regla de negocio: la petición está bien formada pero no se puede
 	//         cumplir tal como está) ───────────────────────────────────────────
 	case errors.Is(err, numbering.ErrRangeExhausted),
-		errors.Is(err, documents.ErrWrongDocumentType):
+		errors.Is(err, documents.ErrWrongDocumentType),
+		errors.Is(err, documents.ErrNumberingRangeIssuerMismatch):
 		return http.StatusUnprocessableEntity, err.Error()
 	}
 

@@ -57,7 +57,7 @@ func (s *Server) routes() http.Handler {
 
 	// API de negocio (/api/v1/...) — solo si hay DB disponible, igual patrón que core-bank.
 	if s.db != nil {
-		mux.Handle("/api/", api.New(s.log, s.db, s.cfg.IssuerSecretsKey).Handler())
+		mux.Handle("/api/", api.New(s.log, s.db, s.cfg.IssuerSecretsKey, s.cfg.AuthJWTSecret).Handler())
 	}
 
 	return mux

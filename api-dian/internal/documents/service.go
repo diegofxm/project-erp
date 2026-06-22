@@ -256,6 +256,29 @@ func (s *Service) GetDocument(ctx context.Context, id uuid.UUID) (*Document, err
 	return s.repo.GetByID(ctx, id)
 }
 
+// DefaultListLimit/MaxListLimit acotan ListDocuments — ningún llamador (HTTP o futuro) puede
+// pedir una página sin límite.
+const (
+	DefaultListLimit = 50
+	MaxListLimit     = 200
+)
+
+// ListDocuments devuelve los documentos de un emisor, opcionalmente filtrados. Limit/Offset
+// se normalizan aquí, no en el repositorio: nunca cero/negativos, nunca por encima de
+// MaxListLimit.
+func (s *Service) ListDocuments(ctx context.Context, issuerID uuid.UUID, filter ListFilter) ([]*Document, error) {
+	switch {
+	case filter.Limit <= 0:
+		filter.Limit = DefaultListLimit
+	case filter.Limit > MaxListLimit:
+		filter.Limit = MaxListLimit
+	}
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+	return s.repo.ListByIssuer(ctx, issuerID, filter)
+}
+
 // ── Preparación común (emisor, rango, consecutivo, certificado) ───────────────────────────
 
 // preparedIssuance agrupa lo que los tres IssueXxx necesitan antes de construir su propio
@@ -278,6 +301,9 @@ func (s *Service) prepare(ctx context.Context, issuerID, rangeID uuid.UUID, expe
 	nr, err := s.numbering.GetRange(ctx, rangeID)
 	if err != nil {
 		return nil, err
+	}
+	if nr.IssuerID != issuerID {
+		return nil, ErrNumberingRangeIssuerMismatch
 	}
 	if nr.DianDocumentTypeCode != expectedDianDocType {
 		return nil, ErrWrongDocumentType

@@ -2,6 +2,7 @@ package documents
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -60,4 +61,47 @@ func (r *MemoryRepository) UpdateDianStatus(_ context.Context, id uuid.UUID, sta
 	d.DianStatusMessage = statusMessage
 	d.UpdatedAt = time.Now().UTC()
 	return nil
+}
+
+func (r *MemoryRepository) ListByIssuer(_ context.Context, issuerID uuid.UUID, filter ListFilter) ([]*Document, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var matched []*Document
+	for _, d := range r.docs {
+		if d.IssuerID != issuerID {
+			continue
+		}
+		if filter.DianDocumentTypeCode != "" && d.DianDocumentTypeCode != filter.DianDocumentTypeCode {
+			continue
+		}
+		if filter.Status != "" && d.Status != filter.Status {
+			continue
+		}
+		if !filter.From.IsZero() && d.IssueDate.Before(filter.From) {
+			continue
+		}
+		if !filter.To.IsZero() && d.IssueDate.After(filter.To) {
+			continue
+		}
+		cp := *d
+		matched = append(matched, &cp)
+	}
+
+	sort.Slice(matched, func(i, j int) bool {
+		if !matched[i].IssueDate.Equal(matched[j].IssueDate) {
+			return matched[i].IssueDate.After(matched[j].IssueDate)
+		}
+		return matched[i].CreatedAt.After(matched[j].CreatedAt)
+	})
+
+	start := filter.Offset
+	if start > len(matched) {
+		start = len(matched)
+	}
+	end := start + filter.Limit
+	if end > len(matched) {
+		end = len(matched)
+	}
+	return matched[start:end], nil
 }

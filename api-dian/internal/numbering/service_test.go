@@ -103,6 +103,43 @@ func TestClaimNext_RangeExhausted(t *testing.T) {
 	assert.ErrorIs(t, err, numbering.ErrRangeExhausted)
 }
 
+func TestListRanges_FiltersByIssuerAndDocumentType(t *testing.T) {
+	svc := newService()
+	ctx := context.Background()
+	issuerA, issuerB := uuid.New(), uuid.New()
+
+	invoiceA := validRange()
+	invoiceA.IssuerID = issuerA
+	invoiceA.DianDocumentTypeCode = "01"
+	_, err := svc.RegisterRange(ctx, invoiceA)
+	require.NoError(t, err)
+
+	creditNoteA := validRange()
+	creditNoteA.IssuerID = issuerA
+	creditNoteA.DianDocumentTypeCode = "91"
+	creditNoteA.Prefix = "SETPNC"
+	_, err = svc.RegisterRange(ctx, creditNoteA)
+	require.NoError(t, err)
+
+	invoiceB := validRange()
+	invoiceB.IssuerID = issuerB
+	_, err = svc.RegisterRange(ctx, invoiceB)
+	require.NoError(t, err)
+
+	all, err := svc.ListRanges(ctx, issuerA, "")
+	require.NoError(t, err)
+	assert.Len(t, all, 2, "solo los rangos del emisor A, sin importar tipo de documento")
+
+	onlyInvoices, err := svc.ListRanges(ctx, issuerA, "01")
+	require.NoError(t, err)
+	require.Len(t, onlyInvoices, 1)
+	assert.Equal(t, "01", onlyInvoices[0].DianDocumentTypeCode)
+
+	none, err := svc.ListRanges(ctx, uuid.New(), "")
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}
+
 func TestClaimNext_NotFound(t *testing.T) {
 	svc := newService()
 	_, err := svc.ClaimNext(context.Background(), uuid.New())

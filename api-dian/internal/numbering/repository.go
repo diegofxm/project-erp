@@ -15,4 +15,9 @@ type Repository interface {
 	// dos llamadas simultáneas nunca deben recibir el mismo número ni dejar un hueco.
 	// Devuelve ErrRangeExhausted si RangeTo ya fue alcanzado.
 	ClaimNext(ctx context.Context, id uuid.UUID) (int64, error)
+
+	// ListByIssuer devuelve los rangos de un emisor, opcionalmente filtrados por tipo de
+	// documento DIAN ("" = todos). Sin paginación a propósito: el volumen esperado por emisor
+	// es bajo (resoluciones de numeración, no documentos emitidos).
+	ListByIssuer(ctx context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error)
 }

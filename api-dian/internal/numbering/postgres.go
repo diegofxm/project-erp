@@ -94,6 +94,32 @@ func (r *PostgresRepository) ClaimNext(ctx context.Context, id uuid.UUID) (int64
 	return claimed, nil
 }
 
+func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error) {
+	query := `SELECT ` + numberingColumns + ` FROM numbering_ranges WHERE issuer_id = $1`
+	args := []any{issuerID}
+	if dianDocumentTypeCode != "" {
+		args = append(args, dianDocumentTypeCode)
+		query += fmt.Sprintf(" AND dian_document_type_code = $%d", len(args))
+	}
+	query += " ORDER BY created_at DESC"
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list numbering ranges: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*NumberingRange
+	for rows.Next() {
+		nr, err := r.scan(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, nr)
+	}
+	return out, rows.Err()
+}
+
 func (r *PostgresRepository) scan(row pgx.Row) (*NumberingRange, error) {
 	var nr NumberingRange
 	var env string

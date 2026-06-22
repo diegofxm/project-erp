@@ -3,8 +3,10 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/diegofxm/api-dian/internal/api/middleware"
 	"github.com/diegofxm/api-dian/internal/api/response"
 	"github.com/diegofxm/api-dian/internal/documents"
 	"github.com/google/uuid"
@@ -14,13 +16,17 @@ import (
 // públicos de emisión — Customer/Lines/PaymentMeans son pass-through puro (ver
 // docs/api-dian-architecture.md sección 4.2): llegan tal cual y se persisten como snapshot.
 //
-// IssuerID/NumberingRangeID son string, no uuid.UUID: un uuid.UUID vacío o mal formado hace
-// fallar el propio json.Decode (antes de llegar a validar nada), lo que se reportaba como el
-// genérico "JSON inválido" sin decir cuál campo era — confuso de depurar (pasó de verdad
-// probando con Postman). Decodificar como string siempre funciona; el UUID se valida después,
-// campo por campo, con un mensaje claro (parseUUIDField).
+// IssuerID NO es un campo del body — siempre es el emisor del usuario autenticado
+// (middleware.GetTenantID), nunca algo que el cliente pueda elegir; así un usuario nunca
+// puede emitir documentos a nombre de otro emisor.
+//
+// NumberingRangeID es string, no uuid.UUID: un uuid.UUID vacío o mal formado hace fallar el
+// propio json.Decode (antes de llegar a validar nada), lo que se reportaba como el genérico
+// "JSON inválido" sin decir cuál campo era — confuso de depurar (pasó de verdad probando con
+// Postman). Decodificar como string siempre funciona; el UUID se valida después con un
+// mensaje claro (parseUUIDField). documents.Service.prepare además verifica que el rango
+// pertenezca a este mismo emisor (ErrNumberingRangeIssuerMismatch).
 type issueInvoiceRequest struct {
-	IssuerID         string           `json:"issuer_id"`
 	NumberingRangeID string           `json:"numbering_range_id"`
 	Customer         partyDTO         `json:"customer"`
 	Lines            []lineDTO        `json:"lines"`
@@ -30,7 +36,6 @@ type issueInvoiceRequest struct {
 }
 
 type issueNoteRequest struct {
-	IssuerID            string                  `json:"issuer_id"`
 	NumberingRangeID    string                  `json:"numbering_range_id"`
 	Customer            partyDTO                `json:"customer"`
 	Lines               []lineDTO               `json:"lines"`
@@ -93,17 +98,13 @@ func (a *API) handleIssueInvoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	issuerID, ok := parseUUIDField(w, req.IssuerID, "issuer_id")
-	if !ok {
-		return
-	}
 	rangeID, ok := parseUUIDField(w, req.NumberingRangeID, "numbering_range_id")
 	if !ok {
 		return
 	}
 
 	doc, err := a.documents.IssueInvoice(r.Context(), documents.IssueInvoiceRequest{
-		IssuerID:         issuerID,
+		IssuerID:         middleware.GetTenantID(r.Context()),
 		NumberingRangeID: rangeID,
 		Customer:         req.Customer.toDomain(),
 		Lines:            linesToDomain(req.Lines),
@@ -126,7 +127,7 @@ func (a *API) handleIssueCreditNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	noteReq, ok := toServiceNoteRequest(w, req.issueNoteRequest)
+	noteReq, ok := toServiceNoteRequest(w, middleware.GetTenantID(r.Context()), req.issueNoteRequest)
 	if !ok {
 		return
 	}
@@ -150,7 +151,7 @@ func (a *API) handleIssueDebitNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	noteReq, ok := toServiceNoteRequest(w, req)
+	noteReq, ok := toServiceNoteRequest(w, middleware.GetTenantID(r.Context()), req)
 	if !ok {
 		return
 	}
@@ -164,6 +165,66 @@ func (a *API) handleIssueDebitNote(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, http.StatusCreated, documentToResponse(doc))
 }
 
+// handleListDocuments devuelve los documentos del emisor autenticado, opcionalmente
+// filtrados por ?dian_document_type_code=&status=&from=&to= (fechas YYYY-MM-DD, sobre
+// issue_date) y paginados con ?limit=&offset= (normalizados en documents.Service.ListDocuments
+// si se omiten o exceden el máximo).
+func (a *API) handleListDocuments(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	filter := documents.ListFilter{
+		DianDocumentTypeCode: q.Get("dian_document_type_code"),
+		Status:               documents.Status(q.Get("status")),
+	}
+
+	if s := q.Get("from"); s != "" {
+		from, err := parseDate(s)
+		if err != nil {
+			response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "from inválida, se espera YYYY-MM-DD"})
+			return
+		}
+		filter.From = from
+	}
+	if s := q.Get("to"); s != "" {
+		to, err := parseDate(s)
+		if err != nil {
+			response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "to inválida, se espera YYYY-MM-DD"})
+			return
+		}
+		filter.To = to
+	}
+	if s := q.Get("limit"); s != "" {
+		n, err := strconv.Atoi(s)
+		if err != nil || n < 0 {
+			response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "limit inválido, se espera un entero positivo"})
+			return
+		}
+		filter.Limit = n
+	}
+	if s := q.Get("offset"); s != "" {
+		n, err := strconv.Atoi(s)
+		if err != nil || n < 0 {
+			response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "offset inválido, se espera un entero positivo"})
+			return
+		}
+		filter.Offset = n
+	}
+
+	docs, err := a.documents.ListDocuments(r.Context(), middleware.GetTenantID(r.Context()), filter)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	out := make([]documentResponse, len(docs))
+	for i, d := range docs {
+		out[i] = documentToResponse(d)
+	}
+	response.WriteJSON(w, http.StatusOK, map[string]any{"documents": out, "count": len(out)})
+}
+
+// handleGetDocument exige que el documento pertenezca al emisor autenticado — si no, se
+// responde el mismo 404 que un documento inexistente (documents.ErrDocumentNotFound), para no
+// revelarle a un usuario que el ID que probó existe pero es de otro emisor.
 func (a *API) handleGetDocument(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseUUID(w, r.PathValue("id"))
 	if !ok {
@@ -175,15 +236,15 @@ func (a *API) handleGetDocument(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, err)
 		return
 	}
+	if doc.IssuerID != middleware.GetTenantID(r.Context()) {
+		response.WriteError(w, documents.ErrDocumentNotFound)
+		return
+	}
 
 	response.WriteJSON(w, http.StatusOK, documentToResponse(doc))
 }
 
-func toServiceNoteRequest(w http.ResponseWriter, req issueNoteRequest) (documents.IssueNoteRequest, bool) {
-	issuerID, ok := parseUUIDField(w, req.IssuerID, "issuer_id")
-	if !ok {
-		return documents.IssueNoteRequest{}, false
-	}
+func toServiceNoteRequest(w http.ResponseWriter, issuerID uuid.UUID, req issueNoteRequest) (documents.IssueNoteRequest, bool) {
 	rangeID, ok := parseUUIDField(w, req.NumberingRangeID, "numbering_range_id")
 	if !ok {
 		return documents.IssueNoteRequest{}, false

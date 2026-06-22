@@ -1,11 +1,11 @@
 package api
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"time"
 
+	"github.com/diegofxm/api-dian/internal/api/middleware"
 	"github.com/diegofxm/api-dian/internal/issuers"
 	"github.com/diegofxm/api-dian/internal/numbering"
 	"github.com/google/uuid"
@@ -13,9 +13,12 @@ import (
 	"github.com/diegofxm/api-dian/internal/api/response"
 )
 
-// createIssuerRequest es el payload de alta de un emisor. CertificateBase64/
-// CertificatePassword/SoftwarePIN son secretos: se cifran en internal/issuers antes de
-// guardar (AES-256-GCM) y NUNCA se devuelven en la respuesta — ver issuerResponse.
+// createIssuerRequest es el payload de datos del emisor — ya no se expone como
+// POST /api/v1/issuers independiente (abierto sin autenticación); ahora viaja embebido en
+// registerRequest (handler_auth.go), que crea el emisor y su primer usuario admin juntos.
+// CertificateBase64/CertificatePassword/SoftwarePIN son secretos: se cifran en
+// internal/issuers antes de guardar (AES-256-GCM) y NUNCA se devuelven en la respuesta — ver
+// issuerResponse.
 type createIssuerRequest struct {
 	NIT                        string   `json:"nit"`
 	CheckDigit                 string   `json:"check_digit"`
@@ -63,20 +66,10 @@ func issuerToResponse(iss *issuers.Issuer) issuerResponse {
 	}
 }
 
-func (a *API) handleCreateIssuer(w http.ResponseWriter, r *http.Request) {
-	var req createIssuerRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
-		return
-	}
-
-	cert, err := base64.StdEncoding.DecodeString(req.CertificateBase64)
-	if err != nil {
-		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "certificate_base64 no es base64 válido"})
-		return
-	}
-
-	iss, err := a.issuers.RegisterIssuer(r.Context(), issuers.Issuer{
+// issuerFromRequest convierte el DTO público en el issuers.Issuer de dominio — único lugar
+// donde se hace esta conversión, usado por handleRegister (handler_auth.go).
+func issuerFromRequest(req createIssuerRequest, cert []byte) issuers.Issuer {
+	return issuers.Issuer{
 		NIT:                        req.NIT,
 		CheckDigit:                 req.CheckDigit,
 		BusinessName:               req.BusinessName,
@@ -97,22 +90,13 @@ func (a *API) handleCreateIssuer(w http.ResponseWriter, r *http.Request) {
 		SoftwarePIN:                req.SoftwarePIN,
 		Certificate:                cert,
 		CertificatePassword:        req.CertificatePassword,
-	})
-	if err != nil {
-		response.WriteError(w, err)
-		return
 	}
-
-	response.WriteJSON(w, http.StatusCreated, issuerToResponse(iss))
 }
 
-func (a *API) handleGetIssuer(w http.ResponseWriter, r *http.Request) {
-	id, ok := parseUUID(w, r.PathValue("id"))
-	if !ok {
-		return
-	}
-
-	iss, err := a.issuers.GetIssuer(r.Context(), id)
+// handleGetMyIssuer devuelve el emisor del usuario autenticado — "un usuario = un emisor", no
+// hace falta un {id} en el path: siempre es el propio (middleware.GetTenantID).
+func (a *API) handleGetMyIssuer(w http.ResponseWriter, r *http.Request) {
+	iss, err := a.issuers.GetIssuer(r.Context(), middleware.GetTenantID(r.Context()))
 	if err != nil {
 		response.WriteError(w, err)
 		return
@@ -121,8 +105,9 @@ func (a *API) handleGetIssuer(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, http.StatusOK, issuerToResponse(iss))
 }
 
-// createNumberingRangeRequest es el payload de registro de un rango de numeración para un
-// emisor. TechnicalKey solo aplica a Invoice (CUFE); TestSetID solo aplica en habilitación.
+// createNumberingRangeRequest es el payload de registro de un rango de numeración para el
+// emisor autenticado. TechnicalKey solo aplica a Invoice (CUFE); TestSetID solo aplica en
+// habilitación.
 type createNumberingRangeRequest struct {
 	DianDocumentTypeCode string `json:"dian_document_type_code"`
 	Prefix               string `json:"prefix"`
@@ -164,10 +149,7 @@ func numberingRangeToResponse(nr *numbering.NumberingRange) numberingRangeRespon
 }
 
 func (a *API) handleCreateNumberingRange(w http.ResponseWriter, r *http.Request) {
-	issuerID, ok := parseUUID(w, r.PathValue("id"))
-	if !ok {
-		return
-	}
+	issuerID := middleware.GetTenantID(r.Context())
 
 	var req createNumberingRangeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -213,6 +195,29 @@ func (a *API) handleCreateNumberingRange(w http.ResponseWriter, r *http.Request)
 	response.WriteJSON(w, http.StatusCreated, numberingRangeToResponse(nr))
 }
 
+// handleListNumberingRanges devuelve los rangos del emisor autenticado, opcionalmente
+// filtrados por ?dian_document_type_code=. Sin paginación a propósito — ver
+// numbering.Repository.ListByIssuer.
+func (a *API) handleListNumberingRanges(w http.ResponseWriter, r *http.Request) {
+	issuerID := middleware.GetTenantID(r.Context())
+	docType := r.URL.Query().Get("dian_document_type_code")
+
+	ranges, err := a.numbering.ListRanges(r.Context(), issuerID, docType)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	out := make([]numberingRangeResponse, len(ranges))
+	for i, nr := range ranges {
+		out[i] = numberingRangeToResponse(nr)
+	}
+	response.WriteJSON(w, http.StatusOK, map[string]any{"numbering_ranges": out, "count": len(out)})
+}
+
+// handleGetNumberingRange exige que el rango pertenezca al emisor autenticado — si no, se
+// responde el mismo 404 que un rango inexistente (numbering.ErrRangeNotFound), para no
+// revelarle a un usuario que el ID que probó existe pero es de otro emisor.
 func (a *API) handleGetNumberingRange(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseUUID(w, r.PathValue("id"))
 	if !ok {
@@ -222,6 +227,10 @@ func (a *API) handleGetNumberingRange(w http.ResponseWriter, r *http.Request) {
 	nr, err := a.numbering.GetRange(r.Context(), id)
 	if err != nil {
 		response.WriteError(w, err)
+		return
+	}
+	if nr.IssuerID != middleware.GetTenantID(r.Context()) {
+		response.WriteError(w, numbering.ErrRangeNotFound)
 		return
 	}
 

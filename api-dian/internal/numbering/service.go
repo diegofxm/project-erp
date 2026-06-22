@@ -38,6 +38,12 @@ func (s *Service) ClaimNext(ctx context.Context, id uuid.UUID) (int64, error) {
 	return s.repo.ClaimNext(ctx, id)
 }
 
+// ListRanges devuelve los rangos de numeración de un emisor, opcionalmente filtrados por tipo
+// de documento DIAN ("" = todos).
+func (s *Service) ListRanges(ctx context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error) {
+	return s.repo.ListByIssuer(ctx, issuerID, dianDocumentTypeCode)
+}
+
 func validateRange(nr NumberingRange) error {
 	if nr.IssuerID == uuid.Nil {
 		return ErrMissingIssuer

@@ -18,4 +18,10 @@ var (
 	// documento que se está intentando emitir (ej. usar un rango de Nota Crédito para una
 	// Factura).
 	ErrWrongDocumentType = errors.New("documents: el rango de numeración no corresponde a este tipo de documento")
+
+	// ErrNumberingRangeIssuerMismatch indica que el rango de numeración no pertenece al
+	// emisor con el que se intenta emitir — sin este chequeo, sería posible reclamar
+	// consecutivos de la resolución DIAN de OTRO emisor. Con internal/auth en juego, además
+	// cierra la puerta a que un usuario emita documentos usando el rango de otro tenant.
+	ErrNumberingRangeIssuerMismatch = errors.New("documents: el rango de numeración no pertenece a este emisor")
 )

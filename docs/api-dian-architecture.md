@@ -151,12 +151,17 @@ api-dian/
 │   ├── numbering/                      # rangos de numeración + ClaimNext atómico (UPDATE de una fila)
 │   ├── documents/                      # orquesta ubl21dian (Invoice/CreditNote/DebitNote) —
 │   │                                    # el único paquete que lo importa directamente
+│   ├── auth/                            # usuarios + login + JWT — "un usuario = un emisor"
+│   │   ├── service.go                     # Register (crea emisor+usuario juntos) / Login
+│   │   ├── token.go                        # TokenIssuer: firma/valida JWT (HS256)
+│   │   └── password.go                      # hash/verify con bcrypt
 │   └── api/                             # capa HTTP — primera vez que esto se expone por red
 │       ├── api.go                        # New()/NewFromServices(), Handler(), rutas
 │       ├── dto.go                         # contrato JSON, independiente de domain.* de ubl21dian
-│       ├── handler_issuers.go              # issuers + numbering-ranges
+│       ├── handler_auth.go                 # register/login (únicas rutas públicas)
+│       ├── handler_issuers.go              # issuers/me + numbering-ranges (protegidas)
 │       ├── handler_documents.go             # invoices/credit-notes/debit-notes/documents
-│       ├── middleware/                       # RequestID/Logging/Recovery, igual que core-bank
+│       ├── middleware/                       # RequestID/Logging/Recovery/Auth
 │       └── response/                          # WriteJSON/WriteError/classify()
 ```
 
@@ -181,12 +186,15 @@ config, logger, cryptutil      (sin dependencias entre sí — cryptutil es la �
    ┌────┴────┐
  issuers   numbering            (ambos usan database+cryptutil; independientes entre sí)
    └────┬────┘
-        ↓
-    documents                    (usa issuers + numbering + ubl21dian — el ÚNICO paquete
-        ↓                         de api-dian que importa ubl21dian directamente)
-       api                        (usa documents + issuers; expone HTTP)
-        ↓
-     server                        (conecta todo + /health — ya existe desde la Fase 2.1)
+        ├──────────────┐
+        ↓              ↓
+    documents         auth      (documents usa issuers+numbering+ubl21dian; auth usa SOLO
+        ↓              ↓         issuers — RegisterIssuer al crear el primer usuario admin,
+        └──────┬───────┘         mismo patrón de "ports" angostos que documents)
+               ↓
+              api                 (usa documents + issuers + auth; expone HTTP — middleware.Auth
+                ↓                  protege todo excepto /auth/register y /auth/login)
+             server                 (conecta todo + /health — ya existe desde la Fase 2.1)
 ```
 
 **Regla de naming**: ninguna tabla ni paquete compartido por varios tipos de documento se
@@ -196,6 +204,13 @@ nombra según su primer caso de uso. Es la misma regla que ya aplica en `ubl21di
 Invoice/CreditNote/DebitNote y a futuro más documentos, no solo de la factura) y
 `document_types` → `identification_types` (para no colisionar conceptualmente con el catálogo
 anterior — dos cosas distintas no deberían competir por el mismo nombre genérico).
+
+**Regla de columnas**: `created_at`/`updated_at` van siempre al final de cada tabla — nunca
+intercalados entre columnas de negocio, ni siquiera cuando una columna nueva se agrega después
+vía `ALTER TABLE` (que por defecto la pondría al final, después de `updated_at`). Reforzada el
+2026-06-21 al unificar `000005_issuers_party_fields` dentro de `000003_issuers`: las columnas
+de esa migración se insertaron en su lugar lógico (junto a las demás columnas de negocio de
+`issuers`), no al final donde las había dejado el `ALTER TABLE` original.
 
 ### 4.2 Por qué `issuers` y no `companies`
 
@@ -227,20 +242,30 @@ HTTP → Handler → Service → Repository → UBL21-DIAN → DIAN
 
 ## 6. Endpoints
 
-> Esto ya existe (Fase 2.7), no es solo el plan. `POST /invoices`/`credit-notes`/`debit-notes`
-> construyen, firman y — si el ambiente lo permite — envían en la misma llamada (no hay un
-> `/send` separado: separar "crear" de "enviar" no tenía un caso de uso real una vez que
-> `ubl21dian` ya hace las dos cosas en un solo pipeline).
+> Esto ya existe (Fase 2.7-2.9), no es solo el plan. `POST /invoices`/`credit-notes`/
+> `debit-notes` construyen, firman y — si el ambiente lo permite — envían en la misma llamada
+> (no hay un `/send` separado: separar "crear" de "enviar" no tenía un caso de uso real una
+> vez que `ubl21dian` ya hace las dos cosas en un solo pipeline).
+>
+> Todo excepto `/auth/*` y `/health` exige `Authorization: Bearer <token>`. "Un usuario = un
+> emisor" (sección 9.17): ningún endpoint recibe `issuer_id` del cliente — siempre se toma del
+> token, nunca de algo que el cliente pueda elegir. Por eso ya no hay `POST /issuers` público
+> ni `{id}` en el path de `/issuers` o de `numbering-ranges` al crear: el emisor del usuario
+> autenticado es implícito.
 
 ```
-POST /api/v1/issuers                              # alta de emisor/tenant
-GET  /api/v1/issuers/{id}                         # consultar emisor (nunca expone secretos)
-POST /api/v1/issuers/{id}/numbering-ranges        # registrar rango de numeración
-GET  /api/v1/numbering-ranges/{id}                # consultar rango (nunca expone technical_key)
+POST /api/v1/auth/register                        # crea el emisor Y su primer usuario admin (público)
+POST /api/v1/auth/login                           # inicia sesión, devuelve el token (público)
+
+GET  /api/v1/issuers/me                           # consultar el emisor propio (nunca expone secretos)
+POST /api/v1/numbering-ranges                     # registrar rango del emisor propio
+GET  /api/v1/numbering-ranges                     # listar mis rangos (?dian_document_type_code=, sin paginar)
+GET  /api/v1/numbering-ranges/{id}                # consultar rango (debe ser del emisor propio; si no, 404)
 POST /api/v1/invoices                             # construir + firmar (+ enviar si aplica)
 POST /api/v1/credit-notes
 POST /api/v1/debit-notes
-GET  /api/v1/documents/{id}                       # documento emitido, con su XML firmado
+GET  /api/v1/documents                            # listar mis documentos (filtros + ?limit=&offset=)
+GET  /api/v1/documents/{id}                       # documento emitido (debe ser del emisor propio; si no, 404)
 GET  /health
 ```
 
@@ -250,7 +275,10 @@ GET  /health
 
 - UBL21-DIAN no conoce HTTP ni DB.
 - API-DIAN no conoce firma ni XML.
-- API-DIAN no es un CRM ni un ERP: no gestiona clientes, productos ni usuarios. Solo recibe lo necesario para emitir un documento válido y delega el resto.
+- API-DIAN no es un CRM ni un ERP: no gestiona clientes ni productos como catálogos propios
+  (llegan como snapshot en el payload de cada documento). Usuarios/auth sí viven aquí —
+  replanteo explícito de 2026-06-21 (sección 9.17): API-DIAN es el backend completo, no una
+  pieza dentro de un ecosistema con un servicio de identidad aparte.
 
 ---
 
@@ -260,12 +288,13 @@ Decisión consciente, no descuido — si se necesitan, se integran como servicio
 
 | Función | Por qué no vive aquí |
 |---|---|
-| CRM de Companies/Customers (contactos, direcciones, KYC) | No lo exige la DIAN; el XML solo necesita un snapshot al momento de emitir |
-| Catálogo de Productos / Inventario (precios, stock) | Mismo motivo; los items llegan en el payload de la factura |
-| Usuarios, roles, multi-tenant auth (JWT propio) | Responsabilidad de un servicio de identidad / gateway externo |
+| CRM de Companies/Customers (contactos, direcciones, KYC) | No lo exige la DIAN; el XML solo necesita un snapshot al momento de emitir. **Decisión 2026-06-21: diferido, no descartado** — se construye cuando el frontend real necesite autocompletar, no antes (sección 9.18); el orquestador ya funciona sin él |
+| Catálogo de Productos / Inventario (precios, stock) | Mismo motivo que Customers; los items llegan en el payload de la factura. Misma decisión: diferido hasta que haya un consumidor real |
+| ~~Usuarios, roles, multi-tenant auth~~ | **Ya no aplica — construido en `internal/auth` (Fase 2.9)**. Replanteo de 2026-06-21: API-DIAN es el backend completo, no hay servicio de identidad externo en esta topología |
 | PDF / representación gráfica | No es parte del esquema XML del anexo técnico; servicio de render aparte si se necesita |
 | Notificaciones (email/SMS al receptor) | Servicio de notificaciones externo |
-| Reportes / Dashboard / Analítica | Servicio de BI que consume los datos emitidos, no API-DIAN |
+| ~~Listados de documentos/rangos~~ | **Ya no aplica — `GET /numbering-ranges` y `GET /documents` construidos (Fase 2.9, sección 9.19)**. Esto es CRUD básico del propio orquestador, no analítica — no era delegable a otro servicio |
+| Reportes / Dashboard / Analítica (agregaciones, gráficas) | Sigue siendo trabajo de un servicio de BI que consume los datos emitidos — los listados de arriba son consulta simple, no agregación |
 | Documento Soporte (CUDS) | Anexo técnico distinto, familia de documento separada — candidato a fase futura |
 | Eventos RADIAN (Acuse de recibo, Reclamo, ApplicationResponse) | Solo obligatorio si la factura se negocia como título valor — fase futura explícita |
 | Nómina Electrónica (CUNE) | Esquema XML distinto al UBL, webservice distinto — proyecto separado, no este |
@@ -340,12 +369,16 @@ DIAN/la base de datos, no el ruteo HTTP.
 | 2.5 | `internal/documents` — orquestar `ubl21dian` para Invoice | ✅ Verificado: pipeline completo contra la DIAN real (certificado y credenciales reales), ver 9.10 |
 | 2.6 | Extender 2.5 a CreditNote/DebitNote | ✅ Verificado localmente contra Postgres real (sin red DIAN, ver 9.11) |
 | 2.7 | `internal/api` — handlers/routes/middleware | ✅ Verificado con servidor real + curl (ver 9.12) |
-| 2.8 | Prueba real end-to-end vía HTTP completo | Pendiente |
+| 2.8 | Prueba real end-to-end vía HTTP completo (`SendBillSync`) | ✅ Verificado con servidor real + curl, ver 9.16 |
+| 2.9 | `internal/auth` — usuarios, login, JWT, aislamiento entre tenants | ✅ Verificado con servidor real + curl, ver 9.17 |
+| 2.10 | Listados (`GET /numbering-ranges`, `GET /documents`) | ✅ Verificado con servidor real + curl, ver 9.19 |
 
 **Catálogos cargados en 2.2** (`internal/database/seed/*.csv`, idempotente vía `ON CONFLICT`):
-currencies, departments, identification_types (CC/CE/NIT/TI/PP/RC), municipalities,
-payment_methods, tax_types, unit_measures, dian_document_types (solo 01/91/92 — lo que
-`ubl21dian` ya soporta; ver 4.1 sobre por qué no se llama `invoice_type_codes`).
+currencies, departments, identification_types (códigos numéricos oficiales DIAN: 13 cédula,
+31 NIT, etc. — no abreviaturas como "CC"/"NIT", corregido en la Fase 2.8 al fallar un envío
+real con esos valores), municipalities, payment_methods, tax_types, unit_measures,
+dian_document_types (solo 01/91/92 — lo que `ubl21dian` ya soporta; ver 4.1 sobre por qué no
+se llama `invoice_type_codes`).
 
 **Huecos conocidos de datos, no de arquitectura** — pendientes de una fuente oficial antes de
 completarse:
@@ -413,9 +446,10 @@ de los `*Service` concretos, para poder probarse con fakes sin necesitar Postgre
 
 **Extensión a `issuers` descubierta en este paso**: faltaban campos para construir un
 `domain.Party` completo del emisor (`EntityTypeCode`, `TaxSchemeCode`/`TaxSchemeName`,
-`LiabilityCodes`, `MerchantRegistrationNumber`) — se agregaron en la migración
-`000005_issuers_party_fields`, con defaults confirmados contra la factura real de la Fase 1.7
-(`EntityTypeCode "1"`, `TaxSchemeCode "ZZ"`).
+`LiabilityCodes`, `MerchantRegistrationNumber`), con defaults confirmados contra la factura
+real de la Fase 1.7 (`EntityTypeCode "1"`, `TaxSchemeCode "ZZ"`). Se agregaron originalmente
+en una migración aparte (`000005_issuers_party_fields`) y se unificaron dentro de
+`000003_issuers` el 2026-06-21, sin datos reales en juego todavía — ver sección 4.1.
 
 `documents` es UNA tabla genérica (no una por tipo de documento), con `customer`/`lines`/
 `payment_means` como snapshots JSONB pass-through — mismo principio que el resto del
@@ -585,11 +619,125 @@ SETP990000000, ha sido autorizada."** — primera factura real autorizada a trav
 completa `documents.Service` → `ubl21dian` → DIAN, sin `TestSetID`. Queda únicamente la
 notificación no bloqueante `FAJ43b` (nombre no coincide con el RUT), ya documentada en 9.14.
 
-### 9.16 Próximo paso
+### 9.16 Fase 2.8 verificada vía HTTP real (curl, no solo `documents.Service` directo)
 
-Fase 2.8 (prueba real end-to-end vía HTTP completo) queda prácticamente cubierta por la
-verificación de 9.15 — solo falta repetirla pasando por el servidor HTTP real (curl/Postman)
-en vez de llamar a `documents.Service` directo, como ya se hizo en la Fase 2.7. Antes de eso,
-en marcha: diseño de `internal/auth` (decisión del usuario: autenticación propia, no
-proveedor externo) y revisión de alcance de Customers/Products/Listados-reportes para
-terminar el orquestador (ver sección 8 "Fuera de alcance").
+Se repitió la verificación de 9.15 pasando por el servidor HTTP real (mismo patrón que la
+Fase 2.7): registro → login → rechazo sin token (401) → `GET /issuers/me` con token (200) →
+crear rango → emitir factura (firmada) → segundo emisor → acceso cruzado a documento ajeno
+(404) → uso cruzado de rango ajeno (422) → acceso al propio documento (200). Los 10 pasos
+pasaron contra Postgres real, sin tocar la red de la DIAN (mismo criterio de fases anteriores
+— emisor en producción, sin `TestSetID`).
+
+### 9.17 Replanteo de alcance: API-DIAN como backend completo + `internal/auth` propio
+
+El usuario corrigió (2026-06-21) la aplicación estricta de la filosofía de `core-bank` a este
+proyecto: `core-bank` es minimalista (sin "listar todo", sin auth, sin CRM completo) porque
+asume que existen otros servicios alrededor para esas responsabilidades. `api-dian` no tiene
+ese ecosistema — **es el backend completo**, consumido directo por un frontend web
+administrativo / app móvil, sin API puente intermedia. Esto invierte la lógica de la sección 8
+para Auth/Usuarios (ya no es "responsabilidad de otro servicio" — se construye aquí), pero NO
+cambia nada para Documento Soporte/RADIAN/Nómina (siguen diferidos por ser otra familia de
+documento DIAN, razón no relacionada con la topología) ni para PDF/Notificaciones (razonable
+seguir externalizándolos, no son el corazón del negocio).
+
+Decisiones explícitas del usuario: autenticación propia (no Auth0/Clerk/proveedor externo);
+"un usuario administra exactamente un emisor" (no hay tabla intermedia `user_issuers` para
+multi-emisor por usuario — se agregaría después si hace falta, sin romper lo existente).
+
+**`internal/auth` implementado y verificado real** (Fase 2.9):
+
+- `users`: `issuer_id` (NOT NULL, fijo), `email` (UNIQUE global), `password_hash` (bcrypt,
+  irreversible — a diferencia de `software_pin`/`certificate` de `issuers`, que sí se
+  descifran para usarse con `ubl21dian`, una contraseña de login nunca necesita recuperarse).
+- `POST /api/v1/auth/register` crea el emisor Y su primer usuario admin en una sola llamada
+  (`auth.Service.Register` usa `IssuerPort.RegisterIssuer`, mismo patrón de "ports" angostos
+  que `documents`). Valida que el correo esté libre ANTES de crear el emisor — evita un
+  emisor "huérfano" sin usuario si el correo ya existía (verificado con un test que cuenta
+  llamadas a `RegisterIssuer`: nunca se llama dos veces para el mismo correo duplicado).
+- `POST /api/v1/auth/login` valida con bcrypt y devuelve un JWT (HS256, `AUTH_JWT_SECRET`,
+  24h, sin refresh token todavía — proporcional al tamaño actual del proyecto). Las claims
+  usan `user_id`/`tenant_id` propios, no `sub`/`iss` estándar de JWT, para no confundir
+  "quién firmó el token" (api-dian) con "qué emisor DIAN administra este usuario".
+- `middleware.Auth` exige `Authorization: Bearer <token>` en todo excepto `/auth/*` y
+  `/health`, e inyecta `UserID`/`TenantID` (= emisor DIAN) en el contexto.
+- **Ningún endpoint vuelve a recibir `issuer_id` del cliente** — body, path y todo lo demás
+  lo toman siempre de `middleware.GetTenantID(ctx)`. `GET /issuers/{id}` se simplificó a
+  `GET /issuers/me` (ya no hace falta el path param: solo existe "el emisor propio").
+  `POST /issuers/{id}/numbering-ranges` se simplificó a `POST /numbering-ranges`.
+- **Aislamiento entre tenants verificado en dos capas**, no solo una:
+  1. *Servicio* (`documents.Service.prepare`): un bug real preexistente — `nr.IssuerID` nunca
+     se comparaba contra el `issuerID` de la petición — permitía emitir con el rango de
+     numeración de OTRO emisor (drenando su consecutivo DIAN). Corregido con
+     `ErrNumberingRangeIssuerMismatch` (422), con test (`TestIssueInvoice_
+     NumberingRangeIssuerMismatch`) y verificado real vía curl (paso 9 de la secuencia
+     anterior).
+  2. *HTTP* (`handleGetNumberingRange`/`handleGetDocument`): si el recurso existe pero es de
+     otro emisor, se responde el mismo 404 que si no existiera — nunca confirmarle a un
+     usuario que el ID que probó existe pero es ajeno.
+- `documents`/`numbering` no se tocaron en su lógica de negocio — solo `documents.Service.
+  prepare` ganó el chequeo de pertenencia, que es un invariante de dominio independiente de
+  auth (incluso un solo llamador confiable podría pasar IDs inconsistentes por error).
+
+**Limpieza de esquema en el mismo paso** (sin datos reales en juego — ver
+[[feedback-sql-schema-conventions]] en la memoria del proyecto): `000005_issuers_party_fields`
+(un `ALTER TABLE` correctivo) se unificó dentro de `000003_issuers` (el `CREATE TABLE`
+original), reordenando columnas para que `created_at`/`updated_at` queden al final — regla
+ahora explícita en la sección 4.1. Las migraciones siguientes se renumeraron (`000006_documents`
+→ `000005_documents`, `000007_users` → `000006_users`) para no dejar un hueco. La base de
+datos real de desarrollo se reseteó (`DROP SCHEMA public CASCADE` + re-migrar + re-sembrar) y
+se verificó limpio — seguro solo porque no había datos reales, confirmado por el usuario antes
+de pedirlo.
+
+### 9.18 Decisión de alcance: Listados sí, Customers/Products diferidos
+
+Revisión pedida explícitamente por el usuario (sección 8): de las tres piezas pendientes
+(Listados, Customers, Products), solo **Listados se construye ya** — es CRUD básico de
+recursos que el orquestador ya tiene (rangos, documentos), no una funcionalidad nueva. Sin
+listado, la única forma de ver un rango/documento es conocer su UUID exacto, lo que en la
+práctica hace inutilizable la API para un admin real.
+
+**Customers/Products se diferen, con criterio explícito de cuándo retomarlos**: ninguno de
+los dos es necesario para que el orquestador emita documentos válidos (la DIAN exige un
+snapshot al momento de emitir, no un catálogo vivo — Customer/Lines siguen llegando
+pass-through, ver sección 4.2). Construirlos ahora significaría diseñar su forma (¿un cliente
+es por emisor o compartido? ¿cómo versionar cuando cambian sus datos?) sin un frontend real
+que valide ese diseño. Se retoman cuando la pantalla de "crear factura" del frontend necesite
+de verdad un autocompletar — la forma de la tabla la dicta esa pantalla, no una suposición
+hecha hoy.
+
+### 9.19 Listados (`GET /numbering-ranges`, `GET /documents`) — completo y verificado real
+
+- **`GET /api/v1/numbering-ranges`** — rangos del emisor autenticado, filtro opcional
+  `?dian_document_type_code=`. **Sin paginación a propósito**: el volumen esperado por emisor
+  es bajo (resoluciones de numeración, no documentos emitidos) — agregarla sería complejidad
+  sin necesidad real todavía.
+- **`GET /api/v1/documents`** — documentos del emisor autenticado, filtros opcionales
+  `dian_document_type_code`, `status`, `from`/`to` (sobre `issue_date`, formato `YYYY-MM-DD`,
+  mismo estilo de query string manual que usa `core-bank` para sus filtros por fecha — no
+  existía un helper genérico de query params que reusar, se investigó primero). **Con
+  paginación offset/limit** (`?limit=&offset=`): a diferencia de los rangos, los documentos
+  crecen sin límite con el tiempo. `documents.Service.ListDocuments` normaliza
+  `Limit`/`Offset` (nunca cero/negativo, tope `MaxListLimit=200`, default
+  `DefaultListLimit=50`) — el repositorio nunca confía en que el llamador ya validó.
+- Ambos devuelven `{"<recurso>": [...], "count": N}` — sin metadata de paginación
+  (`total`/`has_more`): el cliente puede inferir si hay más páginas comparando
+  `count == limit`. Deliberadamente simple para una primera versión; agregar un `total` real
+  significaría una segunda consulta `COUNT(*)` por cada listado, que no se justificó todavía.
+- Memory/Postgres implementan el mismo contrato (`Repository.ListByIssuer`) — `MemoryRepository`
+  filtra y pagina en memoria con `sort.Slice`, `PostgresRepository` construye el `WHERE`
+  dinámicamente (cada filtro opcional se agrega solo si aplica, con el placeholder numerado a
+  partir de `len(args)` en el momento — mismo cuidado de no desalinear `$N` que motivó
+  `internal/sqlutil.Placeholders` en fases anteriores).
+- **Verificado contra Postgres real vía curl**: dos emisores de prueba, cada uno con sus
+  propios rangos/documentos — `GET /numbering-ranges` y `GET /documents` de cada emisor nunca
+  devuelven nada del otro; filtro por tipo de documento y por `limit` confirmados con
+  resultados exactos; sin token, ambos devuelven 401.
+
+### 9.20 Próximo paso
+
+Sin tareas pendientes explícitas en este momento — Fase 2 (`api-dian`) cubre hoy: bootstrap,
+catálogos, emisores, numeración, documentos (Invoice/CreditNote/DebitNote, construir+firmar+
+enviar), auth con aislamiento entre tenants, y listados. Lo diferido (Customers/Products,
+Documento Soporte/RADIAN/Nómina, PDF/Notificaciones) tiene su trigger de retomado explícito en
+las secciones 9.18 y 8 — no son items "olvidados", son decisiones de alcance con criterio
+escrito de cuándo reabrirlas.

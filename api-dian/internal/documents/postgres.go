@@ -161,6 +161,47 @@ func (r *PostgresRepository) UpdateDianStatus(ctx context.Context, id uuid.UUID,
 	return nil
 }
 
+func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUID, filter ListFilter) ([]*Document, error) {
+	query := `SELECT ` + documentColumns + ` FROM documents WHERE issuer_id = $1`
+	args := []any{issuerID}
+
+	if filter.DianDocumentTypeCode != "" {
+		args = append(args, filter.DianDocumentTypeCode)
+		query += fmt.Sprintf(" AND dian_document_type_code = $%d", len(args))
+	}
+	if filter.Status != "" {
+		args = append(args, string(filter.Status))
+		query += fmt.Sprintf(" AND status = $%d", len(args))
+	}
+	if !filter.From.IsZero() {
+		args = append(args, filter.From)
+		query += fmt.Sprintf(" AND issue_date >= $%d", len(args))
+	}
+	if !filter.To.IsZero() {
+		args = append(args, filter.To)
+		query += fmt.Sprintf(" AND issue_date <= $%d", len(args))
+	}
+
+	args = append(args, filter.Limit, filter.Offset)
+	query += fmt.Sprintf(" ORDER BY issue_date DESC, created_at DESC LIMIT $%d OFFSET $%d", len(args)-1, len(args))
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list documents: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*Document
+	for rows.Next() {
+		d, err := scanDocument(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
 func scanDocument(row pgx.Row) (*Document, error) {
 	var d Document
 	var status string

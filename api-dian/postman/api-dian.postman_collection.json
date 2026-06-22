@@ -1,11 +1,12 @@
 {
   "info": {
     "name": "api-dian",
-    "description": "Pruebas manuales de la API de api-dian (Fase 2.7). El certificado embebido en 'Crear emisor' es uno autofirmado generado solo para pruebas (no es el certificado real de la DIAN) — sirve para construir y firmar XML localmente, nunca para enviar a la DIAN de verdad. Los requests están encadenados con variables de colección: corre las carpetas en orden y cada paso captura automáticamente los IDs que necesita el siguiente.",
+    "description": "Pruebas manuales de la API de api-dian (Fase 2.7-2.9). El certificado embebido en 'Registrar emisor + usuario' es uno autofirmado generado solo para pruebas (no es el certificado real de la DIAN) — sirve para construir y firmar XML localmente, nunca para enviar a la DIAN de verdad. Los requests están encadenados con variables de colección: corre las carpetas en orden y cada paso captura automáticamente los IDs/token que necesita el siguiente. Todo excepto Health y Auth exige el header Authorization: Bearer {{accessToken}}, capturado automáticamente al registrarse/iniciar sesión — 'un usuario = un emisor', así que ningún request manda issuer_id: siempre se toma del token.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "accessToken", "value": "" },
     { "key": "issuerId", "value": "" },
     { "key": "invoiceRangeId", "value": "" },
     { "key": "creditNoteRangeId", "value": "" },
@@ -14,6 +15,10 @@
     { "key": "invoicePrefix", "value": "" },
     { "key": "invoiceCufe", "value": "" }
   ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
   "item": [
     {
       "name": "Health",
@@ -21,6 +26,7 @@
         {
           "name": "GET /health",
           "request": {
+            "auth": { "type": "noauth" },
             "method": "GET",
             "header": [],
             "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
@@ -29,10 +35,10 @@
       ]
     },
     {
-      "name": "1. Issuers",
+      "name": "0. Auth",
       "item": [
         {
-          "name": "POST Crear emisor",
+          "name": "POST Registrar emisor + usuario admin",
           "event": [
             {
               "listen": "test",
@@ -41,40 +47,73 @@
                 "exec": [
                   "const body = pm.response.json();",
                   "if (pm.response.code === 201) {",
-                  "    pm.collectionVariables.set('issuerId', body.id);",
-                  "    console.log('issuerId =', body.id);",
+                  "    pm.collectionVariables.set('accessToken', body.token);",
+                  "    pm.collectionVariables.set('issuerId', body.issuer.id);",
+                  "    console.log('accessToken =', body.token);",
+                  "    console.log('issuerId =', body.issuer.id);",
                   "}",
                   "pm.test('201 Created', () => pm.response.code === 201);",
                   "pm.test('nunca expone secretos', () => {",
-                  "    return !('certificate_base64' in body) && !('software_pin' in body) && !('certificate_password' in body);",
+                  "    return !('certificate_base64' in body.issuer) && !('software_pin' in body.issuer) && !('certificate_password' in body.issuer);",
                   "});"
                 ]
               }
             }
           ],
           "request": {
+            "auth": { "type": "noauth" },
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nit\": \"900373076\",\n  \"check_digit\": \"1\",\n  \"business_name\": \"Empresa de Prueba Postman S.A.S.\",\n  \"identification_type_code\": \"NIT\",\n  \"department_code\": \"11\",\n  \"municipality_code\": \"11001\",\n  \"address_line\": \"Calle 1 # 2-3\",\n  \"email\": \"facturacion@empresa.test\",\n  \"environment\": \"1\",\n  \"software_id\": \"software-id-de-prueba\",\n  \"software_pin\": \"12345\",\n  \"certificate_base64\": \"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\",\n  \"certificate_password\": \"clave-de-prueba\"\n}",
+              "raw": "{\n  \"issuer\": {\n    \"nit\": \"900373076\",\n    \"check_digit\": \"1\",\n    \"business_name\": \"Empresa de Prueba Postman S.A.S.\",\n    \"identification_type_code\": \"31\",\n    \"department_code\": \"11\",\n    \"municipality_code\": \"11001\",\n    \"address_line\": \"Calle 1 # 2-3\",\n    \"email\": \"facturacion@empresa.test\",\n    \"environment\": \"1\",\n    \"software_id\": \"software-id-de-prueba\",\n    \"software_pin\": \"12345\",\n    \"certificate_base64\": \"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\",\n    \"certificate_password\": \"clave-de-prueba\"\n  },\n  \"email\": \"admin@empresa.test\",\n  \"password\": \"contraseña-segura\",\n  \"name\": \"Admin de Prueba\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": { "raw": "{{baseUrl}}/api/v1/issuers", "host": ["{{baseUrl}}"], "path": ["api", "v1", "issuers"] }
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "register"] }
           }
         },
         {
-          "name": "GET Consultar emisor",
+          "name": "POST Iniciar sesión",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('accessToken', body.token);",
+                  "    pm.collectionVariables.set('issuerId', body.issuer.id);",
+                  "}",
+                  "pm.test('200 OK', () => pm.response.code === 200);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@empresa.test\",\n  \"password\": \"contraseña-segura\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "login"] }
+          }
+        },
+        {
+          "name": "GET Consultar mi emisor",
           "request": {
             "method": "GET",
             "header": [],
-            "url": { "raw": "{{baseUrl}}/api/v1/issuers/{{issuerId}}", "host": ["{{baseUrl}}"], "path": ["api", "v1", "issuers", "{{issuerId}}"] }
+            "url": { "raw": "{{baseUrl}}/api/v1/issuers/me", "host": ["{{baseUrl}}"], "path": ["api", "v1", "issuers", "me"] }
           }
         }
       ]
     },
     {
-      "name": "2. Numbering Ranges",
+      "name": "1. Numbering Ranges",
       "item": [
         {
           "name": "POST Crear rango - Invoice (01)",
@@ -99,11 +138,7 @@
               "raw": "{\n  \"dian_document_type_code\": \"01\",\n  \"prefix\": \"SETP\",\n  \"resolution_number\": \"18760000001\",\n  \"resolution_date\": \"2024-01-01\",\n  \"range_from\": 1,\n  \"range_to\": 5000,\n  \"valid_from\": \"2024-01-01\",\n  \"valid_to\": \"2026-01-01\",\n  \"environment\": \"1\",\n  \"technical_key\": \"clave-tecnica-de-prueba\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/issuers/{{issuerId}}/numbering-ranges",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "issuers", "{{issuerId}}", "numbering-ranges"]
-            }
+            "url": { "raw": "{{baseUrl}}/api/v1/numbering-ranges", "host": ["{{baseUrl}}"], "path": ["api", "v1", "numbering-ranges"] }
           }
         },
         {
@@ -129,11 +164,7 @@
               "raw": "{\n  \"dian_document_type_code\": \"91\",\n  \"prefix\": \"SETPNC\",\n  \"resolution_number\": \"18760000002\",\n  \"resolution_date\": \"2024-01-01\",\n  \"range_from\": 1,\n  \"range_to\": 5000,\n  \"valid_from\": \"2024-01-01\",\n  \"valid_to\": \"2026-01-01\",\n  \"environment\": \"1\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/issuers/{{issuerId}}/numbering-ranges",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "issuers", "{{issuerId}}", "numbering-ranges"]
-            }
+            "url": { "raw": "{{baseUrl}}/api/v1/numbering-ranges", "host": ["{{baseUrl}}"], "path": ["api", "v1", "numbering-ranges"] }
           }
         },
         {
@@ -159,11 +190,7 @@
               "raw": "{\n  \"dian_document_type_code\": \"92\",\n  \"prefix\": \"SETPND\",\n  \"resolution_number\": \"18760000003\",\n  \"resolution_date\": \"2024-01-01\",\n  \"range_from\": 1,\n  \"range_to\": 5000,\n  \"valid_from\": \"2024-01-01\",\n  \"valid_to\": \"2026-01-01\",\n  \"environment\": \"1\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/issuers/{{issuerId}}/numbering-ranges",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "issuers", "{{issuerId}}", "numbering-ranges"]
-            }
+            "url": { "raw": "{{baseUrl}}/api/v1/numbering-ranges", "host": ["{{baseUrl}}"], "path": ["api", "v1", "numbering-ranges"] }
           }
         },
         {
@@ -177,11 +204,32 @@
               "path": ["api", "v1", "numbering-ranges", "{{invoiceRangeId}}"]
             }
           }
+        },
+        {
+          "name": "GET Listar mis rangos (todos)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/numbering-ranges", "host": ["{{baseUrl}}"], "path": ["api", "v1", "numbering-ranges"] }
+          }
+        },
+        {
+          "name": "GET Listar mis rangos (filtrado por tipo)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/numbering-ranges?dian_document_type_code=01",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "numbering-ranges"],
+              "query": [{ "key": "dian_document_type_code", "value": "01" }]
+            }
+          }
         }
       ]
     },
     {
-      "name": "3. Documents",
+      "name": "2. Documents",
       "item": [
         {
           "name": "POST Emitir Factura",
@@ -209,7 +257,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"issuer_id\": \"{{issuerId}}\",\n  \"numbering_range_id\": \"{{invoiceRangeId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Servicio de prueba (Postman)\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ]\n}",
+              "raw": "{\n  \"numbering_range_id\": \"{{invoiceRangeId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Servicio de prueba (Postman)\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ]\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/api/v1/invoices", "host": ["{{baseUrl}}"], "path": ["api", "v1", "invoices"] }
@@ -222,7 +270,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"issuer_id\": \"{{issuerId}}\",\n  \"numbering_range_id\": \"{{creditNoteRangeId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Anulación de servicio de prueba (Postman)\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ],\n  \"credit_note_type_code\": \"2\",\n  \"billing_reference\": {\n    \"prefix\": \"{{invoicePrefix}}\",\n    \"number\": \"1\",\n    \"cufe\": \"{{invoiceCufe}}\",\n    \"issue_date\": \"2026-06-20\"\n  },\n  \"discrepancy_response\": {\n    \"reference_id\": \"{{invoicePrefix}}1\",\n    \"response_code\": \"2\",\n    \"description\": \"Anulación de factura electrónica\"\n  }\n}",
+              "raw": "{\n  \"numbering_range_id\": \"{{creditNoteRangeId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Anulación de servicio de prueba (Postman)\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ],\n  \"credit_note_type_code\": \"2\",\n  \"billing_reference\": {\n    \"prefix\": \"{{invoicePrefix}}\",\n    \"number\": \"1\",\n    \"cufe\": \"{{invoiceCufe}}\",\n    \"issue_date\": \"2026-06-20\"\n  },\n  \"discrepancy_response\": {\n    \"reference_id\": \"{{invoicePrefix}}1\",\n    \"response_code\": \"2\",\n    \"description\": \"Anulación de factura electrónica\"\n  }\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/api/v1/credit-notes", "host": ["{{baseUrl}}"], "path": ["api", "v1", "credit-notes"] }
@@ -235,7 +283,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"issuer_id\": \"{{issuerId}}\",\n  \"numbering_range_id\": \"{{debitNoteRangeId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Intereses por mora (Postman)\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ],\n  \"billing_reference\": {\n    \"prefix\": \"{{invoicePrefix}}\",\n    \"number\": \"1\",\n    \"cufe\": \"{{invoiceCufe}}\",\n    \"issue_date\": \"2026-06-20\"\n  }\n}",
+              "raw": "{\n  \"numbering_range_id\": \"{{debitNoteRangeId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Intereses por mora (Postman)\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ],\n  \"billing_reference\": {\n    \"prefix\": \"{{invoicePrefix}}\",\n    \"number\": \"1\",\n    \"cufe\": \"{{invoiceCufe}}\",\n    \"issue_date\": \"2026-06-20\"\n  }\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/api/v1/debit-notes", "host": ["{{baseUrl}}"], "path": ["api", "v1", "debit-notes"] }
@@ -250,6 +298,32 @@
               "raw": "{{baseUrl}}/api/v1/documents/{{invoiceDocumentId}}",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "documents", "{{invoiceDocumentId}}"]
+            }
+          }
+        },
+        {
+          "name": "GET Listar mis documentos (todos)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/v1/documents", "host": ["{{baseUrl}}"], "path": ["api", "v1", "documents"] }
+          }
+        },
+        {
+          "name": "GET Listar mis documentos (filtrado + paginado)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/documents?dian_document_type_code=01&status=built&limit=10&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "documents"],
+              "query": [
+                { "key": "dian_document_type_code", "value": "01" },
+                { "key": "status", "value": "built" },
+                { "key": "limit", "value": "10" },
+                { "key": "offset", "value": "0" }
+              ]
             }
           }
         }
