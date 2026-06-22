@@ -135,6 +135,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "description": "next_number es opcional. Si tu resolución REAL ya tiene números autorizados de verdad en la DIAN (ej. pruebas anteriores directas con cofacture), agrega \"next_number\": <el próximo que la DIAN espera> para que el primer documento emitido use exactamente ese número, no range_from. Sin next_number, el rango se asume completamente nuevo.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"dian_document_type_code\": \"01\",\n  \"prefix\": \"SETP\",\n  \"resolution_number\": \"18760000001\",\n  \"resolution_date\": \"2024-01-01\",\n  \"range_from\": 1,\n  \"range_to\": 5000,\n  \"valid_from\": \"2024-01-01\",\n  \"valid_to\": \"2026-01-01\",\n  \"environment\": \"1\",\n  \"technical_key\": \"clave-tecnica-de-prueba\"\n}",

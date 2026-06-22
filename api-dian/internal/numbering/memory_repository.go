@@ -32,7 +32,7 @@ func (r *MemoryRepository) Create(_ context.Context, nr NumberingRange) (*Number
 	now := time.Now().UTC()
 	nr.CreatedAt = now
 	nr.UpdatedAt = now
-	nr.CurrentNumber = nr.RangeFrom - 1
+	// CurrentNumber ya viene decidido por Service.RegisterRange — ver postgres.go.
 
 	cp := nr
 	r.ranges[nr.ID] = &cp

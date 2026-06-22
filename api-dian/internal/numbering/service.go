@@ -18,9 +18,24 @@ func New(repo Repository) *Service {
 }
 
 // RegisterRange valida y persiste un nuevo rango de numeración.
-func (s *Service) RegisterRange(ctx context.Context, nr NumberingRange) (*NumberingRange, error) {
+//
+// nextNumber es opcional — nil significa "rango nuevo, nunca usado": el primer ClaimNext
+// entrega RangeFrom, igual que siempre. Si la resolución YA tiene números autorizados de
+// verdad en la DIAN (ej. se usó antes directamente con cofacture, o ya se emitió manualmente
+// fuera de api-dian), nextNumber le dice exactamente qué número debe entregar el primer
+// ClaimNext, para no reclamar uno que la DIAN ya vio y autorizó — un duplicado real, no solo
+// un error de api-dian.
+func (s *Service) RegisterRange(ctx context.Context, nr NumberingRange, nextNumber *int64) (*NumberingRange, error) {
 	if err := validateRange(nr); err != nil {
 		return nil, err
+	}
+	if nextNumber != nil {
+		if *nextNumber < nr.RangeFrom || (nr.RangeTo != nil && *nextNumber > *nr.RangeTo) {
+			return nil, ErrNextNumberOutOfRange
+		}
+		nr.CurrentNumber = *nextNumber - 1
+	} else {
+		nr.CurrentNumber = nr.RangeFrom - 1
 	}
 	nr.IsActive = true
 	return s.repo.Create(ctx, nr)

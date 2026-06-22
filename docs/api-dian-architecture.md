@@ -858,12 +858,51 @@ todavía).
   la factura no rompe la factura**: queda con `customer_id = NULL`, mismo `document_key`,
   recuperable normalmente.
 
-### 9.23 Próximo paso
+### 9.23 `next_number` — registrar un rango que retoma una secuencia real ya usada
+
+Antes de hacer pruebas reales de punta a punta vía Postman (registrar el emisor real, su
+certificado/resolución real, clientes, productos, y emitir los tres documentos), el usuario
+preguntó algo crítico: si su resolución REAL ya tiene números autorizados de verdad en la DIAN
+(de las pruebas de Fase 1.7 con `cofacture` directo, ej. `SETP-990068706`), ¿el API puede
+"continuar" esa secuencia, o reclamaría desde `range_from` otra vez — arriesgando un duplicado
+real contra la propia DIAN?
+
+**Respuesta antes del fix: no se podía.** `numbering.PostgresRepository.Create`/
+`MemoryRepository.Create` forzaban `CurrentNumber = RangeFrom - 1` sin excepción — todo rango
+nuevo se asumía completamente virgen, sin forma de decirle a la API "ya van usados hasta el
+número X de verdad".
+
+**Fix**: `numbering.Service.RegisterRange` ahora acepta un segundo parámetro opcional,
+`nextNumber *int64` — expuesto en la API como `next_number` (opcional) en
+`POST /api/v1/numbering-ranges`:
+
+- `nil` (omitido): comportamiento de siempre, el primer `ClaimNext` entrega `range_from`.
+- Con valor: debe caer dentro de `[range_from, range_to]` (si no,
+  `ErrNextNumberOutOfRange`, 400) — `CurrentNumber` se fija en `next_number - 1`, así el
+  primer `ClaimNext` entrega exactamente `next_number`, sin importar dónde empiece
+  `range_from`.
+
+La responsabilidad de decidir el punto de partida se movió del repositorio (que antes lo
+forzaba) al `Service` (que tiene el contexto de negocio) — los repositorios ahora solo
+persisten el `CurrentNumber` que ya viene decidido.
+
+**Verificado contra Postgres real vía curl** (4/4): un rango sin `next_number` sigue
+arrancando en `range_from` (comportamiento viejo intacto); un rango con
+`next_number: 990068707` simulando una resolución real ya usada hasta el `...706` deja
+`current_number = 990068706`, y el documento emitido con ese rango sale con
+`number = 990068707` exactamente; `next_number` fuera del intervalo rechaza con 400. No se
+tocaron los emisores/usuarios reales de pruebas manuales del usuario que ya existían en la
+base.
+
+### 9.24 Próximo paso
 
 Sin tareas pendientes explícitas en este momento — Fase 2 (`api-dian`) cubre hoy: bootstrap,
-catálogos DIAN, emisores, numeración, documentos (Invoice/CreditNote/DebitNote,
-construir+firmar+enviar, con trazabilidad opcional a un cliente guardado), auth con
-aislamiento entre tenants, listados, y los catálogos de Customers/Products. Lo que sigue
-diferido (Documento Soporte/RADIAN/Nómina, PDF/Notificaciones) tiene su razón documentada en
-la sección 8 — son otra familia de documento DIAN o están bien delegados a un servicio
-externo, no son items "olvidados".
+catálogos DIAN, emisores, numeración (incluyendo retomar una secuencia real ya usada),
+documentos (Invoice/CreditNote/DebitNote, construir+firmar+enviar, con trazabilidad opcional a
+un cliente guardado), auth con aislamiento entre tenants, listados, y los catálogos de
+Customers/Products. Lo que sigue diferido (Documento Soporte/RADIAN/Nómina, PDF/
+Notificaciones) tiene su razón documentada en la sección 8 — son otra familia de documento
+DIAN o están bien delegados a un servicio externo, no son items "olvidados". Próximo paso
+real: el usuario va a hacer pruebas de punta a punta con datos reales vía Postman (emisor real
++ certificado real + resolución real + cliente + productos + los tres documentos, incluyendo
+envío real a la DIAN).

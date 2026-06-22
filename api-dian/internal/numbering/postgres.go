@@ -36,9 +36,9 @@ func (r *PostgresRepository) Create(ctx context.Context, nr NumberingRange) (*Nu
 	now := time.Now().UTC()
 	nr.CreatedAt = now
 	nr.UpdatedAt = now
-	// El primer ClaimNext debe devolver RangeFrom — arrancar un paso atrás logra eso con la
-	// misma fórmula (current_number + 1) que usan todos los claims siguientes.
-	nr.CurrentNumber = nr.RangeFrom - 1
+	// CurrentNumber ya viene decidido por Service.RegisterRange (RangeFrom-1 para un rango
+	// nuevo, o next_number-1 si se está retomando una secuencia real ya usada) — el
+	// repositorio solo persiste, no decide dónde arranca la numeración.
 
 	encKey, err := cryptutil.Encrypt(r.key, []byte(nr.TechnicalKey))
 	if err != nil {

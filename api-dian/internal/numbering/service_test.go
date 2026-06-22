@@ -35,7 +35,7 @@ func validRange() numbering.NumberingRange {
 
 func TestRegisterRange_OK(t *testing.T) {
 	svc := newService()
-	nr, err := svc.RegisterRange(context.Background(), validRange())
+	nr, err := svc.RegisterRange(context.Background(), validRange(), nil)
 	require.NoError(t, err)
 	assert.NotEqual(t, uuid.Nil, nr.ID)
 	assert.True(t, nr.IsActive)
@@ -60,8 +60,49 @@ func TestRegisterRange_Validations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			nr := validRange()
 			tt.mutate(&nr)
-			_, err := newService().RegisterRange(context.Background(), nr)
+			_, err := newService().RegisterRange(context.Background(), nr, nil)
 			assert.ErrorIs(t, err, tt.wantErr)
+		})
+	}
+}
+
+// TestRegisterRange_NextNumber_ResumesRealSequence cubre el escenario real que motivó este
+// parámetro: una resolución que YA tiene números autorizados de verdad en la DIAN (ej.
+// emitidos antes directamente con cofacture, o manualmente) — registrarla vía api-dian debe
+// poder continuar exactamente donde la DIAN se quedó, no reclamar desde range_from otra vez.
+func TestRegisterRange_NextNumber_ResumesRealSequence(t *testing.T) {
+	svc := newService()
+	ctx := context.Background()
+
+	nr := validRange()
+	nr.RangeFrom = 990068700
+	nr.RangeTo = nil               // sin tope superior para este escenario
+	nextNumber := int64(990068707) // la DIAN ya autorizó hasta ...706
+
+	created, err := svc.RegisterRange(ctx, nr, &nextNumber)
+	require.NoError(t, err)
+
+	claimed, err := svc.ClaimNext(ctx, created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, nextNumber, claimed, "el primer ClaimNext debe entregar exactamente next_number, no range_from")
+}
+
+func TestRegisterRange_NextNumber_OutOfRange(t *testing.T) {
+	tests := []struct {
+		name       string
+		nextNumber int64
+	}{
+		{"menor que range_from", 0},
+		{"mayor que range_to", 6000},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := newService()
+			nr := validRange() // range_from=1, range_to=5000
+			next := tt.nextNumber
+			_, err := svc.RegisterRange(context.Background(), nr, &next)
+			assert.ErrorIs(t, err, numbering.ErrNextNumberOutOfRange)
 		})
 	}
 }
@@ -70,7 +111,7 @@ func TestClaimNext_StartsAtRangeFrom(t *testing.T) {
 	svc := newService()
 	ctx := context.Background()
 
-	nr, err := svc.RegisterRange(ctx, validRange())
+	nr, err := svc.RegisterRange(ctx, validRange(), nil)
 	require.NoError(t, err)
 
 	first, err := svc.ClaimNext(ctx, nr.ID)
@@ -91,7 +132,7 @@ func TestClaimNext_RangeExhausted(t *testing.T) {
 	nr.RangeFrom = 1
 	nr.RangeTo = &rangeTo
 
-	created, err := svc.RegisterRange(ctx, nr)
+	created, err := svc.RegisterRange(ctx, nr, nil)
 	require.NoError(t, err)
 
 	_, err = svc.ClaimNext(ctx, created.ID) // 1
@@ -111,19 +152,19 @@ func TestListRanges_FiltersByIssuerAndDocumentType(t *testing.T) {
 	invoiceA := validRange()
 	invoiceA.IssuerID = issuerA
 	invoiceA.DianDocumentTypeCode = "01"
-	_, err := svc.RegisterRange(ctx, invoiceA)
+	_, err := svc.RegisterRange(ctx, invoiceA, nil)
 	require.NoError(t, err)
 
 	creditNoteA := validRange()
 	creditNoteA.IssuerID = issuerA
 	creditNoteA.DianDocumentTypeCode = "91"
 	creditNoteA.Prefix = "SETPNC"
-	_, err = svc.RegisterRange(ctx, creditNoteA)
+	_, err = svc.RegisterRange(ctx, creditNoteA, nil)
 	require.NoError(t, err)
 
 	invoiceB := validRange()
 	invoiceB.IssuerID = issuerB
-	_, err = svc.RegisterRange(ctx, invoiceB)
+	_, err = svc.RegisterRange(ctx, invoiceB, nil)
 	require.NoError(t, err)
 
 	all, err := svc.ListRanges(ctx, issuerA, "")
@@ -161,7 +202,7 @@ func TestClaimNext_ConcurrentNoDuplicatesNoGaps(t *testing.T) {
 	nr.RangeFrom = 1
 	nr.RangeTo = &rangeTo
 
-	created, err := svc.RegisterRange(ctx, nr)
+	created, err := svc.RegisterRange(ctx, nr, nil)
 	require.NoError(t, err)
 
 	var (

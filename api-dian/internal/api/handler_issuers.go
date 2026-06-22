@@ -108,6 +108,12 @@ func (a *API) handleGetMyIssuer(w http.ResponseWriter, r *http.Request) {
 // createNumberingRangeRequest es el payload de registro de un rango de numeración para el
 // emisor autenticado. TechnicalKey solo aplica a Invoice (CUFE); TestSetID solo aplica en
 // habilitación.
+//
+// NextNumber es opcional — omitirlo significa "rango nunca usado", el primer documento
+// emitido reclama RangeFrom. Si la resolución YA tiene números autorizados de verdad en la
+// DIAN (ej. ya se usó antes directamente con cofacture, o se emitió manualmente fuera de
+// api-dian), NextNumber le dice a la API exactamente qué número debe entregar el primer
+// ClaimNext, para no reclamar uno que la DIAN ya vio y autorizó.
 type createNumberingRangeRequest struct {
 	DianDocumentTypeCode string `json:"dian_document_type_code"`
 	Prefix               string `json:"prefix"`
@@ -120,6 +126,7 @@ type createNumberingRangeRequest struct {
 	Environment          string `json:"environment"`
 	TechnicalKey         string `json:"technical_key,omitempty"`
 	TestSetID            string `json:"test_set_id,omitempty"`
+	NextNumber           *int64 `json:"next_number,omitempty"`
 }
 
 type numberingRangeResponse struct {
@@ -186,7 +193,7 @@ func (a *API) handleCreateNumberingRange(w http.ResponseWriter, r *http.Request)
 		Environment:          numbering.Environment(req.Environment),
 		TechnicalKey:         req.TechnicalKey,
 		TestSetID:            req.TestSetID,
-	})
+	}, req.NextNumber)
 	if err != nil {
 		response.WriteError(w, err)
 		return

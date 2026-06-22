@@ -64,6 +64,7 @@ func classify(err error) (int, string) {
 		errors.Is(err, numbering.ErrEmptyPrefix),
 		errors.Is(err, numbering.ErrInvalidRange),
 		errors.Is(err, numbering.ErrInvalidEnvironment),
+		errors.Is(err, numbering.ErrNextNumberOutOfRange),
 		errors.Is(err, documents.ErrMissingIssuer),
 		errors.Is(err, documents.ErrMissingNumberingRange),
 		errors.Is(err, documents.ErrEmptyLines),
