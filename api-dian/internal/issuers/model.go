@@ -7,7 +7,7 @@ import (
 )
 
 // Environment es el ambiente DIAN en el que opera el emisor — mismos códigos que
-// domain.Invoice.EnvironmentCode en ubl21dian ("1" producción, "2" habilitación).
+// domain.Invoice.EnvironmentCode en cofacture ("1" producción, "2" habilitación).
 type Environment string
 
 const (
@@ -44,9 +44,9 @@ type Issuer struct {
 	Environment      Environment
 
 	// Campos exigidos para construir el cac:AccountingSupplierParty/cac:Party del XML
-	// (ubl21dian/domain.Party) — agregados en la Fase 2.5 al descubrir, construyendo el
+	// (cofacture/domain.Party) — agregados en la Fase 2.5 al descubrir, construyendo el
 	// primer Invoice real, que faltaban para reproducir exactamente la factura que la DIAN ya
-	// autorizó en la Fase 1.7 (ver ubl21dian/soap/realsend_test.go).
+	// autorizó en la Fase 1.7 (ver cofacture/soap/realsend_test.go).
 	EntityTypeCode             string   // domain.Party.EntityTypeCode — "1" en el caso real validado
 	TaxSchemeCode              string   // FK tax_types — "ZZ" ("No aplica") en el caso real validado
 	TaxSchemeName              string   // domain.Party.TaxSchemeName, acompaña a TaxSchemeCode
@@ -54,7 +54,7 @@ type Issuer struct {
 	MerchantRegistrationNumber *string  // domain.Party.MerchantRegistrationNumber, opcional
 
 	// Credenciales DIAN. En este struct de dominio viajan en texto plano (el servicio y
-	// internal/documents las necesitan así para usarlas con ubl21dian) — es
+	// internal/documents las necesitan así para usarlas con cofacture) — es
 	// PostgresRepository quien las cifra antes de guardar y las descifra al leer (AES-256-GCM,
 	// internal/cryptutil). SoftwareID no es secreto (es un identificador de registro ante la
 	// DIAN, no una contraseña), por eso es el único de los cuatro que no se cifra.

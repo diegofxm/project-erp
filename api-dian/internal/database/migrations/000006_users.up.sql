@@ -4,7 +4,7 @@
 --
 -- password_hash es bcrypt (internal/auth/password.go), nunca texto plano ni cifrado reversible
 -- (a diferencia de issuers.software_pin/certificate, que SÍ se descifran para usarse con
--- ubl21dian — una contraseña de login nunca necesita recuperarse, solo verificarse).
+-- cofacture — una contraseña de login nunca necesita recuperarse, solo verificarse).
 CREATE TABLE users (
     id              UUID         PRIMARY KEY,
     issuer_id       UUID         NOT NULL REFERENCES issuers(id),

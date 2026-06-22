@@ -29,7 +29,7 @@ func (s *Service) RegisterIssuer(ctx context.Context, iss Issuer) (*Issuer, erro
 
 // applyDefaults completa los campos del Party que la mayoría de emisores no necesita
 // personalizar — valores confirmados contra una factura real autorizada por la DIAN
-// (ubl21dian/soap/realsend_test.go): EntityTypeCode "1", TaxSchemeCode "ZZ" ("No aplica").
+// (cofacture/soap/realsend_test.go): EntityTypeCode "1", TaxSchemeCode "ZZ" ("No aplica").
 func applyDefaults(iss *Issuer) {
 	if iss.EntityTypeCode == "" {
 		iss.EntityTypeCode = "1"

@@ -1,0 +1,122 @@
+package dian
+
+import (
+	"encoding/base64"
+	"testing"
+
+	"github.com/diegofxm/cofacture/soap"
+)
+
+func TestParseMessage(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want Message
+	}{
+		// Mensajes reales devueltos por la DIAN (ambiente de habilitación).
+		{
+			raw: "Regla: ZE02, Rechazo: Valor de la firma inválido.",
+			want: Message{
+				Rule: "ZE02", Severity: "Rechazo", Text: "Valor de la firma inválido.",
+				Raw: "Regla: ZE02, Rechazo: Valor de la firma inválido.",
+			},
+		},
+		{
+			raw: "Regla: FAJ43b, Notificación: Nombre informado No corresponde al registrado en el RUT con respecto al Nit suminstrado.",
+			want: Message{
+				Rule: "FAJ43b", Severity: "Notificación",
+				Text: "Nombre informado No corresponde al registrado en el RUT con respecto al Nit suminstrado.",
+				Raw:  "Regla: FAJ43b, Notificación: Nombre informado No corresponde al registrado en el RUT con respecto al Nit suminstrado.",
+			},
+		},
+		{
+			// Texto que no sigue el patrón: se conserva en Raw, el resto queda vacío en
+			// vez de fallar.
+			raw:  "algo que no sigue el formato esperado",
+			want: Message{Raw: "algo que no sigue el formato esperado"},
+		},
+	}
+
+	for _, c := range cases {
+		got := parseMessage(c.raw)
+		if got != c.want {
+			t.Errorf("parseMessage(%q) = %+v, want %+v", c.raw, got, c.want)
+		}
+	}
+}
+
+func TestMessage_IsRejection(t *testing.T) {
+	if !(Message{Severity: "Rechazo"}).IsRejection() {
+		t.Error("Severity Rechazo debería ser un rechazo")
+	}
+	if (Message{Severity: "Notificación"}).IsRejection() {
+		t.Error("Severity Notificación no debería ser un rechazo")
+	}
+}
+
+func TestInterpret_DecodesDoubleBase64ApplicationResponse(t *testing.T) {
+	// XmlBase64Bytes trae doble codificación: encoding/xml ya decodifica la primera capa
+	// (es xs:base64Binary), pero lo que queda adentro es a su vez texto base64 — verificado
+	// contra una respuesta real de GetStatusZip.
+	innerXML := `<?xml version="1.0" encoding="utf-8"?><ApplicationResponse><cbc:UUID>cude-de-prueba</cbc:UUID></ApplicationResponse>`
+	doubleEncoded := base64.StdEncoding.EncodeToString([]byte(innerXML))
+
+	resp := soap.DianResponse{
+		IsValid:        true,
+		StatusCode:     "00",
+		StatusMessage:  "ha sido autorizada",
+		XmlDocumentKey: "cufe-de-prueba",
+		XmlBase64Bytes: []byte(doubleEncoded),
+	}
+
+	result, err := Interpret(resp)
+	if err != nil {
+		t.Fatalf("Interpret: %v", err)
+	}
+	if string(result.ApplicationResponseXML) != innerXML {
+		t.Errorf("ApplicationResponseXML = %q, want %q", result.ApplicationResponseXML, innerXML)
+	}
+	if !result.IsValid || result.StatusCode != "00" {
+		t.Errorf("campos básicos no se copiaron correctamente: %+v", result)
+	}
+}
+
+func TestInterpret_NoEmbeddedXML(t *testing.T) {
+	result, err := Interpret(soap.DianResponse{IsValid: false, StatusCode: "99"})
+	if err != nil {
+		t.Fatalf("Interpret: %v", err)
+	}
+	if result.ApplicationResponseXML != nil {
+		t.Error("no debería haber ApplicationResponseXML cuando la respuesta no trae ninguno")
+	}
+}
+
+func TestResult_HasRejectionsAndToValidationResult(t *testing.T) {
+	result := Result{
+		IsValid:        true,
+		StatusCode:     "00",
+		XmlDocumentKey: "cufe-123",
+		Messages: []Message{
+			parseMessage("Regla: FAJ43b, Notificación: algo informativo."),
+		},
+		ApplicationResponseXML: []byte("<ApplicationResponse/>"),
+	}
+	if result.HasRejections() {
+		t.Error("una notificación sola no debería contar como rechazo")
+	}
+
+	result.Messages = append(result.Messages, parseMessage("Regla: ZE02, Rechazo: firma inválida."))
+	if !result.HasRejections() {
+		t.Error("debería detectar el rechazo agregado")
+	}
+
+	vr := result.ToValidationResult("1", "SETP1", "CUFE-SHA384", "2024-01-20", "2024-01-20", "10:00:00-05:00")
+	if vr.DocumentCUFE != "cufe-123" {
+		t.Errorf("DocumentCUFE = %q, want %q", vr.DocumentCUFE, "cufe-123")
+	}
+	if vr.ValidatorID != ValidatorID {
+		t.Errorf("ValidatorID = %q, want %q", vr.ValidatorID, ValidatorID)
+	}
+	if vr.ApplicationResponseXML != "<ApplicationResponse/>" {
+		t.Errorf("ApplicationResponseXML no se propagó: %q", vr.ApplicationResponseXML)
+	}
+}

@@ -3,7 +3,7 @@ package documents
 import (
 	"time"
 
-	"github.com/diegofxm/ubl21dian/domain"
+	"github.com/diegofxm/cofacture/domain"
 	"github.com/google/uuid"
 )
 
@@ -21,7 +21,7 @@ const (
 
 // BillingReferenceInput es la referencia obligatoria de una nota al documento que corrige —
 // espejo de domain.BillingReference, con nombre propio porque es lo que recibe el payload de
-// emisión, no el tipo de ubl21dian directamente (evita que un cambio interno de ubl21dian
+// emisión, no el tipo de cofacture directamente (evita que un cambio interno de cofacture
 // obligue a romper la firma pública de IssueCreditNote/IssueDebitNote).
 type BillingReferenceInput struct {
 	Prefix    string
@@ -65,7 +65,7 @@ type Document struct {
 	// Solo aplican a CreditNote/DebitNote — nil en Invoice.
 	BillingReference    *BillingReferenceInput
 	DiscrepancyResponse *DiscrepancyResponseInput
-	NoteTypeCode        string // CreditNoteTypeCode — solo CreditNote tiene este campo en ubl21dian
+	NoteTypeCode        string // CreditNoteTypeCode — solo CreditNote tiene este campo en cofacture
 
 	QRURL     string
 	SignedXML string // texto del XML firmado — retención legal, no se recalcula después

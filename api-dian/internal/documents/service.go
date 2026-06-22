@@ -11,21 +11,21 @@ import (
 	"github.com/beevik/etree"
 	"github.com/diegofxm/api-dian/internal/issuers"
 	"github.com/diegofxm/api-dian/internal/numbering"
-	"github.com/diegofxm/ubl21dian/builder"
-	"github.com/diegofxm/ubl21dian/cude"
-	"github.com/diegofxm/ubl21dian/cufe"
-	"github.com/diegofxm/ubl21dian/dian"
-	"github.com/diegofxm/ubl21dian/domain"
-	"github.com/diegofxm/ubl21dian/qr"
-	"github.com/diegofxm/ubl21dian/securitycode"
-	"github.com/diegofxm/ubl21dian/signer"
-	"github.com/diegofxm/ubl21dian/soap"
-	"github.com/diegofxm/ubl21dian/zip"
+	"github.com/diegofxm/cofacture/builder"
+	"github.com/diegofxm/cofacture/cude"
+	"github.com/diegofxm/cofacture/cufe"
+	"github.com/diegofxm/cofacture/dian"
+	"github.com/diegofxm/cofacture/domain"
+	"github.com/diegofxm/cofacture/qr"
+	"github.com/diegofxm/cofacture/securitycode"
+	"github.com/diegofxm/cofacture/signer"
+	"github.com/diegofxm/cofacture/soap"
+	"github.com/diegofxm/cofacture/zip"
 	"github.com/google/uuid"
 )
 
 // Los valores fijos de abajo están confirmados contra documentos reales autorizados por la
-// DIAN (ubl21dian/soap/realsend_test.go para Invoice/CreditNote) — no son arbitrarios.
+// DIAN (cofacture/soap/realsend_test.go para Invoice/CreditNote) — no son arbitrarios.
 // debitNoteProfileID es la única excepción: sigue el mismo patrón de nombre que las otras
 // dos, pero no se ha confirmado contra un envío real todavía (ver Fase 9.9 del architecture
 // doc — DebitNote no se ha enviado real, solo construido y firmado).
@@ -47,9 +47,9 @@ const (
 )
 
 // Service orquesta la emisión de documentos DIAN: reclama numeración, construye y firma el
-// XML con ubl21dian, lo envía por SOAP, interpreta la respuesta, y persiste el resultado.
+// XML con cofacture, lo envía por SOAP, interpreta la respuesta, y persiste el resultado.
 //
-// Es el ÚNICO paquete de api-dian que importa ubl21dian directamente — ver
+// Es el ÚNICO paquete de api-dian que importa cofacture directamente — ver
 // docs/api-dian-architecture.md sección 4.1.
 type Service struct {
 	repo      Repository
@@ -101,7 +101,7 @@ type IssueCreditNoteRequest struct {
 // IssueInvoice construye, firma y — si el ambiente lo permite — envía una Factura
 // Electrónica de Venta, persistiendo el resultado en cualquier caso.
 //
-// El envío real (SendBillSync/SendBillAsync de producción) todavía no existe en ubl21dian
+// El envío real (SendBillSync/SendBillAsync de producción) todavía no existe en cofacture
 // (solo SendTestSetAsync, de habilitación) — si el emisor está en producción o el rango no
 // tiene un TestSetID, el documento queda construido y firmado (StatusBuilt) sin enviarse; eso
 // no es un error de esta llamada, es una limitación conocida (ver
@@ -216,7 +216,7 @@ func (s *Service) IssueCreditNote(ctx context.Context, req IssueCreditNoteReques
 }
 
 // IssueDebitNote construye, firma y — si el ambiente lo permite — envía una Nota Débito.
-// A diferencia de CreditNote, DebitNote no tiene un campo de tipo propio en ubl21dian.
+// A diferencia de CreditNote, DebitNote no tiene un campo de tipo propio en cofacture.
 func (s *Service) IssueDebitNote(ctx context.Context, req IssueNoteRequest) (*Document, error) {
 	if err := validateNoteRequest(req); err != nil {
 		return nil, err
@@ -397,7 +397,7 @@ func (s *Service) finalizeAndSend(ctx context.Context, doc *etree.Document, p *p
 	}
 
 	// Nunca llamar doc.Indent() (ni nada que reescriba el árbol) después de firmar — ver
-	// comentario equivalente en ubl21dian/soap/realsend_test.go.
+	// comentario equivalente en cofacture/soap/realsend_test.go.
 	xmlBytes, err := doc.WriteToBytes()
 	if err != nil {
 		return nil, fmt.Errorf("serializar XML firmado: %w", err)
@@ -463,7 +463,7 @@ func (s *Service) sendAndUpdate(
 
 	d.DianTrackID = result.ZipKey
 
-	// Sondeo acotado — mismo patrón que ubl21dian/soap/realsend_test.go.
+	// Sondeo acotado — mismo patrón que cofacture/soap/realsend_test.go.
 	var last *soap.DianResponse
 	for attempt := 0; attempt < 6; attempt++ {
 		time.Sleep(5 * time.Second)
@@ -495,7 +495,7 @@ func (s *Service) sendAndUpdate(
 
 // sendSyncAndUpdate envía el documento por SendBillSync — un solo documento, síncrono, sin
 // ZipKey ni sondeo posterior: la DIAN responde con el resultado final en la misma llamada.
-// Confirmado contra la DIAN real (ubl21dian/soap/realsend_sync_test.go) que esto sigue
+// Confirmado contra la DIAN real (cofacture/soap/realsend_sync_test.go) que esto sigue
 // disponible en habilitación incluso con el set de pruebas oficial ya cerrado — ver
 // docs/api-dian-architecture.md sección 9.14.
 func (s *Service) sendSyncAndUpdate(

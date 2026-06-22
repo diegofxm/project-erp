@@ -8,7 +8,7 @@ import (
 	"github.com/diegofxm/api-dian/internal/documents"
 	"github.com/diegofxm/api-dian/internal/issuers"
 	"github.com/diegofxm/api-dian/internal/numbering"
-	"github.com/diegofxm/ubl21dian/domain"
+	"github.com/diegofxm/cofacture/domain"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

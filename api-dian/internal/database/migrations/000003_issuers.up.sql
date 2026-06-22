@@ -4,7 +4,7 @@
 --
 -- Los campos de entity_type_code en adelante (hasta merchant_registration_number) son los
 -- necesarios para construir cac:AccountingSupplierParty/cac:Party del XML
--- (ubl21dian/domain.Party) — se descubrieron faltantes al construir el primer Invoice real en
+-- (cofacture/domain.Party) — se descubrieron faltantes al construir el primer Invoice real en
 -- internal/documents, reproduciendo la factura que la DIAN ya autorizó en la Fase 1.7.
 -- Originalmente se agregaron en una migración aparte (000005_issuers_party_fields) y se
 -- unificaron aquí el 2026-06-21, sin datos reales en juego todavía.

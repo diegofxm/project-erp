@@ -34,11 +34,11 @@ CREATE TABLE departments (
 --
 -- El código es el numérico oficial de la DIAN (13 cédula, 31 NIT, etc.), NO una abreviatura
 -- legible ("CC"/"NIT") — se usa directamente como cbc:CompanyID.@schemeName /
--- sts:ProviderID.@schemeName en el XML (ubl21dian/builder/party.go), sin ninguna traducción
+-- sts:ProviderID.@schemeName en el XML (cofacture/builder/party.go), sin ninguna traducción
 -- intermedia. Primer intento de esta tabla (Fase 2.2) sí usaba abreviaturas — se corrigió en
 -- la Fase 2.8 al fallar un envío real con "errores en campos mandatorios": "13" y "31" están
 -- confirmados contra una factura real autorizada por la DIAN
--- (ubl21dian/soap/realsend_test.go); el resto de códigos son el catálogo oficial estándar de
+-- (cofacture/soap/realsend_test.go); el resto de códigos son el catálogo oficial estándar de
 -- "Tipo de Documento" de la DIAN, no confirmados con un envío propio porque ningún emisor de
 -- prueba los usó todavía — el Anexo Técnico remite esta tabla a su "Caja de Herramientas"
 -- (un .xlsx que no está en este repositorio, sección 13.2.7.1).
@@ -85,8 +85,8 @@ CREATE TABLE unit_measures (
 -- nombre sugeriría que es solo de la factura, igual que cufe.go no debía contener CUDE.
 --
 -- A diferencia de las demás, esta no viene de un CSV del proyecto legacy: son los tres
--- códigos que ya implementa y valida ubl21dian (domain.DocumentTypeCode), confirmados contra
--- la DIAN real en la Fase 1. 02/03/04/05 quedan fuera hasta que ubl21dian los soporte.
+-- códigos que ya implementa y valida cofacture (domain.DocumentTypeCode), confirmados contra
+-- la DIAN real en la Fase 1. 02/03/04/05 quedan fuera hasta que cofacture los soporte.
 CREATE TABLE dian_document_types (
     code        VARCHAR(2)  PRIMARY KEY,
     name        TEXT        NOT NULL,

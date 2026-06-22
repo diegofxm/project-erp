@@ -1,11 +1,11 @@
 package api
 
-import "github.com/diegofxm/ubl21dian/domain"
+import "github.com/diegofxm/cofacture/domain"
 
 // Los DTOs de este archivo son el contrato JSON público de la API — deliberadamente
-// independientes de los structs de dominio de ubl21dian (que no tienen tags json y pueden
-// cambiar de forma libre, ya que ubl21dian es una librería interna, no un contrato HTTP).
-// Solo internal/documents importa ubl21dian directamente (ver architecture doc sección 4.1);
+// independientes de los structs de dominio de cofacture (que no tienen tags json y pueden
+// cambiar de forma libre, ya que cofacture es una librería interna, no un contrato HTTP).
+// Solo internal/documents importa cofacture directamente (ver architecture doc sección 4.1);
 // este paquete solo conoce estos DTOs y los mapea a domain.* antes de llamar al servicio.
 
 type identificationDTO struct {

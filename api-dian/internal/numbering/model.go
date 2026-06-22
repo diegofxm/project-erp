@@ -44,7 +44,7 @@ type NumberingRange struct {
 	TechnicalKey string
 
 	// TestSetID solo aplica en habilitación (DIAN_TEST_SET_ID en las pruebas reales de
-	// ubl21dian) — identifica el set de pruebas asignado por SendTestSetAsync.
+	// cofacture) — identifica el set de pruebas asignado por SendTestSetAsync.
 	TestSetID string
 
 	IsActive  bool

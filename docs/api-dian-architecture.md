@@ -1,4 +1,4 @@
-# Arquitectura Profesional DIAN en Go (UBL21-DIAN + API-DIAN)
+# Arquitectura Profesional DIAN en Go (COFACTURE + API-DIAN)
 
 > Verificado contra el Anexo Técnico de Factura Electrónica de Venta v1.9 (Resolución DIAN 000165/2023).
 
@@ -16,7 +16,7 @@ El proyecto hermano `api-dian` (Fiber + GORM, con CRUD de Company/Customer/Produ
 
 El sistema se divide en dos proyectos independientes:
 
-### 1.1 UBL21-DIAN (Core / Motor de Facturación)
+### 1.1 COFACTURE (Core / Motor de Facturación)
 Responsabilidad única:
 - Construir documentos UBL 2.1: Invoice, CreditNote, DebitNote, **AttachedDocument**
 - Canonicalización XML
@@ -37,20 +37,20 @@ Responsabilidad:
 - Gestionar **solo** las entidades imprescindibles para emitir: Issuer (emisor/tenant), NumberingRange (resolución de numeración), Invoice/CreditNote/DebitNote y su estado
 - Persistencia y retención legal (5 años) de los documentos emitidos y las respuestas de la DIAN
 - Control atómico del consecutivo dentro del rango autorizado (igual invariante que una transferencia: nunca se repite, nunca se salta)
-- Orquestar llamadas al motor UBL21-DIAN
+- Orquestar llamadas al motor COFACTURE
 - Manejar estados de documentos (DRAFT → SIGNED → SENT → ACCEPTED/REJECTED)
 
 No implementa firma, XML ni lógica DIAN interna. No gestiona clientes, productos ni usuarios — eso vive en otros servicios (sección 8).
 
 ---
 
-## 2. Estructura del Proyecto UBL21-DIAN (CORE)
+## 2. Estructura del Proyecto COFACTURE (CORE)
 
 > Esta es la estructura **real** (Fase 1 completa y validada contra la DIAN real, no el plan
 > original — diverge en varios puntos, documentado en la sección 9).
 
 ```
-ubl21dian/
+cofacture/
 ├── domain/                   # tipos puros, sin DB, sin tags db/gorm
 │   ├── invoice.go            # Invoice
 │   ├── notes.go              # CreditNote/DebitNote (embeben Invoice) + BillingReference/DiscrepancyResponse
@@ -149,7 +149,7 @@ api-dian/
 │   ├── server/                      # http.Server, routes(), /health
 │   ├── issuers/                      # emisor/tenant: datos + credenciales DIAN cifradas
 │   ├── numbering/                      # rangos de numeración + ClaimNext atómico (UPDATE de una fila)
-│   ├── documents/                      # orquesta ubl21dian (Invoice/CreditNote/DebitNote) —
+│   ├── documents/                      # orquesta cofacture (Invoice/CreditNote/DebitNote) —
 │   │                                    # el único paquete que lo importa directamente
 │   ├── auth/                            # usuarios + login + JWT — "un usuario = un emisor"
 │   │   ├── service.go                     # Register (crea emisor+usuario juntos) / Login
@@ -157,7 +157,7 @@ api-dian/
 │   │   └── password.go                      # hash/verify con bcrypt
 │   └── api/                             # capa HTTP — primera vez que esto se expone por red
 │       ├── api.go                        # New()/NewFromServices(), Handler(), rutas
-│       ├── dto.go                         # contrato JSON, independiente de domain.* de ubl21dian
+│       ├── dto.go                         # contrato JSON, independiente de domain.* de cofacture
 │       ├── handler_auth.go                 # register/login (únicas rutas públicas)
 │       ├── handler_issuers.go              # issuers/me + numbering-ranges (protegidas)
 │       ├── handler_documents.go             # invoices/credit-notes/debit-notes/documents
@@ -188,7 +188,7 @@ config, logger, cryptutil      (sin dependencias entre sí — cryptutil es la �
    └────┬────┘
         ├──────────────┐
         ↓              ↓
-    documents         auth      (documents usa issuers+numbering+ubl21dian; auth usa SOLO
+    documents         auth      (documents usa issuers+numbering+cofacture; auth usa SOLO
         ↓              ↓         issuers — RegisterIssuer al crear el primer usuario admin,
         └──────┬───────┘         mismo patrón de "ports" angostos que documents)
                ↓
@@ -198,7 +198,7 @@ config, logger, cryptutil      (sin dependencias entre sí — cryptutil es la �
 ```
 
 **Regla de naming**: ninguna tabla ni paquete compartido por varios tipos de documento se
-nombra según su primer caso de uso. Es la misma regla que ya aplica en `ubl21dian` para
+nombra según su primer caso de uso. Es la misma regla que ya aplica en `cofacture` para
 `cufe`/`cude`/`securitycode` (sección 2) — se reforzó acá el 2026-06-20 al corregir
 `invoice_type_codes` → `dian_document_types` (ver sección 9.6: ese catálogo es compartido por
 Invoice/CreditNote/DebitNote y a futuro más documentos, no solo de la factura) y
@@ -235,7 +235,7 @@ propósito. `api-dian` no debe crecer para absorber lo que le corresponde a un C
 ## 5. Flujo API-DIAN
 
 ```
-HTTP → Handler → Service → Repository → UBL21-DIAN → DIAN
+HTTP → Handler → Service → Repository → COFACTURE → DIAN
 ```
 
 ---
@@ -245,7 +245,7 @@ HTTP → Handler → Service → Repository → UBL21-DIAN → DIAN
 > Esto ya existe (Fase 2.7-2.9), no es solo el plan. `POST /invoices`/`credit-notes`/
 > `debit-notes` construyen, firman y — si el ambiente lo permite — envían en la misma llamada
 > (no hay un `/send` separado: separar "crear" de "enviar" no tenía un caso de uso real una
-> vez que `ubl21dian` ya hace las dos cosas en un solo pipeline).
+> vez que `cofacture` ya hace las dos cosas en un solo pipeline).
 >
 > Todo excepto `/auth/*` y `/health` exige `Authorization: Bearer <token>`. "Un usuario = un
 > emisor" (sección 9.17): ningún endpoint recibe `issuer_id` del cliente — siempre se toma del
@@ -273,7 +273,7 @@ GET  /health
 
 ## 7. Regla de oro
 
-- UBL21-DIAN no conoce HTTP ni DB.
+- COFACTURE no conoce HTTP ni DB.
 - API-DIAN no conoce firma ni XML.
 - API-DIAN no es un CRM ni un ERP: no gestiona clientes ni productos como catálogos propios
   (llegan como snapshot en el payload de cada documento). Usuarios/auth sí viven aquí —
@@ -303,7 +303,7 @@ Decisión consciente, no descuido — si se necesitan, se integran como servicio
 
 ## 9. Estado actual y hoja de ruta
 
-### 9.1 Fase 1 (motor `ubl21dian`) — completa y validada contra la DIAN real
+### 9.1 Fase 1 (motor `cofacture`) — completa y validada contra la DIAN real
 
 | Documento DIAN | Construir | Firmar (XAdES) | CUFE/CUDE | Enviado y validado en habilitación real |
 |---|---|---|---|---|
@@ -339,19 +339,19 @@ Verificados contra el servidor real de la DIAN, no solo contra el anexo técnico
 - Nunca se puede reformatear (`Indent`) un documento después de firmarlo — invalida la firma porque cambia los bytes ya canonicalizados.
 - El Anexo Técnico 1.9 tiene un error de transcripción real en su propio ejemplo de CUDE para Nota Débito (sección 11.4.5) — el hash publicado no corresponde a la cadena de composición que el mismo documento publica.
 
-### 9.5 `ubl21dian` y `api-dian` siguen siendo dos módulos Go independientes
+### 9.5 `cofacture` y `api-dian` siguen siendo dos módulos Go independientes
 
-Cada uno con su propio `go.mod` y su propio repo git — `api-dian` consume a `ubl21dian` como
-dependencia (`import "github.com/diegofxm/ubl21dian/..."`), nunca al revés. Es el mismo patrón
+Cada uno con su propio `go.mod` y su propio repo git — `api-dian` consume a `cofacture` como
+dependencia (`import "github.com/diegofxm/cofacture/..."`), nunca al revés. Es el mismo patrón
 que usar cualquier paquete externo de Go, salvo que por ahora no está publicado en GitHub.
 
 Mientras los dos se desarrollan en paralelo, `project-ubl/go.work` (no es un módulo Go en sí,
-solo el archivo de workspace) le dice al compilador que resuelva `github.com/diegofxm/ubl21dian`
-contra la carpeta local `./ubl21dian` en vez de ir a buscarlo a un remoto — así `api-dian` ve
-los cambios de `ubl21dian` al instante, sin `git push`, sin tags, sin que `ubl21dian` necesite
+solo el archivo de workspace) le dice al compilador que resuelva `github.com/diegofxm/cofacture`
+contra la carpeta local `./cofacture` en vez de ir a buscarlo a un remoto — así `api-dian` ve
+los cambios de `cofacture` al instante, sin `git push`, sin tags, sin que `cofacture` necesite
 siquiera tener un remoto configurado. El día que se quiera congelar una versión estable para
-desplegar de verdad, se publica `ubl21dian` en un repo real con un tag (`v0.1.0`...), se
-agrega `require github.com/diegofxm/ubl21dian v0.1.0` al `go.mod` de `api-dian`, y se quita (o
+desplegar de verdad, se publica `cofacture` en un repo real con un tag (`v0.1.0`...), se
+agrega `require github.com/diegofxm/cofacture v0.1.0` al `go.mod` de `api-dian`, y se quita (o
 se deja de usar) el `go.work` — ahí es donde Go vuelve a resolver la dependencia "de verdad".
 
 ### 9.6 Fase 2 (`api-dian`) — en marcha
@@ -366,7 +366,7 @@ DIAN/la base de datos, no el ruteo HTTP.
 | 2.2 | Esquema + seed de catálogos DIAN (8 catálogos, ver 9.4) | ✅ Verificado: seed idempotente, conteos estables tras re-ejecutar |
 | 2.3 | `internal/issuers` — alta de emisor/tenant, credenciales cifradas | ✅ Verificado contra Postgres real (cifrado confirmado en crudo + roundtrip) |
 | 2.4 | `internal/numbering` — claim atómico de consecutivo | ✅ Verificado: 300 reclamos concurrentes reales contra Postgres, exactamente {1..300} sin duplicados ni huecos |
-| 2.5 | `internal/documents` — orquestar `ubl21dian` para Invoice | ✅ Verificado: pipeline completo contra la DIAN real (certificado y credenciales reales), ver 9.10 |
+| 2.5 | `internal/documents` — orquestar `cofacture` para Invoice | ✅ Verificado: pipeline completo contra la DIAN real (certificado y credenciales reales), ver 9.10 |
 | 2.6 | Extender 2.5 a CreditNote/DebitNote | ✅ Verificado localmente contra Postgres real (sin red DIAN, ver 9.11) |
 | 2.7 | `internal/api` — handlers/routes/middleware | ✅ Verificado con servidor real + curl (ver 9.12) |
 | 2.8 | Prueba real end-to-end vía HTTP completo (`SendBillSync`) | ✅ Verificado con servidor real + curl, ver 9.16 |
@@ -377,7 +377,7 @@ DIAN/la base de datos, no el ruteo HTTP.
 currencies, departments, identification_types (códigos numéricos oficiales DIAN: 13 cédula,
 31 NIT, etc. — no abreviaturas como "CC"/"NIT", corregido en la Fase 2.8 al fallar un envío
 real con esos valores), municipalities, payment_methods, tax_types, unit_measures,
-dian_document_types (solo 01/91/92 — lo que `ubl21dian` ya soporta; ver 4.1 sobre por qué no
+dian_document_types (solo 01/91/92 — lo que `cofacture` ya soporta; ver 4.1 sobre por qué no
 se llama `invoice_type_codes`).
 
 **Huecos conocidos de datos, no de arquitectura** — pendientes de una fuente oficial antes de
@@ -435,8 +435,8 @@ siguiente reclamo tras agotar el rango falló con `ErrRangeExhausted` como se es
 
 ### 9.10 Fase 2.5 (`internal/documents`) — completa
 
-El primer paquete de `api-dian` que importa `ubl21dian` directamente. `Service.IssueInvoice`
-reproduce exactamente el pipeline de `ubl21dian/soap/realsend_test.go` (Fase 1.7), pero
+El primer paquete de `api-dian` que importa `cofacture` directamente. `Service.IssueInvoice`
+reproduce exactamente el pipeline de `cofacture/soap/realsend_test.go` (Fase 1.7), pero
 orquestado: carga el `Issuer` → carga y reclama el `NumberingRange` (`ClaimNext`) → construye
 `domain.Invoice` → `cufe.Compute` → `securitycode.Compute` → `qr.URL` →
 `builder.BuildInvoice` → `signer.Sign` → `zip.Build` → `soap.SendTestSetAsync` →
@@ -456,7 +456,7 @@ en una migración aparte (`000005_issuers_party_fields`) y se unificaron dentro 
 proyecto. `Totals` y `HeaderTaxes` se calculan automáticamente a partir de `Lines` (no se le
 pide al llamador que los calcule y posiblemente los deje inconsistentes).
 
-**Limitación ya resuelta (ver sección 9.14)**: en su momento `ubl21dian/soap` solo exponía
+**Limitación ya resuelta (ver sección 9.14)**: en su momento `cofacture/soap` solo exponía
 `SendTestSetAsync` — `SendBillSync`/`SendBillAsync` se agregaron después, y resultaron ser la
 forma de seguir probando contra habilitación incluso con el set de pruebas ya cerrado.
 `IssueInvoice` por ahora solo intenta enviar si el emisor está en habilitación y el rango
@@ -485,7 +485,7 @@ tres) — la única diferencia real es `cude.Compute` en vez de `cufe.Compute` (
 `SoftwarePIN`, no la clave técnica del rango) y `builder.BuildCreditNote`/`BuildDebitNote` en
 vez de `BuildInvoice`. `documents` sigue siendo una sola tabla: `billing_reference` y
 `discrepancy_response` (JSONB, nulos en Invoice) y `note_type_code` (solo CreditNote —
-DebitNote no tiene ese campo en `ubl21dian`) son las únicas columnas nuevas.
+DebitNote no tiene ese campo en `cofacture`) son las únicas columnas nuevas.
 
 **Decisión explícita del usuario**: verificación 100% local para esta fase, sin tocar la red
 de la DIAN — el set de pruebas de habilitación de la Fase 1.7/1.9 ya está cerrado
@@ -513,8 +513,8 @@ Mismo patrón que `core-bank/internal/api`: middleware (`RequestID` → `Logging
 de afuera hacia adentro), `response.WriteJSON`/`WriteError`/`classify()` mapeando los errores
 de dominio de `issuers`/`numbering`/`documents` a códigos HTTP, y un único `API` struct que
 agrupa los tres servicios. `internal/api/dto.go` define el contrato JSON **independiente**
-de los tipos de `domain.*` de `ubl21dian` (que no tienen tags JSON y pueden cambiar libremente
-— solo `internal/documents` debe conocer `ubl21dian` directamente, ver sección 4.1).
+de los tipos de `domain.*` de `cofacture` (que no tienen tags JSON y pueden cambiar libremente
+— solo `internal/documents` debe conocer `cofacture` directamente, ver sección 4.1).
 
 Decisiones de seguridad explícitas en los DTOs de respuesta: `issuerResponse` nunca incluye
 `Certificate`/`SoftwarePIN`/`CertificatePassword` (ni cifrados); `numberingRangeResponse`
@@ -533,7 +533,7 @@ respuesta trajo un CUFE real, una URL de QR real, y el XML firmado completo con
 respuesta del emisor NO contiene `certificate_base64` ni `software_pin`. Registros de prueba
 eliminados al terminar.
 
-### 9.14 `SendBillSync`/`SendBillAsync` agregados a `ubl21dian` — habilitación sigue disponible
+### 9.14 `SendBillSync`/`SendBillAsync` agregados a `cofacture` — habilitación sigue disponible
 
 Pregunta que se resolvió el 2026-06-21: una vez el set de pruebas oficial de la Fase 1.7/1.9
 quedó "Aceptado" (cerrado, `SendTestSetAsync` ya no acepta más envíos para ese `TestSetID`),
@@ -541,7 +541,7 @@ quedó "Aceptado" (cerrado, `SendTestSetAsync` ya no acepta más envíos para es
 (`SendBillSync`/`SendBillAsync`), o bloquea todo envío adicional una vez completada la
 certificación?
 
-**Resultado: sigue disponible.** Se implementaron ambas operaciones en `ubl21dian/soap`
+**Resultado: sigue disponible.** Se implementaron ambas operaciones en `cofacture/soap`
 (`operations.go`), confirmadas contra el WSDL real (`docs/reference/wsdl/`):
 
 - **`SendBillSync(fileName, content)`** — un solo documento, síncrono, devuelve `*DianResponse`
@@ -583,7 +583,7 @@ para probar la ruta "no se envía" tuvieron que migrarse a `Environment: Producc
 ahora el único ambiente que nunca intenta red real (ver `internal/documents/service_test.go`,
 `internal/api/api_test.go`).
 
-**Verificado contra la DIAN real a través del orquestador completo** (no solo `ubl21dian`
+**Verificado contra la DIAN real a través del orquestador completo** (no solo `cofacture`
 directo) — `documents.Service.IssueInvoice` con un emisor/rango reales, sin `TestSetID`: el
 primer intento fue rechazado (`StatusCode 99`, "errores en campos mandatorios") y reveló **dos
 bugs reales, nunca antes detectados** porque ningún test previo había llegado a un envío real
@@ -599,7 +599,7 @@ a través de la API:
 2. **El catálogo `identification_types` (sembrado en la Fase 2.2) tenía los códigos
    equivocados** — abreviaturas legibles ("CC", "NIT", "CE"...) en vez de los códigos
    numéricos oficiales de la DIAN ("13", "31", "22"...) que `cbc:CompanyID.@schemeName` /
-   `sts:ProviderID.@schemeName` esperan literalmente (`ubl21dian/builder/party.go`,
+   `sts:ProviderID.@schemeName` esperan literalmente (`cofacture/builder/party.go`,
    `extensions.go`). Confirmado contra la factura real ya autorizada
    (`soap/realsend_sync_test.go`, que usa `"13"`/`"31"` directamente). Fix: CSV/migración
    corregidos a los 11 códigos numéricos reales (`11,12,13,21,22,31,41,42,47,50,91`); catálogo
@@ -616,7 +616,7 @@ a través de la API:
 
 Tras los tres fixes: **`StatusCode "00"`, "Procesado Correctamente.", "La Factura electrónica
 SETP990000000, ha sido autorizada."** — primera factura real autorizada a través de la cadena
-completa `documents.Service` → `ubl21dian` → DIAN, sin `TestSetID`. Queda únicamente la
+completa `documents.Service` → `cofacture` → DIAN, sin `TestSetID`. Queda únicamente la
 notificación no bloqueante `FAJ43b` (nombre no coincide con el RUT), ya documentada en 9.14.
 
 ### 9.16 Fase 2.8 verificada vía HTTP real (curl, no solo `documents.Service` directo)
@@ -648,7 +648,7 @@ multi-emisor por usuario — se agregaría después si hace falta, sin romper lo
 
 - `users`: `issuer_id` (NOT NULL, fijo), `email` (UNIQUE global), `password_hash` (bcrypt,
   irreversible — a diferencia de `software_pin`/`certificate` de `issuers`, que sí se
-  descifran para usarse con `ubl21dian`, una contraseña de login nunca necesita recuperarse).
+  descifran para usarse con `cofacture`, una contraseña de login nunca necesita recuperarse).
 - `POST /api/v1/auth/register` crea el emisor Y su primer usuario admin en una sola llamada
   (`auth.Service.Register` usa `IssuerPort.RegisterIssuer`, mismo patrón de "ports" angostos
   que `documents`). Valida que el correo esté libre ANTES de crear el emisor — evita un

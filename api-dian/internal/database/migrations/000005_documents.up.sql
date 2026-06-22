@@ -8,7 +8,7 @@
 -- porque eso es lo que la ley exige conservar, no porque api-dian los gestione como entidades.
 --
 -- signed_xml guarda el XML firmado completo — retención legal, nunca se recalcula después de
--- firmado (mismo principio que ubl21dian: nunca mutar un documento ya firmado).
+-- firmado (mismo principio que cofacture: nunca mutar un documento ya firmado).
 CREATE TABLE documents (
     id                       UUID         PRIMARY KEY,
     issuer_id                UUID         NOT NULL REFERENCES issuers(id),
@@ -33,7 +33,7 @@ CREATE TABLE documents (
 
     billing_reference         JSONB, -- solo CreditNote/DebitNote
     discrepancy_response      JSONB, -- solo CreditNote/DebitNote, opcional incluso ahí
-    note_type_code            VARCHAR(2), -- CreditNoteTypeCode — solo CreditNote lo tiene en ubl21dian
+    note_type_code            VARCHAR(2), -- CreditNoteTypeCode — solo CreditNote lo tiene en cofacture
 
     qr_url                    TEXT        NOT NULL,
     signed_xml                 TEXT       NOT NULL,
