@@ -1,0 +1,62 @@
+import { useState } from "react";
+import { ChevronDown, LogOut, Server, Layers, User as UserIcon } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { ThemeToggle } from "./ThemeToggle";
+
+// Barra única h-10, fondo oscuro — única zona oscura de la UI (sección 5 del design system).
+export function Navbar() {
+  const { user, activeIssuer, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <header className="flex h-10 items-center justify-between bg-(--navbar-bg) px-3 text-(--navbar-text)">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <Layers className="h-5 w-5" />
+          <span className="text-base font-semibold">apidian</span>
+        </div>
+        {activeIssuer && (
+          <>
+            <span className="h-4 w-px bg-(--navbar-text) opacity-30" />
+            <div className="flex items-center gap-1.5 text-xs opacity-70">
+              <Server className="h-3.5 w-3.5" />
+              <span>Empresa:</span>
+              <span className="font-mono">{activeIssuer.business_name}</span>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1">
+        <ThemeToggle />
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            className="flex items-center gap-1.5 rounded px-2 py-1 text-xs hover:bg-white/10"
+          >
+            <UserIcon className="h-3.5 w-3.5" />
+            <span>{user?.name}</span>
+            <ChevronDown className="h-3 w-3" />
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-full z-10 mt-1 w-48 rounded border border-(--border-light) bg-(--bg-secondary) text-(--text-primary) shadow-lg">
+              <div className="border-b border-(--border-light) px-3 py-2">
+                <p className="text-xs font-medium">{user?.name}</p>
+                <p className="text-xs text-(--text-muted)">{user?.email}</p>
+              </div>
+              <button
+                type="button"
+                onClick={logout}
+                className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-xs text-(--color-danger) hover:bg-(--bg-hover)"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Cerrar sesión
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}

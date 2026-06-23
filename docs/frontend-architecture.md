@@ -1,7 +1,7 @@
 # Arquitectura Profesional frontend DIAN en React TS (FRONTEND)
 
 > Este documento es la bitácora del frontend — separado a propósito de
-> `docs/api-dian-architecture.md` (decisión explícita del usuario, 2026-06-23): los hallazgos
+> `docs/apidian-architecture.md` (decisión explícita del usuario, 2026-06-23): los hallazgos
 > sobre el backend van allá; todo lo que tenga que ver con cómo se ve/usa/construye el
 > frontend (el explorador tipo Postman en `frontend/static/`, el dashboard improvisado en
 > `frontend/static/dashboard/`, y el dashboard definitivo que se construirá después en
@@ -12,12 +12,12 @@
 El usuario pidió pasar de probar con Postman a probar con un frontend real en el navegador,
 para simular un usuario real — razonando que eso revela huecos ocultos en la API que Postman/
 curl nunca muestran porque nunca necesitan presentar nada, solo enviar y leer un código de
-estado. Esto se confirmó de inmediato (ver hallazgos abajo y en `api-dian-architecture.md`
+estado. Esto se confirmó de inmediato (ver hallazgos abajo y en `apidian-architecture.md`
 secciones 9.28-9.30).
 
-`frontend/` es un módulo Go **independiente y separado de `api-dian`** (decisión explícita del
+`frontend/` es un módulo Go **independiente y separado de `apidian`** (decisión explícita del
 usuario: no quería el frontend de pruebas viviendo dentro del módulo del backend) — agregado a
-`go.work` pero no a ningún `cmd/` de `api-dian`. Un servidor estático de ~25 líneas
+`go.work` pero no a ningún `cmd/` de `apidian`. Un servidor estático de ~25 líneas
 (`//go:embed`) sirve dos herramientas sin build step (HTML+CSS+JS plano, sin npm, sin
 frameworks):
 
@@ -51,7 +51,7 @@ casi nada de eso.
 
 El usuario fue explícito sobre el porqué importa: aunque `customers` es un catálogo de
 conveniencia separado de la fuente de verdad del documento (correcto, ver
-`api-dian-architecture.md` sección 4.2), el snapshot que se persiste en el documento SÍ debe
+`apidian-architecture.md` sección 4.2), el snapshot que se persiste en el documento SÍ debe
 ser un reflejo completo del cliente en ese momento — por motivos históricos, si el cliente se
 elimina después, la factura ya emitida no debe perder datos que sí tenía disponibles al
 crearla.
@@ -59,7 +59,7 @@ crearla.
 **Para el dashboard definitivo**: al seleccionar un cliente guardado, copiar el objeto
 completo que devuelve `GET /customers` (todos los campos del `partyDTO`) al construir el
 `customer` del borrador — no reconstruirlo a mano desde 4 inputs visibles. El backend
-(`api-dian`) ya expone todo lo necesario vía `customerResponse`/`partyDTO`; esto es
+(`apidian`) ya expone todo lo necesario vía `customerResponse`/`partyDTO`; esto es
 puramente un hueco del frontend, no de la API.
 
 ### 2. `cac:PaymentMeans` (forma de pago) — el dashboard nunca lo pide ni lo manda
@@ -70,7 +70,7 @@ formulario de "Nueva factura" del dashboard improvisado nunca pide forma de pago
 nunca se manda — esto causó rechazos reales de la DIAN ("errores en campos mandatorios") en
 3+ facturas de prueba del usuario.
 
-**Ya corregido en el backend** (`api-dian`, sección 9.30 de `api-dian-architecture.md`):
+**Ya corregido en el backend** (`apidian`, sección 9.30 de `apidian-architecture.md`):
 `documents.Service.validateBase` ahora exige `payment_means` no vacío desde el borrador — así
 que el dashboard improvisado, tal como está hoy, **ya no puede crear un borrador de factura**
 (toda petición a `POST /invoices` sin `payment_means` responde 400). El usuario decidió no
@@ -89,11 +89,73 @@ El usuario señaló que el dashboard improvisado no deja claro cuál es el `curr
 una resolución antes de confirmar un documento — importante porque ayuda a anticipar qué
 número se va a reclamar. Diferido explícitamente para el dashboard definitivo (no es un bug
 del backend: `GET /numbering-ranges` ya devuelve `current_number`, ver
-`api-dian-architecture.md` sección 9.19 — es una cuestión de cómo se presenta en la UI).
+`apidian-architecture.md` sección 9.19 — es una cuestión de cómo se presenta en la UI).
 
-## Pendiente
+## Dashboard definitivo (React + TS) — Fase 1: login/register + primer pantallazo (2026-06-23)
 
-El dashboard definitivo (React + TS) todavía no tiene instrucciones de diseño del usuario —
-no asumir su forma todavía. Este documento se irá llenando con esas instrucciones cuando el
-usuario las dé, y con cualquier hallazgo nuevo que aparezca mientras se sigue usando el
-dashboard improvisado o el explorador tipo Postman mientras tanto.
+Proyecto en `frontend/` (Vite + React 19 + TypeScript, módulo separado de `apidian`, sin
+relación de dependencia — solo se comunican por HTTP). Design system aplicado tal cual
+`docs/reference/DESIGN_SYSTEM.md` (extraído de un dashboard previo del usuario, estética
+pgAdmin/DataGrip: denso, 13px base, un solo azul de acento, CSS variables para tokens).
+
+**Stack**: Tailwind v4 (`@tailwindcss/vite`), `lucide-react`, `react-router` v7, `fetch` propio
+(`src/lib/apiClient.ts`, sin librería de cache — no hace falta todavía), sesión en
+`localStorage` vía `AuthContext` (Bearer JWT, igual contrato que `apidian`).
+
+**Corregido desde el día 1** (vs. las inconsistencias que el propio design system señala en
+su sección 15): un solo azul de acento en todos los CTAs, colores semánticos (éxito/peligro/
+info) como variables CSS reales (no hex sueltos), un solo radio de borde por tamaño (`rounded`
+chico, `rounded-lg` solo contenedores grandes), foco visible global (`:focus-visible` en
+`index.css`), hover vía clases Tailwind (`hover:bg-(--bg-hover)`) en vez de
+`onMouseEnter`/`onMouseLeave`, tema oscuro con toggle real funcionando desde ya (paleta VS Code
+Dark+ ya estaba modelada en el design system, solo faltaba el control).
+
+**Decisión de alcance** (gate de empresa activa): `apidian` soporta multi-empresa (0/1/N por
+usuario, sección 9.32) — sin empresa activa, casi toda la API responde 409
+(`middleware.RequireTenant`). Por eso el "primer pantallazo" de esta fase no es solo
+login/register: incluye `OnboardingPage` (listar empresas existentes / crear una nueva) como
+paso obligatorio antes de montar el shell del dashboard (`DashboardLayout`). El formulario de
+creación de empresa es deliberadamente mínimo — solo lo que `issuers.validateIssuer` exige de
+verdad (nit, business_name, environment) más los campos de identidad/dirección obvios
+(check_digit, identification_type_code, department_code, municipality_code, address_line,
+email) — **no** pide software/PIN/certificado, eso queda para una fase de "configuración del
+emisor" aparte (igual que en el backend, completar el emisor es gradual).
+
+**Construido en esta fase**: `lib/apiClient.ts` + `lib/types.ts`, `context/AuthContext.tsx`
+(login/register/logout/listIssuers/createIssuer/selectIssuer, sesión persistida),
+`context/ThemeContext.tsx` (toggle claro/oscuro persistido), componentes base `ui/Button.tsx`
+(las 5 variantes de la sección 10 del design system, antes no existía un componente
+reutilizable), `ui/Input.tsx`, `ui/Card.tsx`, `ui/Banner.tsx`, `Navbar.tsx` (h-10, oscuro,
+indicador de empresa activa, menú de usuario), `Sidebar.tsx` (colapsable, persistida, items de
+navegación futuros mostrados pero deshabilitados — todavía no tienen página), `LoginPage.tsx`,
+`RegisterPage.tsx`, `OnboardingPage.tsx`, `DashboardPage.tsx` (placeholder con resumen de
+sesión/empresa activa), `DashboardLayout.tsx` (decide Onboarding vs. shell del dashboard según
+si hay empresa activa), `ProtectedRoute.tsx`.
+
+**Verificado de punta a punta con un navegador real** (Playwright headless, no solo
+`tsc`/build): registro → onboarding (sin empresa) → crear empresa → dashboard con datos
+correctos → toggle de tema oscuro → colapso de sidebar → logout → login → auto-selección de
+empresa (exactamente 1 vinculada) directo al dashboard. Sin errores de consola en ningún paso.
+Datos de prueba limpiados de la base real después.
+
+**Catálogos DIAN sin endpoint HTTP todavía** (hallazgo, no bloqueante para esta fase):
+`identification_type_code`, `department_code`, `municipality_code` en el formulario de
+creación de empresa son inputs de texto libre, no selects — `apidian` no expone ningún
+`GET /catalogs/...` para department/municipality/identification-types/tax-schemes/payment-
+methods (son tablas de catálogo en la base de datos, sembradas, pero nunca consultables vía
+HTTP). Para una experiencia pulida (selects en vez de texto libre) en fases futuras —
+configuración del emisor, formulario de clientes, formulario de productos/líneas de factura —
+hace falta agregar esos endpoints al backend primero. Anotado aquí porque es un hallazgo de
+construir el frontend, igual que los de la sección anterior.
+
+## Pendiente para próximas fases
+
+- Páginas reales para Facturas/Clientes/Productos/Numeración/Configuración (hoy son items de
+  sidebar deshabilitados, sin ruta).
+- Endpoints de catálogos en `apidian` (ver hallazgo arriba) antes de construir los formularios
+  de cliente/producto/factura con selects reales en vez de texto libre.
+- Cambiar de empresa activa DESPUÉS de ya estar en el dashboard (hoy `selectIssuer` solo se usa
+  desde `OnboardingPage`; el menú de usuario del Navbar no lo expone todavía).
+- Los 3 hallazgos ya logueados arriba (snapshot de cliente incompleto, payment_means en el
+  formulario de factura, claridad del consecutivo actual) siguen pendientes para cuando se
+  construya la página de Facturas real.

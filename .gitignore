@@ -2,21 +2,19 @@
 # RUT y facturas reales con datos de terceros. Nunca debe llegar al historial de git.
 /docs/reference/
 
-# Puente de desarrollo en paralelo entre los módulos cofacture/api-dian — es local del
+# Puente de desarrollo en paralelo entre los módulos cofacture/apidian — es local del
 # entorno de quien desarrolla, no parte del código versionado.
 /go.work
 /go.work.sum
 
-# Credenciales y configuración local de api-dian
-api-dian/.env
-api-dian/.env.*
-!api-dian/.env.example
+# Credenciales y configuración local de apidian
+apidian/.env
+apidian/.env.*
+!apidian/.env.example
 
 # Binarios compilados
-api-dian.exe
+apidian.exe
 cofacture.exe
-frontend/devui.exe
-frontend/frontend.exe
 *.exe
 /bin/
 /dist/

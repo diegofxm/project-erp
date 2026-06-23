@@ -21,7 +21,7 @@ import (
 // pruebas oficial de la Fase 1.7/1.9 ya quedó "Aceptado" — esa es justamente la pregunta que
 // esta prueba responde: ¿el ambiente de habilitación sigue disponible para pruebas continuas
 // usando las operaciones de envío normales, o la DIAN bloquea todo envío adicional una vez
-// completada la certificación? Ver docs/api-dian-architecture.md sección 9.9 para el
+// completada la certificación? Ver docs/apidian-architecture.md sección 9.9 para el
 // resultado y su interpretación.
 func TestSendBillSync_Real(t *testing.T) {
 	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")

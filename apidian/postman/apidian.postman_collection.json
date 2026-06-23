@@ -1,0 +1,1310 @@
+{
+  "info": {
+    "name": "apidian",
+    "description": "Pruebas manuales de la API de apidian (Fase 2.7-2.25). El certificado embebido en 'PUT Completar software + certificado' es uno autofirmado generado solo para pruebas (no es el certificado real de la DIAN) — sirve para construir y firmar XML localmente, nunca para enviar a la DIAN de verdad. Los requests están encadenados con variables de colección: corre las carpetas en orden y cada paso captura automáticamente los IDs/token que necesita el siguiente. Todo excepto Health y Auth exige el header Authorization: Bearer {{accessToken}}, capturado automáticamente al registrarse/iniciar sesión — ningún request manda issuer_id: siempre se toma de la empresa ACTIVA en el token (middleware.RequireTenant exige que haya una para casi todo, salvo las rutas de gestión de empresas mismas). Customers/Products son catálogos de conveniencia (no cambian cómo se emiten documentos — invoices sigue recibiendo customer/lines pass-through). Desde la sección 9.32: el registro (0. Auth) crea SOLO el usuario, sin ninguna empresa — un usuario puede tener cero, una, o varias empresas vinculadas ('POST Crear empresa'/'GET Listar mis empresas'/'POST Seleccionar empresa'); el login autoselecciona la empresa activa solo si hay exactamente una. Software/PIN/certificado tampoco son obligatorios al crear la empresa — eso se completa después, independientemente, en '0b. Configuración del emisor'. Y emitir un documento (2. Documents) ya no es una sola llamada: primero se crea un BORRADOR (POST, sin reclamar número), se puede editar (PUT) o eliminar (DELETE) libremente, y solo al confirmar (POST .../confirm) se reclama el consecutivo real, se firma, y se envía si el ambiente lo permite — así un error de captura no quema un número real de la DIAN.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "issuerId",
+      "value": ""
+    },
+    {
+      "key": "invoiceRangeId",
+      "value": ""
+    },
+    {
+      "key": "creditNoteRangeId",
+      "value": ""
+    },
+    {
+      "key": "debitNoteRangeId",
+      "value": ""
+    },
+    {
+      "key": "invoiceDocumentId",
+      "value": ""
+    },
+    {
+      "key": "invoicePrefix",
+      "value": ""
+    },
+    {
+      "key": "invoiceCufe",
+      "value": ""
+    },
+    {
+      "key": "creditNoteDocumentId",
+      "value": ""
+    },
+    {
+      "key": "debitNoteDocumentId",
+      "value": ""
+    },
+    {
+      "key": "scratchDocumentId",
+      "value": ""
+    },
+    {
+      "key": "customerId",
+      "value": ""
+    },
+    {
+      "key": "productId",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "0. Auth",
+      "item": [
+        {
+          "name": "POST Registrar usuario (sin empresa)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('accessToken', body.token);",
+                  "    console.log('accessToken =', body.token);",
+                  "}",
+                  "pm.test('201 Created', () => pm.response.code === 201);",
+                  "pm.test('todavía sin empresa activa', () => !body.issuer);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Desde la sección 9.32: el registro crea SOLO el usuario, desacoplado de cualquier empresa — un usuario puede terminar con cero, una, o varias empresas vinculadas (multi-empresa/multi-sucursal). Para conseguir la primera empresa, ver 'POST Crear empresa' más abajo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@empresa.test\",\n  \"password\": \"contraseña-segura\",\n  \"name\": \"Admin de Prueba\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Iniciar sesión",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('accessToken', body.token);",
+                  "    if (body.issuer) {",
+                  "        pm.collectionVariables.set('issuerId', body.issuer.id);",
+                  "    }",
+                  "}",
+                  "pm.test('200 OK', () => pm.response.code === 200);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@empresa.test\",\n  \"password\": \"contraseña-segura\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Si el usuario tiene exactamente UNA empresa vinculada, el login la autoselecciona en el token (body.issuer viene lleno) — con cero o varias, body.issuer viene ausente y hay que crear (POST /issuers) o elegir (POST /issuers/{id}/select) explícitamente."
+          }
+        },
+        {
+          "name": "POST Crear empresa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('accessToken', body.token);",
+                  "    pm.collectionVariables.set('issuerId', body.issuer.id);",
+                  "    console.log('issuerId =', body.issuer.id);",
+                  "}",
+                  "pm.test('201 Created', () => pm.response.code === 201);",
+                  "pm.test('nunca expone secretos', () => {",
+                  "    return !('certificate_base64' in body.issuer) && !('software_pin' in body.issuer) && !('certificate_password' in body.issuer);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Crea una empresa nueva y la vincula al usuario autenticado como 'owner' — reemite el token con esta empresa ya activa. Solo los datos que la DIAN exige del emisor mismo: software_id/software_pin/certificate_base64/certificate_password ya NO son obligatorios aquí, se completan después en '0b. Configuración del emisor'. Sin ellos, esta empresa puede crear/editar/eliminar borradores de documentos, pero no confirmarlos.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nit\": \"900373076\",\n  \"check_digit\": \"1\",\n  \"business_name\": \"Empresa de Prueba Postman S.A.S.\",\n  \"identification_type_code\": \"31\",\n  \"department_code\": \"11\",\n  \"municipality_code\": \"11001\",\n  \"address_line\": \"Calle 1 # 2-3\",\n  \"email\": \"facturacion@empresa.test\",\n  \"environment\": \"1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/issuers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "issuers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Listar mis empresas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Lista las empresas a las que el usuario autenticado tiene acceso — para mostrar un selector cuando hay más de una, o confirmar que todavía no tiene ninguna.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/issuers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "issuers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Seleccionar empresa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('accessToken', body.token);",
+                  "    console.log('accessToken (empresa activa: ' + body.issuer.business_name + ') =', body.token);",
+                  "}",
+                  "pm.test('200 OK', () => pm.response.code === 200);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "description": "Reemite el token con {{issuerId}} como empresa activa — solo si el usuario autenticado de verdad tiene acceso a ella (404 si no, mismo criterio que cualquier recurso de otro tenant).",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/issuers/{{issuerId}}/select",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "issuers",
+                "{{issuerId}}",
+                "select"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Consultar mi emisor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/issuers/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "issuers",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "0b. Configuración del emisor",
+      "item": [
+        {
+          "name": "PUT Completar software + certificado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.code === 200);",
+                  "const body = pm.response.json();",
+                  "pm.test('nunca expone secretos', () => {",
+                  "    return !('certificate_base64' in body) && !('software_pin' in body) && !('certificate_password' in body);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Completa software/PIN/certificado DESPUÉS del registro — todos los campos son opcionales (mandá solo el que tengas a mano, los demás quedan como estaban). Sin esto, POST /documents/{id}/confirm responde 422 (ErrIssuerNotReadyToIssue) en vez de un error de bajo nivel al intentar parsear un certificado vacío. El certificado embebido aquí es uno autofirmado generado solo para pruebas, no el real de la DIAN.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"software_id\": \"software-id-de-prueba\",\n  \"software_pin\": \"12345\",\n  \"certificate_base64\": \"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\",\n  \"certificate_password\": \"clave-de-prueba\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/issuers/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "issuers",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Numbering Ranges",
+      "item": [
+        {
+          "name": "POST Crear rango - Invoice (01)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('invoiceRangeId', body.id); }",
+                  "pm.test('201 Created', () => pm.response.code === 201);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "next_number es opcional. Si tu resolución REAL ya tiene números autorizados de verdad en la DIAN (ej. pruebas anteriores directas con cofacture), agrega \"next_number\": <el próximo que la DIAN espera> para que el primer documento emitido use exactamente ese número, no range_from. Sin next_number, el rango se asume completamente nuevo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dian_document_type_code\": \"01\",\n  \"prefix\": \"SETP\",\n  \"resolution_number\": \"18760000001\",\n  \"resolution_date\": \"2024-01-01\",\n  \"range_from\": 1,\n  \"range_to\": 5000,\n  \"valid_from\": \"2024-01-01\",\n  \"valid_to\": \"2026-01-01\",\n  \"environment\": \"1\",\n  \"technical_key\": \"clave-tecnica-de-prueba\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/numbering-ranges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "numbering-ranges"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Crear rango - Nota Crédito (91)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('creditNoteRangeId', body.id); }",
+                  "pm.test('201 Created', () => pm.response.code === 201);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dian_document_type_code\": \"91\",\n  \"prefix\": \"SETPNC\",\n  \"resolution_number\": \"18760000002\",\n  \"resolution_date\": \"2024-01-01\",\n  \"range_from\": 1,\n  \"range_to\": 5000,\n  \"valid_from\": \"2024-01-01\",\n  \"valid_to\": \"2026-01-01\",\n  \"environment\": \"1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/numbering-ranges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "numbering-ranges"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Crear rango - Nota Débito (92)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('debitNoteRangeId', body.id); }",
+                  "pm.test('201 Created', () => pm.response.code === 201);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dian_document_type_code\": \"92\",\n  \"prefix\": \"SETPND\",\n  \"resolution_number\": \"18760000003\",\n  \"resolution_date\": \"2024-01-01\",\n  \"range_from\": 1,\n  \"range_to\": 5000,\n  \"valid_from\": \"2024-01-01\",\n  \"valid_to\": \"2026-01-01\",\n  \"environment\": \"1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/numbering-ranges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "numbering-ranges"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Consultar rango (Invoice)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/numbering-ranges/{{invoiceRangeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "numbering-ranges",
+                "{{invoiceRangeId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Listar mis rangos (todos)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/numbering-ranges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "numbering-ranges"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Listar mis rangos (filtrado por tipo)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/numbering-ranges?dian_document_type_code=01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "numbering-ranges"
+              ],
+              "query": [
+                {
+                  "key": "dian_document_type_code",
+                  "value": "01"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Documents",
+      "item": [
+        {
+          "name": "POST Crear borrador de Factura",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('invoiceDocumentId', body.id); }",
+                  "pm.test('201 Created', () => pm.response.code === 201);",
+                  "pm.test('status draft (todavía no se reclamó número)', () => body.status === 'draft');",
+                  "pm.test('sin número ni CUFE todavía', () => !body.number && !body.document_key);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Crea un BORRADOR — valida y persiste customer/lines, pero NO reclama número, NO firma, NO envía (eso solo pasa en 'POST Confirmar documento', más abajo). Se puede editar (PUT) o eliminar (DELETE) libremente mientras siga en borrador. customer_id es opcional — solo trazabilidad a un cliente guardado (ver carpeta '3. Customers'), nunca reemplaza 'customer'. Si {{customerId}} está vacío, se manda como cadena vacía y la API lo trata como 'no se mandó' (sin error).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"numbering_range_id\": \"{{invoiceRangeId}}\",\n  \"customer_id\": \"{{customerId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Servicio de prueba (Postman)\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invoices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PUT Editar borrador de Factura",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Reemplaza por completo los datos de un borrador — solo mientras siga en borrador (409 si ya se confirmó). Aquí solo se corrige la descripción de la línea, a modo de ejemplo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"numbering_range_id\": \"{{invoiceRangeId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Servicio de prueba (Postman, corregido)\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invoices/{{invoiceDocumentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices",
+                "{{invoiceDocumentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Confirmar documento (Factura)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('invoicePrefix', body.prefix);",
+                  "    pm.collectionVariables.set('invoiceCufe', body.document_key);",
+                  "}",
+                  "pm.test('200 OK', () => pm.response.code === 200);",
+                  "pm.test('ya tiene número y CUFE', () => !!body.number && !!body.document_key);",
+                  "pm.test('XML firmado (contiene ds:Signature)', () => body.signed_xml.includes('<ds:Signature'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "description": "Único punto donde se 'gasta' un número real de la DIAN: reclama el consecutivo, construye y firma el XML, y envía si el emisor/rango están en habilitación. Falla con 422 (ErrIssuerNotReadyToIssue) si el emisor todavía no completó software/certificado (carpeta '0b').",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/documents/{{invoiceDocumentId}}/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents",
+                "{{invoiceDocumentId}}",
+                "confirm"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Crear borrador de Nota Crédito (referencia la Factura)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('creditNoteDocumentId', body.id); }",
+                  "pm.test('201 Created', () => pm.response.code === 201);",
+                  "pm.test('status draft', () => body.status === 'draft');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"numbering_range_id\": \"{{creditNoteRangeId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Anulación de servicio de prueba (Postman)\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ],\n  \"credit_note_type_code\": \"2\",\n  \"billing_reference\": {\n    \"prefix\": \"{{invoicePrefix}}\",\n    \"number\": \"1\",\n    \"cufe\": \"{{invoiceCufe}}\",\n    \"issue_date\": \"2026-06-20\"\n  },\n  \"discrepancy_response\": {\n    \"reference_id\": \"{{invoicePrefix}}1\",\n    \"response_code\": \"2\",\n    \"description\": \"Anulación de factura electrónica\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/credit-notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "credit-notes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Confirmar documento (Nota Crédito)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 OK', () => pm.response.code === 200);",
+                  "pm.test('ya tiene número y CUDE', () => !!body.number && !!body.document_key);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/documents/{{creditNoteDocumentId}}/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents",
+                "{{creditNoteDocumentId}}",
+                "confirm"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Crear borrador de Nota Débito (referencia la Factura)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('debitNoteDocumentId', body.id); }",
+                  "pm.test('201 Created', () => pm.response.code === 201);",
+                  "pm.test('status draft', () => body.status === 'draft');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"numbering_range_id\": \"{{debitNoteRangeId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Intereses por mora (Postman)\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ],\n  \"billing_reference\": {\n    \"prefix\": \"{{invoicePrefix}}\",\n    \"number\": \"1\",\n    \"cufe\": \"{{invoiceCufe}}\",\n    \"issue_date\": \"2026-06-20\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/debit-notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "debit-notes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Confirmar documento (Nota Débito)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 OK', () => pm.response.code === 200);",
+                  "pm.test('ya tiene número y CUDE', () => !!body.number && !!body.document_key);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/documents/{{debitNoteDocumentId}}/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents",
+                "{{debitNoteDocumentId}}",
+                "confirm"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Crear borrador descartable (para probar DELETE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('scratchDocumentId', body.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Un borrador aparte, solo para demostrar DELETE sin afectar la Factura usada por las notas.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"numbering_range_id\": \"{{invoiceRangeId}}\",\n  \"customer\": {\n    \"identification\": { \"number\": \"222222222222\", \"type_code\": \"13\" },\n    \"name\": \"Consumidor Final\"\n  },\n  \"lines\": [\n    {\n      \"description\": \"Borrador de prueba para eliminar\",\n      \"quantity\": 1,\n      \"unit_code\": \"94\",\n      \"line_extension_cents\": 10000,\n      \"unit_price_cents\": 10000,\n      \"taxes\": [\n        { \"taxable_amount_cents\": 10000, \"tax_amount_cents\": 0, \"percent\": 0, \"type_code\": \"01\", \"type_name\": \"IVA\" }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invoices",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "invoices"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE Eliminar borrador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.code === 204);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Solo funciona mientras el documento siga en borrador (409 si ya se confirmó) — ver 'POST Crear borrador descartable' arriba.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/documents/{{scratchDocumentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents",
+                "{{scratchDocumentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Consultar documento (Factura)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/documents/{{invoiceDocumentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents",
+                "{{invoiceDocumentId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Listar mis documentos (todos)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/documents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Listar mis documentos (filtrado + paginado)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/documents?dian_document_type_code=01&status=built&limit=10&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "documents"
+              ],
+              "query": [
+                {
+                  "key": "dian_document_type_code",
+                  "value": "01"
+                },
+                {
+                  "key": "status",
+                  "value": "built"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Customers (catálogo)",
+      "item": [
+        {
+          "name": "POST Crear cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('customerId', body.id); }",
+                  "pm.test('201 Created', () => pm.response.code === 201);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identification\": { \"number\": \"900111222\", \"type_code\": \"31\" },\n  \"name\": \"Cliente Recurrente S.A.S.\",\n  \"address\": { \"line\": \"Calle 50\", \"city_code\": \"11001\", \"city_name\": \"Bogotá\" },\n  \"email\": \"cliente@recurrente.test\",\n  \"phone\": \"3001234567\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Listar mis clientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Consultar cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/{{customerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                "{{customerId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PUT Actualizar cliente",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identification\": { \"number\": \"900111222\", \"type_code\": \"31\" },\n  \"name\": \"Cliente Recurrente S.A.S. (actualizado)\",\n  \"email\": \"cliente@recurrente.test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/{{customerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                "{{customerId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE Eliminar cliente",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/{{customerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                "{{customerId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Products (catálogo)",
+      "item": [
+        {
+          "name": "POST Crear producto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (pm.response.code === 201) { pm.collectionVariables.set('productId', body.id); }",
+                  "pm.test('201 Created', () => pm.response.code === 201);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Licencia mensual de software\",\n  \"unit_code\": \"94\",\n  \"unit_price_cents\": 5000000,\n  \"item_code\": \"LIC-001\",\n  \"item_type_code\": \"999\",\n  \"item_type_name\": \"Estándar de adopción del contribuyente\",\n  \"tax_type_code\": \"01\",\n  \"tax_type_name\": \"IVA\",\n  \"tax_percent\": 19\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Listar mis productos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Consultar producto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "{{productId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PUT Actualizar producto",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Licencia mensual de software\",\n  \"unit_code\": \"94\",\n  \"unit_price_cents\": 6000000,\n  \"tax_type_code\": \"01\",\n  \"tax_type_name\": \"IVA\",\n  \"tax_percent\": 19\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "{{productId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE Eliminar producto",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "{{productId}}"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
