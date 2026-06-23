@@ -16,4 +16,10 @@ var (
 	ErrInvalidCredentials = errors.New("auth: correo o contraseña incorrectos")
 	ErrUserInactive       = errors.New("auth: el usuario está inactivo")
 	ErrInvalidToken       = errors.New("auth: token inválido o expirado")
+
+	// ErrIssuerAccessDenied: SelectIssuer pidió activar una empresa a la que userID no tiene
+	// vínculo en user_issuers — mismo 404-en-espíritu que el resto de la API ("no existe" e
+	// "ID válido pero no es tuyo" se tratan igual), aunque acá se distingue porque no hay un
+	// recurso al que devolverle un 404 propiamente.
+	ErrIssuerAccessDenied = errors.New("auth: no tienes acceso a esa empresa")
 )

@@ -43,10 +43,39 @@ func TestRegisterIssuer_OK(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, uuid.Nil, iss.ID)
 	assert.True(t, iss.IsActive)
-	assert.Equal(t, "1", iss.EntityTypeCode, "debería tomar el default validado contra la DIAN real")
+	assert.Equal(t, "1", iss.EntityTypeCode, "NIT (31) -> Persona Jurídica, default validado contra la DIAN real")
 	assert.Equal(t, "ZZ", iss.TaxSchemeCode)
 	assert.Equal(t, "No aplica", iss.TaxSchemeName)
+	assert.Equal(t, []string{"R-99-PN"}, iss.LiabilityCodes, "sin esto la DIAN rechaza el documento por campo mandatorio faltante")
 	assert.False(t, iss.CreatedAt.IsZero())
+}
+
+// TestRegisterIssuer_NaturalPerson_EntityTypeCode confirma el fix de un rechazo real de la
+// DIAN (StatusCode 99, "errores en campos mandatorios", 2026-06-23): un emisor identificado
+// con cédula (persona natural) NO debe quedar marcado como "1" (Persona Jurídica) solo porque
+// ese era el default fijo de antes — debe derivarse "2" del tipo de identificación.
+func TestRegisterIssuer_NaturalPerson_EntityTypeCode(t *testing.T) {
+	tests := []struct {
+		idType     string
+		wantEntity string
+	}{
+		{"13", "2"}, // Cédula de Ciudadanía -> Persona Natural
+		{"11", "2"}, // Registro Civil
+		{"22", "2"}, // Cédula de Extranjería
+		{"41", "2"}, // Pasaporte
+		{"31", "1"}, // NIT -> Persona Jurídica
+		{"47", "1"}, // NIT de otro país
+		{"50", "1"}, // NIT de la DIAN
+	}
+	for _, tt := range tests {
+		t.Run(tt.idType, func(t *testing.T) {
+			iss := validIssuer()
+			iss.IdentificationTypeCode = tt.idType
+			got, err := newService().RegisterIssuer(context.Background(), iss)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantEntity, got.EntityTypeCode)
+		})
+	}
 }
 
 func TestRegisterIssuer_DuplicateNIT(t *testing.T) {

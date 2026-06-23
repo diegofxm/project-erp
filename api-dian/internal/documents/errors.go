@@ -10,6 +10,14 @@ var (
 	ErrEmptyLines            = errors.New("documents: el documento debe tener al menos una línea")
 	ErrMissingCustomer       = errors.New("documents: el adquiriente es obligatorio")
 
+	// ErrMissingPaymentMeans: cac:PaymentMeans es obligatorio para Invoice/CreditNote/
+	// DebitNote según el Anexo Técnico (cardinalidad 1..N, ver docs/reference/
+	// anexo-tecnico-1.9.txt FAN01/CAN01/DAN01) — la DIAN rechaza con "errores en campos
+	// mandatorios" si no se informa ninguno. Se valida desde el borrador, no solo al
+	// confirmar, para no gastar un número real en un documento que de todas formas va a
+	// rechazar (ver docs/api-dian-architecture.md sección 9.30).
+	ErrMissingPaymentMeans = errors.New("documents: el documento debe tener al menos una forma de pago (payment_means)")
+
 	// ErrMissingBillingReference: CreditNote/DebitNote deben referenciar el CUFE del
 	// documento que corrigen — no se puede emitir una nota "al aire".
 	ErrMissingBillingReference = errors.New("documents: la nota debe referenciar el CUFE del documento que corrige")

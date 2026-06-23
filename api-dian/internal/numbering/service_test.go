@@ -144,6 +144,53 @@ func TestClaimNext_RangeExhausted(t *testing.T) {
 	assert.ErrorIs(t, err, numbering.ErrRangeExhausted)
 }
 
+// TestReleaseIfCurrent_RevertsLastClaim confirma el mecanismo de la sección 9.33: un número
+// rechazado por la DIAN (o que nunca se logró transmitir) nunca quedó realmente gastado, así
+// que el siguiente ClaimNext debe volver a entregarlo en vez de avanzar y dejar un hueco.
+func TestReleaseIfCurrent_RevertsLastClaim(t *testing.T) {
+	svc := newService()
+	ctx := context.Background()
+
+	nr, err := svc.RegisterRange(ctx, validRange(), nil)
+	require.NoError(t, err)
+
+	claimed, err := svc.ClaimNext(ctx, nr.ID)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), claimed)
+
+	require.NoError(t, svc.ReleaseIfCurrent(ctx, nr.ID, claimed))
+
+	again, err := svc.ClaimNext(ctx, nr.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), again, "el mismo número debe volver a entregarse, no saltar al 2")
+}
+
+// TestReleaseIfCurrent_NoOpIfNotCurrent es la mitad que hace seguro el mecanismo: si YA se
+// reclamó otro número desde entonces, devolver el viejo sería arriesgar un duplicado real —
+// debe ser un no-op silencioso, no un error (el llamador no tiene por qué saber si todavía
+// tenía sentido intentarlo).
+func TestReleaseIfCurrent_NoOpIfNotCurrent(t *testing.T) {
+	svc := newService()
+	ctx := context.Background()
+
+	nr, err := svc.RegisterRange(ctx, validRange(), nil)
+	require.NoError(t, err)
+
+	first, err := svc.ClaimNext(ctx, nr.ID)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), first)
+	second, err := svc.ClaimNext(ctx, nr.ID)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), second)
+
+	// Intenta devolver el 1, pero el vigente ya es el 2 — no debe hacer nada.
+	require.NoError(t, svc.ReleaseIfCurrent(ctx, nr.ID, first))
+
+	third, err := svc.ClaimNext(ctx, nr.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), third, "debe seguir avanzando normalmente, el intento de liberar un número viejo no debe afectar nada")
+}
+
 func TestListRanges_FiltersByIssuerAndDocumentType(t *testing.T) {
 	svc := newService()
 	ctx := context.Background()

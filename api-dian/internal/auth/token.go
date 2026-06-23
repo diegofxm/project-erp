@@ -15,8 +15,8 @@ const TokenTTL = 24 * time.Hour
 
 // claims usa nombres propios en vez de los estándar de JWT para evitar la confusión de
 // terminología entre "Issuer" del documento UBL/DIAN (quien emite la factura) e "iss" del
-// propio token JWT (quien firmó el token, que aquí siempre es api-dian). TenantID es el
-// emisor DIAN que administra este usuario.
+// propio token JWT (quien firmó el token, que aquí siempre es api-dian). TenantID es la
+// empresa ACTIVA en este token — puede ser uuid.Nil (ver Issue).
 type claims struct {
 	UserID   uuid.UUID `json:"user_id"`
 	TenantID uuid.UUID `json:"tenant_id"`
@@ -34,12 +34,16 @@ func NewTokenIssuer(secret []byte) *TokenIssuer {
 	return &TokenIssuer{secret: secret}
 }
 
-// Issue firma un nuevo token de acceso para u.
-func (t *TokenIssuer) Issue(u User) (string, error) {
+// Issue firma un nuevo token de acceso para u. tenantID es la empresa ACTIVA en este token —
+// uuid.Nil si el usuario todavía no tiene ninguna empresa vinculada, o tiene varias y no ha
+// seleccionado cuál usar (ver auth.Service.Login/SelectIssuer, sección 9.32 del architecture
+// doc). Ya no se lee de u.IssuerID: cuál empresa está activa es contextual, no una propiedad
+// fija del usuario.
+func (t *TokenIssuer) Issue(u User, tenantID uuid.UUID) (string, error) {
 	now := time.Now()
 	c := claims{
 		UserID:   u.ID,
-		TenantID: u.IssuerID,
+		TenantID: tenantID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "api-dian",
 			Subject:   u.ID.String(),

@@ -100,16 +100,41 @@ func (s *Service) UpdateIssuer(ctx context.Context, id uuid.UUID, req UpdateIssu
 
 // applyDefaults completa los campos del Party que la mayoría de emisores no necesita
 // personalizar — valores confirmados contra una factura real autorizada por la DIAN
-// (cofacture/soap/realsend_test.go): EntityTypeCode "1", TaxSchemeCode "ZZ" ("No aplica").
+// (cofacture/soap/realsend_test.go): TaxSchemeCode "ZZ" ("No aplica").
+//
+// EntityTypeCode y LiabilityCodes se agregaron el 2026-06-23 tras un rechazo real (StatusCode
+// 99, "errores en campos mandatorios") al registrar un emisor persona natural (identificado
+// por cédula, "13"): el default fijo "1" (Persona Jurídica) quedaba contradicho por una
+// identificación personal, y LiabilityCodes se mandaba vacío del todo — a diferencia de
+// applyCustomerDefaults (documents/service.go), que ya respaldaba al adquiriente con
+// "R-99-PN" pero nunca se replicó para el emisor. Ver docs/api-dian-architecture.md sección
+// 9.29.
 func applyDefaults(iss *Issuer) {
 	if iss.EntityTypeCode == "" {
-		iss.EntityTypeCode = "1"
+		iss.EntityTypeCode = defaultEntityTypeCode(iss.IdentificationTypeCode)
 	}
 	if iss.TaxSchemeCode == "" {
 		iss.TaxSchemeCode = "ZZ"
 	}
 	if iss.TaxSchemeName == "" {
 		iss.TaxSchemeName = "No aplica"
+	}
+	if len(iss.LiabilityCodes) == 0 {
+		iss.LiabilityCodes = []string{"R-99-PN"}
+	}
+}
+
+// defaultEntityTypeCode deriva "1" (Persona Jurídica y asimiladas) o "2" (Persona Natural y
+// asimiladas) del tipo de identificación — "31"/"47"/"50" son los únicos tipos de
+// identificación tributaria (NIT, NIT de otro país, NIT de la DIAN); el resto
+// (cédula/tarjeta de identidad/extranjería/pasaporte/NUIP) son identificaciones personales.
+// La DIAN rechaza la combinación "Persona Jurídica" + identificación personal.
+func defaultEntityTypeCode(identificationTypeCode string) string {
+	switch identificationTypeCode {
+	case "31", "47", "50":
+		return "1"
+	default:
+		return "2"
 	}
 }
 

@@ -113,7 +113,7 @@ type IssueCreditNoteRequest struct {
 
 // CreateInvoiceDraft valida y persiste un borrador de Factura Electrónica de Venta.
 func (s *Service) CreateInvoiceDraft(ctx context.Context, req IssueInvoiceRequest) (*Document, error) {
-	if err := validateBase(req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer); err != nil {
+	if err := validateBase(req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer, req.PaymentMeans); err != nil {
 		return nil, err
 	}
 	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, invoiceDianDocumentType, req.CustomerID); err != nil {
@@ -142,7 +142,7 @@ func (s *Service) CreateInvoiceDraft(ctx context.Context, req IssueInvoiceReques
 // dado (ErrDocumentNotFound si no, mismo criterio "indistinguible de no-existe" que el resto
 // de la API).
 func (s *Service) UpdateInvoiceDraft(ctx context.Context, id uuid.UUID, req IssueInvoiceRequest) (*Document, error) {
-	if err := validateBase(req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer); err != nil {
+	if err := validateBase(req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer, req.PaymentMeans); err != nil {
 		return nil, err
 	}
 	if err := s.requireOwnDraft(ctx, req.IssuerID, id); err != nil {
@@ -351,6 +351,7 @@ func (s *Service) confirmInvoice(ctx context.Context, d *Document) (*Document, e
 
 	xmlDoc, err := builder.BuildInvoice(inv)
 	if err != nil {
+		_ = s.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, p.number)
 		return nil, fmt.Errorf("construir XML: %w", err)
 	}
 
@@ -380,6 +381,7 @@ func (s *Service) confirmCreditNote(ctx context.Context, d *Document) (*Document
 
 	xmlDoc, err := builder.BuildCreditNote(cn)
 	if err != nil {
+		_ = s.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, p.number)
 		return nil, fmt.Errorf("construir XML: %w", err)
 	}
 
@@ -408,6 +410,7 @@ func (s *Service) confirmDebitNote(ctx context.Context, d *Document) (*Document,
 
 	xmlDoc, err := builder.BuildDebitNote(dn)
 	if err != nil {
+		_ = s.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, p.number)
 		return nil, fmt.Errorf("construir XML: %w", err)
 	}
 
@@ -545,6 +548,10 @@ func (s *Service) claimAndLoadCert(ctx context.Context, d *Document) (*preparedI
 
 	cert, key, err := signer.LoadPKCS12(p.iss.Certificate, p.iss.CertificatePassword)
 	if err != nil {
+		// El número ya se reclamó pero el documento ni siquiera llegó a construirse — nunca
+		// existió ante la DIAN, así que se devuelve (mismo mecanismo y mismo motivo que en
+		// finish, ver sección 9.33) en vez de quemarlo por un error de certificado.
+		_ = s.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, number)
 		return nil, fmt.Errorf("cargar certificado del emisor: %w", err)
 	}
 
@@ -563,9 +570,11 @@ func (s *Service) claimAndLoadCert(ctx context.Context, d *Document) (*preparedI
 func (s *Service) finalizeAndSend(ctx context.Context, doc *etree.Document, p *preparedIssuance, d *Document, kind zip.DocumentKind) (*Document, error) {
 	placeholder, err := builder.SignaturePlaceholder(doc)
 	if err != nil {
+		_ = s.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, p.number)
 		return nil, fmt.Errorf("crear placeholder de firma: %w", err)
 	}
 	if err := signer.New(p.cert, p.key).Sign(doc.Root(), placeholder, "supplier", p.now); err != nil {
+		_ = s.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, p.number)
 		return nil, fmt.Errorf("firmar documento: %w", err)
 	}
 
@@ -573,6 +582,7 @@ func (s *Service) finalizeAndSend(ctx context.Context, doc *etree.Document, p *p
 	// comentario equivalente en cofacture/soap/realsend_test.go.
 	xmlBytes, err := doc.WriteToBytes()
 	if err != nil {
+		_ = s.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, p.number)
 		return nil, fmt.Errorf("serializar XML firmado: %w", err)
 	}
 
@@ -581,6 +591,7 @@ func (s *Service) finalizeAndSend(ctx context.Context, doc *etree.Document, p *p
 
 	created, err := s.repo.Confirm(ctx, *d)
 	if err != nil {
+		_ = s.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, p.number)
 		return nil, err
 	}
 
@@ -716,12 +727,26 @@ func (s *Service) finish(ctx context.Context, d *Document, status Status, trackI
 	d.DianStatusCode = statusCode
 	d.DianStatusDescription = statusDescription
 	d.DianStatusMessage = statusMessage
+
+	// El número nunca quedó realmente registrado ante la DIAN (rechazado) ni siquiera se logró
+	// transmitir (send_error) — se intenta devolver para que el siguiente intento lo reclame de
+	// nuevo en vez de avanzar y dejar un hueco permanente (sección 9.33). Best-effort a
+	// propósito: si falla o si ya no es el número vigente del rango (alguien más reclamó otro
+	// desde entonces), el documento ya quedó con el estado correcto de todas formas — no se
+	// propaga el error de un paso que es una optimización, no una garantía de corrección.
+	if status == StatusRejected || status == StatusSendError {
+		_ = s.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, d.Number)
+	}
 	return d, nil
 }
 
 // ── Validaciones ───────────────────────────────────────────────────────────────────────────
 
-func validateBase(issuerID, rangeID uuid.UUID, lines []domain.Line, customer domain.Party) error {
+// validateBase exige paymentMeans no vacío porque cac:PaymentMeans es obligatorio (1..N) para
+// Invoice/CreditNote/DebitNote según el Anexo Técnico — confirmado real: 3 facturas
+// rechazadas por la DIAN ("errores en campos mandatorios") por mandarlo vacío (ver
+// docs/api-dian-architecture.md sección 9.30).
+func validateBase(issuerID, rangeID uuid.UUID, lines []domain.Line, customer domain.Party, paymentMeans []domain.PaymentMean) error {
 	if issuerID == uuid.Nil {
 		return ErrMissingIssuer
 	}
@@ -734,11 +759,14 @@ func validateBase(issuerID, rangeID uuid.UUID, lines []domain.Line, customer dom
 	if customer.Identification.Number == "" {
 		return ErrMissingCustomer
 	}
+	if len(paymentMeans) == 0 {
+		return ErrMissingPaymentMeans
+	}
 	return nil
 }
 
 func validateNoteRequest(req IssueNoteRequest) error {
-	if err := validateBase(req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer); err != nil {
+	if err := validateBase(req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer, req.PaymentMeans); err != nil {
 		return err
 	}
 	if req.BillingReference.CUFE == "" {

@@ -151,9 +151,12 @@ api-dian/
 │   ├── numbering/                      # rangos de numeración + ClaimNext atómico (UPDATE de una fila)
 │   ├── documents/                      # orquesta cofacture (Invoice/CreditNote/DebitNote) —
 │   │                                    # el único paquete que lo importa directamente
-│   ├── auth/                            # usuarios + login + JWT — "un usuario = un emisor"
-│   │   ├── service.go                     # Register (crea emisor+usuario juntos) / Login
-│   │   ├── token.go                        # TokenIssuer: firma/valida JWT (HS256)
+│   ├── auth/                            # usuarios + login + JWT — multi-empresa (ver 9.32):
+│   │   │                                  # un usuario puede tener 0, 1, o varias empresas
+│   │   ├── service.go                     # Register (solo usuario) / CreateIssuerForUser /
+│   │   │                                    # ListUserIssuers / SelectIssuer / Login
+│   │   ├── token.go                        # TokenIssuer: firma/valida JWT (HS256), tenant_id
+│   │   │                                     # explícito por sesión, no fijo por usuario
 │   │   └── password.go                      # hash/verify con bcrypt
 │   ├── customers/                       # catálogo de adquirientes — conveniencia, no la
 │   │                                      # fuente de verdad del documento (ver 4.2/9.21)
@@ -257,19 +260,25 @@ HTTP → Handler → Service → Repository → COFACTURE → DIAN
 > junto en `POST /documents/{id}/confirm`, el único punto donde se "gasta" un número real de
 > la DIAN — separar esto de la creación evita quemar un consecutivo por un error de captura.
 >
-> Todo excepto `/auth/*` y `/health` exige `Authorization: Bearer <token>`. "Un usuario = un
-> emisor" (sección 9.17): ningún endpoint recibe `issuer_id` del cliente — siempre se toma del
-> token, nunca de algo que el cliente pueda elegir. Por eso ya no hay `POST /issuers` público
-> ni `{id}` en el path de `/issuers` o de `numbering-ranges` al crear: el emisor del usuario
-> autenticado es implícito.
+> Todo excepto `/auth/*` y `/health` exige `Authorization: Bearer <token>`. Desde la sección
+> 9.32, un usuario puede tener 0, 1, o varias empresas vinculadas — ningún endpoint recibe
+> `issuer_id` del cliente, siempre se toma de la empresa ACTIVA en el token
+> (`middleware.GetTenantID`), nunca de algo que el cliente pueda elegir directamente. Las tres
+> rutas de gestión de empresas son las únicas que no exigen una empresa activa (justamente
+> sirven para conseguir una); el resto responde `409` sin ella (`middleware.RequireTenant`).
 
 ```
-POST /api/v1/auth/register                        # crea el emisor (datos mínimos DIAN) Y su primer usuario admin (público)
-POST /api/v1/auth/login                           # inicia sesión, devuelve el token (público)
+POST /api/v1/auth/register                        # crea SOLO el usuario, sin empresa (público, ver 9.32)
+POST /api/v1/auth/login                           # inicia sesión, devuelve el token (público) — autoselecciona
+                                                   # la empresa activa solo si hay exactamente una vinculada
 
-GET  /api/v1/issuers/me                           # consultar el emisor propio (nunca expone secretos)
+POST /api/v1/issuers                              # crear una empresa nueva y vincularla (rol owner), activa de una
+GET  /api/v1/issuers                              # listar las empresas a las que el usuario tiene acceso
+POST /api/v1/issuers/{id}/select                  # reemitir el token con esa empresa como activa
+
+GET  /api/v1/issuers/me                           # consultar la empresa activa (nunca expone secretos)
 PUT  /api/v1/issuers/me                           # completar software/PIN/certificado, parcial (ver 9.25)
-POST /api/v1/numbering-ranges                     # registrar rango del emisor propio
+POST /api/v1/numbering-ranges                     # registrar rango de la empresa activa
 GET  /api/v1/numbering-ranges                     # listar mis rangos (?dian_document_type_code=, sin paginar)
 GET  /api/v1/numbering-ranges/{id}                # consultar rango (debe ser del emisor propio; si no, 404)
 POST /api/v1/invoices                             # crear borrador (sin reclamar número)
@@ -1129,15 +1138,265 @@ el certificado → 200, sin disparar la validación (confirmado con un validador
 prueba si se llama, en `TestUpdateIssuer_CertificateWithoutPasswordSkipsValidation`). Datos de
 prueba eliminados al cerrar.
 
-### 9.28 Próximo paso
+### 9.27 CORS configurable
 
-Sin tareas pendientes explícitas — el flujo de emisión ahora es: crear borrador → revisar/
-editar/eliminar libremente → confirmar (reclama número + firma + envía), y el emisor se puede
-registrar con los datos mínimos y completar software/certificado después, vía
-`PUT /issuers/me`. Pendiente real: que el usuario conecte un frontend a este flujo y, cuando
-consiga un certificado real de la DIAN (no autofirmado), confirme un documento de verdad en
-habilitación para validar el envío real con `SendBillSync`/`SendTestSetAsync` end-to-end bajo
-el nuevo flujo de dos pasos (ya validado end-to-end con un certificado de prueba, sección
-9.25). Decisiones de alcance pendientes de construir cuando haga falta: multi-empresa/
-multi-credencial por emisor, vigencia/notificación de resoluciones, envío de notificaciones
-(las tres documentadas en la sección 9.26, no son huecos olvidados).
+El usuario pidió pasar de probar con Postman a probar con un frontend real en el navegador
+(ver `docs/frontend-architecture.md` para todo lo relativo al frontend mismo — este documento
+solo cubre lo que cambió en `api-dian`). Eso expuso un hueco inmediato: `api-dian` no tenía
+CORS — cualquier llamada desde un origen distinto (otro puerto, `file://`) quedaba bloqueada
+por el propio navegador aunque la petición sí le llegara al servidor.
+
+**Fix**: `internal/api/middleware/cors.go`, nuevo. Lista explícita de orígenes permitidos vía
+`CORS_ALLOWED_ORIGINS` (sin default implícito — mismo criterio que `ISSUER_SECRETS_KEY`/
+`AUTH_JWT_SECRET`), preflight `OPTIONS` respondido de verdad (necesario porque casi toda la
+API usa `Authorization: Bearer` + JSON + métodos no-simples, así que el navegador manda
+preflight antes de cada petición real), `"*"` soportado solo para desarrollo local. Verificado
+contra Postgres real: origen permitido recibe los headers correctos, origen no permitido
+nunca recibe `Access-Control-Allow-Origin` (bloqueado del lado del navegador, no del
+servidor), peticiones sin `Origin` (curl/Postman) no se ven afectadas.
+
+### 9.28 `documentResponse` completo — faltaban `customer`/`lines`/`totals`/`created_at`
+
+Construyendo la pantalla de "Facturación" del dashboard (lista + detalle de documentos) se
+encontró que `GET /documents` y `GET /documents/{id}` (y por extensión las respuestas de
+crear/editar/confirmar, que comparten el mismo `documentToResponse`) solo devolvían metadatos
+— ID, estado, prefijo/número si ya estaba confirmado. Nunca el contenido capturado: ni el
+cliente, ni las líneas, ni el total, ni la fecha de creación. Un frontend real no podía
+mostrar "factura para Juan Pérez por $119.000" sin volver a pedirle los datos al usuario —
+exactamente el tipo de hueco que probar la API como un usuario real revela y Postman/`devui`
+nunca iban a exponer.
+
+**Decisión del usuario**: ante la disyuntiva de resolverlo con una caché local en el
+navegador (sin tocar `api-dian`) o completar la API de verdad, el usuario eligió completar
+`api-dian` — razonando que el propósito del dashboard es justamente evitar huecos ocultos como
+este, y que mejor corregirlo ahora (sin datos de producción reales en juego) que parchar el
+síntoma en el frontend.
+
+**Fix**: `documentResponse` ahora incluye `customer`/`lines`/`payment_means`/`totals`/`note`/
+`currency_code` (siempre presentes, incluso en borrador), `billing_reference`/
+`discrepancy_response`/`note_type_code` (solo CreditNote/DebitNote), y `created_at`/
+`updated_at` (mismo criterio que `customerResponse`/`productResponse` — un borrador no tiene
+`issue_date` todavía, así que es lo único con lo que un listado puede ordenar). Nuevas
+funciones inversas en `dto.go` (`linesFromDomain`, `paymentMeansFromDomain`,
+`totalsFromDomain`) — todos campos nuevos, aditivos, no rompen ningún consumidor existente
+(Postman, `devui`). Verificado: build/test limpios + curl real confirmando que el borrador y
+el documento confirmado devuelven `customer`/`lines`/`totals` completos.
+
+### 9.29 Emisor persona natural — `EntityTypeCode`/`LiabilityCodes` rechazados por la DIAN real
+
+Probando el ciclo completo desde el dashboard con su propia identidad real (cédula, no NIT —
+la primera vez que alguien registra un emisor persona natural en todo este proyecto), el
+usuario recibió **3 rechazos reales de la DIAN** (`StatusCode 99`, "Validación contiene
+errores en campos mandatorios"). Inspeccionando la base de datos y el XML firmado guardado se
+encontraron dos bugs reales en `issuers.applyDefaults`:
+
+1. **`EntityTypeCode` defaulteaba a `"1"` (Persona Jurídica) sin importar el tipo de
+   identificación** — confirmado contra una factura con NIT en la Fase 1, nunca ajustado para
+   identificaciones personales. Un emisor con cédula (`identification_type_code: "13"`)
+   terminaba mandando `<cbc:AdditionalAccountID>1</cbc:AdditionalAccountID>` — contradicción
+   directa con su propia identificación.
+2. **`LiabilityCodes` nunca tenía un default para el emisor** — a diferencia de
+   `applyCustomerDefaults` (`documents/service.go`), que sí respalda al adquiriente con
+   `["R-99-PN"]` cuando viene vacío. El XML del `AccountingSupplierParty` no traía NINGÚN
+   `cbc:TaxLevelCode` — un campo mandatorio del Anexo Técnico, ausente por completo.
+
+**Fix**: `defaultEntityTypeCode(identificationTypeCode)` deriva `"1"` solo para tipos de
+identificación tributaria (`"31"` NIT, `"47"` NIT de otro país, `"50"` NIT de la DIAN) y `"2"`
+para el resto (identificaciones personales); `LiabilityCodes` ahora respalda con `["R-99-PN"]`
+igual que el adquiriente. Verificado con tests (`TestRegisterIssuer_NaturalPerson_
+EntityTypeCode`, 7 combinaciones de tipo de identificación). El emisor real ya registrado del
+usuario se corrigió directamente en la base de datos (mismos valores que el fix aplicaría) sin
+necesidad de re-registrarse.
+
+**Decisión del usuario sobre el alcance**: exponer `liability_codes` como campo configurable
+en el dashboard queda explícitamente diferido — el usuario quiere primero completar el ciclo
+con el dashboard actual ("improvisado"), juntar más hallazgos, y recién después construir el
+dashboard definitivo con esos aprendizajes ya incorporados desde el diseño.
+
+### 9.30 `PaymentMeans` obligatorio — tercera causa real de rechazo (`SETP-990000001`)
+
+Después del fix de 9.29, el usuario probó una factura nueva sobre la resolución real (rango
+`990000000`-`995000000`, confirmada para habilitación, no producción) y la DIAN la rechazó
+otra vez con el mismo `StatusCode 99` genérico. Inspeccionando el XML firmado guardado:
+`entity_type_code`/`liability_codes` ya estaban correctos en ese documento (el fix de 9.29 sí
+se aplicó), pero **no aparecía ningún `cac:PaymentMeans`** — ni en la factura rechazada ni en
+ninguna creada desde el dashboard, porque ese formulario nunca lo pide.
+
+Confirmado contra el propio Anexo Técnico (`docs/reference/anexo-tecnico-1.9.txt`,
+`FAN01`/`CAN01`/`DAN01`): `cac:PaymentMeans` tiene cardinalidad **`1..N`** — obligatorio, al
+menos una ocurrencia — para Invoice, CreditNote y DebitNote. La factura real que SÍ fue
+aceptada por la DIAN en la Fase 1 (`cofacture/soap/realsend_test.go`) lo incluía explícitamente
+desde siempre; nunca se replicó esa exigencia en `api-dian` ni en el dashboard.
+
+**Fix**: `documents.Service.validateBase` ahora exige `len(paymentMeans) > 0`
+(`ErrMissingPaymentMeans`, 400) para los tres tipos de documento, desde el borrador — no solo
+al confirmar, mismo criterio que el resto de validaciones de esta función (fallar rápido, sin
+gastar un número real). Se actualizaron todos los fixtures de test (`testRequest`/
+`testNoteRequest` en `internal/documents`, `testPaymentMeans()` nuevo en `internal/api`) para
+incluir una forma de pago por defecto. Build/vet/test limpios.
+
+**Efecto colateral conocido y aceptado**: el dashboard improvisado (`frontend/static/
+dashboard/`) nunca pide ni manda `payment_means` — con este fix, ya no puede crear ningún
+borrador de factura nuevo (`POST /invoices` responde 400). El usuario decidió explícitamente
+no parchar el dashboard improvisado para esto; queda documentado como pendiente para el
+dashboard definitivo en `docs/frontend-architecture.md`. Mientras tanto, el explorador tipo
+Postman (`frontend/static/`, sin tocar) sí permite agregar `payment_means` a mano en el JSON.
+
+### 9.31 `documents.customer_id` físicamente fuera de orden — migraciones renumeradas
+
+El usuario pidió revisar las 8 migraciones porque sospechaba que alguna no respetaba la regla
+de `created_at`/`updated_at` siempre al final (sección 4.1). Los 8 archivos en sí estaban bien
+— el problema estaba en la tabla **real**: `000007_customers.up.sql` agregaba `customer_id` a
+`documents` con `ALTER TABLE ... ADD COLUMN` (a propósito, documentado: en la secuencia
+original, `customers` todavía no existía en el punto donde se crea `documents`). Postgres
+siempre añade columnas nuevas al final físicamente, sin importar dónde "debería" ir
+lógicamente — así que `customer_id` terminaba en la posición 32 de 32, después de
+`created_at`/`updated_at`. Esto afecta a **cualquier** instalación que corra las migraciones
+en ese orden, no solo a la base de datos de desarrollo — no era un descuido de una sesión, era
+estructural a la secuencia.
+
+Mi primer intento de arreglo fue una migración nueva que reconstruía la tabla (`CREATE TABLE
+... AS SELECT` + swap) preservando los datos reales — el usuario lo rechazó explícitamente:
+"no quiero sino las migraciones sin alter ni nada por el estilo". Pidió en cambio **reordenar
+las migraciones existentes de raíz**, aprovechando que en ese momento la base de datos no
+tenía datos reales en juego (confirmado por el usuario: "ahora que estamos de cero, sin datos
+reales").
+
+**Fix real — renumeración de migraciones (2026-06-23)**: `customers` (sin dependencia de
+`documents`) se adelantó de `000007` a `000005`; `products`/`users` se corrieron a
+`000006`/`000007`; `documents` pasó de `000005` a `000008`. Con `customers` creándose antes,
+`documents` ahora declara `customer_id UUID REFERENCES customers(id) ON DELETE SET NULL`
+**directamente dentro de su propio `CREATE TABLE`**, en su posición lógica (justo después de
+`customer`) — cero `ALTER TABLE` en toda la secuencia. Orden final de dependencias: catálogos
+→ issuers → numbering_ranges → customers → products → users → documents.
+
+**Aplicado real**: se vació la base de datos por completo (`DROP TABLE ... CASCADE` de las 14
+tablas + la función `set_updated_at()` + la tabla de control `schema_migrations` de
+golang-migrate) y se dejó que `cmd/server` reconstruyera todo desde cero con la secuencia
+renumerada — `migrations applied` y `catalogs seeded` sin errores. Verificado con una consulta
+directa a `information_schema.columns`: `customer_id` queda en la posición 12 (justo después
+de `customer`), `created_at`/`updated_at` en las posiciones 31/32 (las últimas), como exige la
+convención. `go build`/`vet`/`test` limpios en los tres módulos tras el cambio. El único dato
+perdido en el vaciado fue el emisor de prueba con identidad real del usuario (`DIEGO FERNANDO
+MONTOYA VALLEJO`, 2 resoluciones, 5 documentos, 1 cliente, 1 producto) — pérdida aceptada
+explícitamente por el usuario, tendrá que volver a registrarse y configurar su emisor desde
+el dashboard.
+
+### 9.32 Multi-empresa — registro desacoplado de la empresa, `user_issuers` N:M
+
+Hasta esta sección, la regla era rígida: "un usuario = un emisor" (`users.issuer_id NOT NULL`,
+poblado en el mismo `POST /auth/register`). El usuario pidió explícitamente romper esa regla
+para soportar el caso real de un contador o administrador que maneja varias empresas/
+sucursales con el mismo login — sin saber todavía cuántas, ni si todas existen desde el primer
+día.
+
+**Diseño elegido** (de tres opciones presentadas, el usuario escogió en los tres casos la
+recomendada):
+
+1. **Login autoselecciona la empresa activa solo si el usuario tiene exactamente una vinculada**
+   — preserva el comportamiento de hoy para el caso normal (un usuario, una empresa) sin que
+   note el cambio. Con cero o varias, el token queda emitido sin empresa activa
+   (`tenant_id = uuid.Nil`) y el cliente debe crear una (`POST /issuers`) o elegir una
+   (`POST /issuers/{id}/select`) explícitamente.
+2. Reordenar las migraciones para que `customer_id` quedara bien posicionado desde el inicio
+   en vez de via `ALTER TABLE` — resuelto ya en la sección 9.31, antes de esta.
+3. Numeración tras rechazo — ver 9.33, resuelto junto con esto.
+
+**Esquema**: `users.issuer_id` se elimina por completo; nueva tabla `user_issuers(user_id,
+issuer_id, role, created_at)` con PK compuesta `(user_id, issuer_id)` y `ON DELETE CASCADE` en
+ambos lados — relación N:M pura, sin columnas adicionales que no se necesiten todavía (no hay
+"empresa por defecto" persistida; cuál es "la activa" vive solo en el JWT de la sesión, nunca en
+la base de datos). Migrada inline (sección 4.1: sin datos reales en juego todavía, ver 9.31) —
+`000007_users.up.sql` ya no declara `issuer_id`; `000009_user_issuers.up.sql` es la tabla nueva.
+
+**`auth.TokenIssuer.Issue` cambia de firma**: antes tomaba `tenant_id` de `u.IssuerID` (una
+propiedad fija del usuario); ahora recibe `tenantID uuid.UUID` como parámetro explícito — la
+empresa activa es contextual a la sesión, no una propiedad permanente del usuario.
+`uuid.Nil` es un `tenant_id` válido en el token: significa "autenticado, sin empresa activa
+todavía".
+
+**`middleware.RequireTenant`** (nuevo, va después de `Auth` en la cadena): responde `409` con
+un mensaje explícito si `GetTenantID(ctx) == uuid.Nil` — evita que cada handler tenga que
+repetir esa comprobación o, peor, devuelva silenciosamente listas vacías sin explicar por qué.
+Deliberadamente NO se aplica a las tres rutas de gestión de empresas (`POST /issuers`,
+`GET /issuers`, `POST /issuers/{id}/select`) — son justamente las que un usuario sin empresa
+activa necesita poder llamar.
+
+**Endpoints nuevos**:
+- `POST /api/v1/issuers` — crea una empresa nueva, la vincula al usuario autenticado como
+  `owner`, y reemite el token con esa empresa ya activa. Reutiliza el mismo DTO/validaciones
+  que antes vivían en el registro (`createIssuerRequest`/`issuerFromRequest`) — software/PIN/
+  certificado siguen siendo opcionales aquí, igual que en la sección 9.25.
+- `GET /api/v1/issuers` — lista las empresas a las que el usuario tiene acceso.
+- `POST /api/v1/issuers/{id}/select` — reemite el token con `{id}` como empresa activa, solo si
+  el usuario de verdad está vinculado a ella (`auth.ErrIssuerAccessDenied`, mapeado a `404` —
+  mismo criterio de "indistinguible de no existe" que el resto de la API entre tenants).
+
+**`auth.Service`** gana `CreateIssuerForUser`, `ListUserIssuers`, `SelectIssuer` — los tres
+devuelven el mismo `AuthResult{Token, User, ActiveIssuer}` que `Register`/`Login`, así que
+`handler_auth.go`/`handler_issuers.go` comparten una sola función de respuesta
+(`writeAuthResponse`). `auth.IssuerPort` gana `GetIssuer` (antes solo tenía `RegisterIssuer`) —
+necesario para devolver la empresa activa resuelta en la respuesta.
+
+**Verificado contra Postgres real vía curl** (flujo completo): registrar usuario sin empresa
+→ `GET /issuers/me` sin empresa activa responde `409` → crear primera empresa (token queda con
+ella activa) → crear segunda empresa con el token original (sigue sin empresa "fija") → login
+de nuevo con dos empresas vinculadas: `body.issuer` ausente, no autoselecciona ninguna →
+`GET /issuers` lista las dos → `POST /issuers/{id}/select` activa la segunda, `GET /issuers/me`
+confirma → intentar seleccionar una empresa de otro usuario responde `404`. `go build`/`vet`/
+`test` limpios en los tres módulos.
+
+### 9.33 Numeración: reutilizar el número tras un rechazo o error de envío
+
+Pregunta abierta desde hace varias secciones: si la DIAN rechaza un documento (`StatusRejected`)
+o ni siquiera se logra transmitir (`StatusSendError`), ese número de la resolución queda
+permanentemente "quemado" — nunca existió de verdad ante la DIAN, pero el siguiente documento
+reclama el que sigue, dejando un hueco para siempre en la numeración. El usuario preguntó
+explícitamente si esto se podía resolver, sin saber de antemano cómo ("no sé cómo se pueda
+resolver esto").
+
+**Diseño elegido**: si el último número reclamado en un rango termina en rechazado o
+`send_error`, el SIGUIENTE intento de confirmación sobre ese rango reclama ese mismo número de
+nuevo, en vez de avanzar — nunca arriesgando un duplicado real.
+
+**Mecanismo, en dos partes que se necesitan mutuamente**:
+
+1. **`numbering.Service.ReleaseIfCurrent(ctx, rangeID, number)`** — revierte el último
+   `ClaimNext` de un rango, pero SOLO si `current_number` sigue siendo exactamente `number`
+   (nadie reclamó otro número desde entonces). Implementado como un único `UPDATE ...
+   WHERE id = $1 AND current_number = $2` (mismo patrón atómico que `ClaimNext`): si la
+   condición no se cumple, el `UPDATE` simplemente no afecta ninguna fila — no es un error, es
+   la señal de "ya no es seguro retroceder, alguien más avanzó". Se llama desde
+   `documents.Service.finish()` cuando el estado final es `StatusRejected`/`StatusSendError`, y
+   también de forma defensiva en cualquier punto de `confirmInvoice`/`confirmCreditNote`/
+   `confirmDebitNote`/`claimAndLoadCert`/`finalizeAndSend` donde se falla DESPUÉS de reclamar
+   el número pero ANTES de que el documento llegue a existir de verdad (certificado corrupto,
+   fallo al construir o firmar el XML, fallo al persistir) — mismo razonamiento: ese número
+   nunca existió ante la DIAN. Siempre *best-effort*: si `ReleaseIfCurrent` falla o no aplica,
+   el documento ya quedó con el estado correcto de todas formas, así que el error nunca se
+   propaga — es una optimización, no una garantía de corrección.
+
+2. **`uq_documents_range_number` pasa de constraint plana a índice ÚNICO PARCIAL**:
+   `CREATE UNIQUE INDEX ... ON documents(numbering_range_id, number) WHERE status NOT IN
+   ('rejected', 'send_error')`. Sin este cambio, el mecanismo de arriba sería inútil: el
+   documento rechazado SIGUE existiendo en la tabla con ese número (es el registro histórico,
+   nunca se borra ni se muta) — un segundo documento con el mismo número chocaría contra él. El
+   índice parcial permite que cualquier cantidad de documentos rechazados/con error de envío
+   compartan un número con el documento que SÍ lo reclama de verdad después; pero sigue siendo
+   imposible que dos documentos `built`/`sent`/`accepted` (los estados que de verdad cuentan
+   ante la DIAN) compartan uno — la base de datos sigue siendo la última línea de defensa
+   contra un duplicado real, no solo la lógica de aplicación.
+
+**Verificado real, de punta a punta, contra Postgres y la DIAN real** (no solo simulado): se
+registró un emisor con un certificado autofirmado de prueba (no autorizado por la DIAN a
+propósito, para forzar un rechazo real del SOAP) en habilitación, se confirmó una factura — la
+DIAN respondió con un fallo SOAP real, el documento quedó en `send_error` con `number: 1`, y
+`numbering_ranges.current_number` volvió a `0` (como si nunca se hubiera reclamado). Una
+segunda factura sobre el mismo rango reclamó `number: 1` de nuevo, no `2` — ambos documentos
+(`send_error` + el segundo) coexisten en la tabla gracias al índice parcial. Limpiado después
+de verificar.
+
+Cobertura de tests: `numbering.TestReleaseIfCurrent_RevertsLastClaim`/
+`_NoOpIfNotCurrent` (la condición atómica en sí), `documents.
+TestConfirmDocument_ClaimLoadFailure_ReleasesNumberForRetry` (un fallo de certificado libera el
+número y el reintento sobre el mismo borrador lo reclama de nuevo).

@@ -108,64 +108,92 @@ func decode(t *testing.T, rw *httptest.ResponseRecorder, dst any) {
 
 // ── Auth ─────────────────────────────────────────────────────────────────────────────────────
 
-// registerRequest construye un payload de POST /api/v1/auth/register completo. email permite
-// variar el correo entre llamadas — el mismo correo no puede registrarse dos veces. El NIT
-// también se genera único por llamada (no solo el correo): cada registro crea un emisor
-// nuevo, y dos emisores no pueden compartir NIT.
-func registerRequest(t *testing.T, email string) map[string]any {
-	nit := fmt.Sprintf("9%011d", time.Now().UnixNano()%100000000000)
+// registerRequest construye un payload de POST /api/v1/auth/register completo — desde la
+// Fase 9.32 ya NO incluye una empresa (registro desacoplado, ver sección 9.32). email permite
+// variar el correo entre llamadas — el mismo correo no puede registrarse dos veces.
+func registerRequest(email string) map[string]any {
 	return map[string]any{
-		"issuer": map[string]any{
-			"nit":                      nit,
-			"check_digit":              "1",
-			"business_name":            "Empresa de Prueba S.A.S.",
-			"identification_type_code": "31",
-			"department_code":          "11",
-			"municipality_code":        "11001",
-			"address_line":             "Calle 1 # 2-3",
-			"email":                    "facturacion@empresa.test",
-			// Producción a propósito: desde que existe SendBillSync, habilitación SIEMPRE
-			// intenta enviar de verdad (con o sin TestSetID) — estas son pruebas con httptest,
-			// sin red real. Ver el mismo comentario en internal/documents/service_test.go.
-			"environment":          "1",
-			"software_id":          "software-id-de-prueba",
-			"software_pin":         "12345",
-			"certificate_base64":   selfSignedP12Base64(t),
-			"certificate_password": "clave-de-prueba",
-		},
 		"email":    email,
 		"password": "contraseña-segura",
 		"name":     "Admin de Prueba",
 	}
 }
 
-// registerTestIssuer registra un emisor + usuario nuevo y devuelve (issuerID, token).
+// createIssuerBody construye un payload de POST /api/v1/issuers completo. El NIT se genera
+// único por llamada: dos empresas no pueden compartir NIT.
+func createIssuerBody(t *testing.T) map[string]any {
+	nit := fmt.Sprintf("9%011d", time.Now().UnixNano()%100000000000)
+	return map[string]any{
+		"nit":                      nit,
+		"check_digit":              "1",
+		"business_name":            "Empresa de Prueba S.A.S.",
+		"identification_type_code": "31",
+		"department_code":          "11",
+		"municipality_code":        "11001",
+		"address_line":             "Calle 1 # 2-3",
+		"email":                    "facturacion@empresa.test",
+		// Producción a propósito: desde que existe SendBillSync, habilitación SIEMPRE
+		// intenta enviar de verdad (con o sin TestSetID) — estas son pruebas con httptest,
+		// sin red real. Ver el mismo comentario en internal/documents/service_test.go.
+		"environment":          "1",
+		"software_id":          "software-id-de-prueba",
+		"software_pin":         "12345",
+		"certificate_base64":   selfSignedP12Base64(t),
+		"certificate_password": "clave-de-prueba",
+	}
+}
+
+// createIssuerBodyWithoutCredentials es createIssuerBody sin software_id/software_pin/
+// certificate_base64/certificate_password — confirma que crear una empresa ya no los exige
+// (ver docs/api-dian-architecture.md sección 9.25): solo los datos que la DIAN pide del
+// emisor mismo.
+func createIssuerBodyWithoutCredentials(t *testing.T) map[string]any {
+	body := createIssuerBody(t)
+	delete(body, "software_id")
+	delete(body, "software_pin")
+	delete(body, "certificate_base64")
+	delete(body, "certificate_password")
+	return body
+}
+
+// registerAndCreateIssuer registra un usuario nuevo y le crea una empresa — devuelve
+// (issuerID, token) con el token YA activo en esa empresa (ver auth.Service.CreateIssuerForUser).
+func registerAndCreateIssuer(t *testing.T, env *testEnv, email string, issuerBody map[string]any) (string, string) {
+	t.Helper()
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest(email))
+	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
+	var registered map[string]any
+	decode(t, rw, &registered)
+	registerToken := registered["token"].(string)
+
+	rw = env.doAuth(t, "POST", "/api/v1/issuers", registerToken, issuerBody)
+	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
+	var created map[string]any
+	decode(t, rw, &created)
+	issuerID := created["issuer"].(map[string]any)["id"].(string)
+	token := created["token"].(string)
+	return issuerID, token
+}
+
+// registerTestIssuer registra un usuario y le crea una empresa con credenciales completas —
+// devuelve (issuerID, token).
 func registerTestIssuer(t *testing.T, env *testEnv) (string, string) {
 	t.Helper()
 	email := fmt.Sprintf("admin-%s@empresa.test", uuid.New().String())
-	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest(t, email))
-	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
-
-	var got map[string]any
-	decode(t, rw, &got)
-	issuerID := got["issuer"].(map[string]any)["id"].(string)
-	token := got["token"].(string)
-	return issuerID, token
+	return registerAndCreateIssuer(t, env, email, createIssuerBody(t))
 }
 
 func TestAPI_Register_OK(t *testing.T) {
 	env := newTestEnv(t)
 
-	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest(t, "admin@empresa.test"))
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest("admin@empresa.test"))
 
 	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
 	var got map[string]any
 	decode(t, rw, &got)
 	assert.NotEmpty(t, got["token"])
 	assert.Equal(t, "admin@empresa.test", got["user"].(map[string]any)["email"])
-	assert.NotEmpty(t, got["issuer"].(map[string]any)["nit"])
-	assert.NotContains(t, got["issuer"], "certificate_base64", "el secreto nunca debe salir en la respuesta")
-	assert.NotContains(t, got["issuer"], "software_pin", "el secreto nunca debe salir en la respuesta")
+	assert.NotContains(t, got, "issuer", "un usuario recién registrado no tiene ninguna empresa todavía")
 }
 
 func TestAPI_Register_InvalidJSON(t *testing.T) {
@@ -178,28 +206,24 @@ func TestAPI_Register_InvalidJSON(t *testing.T) {
 
 func TestAPI_Register_MissingRequiredField(t *testing.T) {
 	env := newTestEnv(t)
-	req := registerRequest(t, "admin@empresa.test")
-	req["issuer"].(map[string]any)["nit"] = ""
+	req := registerRequest("admin@empresa.test")
+	req["name"] = ""
 	rw := env.do(t, "POST", "/api/v1/auth/register", req)
 	assert.Equal(t, http.StatusBadRequest, rw.Code)
 }
 
 func TestAPI_Register_DuplicateEmail(t *testing.T) {
 	env := newTestEnv(t)
-	req := registerRequest(t, "admin@empresa.test")
-
-	rw := env.do(t, "POST", "/api/v1/auth/register", req)
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest("admin@empresa.test"))
 	require.Equal(t, http.StatusCreated, rw.Code)
 
-	req2 := registerRequest(t, "admin@empresa.test")
-	req2["issuer"].(map[string]any)["nit"] = "900111222" // distinto NIT, mismo correo
-	rw = env.do(t, "POST", "/api/v1/auth/register", req2)
+	rw = env.do(t, "POST", "/api/v1/auth/register", registerRequest("admin@empresa.test"))
 	assert.Equal(t, http.StatusConflict, rw.Code)
 }
 
 func TestAPI_Login_OK(t *testing.T) {
 	env := newTestEnv(t)
-	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest(t, "admin@empresa.test"))
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest("admin@empresa.test"))
 	require.Equal(t, http.StatusCreated, rw.Code)
 
 	rw = env.do(t, "POST", "/api/v1/auth/login", map[string]any{
@@ -212,9 +236,24 @@ func TestAPI_Login_OK(t *testing.T) {
 	assert.NotEmpty(t, got["token"])
 }
 
+// TestAPI_Login_AutoSelectsSingleIssuer confirma el comportamiento elegido para el caso
+// normal de hoy: con una sola empresa vinculada, el login ya viene con ella activa, sin un
+// paso extra de selección (ver sección 9.32).
+func TestAPI_Login_AutoSelectsSingleIssuer(t *testing.T) {
+	env := newTestEnv(t)
+	email := "auto-select@empresa.test"
+	registerAndCreateIssuer(t, env, email, createIssuerBody(t))
+
+	rw := env.do(t, "POST", "/api/v1/auth/login", map[string]any{"email": email, "password": "contraseña-segura"})
+	require.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.NotEmpty(t, got["issuer"], "con una sola empresa vinculada, el login debe autoseleccionarla")
+}
+
 func TestAPI_Login_WrongPassword(t *testing.T) {
 	env := newTestEnv(t)
-	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest(t, "admin@empresa.test"))
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest("admin@empresa.test"))
 	require.Equal(t, http.StatusCreated, rw.Code)
 
 	rw = env.do(t, "POST", "/api/v1/auth/login", map[string]any{
@@ -222,6 +261,113 @@ func TestAPI_Login_WrongPassword(t *testing.T) {
 		"password": "contraseña-equivocada",
 	})
 	assert.Equal(t, http.StatusUnauthorized, rw.Code)
+}
+
+// ── Empresas (multi-empresa, sección 9.32) ──────────────────────────────────────────────────
+
+func TestAPI_CreateIssuer_OK(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest("crea-empresa@empresa.test"))
+	require.Equal(t, http.StatusCreated, rw.Code)
+	var registered map[string]any
+	decode(t, rw, &registered)
+
+	rw = env.doAuth(t, "POST", "/api/v1/issuers", registered["token"].(string), createIssuerBody(t))
+	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.NotEmpty(t, got["token"], "debe venir un token nuevo con la empresa activa")
+	assert.NotEmpty(t, got["issuer"].(map[string]any)["nit"])
+}
+
+func TestAPI_CreateIssuer_NoToken(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "POST", "/api/v1/issuers", createIssuerBody(t))
+	assert.Equal(t, http.StatusUnauthorized, rw.Code)
+}
+
+func TestAPI_CreateIssuer_WithoutCredentials_OK(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest("sin-credenciales-empresa@empresa.test"))
+	require.Equal(t, http.StatusCreated, rw.Code)
+	var registered map[string]any
+	decode(t, rw, &registered)
+
+	rw = env.doAuth(t, "POST", "/api/v1/issuers", registered["token"].(string), createIssuerBodyWithoutCredentials(t))
+	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
+}
+
+func TestAPI_ListMyIssuers(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest("lista-empresas@empresa.test"))
+	require.Equal(t, http.StatusCreated, rw.Code)
+	var registered map[string]any
+	decode(t, rw, &registered)
+	registerToken := registered["token"].(string)
+
+	rw = env.doAuth(t, "GET", "/api/v1/issuers", registerToken, nil)
+	require.Equal(t, http.StatusOK, rw.Code)
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.EqualValues(t, 0, got["count"])
+
+	createRw := env.doAuth(t, "POST", "/api/v1/issuers", registerToken, createIssuerBody(t))
+	require.Equal(t, http.StatusCreated, createRw.Code)
+
+	rw = env.doAuth(t, "GET", "/api/v1/issuers", registerToken, nil)
+	require.Equal(t, http.StatusOK, rw.Code)
+	decode(t, rw, &got)
+	assert.EqualValues(t, 1, got["count"])
+}
+
+func TestAPI_SelectIssuer_OK(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest("selecciona-empresa@empresa.test"))
+	require.Equal(t, http.StatusCreated, rw.Code)
+	var registered map[string]any
+	decode(t, rw, &registered)
+	registerToken := registered["token"].(string)
+
+	createRw := env.doAuth(t, "POST", "/api/v1/issuers", registerToken, createIssuerBody(t))
+	require.Equal(t, http.StatusCreated, createRw.Code)
+	var created map[string]any
+	decode(t, createRw, &created)
+	issuerID := created["issuer"].(map[string]any)["id"].(string)
+
+	rw = env.doAuth(t, "POST", "/api/v1/issuers/"+issuerID+"/select", registerToken, nil)
+	require.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.Equal(t, issuerID, got["issuer"].(map[string]any)["id"])
+}
+
+// TestAPI_SelectIssuer_AccessDenied confirma el aislamiento entre tenants para el nuevo
+// endpoint: un usuario no puede activar una empresa a la que nunca se vinculó.
+func TestAPI_SelectIssuer_AccessDenied(t *testing.T) {
+	env := newTestEnv(t)
+	otherIssuerID, _ := registerTestIssuer(t, env)
+
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest("sin-acceso@empresa.test"))
+	require.Equal(t, http.StatusCreated, rw.Code)
+	var registered map[string]any
+	decode(t, rw, &registered)
+
+	rw = env.doAuth(t, "POST", "/api/v1/issuers/"+otherIssuerID+"/select", registered["token"].(string), nil)
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+// TestAPI_RequireTenant_NoActiveCompany confirma que las rutas que necesitan una empresa
+// activa fallan con un mensaje claro (409) cuando el usuario todavía no tiene ninguna — en vez
+// de devolver listas vacías silenciosamente o fallar de forma confusa más abajo.
+func TestAPI_RequireTenant_NoActiveCompany(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequest("sin-empresa-activa@empresa.test"))
+	require.Equal(t, http.StatusCreated, rw.Code)
+	var registered map[string]any
+	decode(t, rw, &registered)
+
+	rw = env.doAuth(t, "GET", "/api/v1/issuers/me", registered["token"].(string), nil)
+	assert.Equal(t, http.StatusConflict, rw.Code)
 }
 
 // ── Acceso protegido ─────────────────────────────────────────────────────────────────────────
@@ -247,26 +393,6 @@ func TestAPI_GetMyIssuer_InvalidToken(t *testing.T) {
 	env := newTestEnv(t)
 	rw := env.doAuth(t, "GET", "/api/v1/issuers/me", "esto-no-es-un-token", nil)
 	assert.Equal(t, http.StatusUnauthorized, rw.Code)
-}
-
-// registerRequestWithoutCredentials es registerRequest sin software_id/software_pin/
-// certificate_base64/certificate_password — confirma que el registro inicial ya no los exige
-// (ver docs/api-dian-architecture.md sección 9.25): solo los datos que la DIAN pide del
-// emisor mismo.
-func registerRequestWithoutCredentials(t *testing.T, email string) map[string]any {
-	req := registerRequest(t, email)
-	issuer := req["issuer"].(map[string]any)
-	delete(issuer, "software_id")
-	delete(issuer, "software_pin")
-	delete(issuer, "certificate_base64")
-	delete(issuer, "certificate_password")
-	return req
-}
-
-func TestAPI_Register_WithoutCredentials_OK(t *testing.T) {
-	env := newTestEnv(t)
-	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequestWithoutCredentials(t, "admin@empresa.test"))
-	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
 }
 
 func TestAPI_UpdateMyIssuer_OK(t *testing.T) {
@@ -318,11 +444,7 @@ func TestAPI_UpdateMyIssuer_NoToken(t *testing.T) {
 // intentar parsear un certificado vacío.
 func TestAPI_ConfirmDocument_IssuerNotReady(t *testing.T) {
 	env := newTestEnv(t)
-	rw := env.do(t, "POST", "/api/v1/auth/register", registerRequestWithoutCredentials(t, "sin-credenciales@empresa.test"))
-	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
-	var auth map[string]any
-	decode(t, rw, &auth)
-	token := auth["token"].(string)
+	_, token := registerAndCreateIssuer(t, env, "sin-credenciales@empresa.test", createIssuerBodyWithoutCredentials(t))
 
 	rangeID := createTestRange(t, env, token, "01", "SETP")
 	draft := createDraftInvoice(t, env, token, rangeID)
@@ -471,6 +593,13 @@ func testLines() []map[string]any {
 	}}
 }
 
+// testPaymentMeans — cac:PaymentMeans es obligatorio (1..N) para Invoice/CreditNote/DebitNote
+// según el Anexo Técnico (ver docs/api-dian-architecture.md sección 9.30); sin esto la DIAN
+// rechaza con "errores en campos mandatorios".
+func testPaymentMeans() []map[string]any {
+	return []map[string]any{{"code": "1", "payment_method_code": "10"}}
+}
+
 // createDraftInvoice crea un borrador de Factura (sin reclamar número, ver
 // docs/api-dian-architecture.md sección 9.25) y devuelve el body decodificado.
 func createDraftInvoice(t *testing.T, env *testEnv, token, rangeID string) map[string]any {
@@ -479,6 +608,7 @@ func createDraftInvoice(t *testing.T, env *testEnv, token, rangeID string) map[s
 		"numbering_range_id": rangeID,
 		"customer":           testCustomer(),
 		"lines":              testLines(),
+		"payment_means":      testPaymentMeans(),
 	})
 	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
 	var got map[string]any
@@ -589,6 +719,7 @@ func TestAPI_UpdateInvoiceDraft_OK(t *testing.T) {
 		"numbering_range_id": rangeID,
 		"customer":           testCustomer(),
 		"lines":              lines,
+		"payment_means":      testPaymentMeans(),
 	})
 	require.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
 	var got map[string]any
@@ -607,6 +738,7 @@ func TestAPI_UpdateInvoiceDraft_NotDraft(t *testing.T) {
 		"numbering_range_id": rangeID,
 		"customer":           testCustomer(),
 		"lines":              testLines(),
+		"payment_means":      testPaymentMeans(),
 	})
 	assert.Equal(t, http.StatusConflict, rw.Code, "un documento ya confirmado es inmutable")
 }
@@ -623,6 +755,7 @@ func TestAPI_UpdateInvoiceDraft_OtherTenant(t *testing.T) {
 		"numbering_range_id": rangeID,
 		"customer":           testCustomer(),
 		"lines":              testLines(),
+		"payment_means":      testPaymentMeans(),
 	})
 	assert.Equal(t, http.StatusNotFound, rw.Code)
 }
@@ -670,6 +803,7 @@ func TestAPI_IssueInvoice_NoToken(t *testing.T) {
 		"numbering_range_id": uuid.New().String(),
 		"customer":           testCustomer(),
 		"lines":              testLines(),
+		"payment_means":      testPaymentMeans(),
 	})
 	assert.Equal(t, http.StatusUnauthorized, rw.Code)
 }
@@ -683,6 +817,7 @@ func TestAPI_IssueInvoice_WrongDocumentType(t *testing.T) {
 		"numbering_range_id": rangeID,
 		"customer":           testCustomer(),
 		"lines":              testLines(),
+		"payment_means":      testPaymentMeans(),
 	})
 
 	assert.Equal(t, http.StatusUnprocessableEntity, rw.Code)
@@ -699,6 +834,7 @@ func TestAPI_IssueInvoice_OtherTenantRange(t *testing.T) {
 		"numbering_range_id": rangeID,
 		"customer":           testCustomer(),
 		"lines":              testLines(),
+		"payment_means":      testPaymentMeans(),
 	})
 
 	assert.Equal(t, http.StatusUnprocessableEntity, rw.Code)
@@ -724,6 +860,7 @@ func TestAPI_IssueInvoice_WithCustomerID_OK(t *testing.T) {
 		"numbering_range_id": rangeID,
 		"customer":           body,
 		"lines":              testLines(),
+		"payment_means":      testPaymentMeans(),
 		"customer_id":        customerID,
 	})
 
@@ -745,6 +882,7 @@ func TestAPI_IssueInvoice_OtherTenantCustomerID(t *testing.T) {
 		"numbering_range_id": rangeID,
 		"customer":           testCustomer(),
 		"lines":              testLines(),
+		"payment_means":      testPaymentMeans(),
 		"customer_id":        customerIDFromB,
 	})
 
@@ -760,6 +898,7 @@ func TestAPI_IssueInvoice_InvalidCustomerID(t *testing.T) {
 		"numbering_range_id": rangeID,
 		"customer":           testCustomer(),
 		"lines":              testLines(),
+		"payment_means":      testPaymentMeans(),
 		"customer_id":        "no-es-un-uuid",
 	})
 
@@ -778,6 +917,7 @@ func TestAPI_IssueCreditNote_OK(t *testing.T) {
 		"numbering_range_id":    cnRangeID,
 		"customer":              testCustomer(),
 		"lines":                 testLines(),
+		"payment_means":         testPaymentMeans(),
 		"credit_note_type_code": "2",
 		"billing_reference": map[string]any{
 			"prefix":     inv["prefix"],
@@ -813,6 +953,7 @@ func TestAPI_IssueCreditNote_MissingBillingReference(t *testing.T) {
 		"numbering_range_id":    cnRangeID,
 		"customer":              testCustomer(),
 		"lines":                 testLines(),
+		"payment_means":         testPaymentMeans(),
 		"credit_note_type_code": "2",
 	})
 

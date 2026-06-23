@@ -20,6 +20,13 @@ type IssuerPort interface {
 type NumberingPort interface {
 	GetRange(ctx context.Context, id uuid.UUID) (*numbering.NumberingRange, error)
 	ClaimNext(ctx context.Context, id uuid.UUID) (int64, error)
+
+	// ReleaseIfCurrent — ver numbering.Service.ReleaseIfCurrent. Se llama cuando un número
+	// recién reclamado termina en rejected/send_error, o cuando confirmar falla ANTES de
+	// llegar a intentar el envío (ej. construir o firmar el XML) — en ambos casos el número
+	// nunca quedó realmente ante la DIAN, así que el siguiente intento lo puede reclamar de
+	// nuevo en vez de avanzar y dejar un hueco (ver sección 9.33).
+	ReleaseIfCurrent(ctx context.Context, id uuid.UUID, number int64) error
 }
 
 // CustomerPort define lo que documents necesita del catálogo de clientes — solo para

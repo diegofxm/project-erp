@@ -16,6 +16,15 @@ type Repository interface {
 	// Devuelve ErrRangeExhausted si RangeTo ya fue alcanzado.
 	ClaimNext(ctx context.Context, id uuid.UUID) (int64, error)
 
+	// ReleaseIfCurrent revierte el ÚLTIMO ClaimNext de este rango — pero SOLO si current_number
+	// sigue siendo exactamente number, es decir, nadie reclamó otro número desde entonces. Si
+	// no se cumple esa condición, no hace nada (alguien más ya avanzó; retroceder ahí sería
+	// arriesgar que dos documentos terminen con el mismo número). Pensado para un documento
+	// rechazado por la DIAN o que nunca se logró transmitir (send_error) — ese número nunca
+	// quedó realmente registrado, así que el siguiente intento lo puede reclamar de nuevo en
+	// vez de avanzar y dejar un hueco (ver docs/api-dian-architecture.md sección 9.33).
+	ReleaseIfCurrent(ctx context.Context, id uuid.UUID, number int64) error
+
 	// ListByIssuer devuelve los rangos de un emisor, opcionalmente filtrados por tipo de
 	// documento DIAN ("" = todos). Sin paginación a propósito: el volumen esperado por emisor
 	// es bajo (resoluciones de numeración, no documentos emitidos).

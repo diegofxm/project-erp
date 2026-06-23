@@ -1,4 +1,5 @@
 code,name,description
+94,Unidad de servicio,"Código UN/ECE Rec. 20 confirmado real contra la DIAN (StatusCode 00, ver cofacture/soap/realsend_test.go) — no se tiene la descripción oficial completa en este repositorio, solo que es válido"
 NIU,Unidad,Unidad de medida genérica
 KGM,Kilogramo,Unidad de masa
 LTR,Litro,Unidad de volumen

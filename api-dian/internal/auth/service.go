@@ -7,11 +7,13 @@ import (
 	"strings"
 
 	"github.com/diegofxm/api-dian/internal/issuers"
+	"github.com/google/uuid"
 )
 
-// Service centraliza el registro/login de usuarios. "Un usuario = un emisor": Register crea
-// el emisor Y su primer usuario admin en una sola llamada (flujo típico de alta de un SaaS),
-// en vez de exponer la creación de emisores como un endpoint público separado.
+// Service centraliza el registro/login de usuarios y su acceso a empresas (user_issuers).
+// Desde la Fase 9.32: registro y creación de empresa están desacoplados — un usuario puede
+// existir sin ninguna empresa vinculada, y puede crear/vincularse a varias (multi-empresa/
+// sucursales) — ver docs/api-dian-architecture.md sección 9.32.
 type Service struct {
 	repo    Repository
 	issuers IssuerPort
@@ -23,26 +25,26 @@ func New(repo Repository, issuerPort IssuerPort, tokens *TokenIssuer) *Service {
 	return &Service{repo: repo, issuers: issuerPort, tokens: tokens}
 }
 
-// RegisterRequest agrupa los datos del emisor nuevo y de su primer usuario admin.
+// RegisterRequest son los datos del usuario nuevo — ya NO incluye una empresa (eso es
+// CreateIssuerForUser, después de registrarse).
 type RegisterRequest struct {
-	Issuer   issuers.Issuer
 	Email    string
 	Password string
 	Name     string
 }
 
-// AuthResult es lo que Register/Login devuelven: el usuario y un token de acceso ya firmado.
+// AuthResult es lo que Register/Login/CreateIssuerForUser/SelectIssuer devuelven: el usuario,
+// un token de acceso ya firmado, y la empresa activa en ese token (nil si todavía no tiene
+// ninguna o no se seleccionó cuál usar entre varias).
 type AuthResult struct {
-	User  User
-	Token string
+	User         User
+	Token        string
+	ActiveIssuer *issuers.Issuer
 }
 
-// Register crea el emisor y su primer usuario admin. Valida la disponibilidad del correo
-// ANTES de crear el emisor — si se creara el emisor primero y luego el correo resultara
-// duplicado, quedaría un emisor "huérfano" sin ningún usuario que lo administre. Esta
-// comprobación cubre el caso normal (correo repetido); la restricción UNIQUE en la base de
-// datos sigue siendo la red de seguridad real contra una carrera entre dos registros
-// simultáneos con el mismo correo.
+// Register crea SOLO el usuario — sin empresa. El siguiente paso natural es
+// CreateIssuerForUser (crear la primera) o, si un administrador ya lo vinculó a una empresa
+// existente, SelectIssuer.
 func (s *Service) Register(ctx context.Context, req RegisterRequest) (*AuthResult, error) {
 	if err := validateCredentials(req.Email, req.Password, req.Name); err != nil {
 		return nil, err
@@ -55,18 +57,12 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*AuthResul
 		return nil, err
 	}
 
-	iss, err := s.issuers.RegisterIssuer(ctx, req.Issuer)
-	if err != nil {
-		return nil, err
-	}
-
 	hash, err := hashPassword(req.Password)
 	if err != nil {
 		return nil, fmt.Errorf("cifrar contraseña: %w", err)
 	}
 
 	u, err := s.repo.Create(ctx, User{
-		IssuerID:     iss.ID,
 		Email:        email,
 		PasswordHash: hash,
 		Name:         strings.TrimSpace(req.Name),
@@ -77,10 +73,15 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*AuthResul
 		return nil, err
 	}
 
-	return s.issueResult(u)
+	// Usuario recién creado: cero empresas vinculadas todavía, ninguna activa.
+	return s.issueResult(u, nil)
 }
 
-// Login valida credenciales y devuelve un token nuevo.
+// Login valida credenciales y devuelve un token nuevo. La empresa activa se decide así: si el
+// usuario tiene EXACTAMENTE una empresa vinculada, se autoselecciona (mismo comportamiento
+// de siempre para el caso normal de hoy); si tiene cero o varias, el token queda sin empresa
+// activa — el cliente debe crear la primera (POST /issuers) o elegir entre las que tiene
+// (POST /issuers/{id}/select).
 func (s *Service) Login(ctx context.Context, email, password string) (*AuthResult, error) {
 	u, err := s.repo.GetByEmail(ctx, normalizeEmail(email))
 	if err != nil {
@@ -96,15 +97,96 @@ func (s *Service) Login(ctx context.Context, email, password string) (*AuthResul
 		return nil, ErrInvalidCredentials
 	}
 
-	return s.issueResult(u)
+	issuerIDs, err := s.repo.ListIssuerIDs(ctx, u.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	var active *issuers.Issuer
+	if len(issuerIDs) == 1 {
+		active, err = s.issuers.GetIssuer(ctx, issuerIDs[0])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return s.issueResult(u, active)
 }
 
-func (s *Service) issueResult(u *User) (*AuthResult, error) {
-	token, err := s.tokens.Issue(*u)
+// CreateIssuerForUser crea una empresa nueva y la vincula a userID como "owner" — el camino
+// para completar el "espacio de empresa" después de registrarse, o para agregar una empresa/
+// sucursal adicional a un usuario que ya tiene otras. La empresa recién creada queda activa
+// en el token devuelto (tiene sentido operar de inmediato en lo que se acaba de crear, sin un
+// paso extra de selección).
+func (s *Service) CreateIssuerForUser(ctx context.Context, userID uuid.UUID, iss issuers.Issuer) (*AuthResult, error) {
+	u, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	created, err := s.issuers.RegisterIssuer(ctx, iss)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.LinkIssuer(ctx, userID, created.ID, RoleOwner); err != nil {
+		return nil, err
+	}
+
+	return s.issueResult(u, created)
+}
+
+// ListUserIssuers devuelve las empresas a las que userID tiene acceso — para que el cliente
+// muestre un selector ("mis empresas") cuando hay más de una.
+func (s *Service) ListUserIssuers(ctx context.Context, userID uuid.UUID) ([]*issuers.Issuer, error) {
+	ids, err := s.repo.ListIssuerIDs(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*issuers.Issuer, 0, len(ids))
+	for _, id := range ids {
+		iss, err := s.issuers.GetIssuer(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, iss)
+	}
+	return out, nil
+}
+
+// SelectIssuer reemite el token con issuerID como empresa activa — solo si userID de verdad
+// tiene acceso a ella (ErrIssuerAccessDenied si no, nunca confiar en que el cliente solo pide
+// IDs a los que realmente tiene derecho).
+func (s *Service) SelectIssuer(ctx context.Context, userID, issuerID uuid.UUID) (*AuthResult, error) {
+	u, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	ok, err := s.repo.HasAccess(ctx, userID, issuerID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, ErrIssuerAccessDenied
+	}
+
+	iss, err := s.issuers.GetIssuer(ctx, issuerID)
+	if err != nil {
+		return nil, err
+	}
+	return s.issueResult(u, iss)
+}
+
+func (s *Service) issueResult(u *User, activeIssuer *issuers.Issuer) (*AuthResult, error) {
+	tenantID := uuid.Nil
+	if activeIssuer != nil {
+		tenantID = activeIssuer.ID
+	}
+	token, err := s.tokens.Issue(*u, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("emitir token: %w", err)
 	}
-	return &AuthResult{User: *u, Token: token}, nil
+	return &AuthResult{User: *u, Token: token, ActiveIssuer: activeIssuer}, nil
 }
 
 func normalizeEmail(email string) string {

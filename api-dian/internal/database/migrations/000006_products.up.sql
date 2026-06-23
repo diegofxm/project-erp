@@ -1,5 +1,5 @@
 -- Fase 2.11: products — catálogo de ítems/servicios reutilizable, por emisor. Misma lógica de
--- conveniencia que customers (ver 000007_customers): no es la fuente de verdad de una línea ya
+-- conveniencia que customers (ver 000005_customers): no es la fuente de verdad de una línea ya
 -- emitida, esa sigue viviendo en documents.lines (JSONB).
 --
 -- No incluye quantity/line_extension_cents ni una lista de impuestos — eso es dato de USO
@@ -7,13 +7,12 @@
 -- son un único impuesto por defecto, de conveniencia; si una factura real necesita más de un
 -- impuesto por línea, eso se decide al construir esa línea, no aquí.
 --
--- unit_code NO es FK a unit_measures: ese catálogo solo tiene 10 códigos de muestra (NIU/KGM/
--- LTR...) frente al estándar real completo (UN/ECE Rec. 20, cientos de códigos) — mismo hueco
--- de datos ya conocido que departments/municipalities (ver sección 9.6 del architecture doc).
--- Confirmado real: "94" (el código que usan los tests contra la DIAN real, autorizado con
--- StatusCode 00) no está en esas 10 filas — un FK aquí habría bloqueado un producto válido.
--- domain.Line.UnitCode tampoco se valida contra catálogo (vive en JSONB sin FK); esta columna
--- sigue el mismo criterio en vez de inventar un catálogo completo sin la fuente oficial.
+-- unit_code NO es FK a unit_measures: ese catálogo solo tiene 11 códigos de muestra (94/NIU/
+-- KGM/LTR...) frente al estándar real completo (UN/ECE Rec. 20, cientos de códigos) — mismo
+-- hueco de datos ya conocido que departments/municipalities (ver sección 9.6 del architecture
+-- doc). domain.Line.UnitCode tampoco se valida contra catálogo (vive en JSONB sin FK); esta
+-- columna sigue el mismo criterio en vez de inventar un catálogo completo sin la fuente
+-- oficial.
 CREATE TABLE products (
     id                   UUID         PRIMARY KEY,
     issuer_id           UUID         NOT NULL REFERENCES issuers(id),

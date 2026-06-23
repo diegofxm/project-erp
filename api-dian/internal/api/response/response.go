@@ -39,7 +39,8 @@ func classify(err error) (int, string) {
 		errors.Is(err, numbering.ErrRangeNotFound),
 		errors.Is(err, documents.ErrDocumentNotFound),
 		errors.Is(err, customers.ErrCustomerNotFound),
-		errors.Is(err, products.ErrProductNotFound):
+		errors.Is(err, products.ErrProductNotFound),
+		errors.Is(err, auth.ErrIssuerAccessDenied):
 		return http.StatusNotFound, err.Error()
 
 	// ── 401 ──────────────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ func classify(err error) (int, string) {
 		errors.Is(err, documents.ErrMissingNumberingRange),
 		errors.Is(err, documents.ErrEmptyLines),
 		errors.Is(err, documents.ErrMissingCustomer),
+		errors.Is(err, documents.ErrMissingPaymentMeans),
 		errors.Is(err, documents.ErrMissingBillingReference),
 		errors.Is(err, auth.ErrEmptyEmail),
 		errors.Is(err, auth.ErrEmptyPassword),

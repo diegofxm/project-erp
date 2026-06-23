@@ -94,6 +94,23 @@ func (r *PostgresRepository) ClaimNext(ctx context.Context, id uuid.UUID) (int64
 	return claimed, nil
 }
 
+// ReleaseIfCurrent retrocede current_number en 1 — pero el propio WHERE exige que siga
+// siendo exactamente number, así que si otra llamada ya reclamó un número distinto entre
+// medias, este UPDATE simplemente no afecta ninguna fila (no es un error, es la señal de "ya
+// no es seguro retroceder, alguien más avanzó").
+func (r *PostgresRepository) ReleaseIfCurrent(ctx context.Context, id uuid.UUID, number int64) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE numbering_ranges
+		SET current_number = current_number - 1, updated_at = NOW()
+		WHERE id = $1 AND current_number = $2`,
+		id, number,
+	)
+	if err != nil {
+		return fmt.Errorf("release number if current: %w", err)
+	}
+	return nil
+}
+
 func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error) {
 	query := `SELECT ` + numberingColumns + ` FROM numbering_ranges WHERE issuer_id = $1`
 	args := []any{issuerID}

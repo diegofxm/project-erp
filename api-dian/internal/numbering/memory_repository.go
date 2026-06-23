@@ -70,6 +70,23 @@ func (r *MemoryRepository) ClaimNext(_ context.Context, id uuid.UUID) (int64, er
 	return nr.CurrentNumber, nil
 }
 
+// ReleaseIfCurrent — ver Repository.ReleaseIfCurrent. El mutex ya serializa todo el acceso al
+// mapa, así que basta comparar y decrementar bajo el mismo lock que usa ClaimNext.
+func (r *MemoryRepository) ReleaseIfCurrent(_ context.Context, id uuid.UUID, number int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	nr, ok := r.ranges[id]
+	if !ok {
+		return nil
+	}
+	if nr.CurrentNumber == number {
+		nr.CurrentNumber--
+		nr.UpdatedAt = time.Now().UTC()
+	}
+	return nil
+}
+
 func (r *MemoryRepository) ListByIssuer(_ context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

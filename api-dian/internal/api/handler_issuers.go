@@ -14,9 +14,9 @@ import (
 	"github.com/diegofxm/api-dian/internal/api/response"
 )
 
-// createIssuerRequest es el payload de datos del emisor — ya no se expone como
-// POST /api/v1/issuers independiente (abierto sin autenticación); ahora viaja embebido en
-// registerRequest (handler_auth.go), que crea el emisor y su primer usuario admin juntos.
+// createIssuerRequest es el payload de datos de una empresa nueva — POST /api/v1/issuers
+// (autenticado, pero no embebido en el registro: desde la Fase 9.32 el registro de usuario y
+// la creación de empresa están desacoplados, ver sección 9.32 y handler_auth.go).
 // CertificateBase64/CertificatePassword/SoftwarePIN son secretos: se cifran en
 // internal/issuers antes de guardar (AES-256-GCM) y NUNCA se devuelven en la respuesta — ver
 // issuerResponse.
@@ -94,8 +94,71 @@ func issuerFromRequest(req createIssuerRequest, cert []byte) issuers.Issuer {
 	}
 }
 
-// handleGetMyIssuer devuelve el emisor del usuario autenticado — "un usuario = un emisor", no
-// hace falta un {id} en el path: siempre es el propio (middleware.GetTenantID).
+// handleCreateIssuer crea una empresa nueva y la vincula al usuario autenticado como "owner"
+// (auth.Service.CreateIssuerForUser) — el camino para completar el "espacio de empresa"
+// después de un registro desacoplado (ver sección 9.32), o para agregar una empresa/sucursal
+// adicional a un usuario que ya tiene otras (multi-empresa). NO usa middleware.RequireTenant
+// a propósito: un usuario sin ninguna empresa todavía necesita poder llamar esto. Reutiliza
+// createIssuerRequest/issuerFromRequest tal cual los usaba el registro antes de la 9.32.
+func (a *API) handleCreateIssuer(w http.ResponseWriter, r *http.Request) {
+	var req createIssuerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
+		return
+	}
+
+	cert, err := base64.StdEncoding.DecodeString(req.CertificateBase64)
+	if err != nil {
+		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "certificate_base64 no es base64 válido"})
+		return
+	}
+
+	result, err := a.auth.CreateIssuerForUser(r.Context(), middleware.GetUserID(r.Context()), issuerFromRequest(req, cert))
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	writeAuthResponse(w, http.StatusCreated, result)
+}
+
+// handleListMyIssuers lista las empresas a las que el usuario autenticado tiene acceso (ver
+// user_issuers) — para que el cliente muestre un selector cuando hay más de una. Tampoco usa
+// middleware.RequireTenant: es justamente lo que un usuario sin empresa activa necesita
+// poder consultar (para saber si tiene 0, debe crear una; o 2+, debe elegir).
+func (a *API) handleListMyIssuers(w http.ResponseWriter, r *http.Request) {
+	list, err := a.auth.ListUserIssuers(r.Context(), middleware.GetUserID(r.Context()))
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	out := make([]issuerResponse, len(list))
+	for i, iss := range list {
+		out[i] = issuerToResponse(iss)
+	}
+	response.WriteJSON(w, http.StatusOK, map[string]any{"issuers": out, "count": len(out)})
+}
+
+// handleSelectIssuer reemite el token con {id} como empresa activa — solo si el usuario
+// autenticado de verdad tiene acceso a ella (auth.ErrIssuerAccessDenied si no).
+func (a *API) handleSelectIssuer(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+
+	result, err := a.auth.SelectIssuer(r.Context(), middleware.GetUserID(r.Context()), id)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	writeAuthResponse(w, http.StatusOK, result)
+}
+
+// handleGetMyIssuer devuelve la empresa ACTIVA del usuario autenticado (middleware.GetTenantID
+// — exige middleware.RequireTenant en la ruta).
 func (a *API) handleGetMyIssuer(w http.ResponseWriter, r *http.Request) {
 	iss, err := a.issuers.GetIssuer(r.Context(), middleware.GetTenantID(r.Context()))
 	if err != nil {

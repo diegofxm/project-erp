@@ -9,6 +9,12 @@
 -- identification_type_code SÍ es FK (catálogo genérico de terceros), pero address_city_code/
 -- address_state_code NO lo son: un cliente puede ser extranjero (factura de exportación), sin
 -- código DIVIPOLA válido.
+--
+-- Esta migración va ANTES que 000008_documents a propósito (renumerada el 2026-06-23, sin
+-- datos reales en juego): documents.customer_id referencia customers(id), y así puede crearse
+-- inline en su CREATE TABLE, en su posición lógica, en vez de un ALTER TABLE posterior — un
+-- ALTER siempre agrega la columna al final físicamente, violando la convención de
+-- created_at/updated_at siempre al final (ver docs/api-dian-architecture.md sección 9.31).
 CREATE TABLE customers (
     id                                UUID         PRIMARY KEY,
     issuer_id                        UUID         NOT NULL REFERENCES issuers(id),
@@ -35,15 +41,3 @@ CREATE TABLE customers (
 );
 
 CREATE INDEX idx_customers_issuer ON customers(issuer_id);
-
--- documents.customer_id: referencia OPCIONAL y de solo trazabilidad a este catálogo — NUNCA
--- la fuente de verdad del documento (eso sigue siendo documents.customer, el snapshot JSONB
--- que de verdad se firmó y se envió a la DIAN), ni se serializa en ningún XML — no afecta el
--- cumplimiento del Anexo Técnico. Va aquí (no en 000005_documents, donde se crea la tabla
--- documents) porque en ese punto de la secuencia customers todavía no existe — la FK fallaría
--- en una instalación nueva desde cero si se intentara antes de este punto.
--- Nullable (una factura con datos sueltos, sin cliente guardado, no la tiene) y
--- ON DELETE SET NULL (borrar un cliente nunca debe romper ni borrar documentos ya emitidos).
-ALTER TABLE documents ADD COLUMN customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
-
-CREATE INDEX idx_documents_customer ON documents(customer_id) WHERE customer_id IS NOT NULL;

@@ -14,8 +14,28 @@
 -- documento puede existir como "draft" (status, ver internal/documents/model.go) antes de
 -- reclamar su consecutivo real — no hay número/CUFE/firma todavía. Solo se llenan al
 -- confirmar (POST /documents/{id}/confirm), el único punto donde se "gasta" un número real de
--- la DIAN. uq_documents_range_number sigue siendo válido con NULLs: Postgres nunca considera
--- dos NULL iguales entre sí, así que varios borradores sin número no chocan entre ellos.
+-- la DIAN.
+--
+-- uq_documents_range_number es un índice PARCIAL (Fase 9.33), no una constraint plana: excluye
+-- status 'rejected'/'send_error' a propósito. Un documento rechazado por la DIAN nunca quedó
+-- realmente registrado (no es como un documento ACEPTADO que se anula con una Nota Crédito,
+-- ese sí queda gastado para siempre); y un send_error significa que ni siquiera se intentó
+-- transmitir. numbering.Service.ReleaseIfCurrent reclama ese mismo número para el siguiente
+-- intento en vez de avanzar — sin este índice parcial, el segundo documento con el mismo
+-- número chocaría contra el primero (rechazado) que sigue ocupando la fila. Postgres nunca
+-- considera dos NULL iguales entre sí en un índice único, así que varios borradores sin número
+-- (number NULL) tampoco chocan entre ellos — eso sigue igual.
+--
+-- customer_id: referencia OPCIONAL y de solo trazabilidad al catálogo de clientes — NUNCA la
+-- fuente de verdad del documento (eso sigue siendo la columna "customer", el snapshot JSONB
+-- que de verdad se firma y se envía a la DIAN), ni se serializa en ningún XML — no afecta el
+-- cumplimiento del Anexo Técnico. Esta migración va DESPUÉS de 000005_customers a propósito
+-- (renumerada el 2026-06-23, sin datos reales en juego): así customer_id se crea inline aquí
+-- mismo, en su posición lógica, en vez de un ALTER TABLE posterior (que la habría dejado
+-- físicamente después de created_at/updated_at, violando la convención de esta sección — ver
+-- docs/api-dian-architecture.md sección 9.31). Nullable (una factura con datos sueltos, sin
+-- cliente guardado, no la tiene) y ON DELETE SET NULL (borrar un cliente nunca debe romper ni
+-- borrar documentos ya emitidos).
 CREATE TABLE documents (
     id                       UUID         PRIMARY KEY,
     issuer_id                UUID         NOT NULL REFERENCES issuers(id),
@@ -29,6 +49,7 @@ CREATE TABLE documents (
     currency_code            VARCHAR(3)   NOT NULL REFERENCES currencies(code),
 
     customer                 JSONB        NOT NULL,
+    customer_id              UUID         REFERENCES customers(id) ON DELETE SET NULL,
     lines                    JSONB        NOT NULL,
     payment_means            JSONB        NOT NULL DEFAULT '[]',
 
@@ -53,10 +74,11 @@ CREATE TABLE documents (
     dian_status_message              TEXT, -- distinto de dian_status_description: la DIAN los usa para cosas distintas
 
     created_at                       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at                         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT uq_documents_range_number UNIQUE (numbering_range_id, number)
+    updated_at                         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_documents_issuer ON documents(issuer_id, dian_document_type_code);
 CREATE INDEX idx_documents_document_key ON documents(document_key);
+CREATE INDEX idx_documents_customer ON documents(customer_id) WHERE customer_id IS NOT NULL;
+CREATE UNIQUE INDEX uq_documents_range_number ON documents(numbering_range_id, number)
+    WHERE status NOT IN ('rejected', 'send_error');

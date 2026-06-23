@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 
@@ -11,15 +10,14 @@ import (
 	"github.com/diegofxm/api-dian/internal/api/response"
 )
 
-// registerRequest combina los datos del emisor nuevo (mismo contrato que antes tenía
-// POST /api/v1/issuers, ya retirado) con los del primer usuario admin que lo administra —
-// "un usuario = un emisor", se crean juntos en una sola llamada (ver
-// docs/api-dian-architecture.md sección 9.17).
+// registerRequest son los datos del usuario nuevo — desde la Fase 9.32 ya NO incluye una
+// empresa: el registro queda desacoplado de crear/vincularse a una empresa (ver
+// docs/api-dian-architecture.md sección 9.32). Para crear la primera empresa, ver
+// POST /api/v1/issuers en handler_issuers.go.
 type registerRequest struct {
-	Issuer   createIssuerRequest `json:"issuer"`
-	Email    string              `json:"email"`
-	Password string              `json:"password"`
-	Name     string              `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
 }
 
 type loginRequest struct {
@@ -27,25 +25,25 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
-// authResponse es la respuesta de /auth/register y /auth/login: el token de sesión, el
-// usuario y el emisor que administra — para que el frontend no tenga que encadenar un GET
-// /issuers/me inmediatamente después.
+// authResponse es la respuesta de /auth/register, /auth/login, POST /issuers y
+// POST /issuers/{id}/select: el token de sesión, el usuario, y la empresa ACTIVA en ese token
+// — Issuer es nil mientras el usuario no tenga ninguna empresa vinculada, o tenga varias sin
+// haber seleccionado cuál usar (ver auth.Service.Login).
 type authResponse struct {
-	Token  string         `json:"token"`
-	User   userResponse   `json:"user"`
-	Issuer issuerResponse `json:"issuer"`
+	Token  string          `json:"token"`
+	User   userResponse    `json:"user"`
+	Issuer *issuerResponse `json:"issuer,omitempty"`
 }
 
 type userResponse struct {
-	ID       uuid.UUID `json:"id"`
-	Email    string    `json:"email"`
-	Name     string    `json:"name"`
-	Role     string    `json:"role"`
-	IssuerID uuid.UUID `json:"issuer_id"`
+	ID    uuid.UUID `json:"id"`
+	Email string    `json:"email"`
+	Name  string    `json:"name"`
+	Role  string    `json:"role"`
 }
 
 func userToResponse(u *auth.User) userResponse {
-	return userResponse{ID: u.ID, Email: u.Email, Name: u.Name, Role: u.Role, IssuerID: u.IssuerID}
+	return userResponse{ID: u.ID, Email: u.Email, Name: u.Name, Role: u.Role}
 }
 
 func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -55,14 +53,7 @@ func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cert, err := base64.StdEncoding.DecodeString(req.Issuer.CertificateBase64)
-	if err != nil {
-		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "certificate_base64 no es base64 válido"})
-		return
-	}
-
 	result, err := a.auth.Register(r.Context(), auth.RegisterRequest{
-		Issuer:   issuerFromRequest(req.Issuer, cert),
 		Email:    req.Email,
 		Password: req.Password,
 		Name:     req.Name,
@@ -72,7 +63,7 @@ func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.writeAuthResponse(w, r, http.StatusCreated, result)
+	writeAuthResponse(w, http.StatusCreated, result)
 }
 
 func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -88,19 +79,20 @@ func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.writeAuthResponse(w, r, http.StatusOK, result)
+	writeAuthResponse(w, http.StatusOK, result)
 }
 
-func (a *API) writeAuthResponse(w http.ResponseWriter, r *http.Request, status int, result *auth.AuthResult) {
-	iss, err := a.issuers.GetIssuer(r.Context(), result.User.IssuerID)
-	if err != nil {
-		response.WriteError(w, err)
-		return
+// writeAuthResponse arma la respuesta a partir de un auth.AuthResult ya resuelto — no vuelve a
+// consultar el emisor (a.auth ya lo trae en ActiveIssuer, si hay uno activo), a diferencia de
+// como funcionaba antes de la Fase 9.32 (un usuario siempre tenía exactamente un emisor fijo).
+func writeAuthResponse(w http.ResponseWriter, status int, result *auth.AuthResult) {
+	resp := authResponse{
+		Token: result.Token,
+		User:  userToResponse(&result.User),
 	}
-
-	response.WriteJSON(w, status, authResponse{
-		Token:  result.Token,
-		User:   userToResponse(&result.User),
-		Issuer: issuerToResponse(iss),
-	})
+	if result.ActiveIssuer != nil {
+		iss := issuerToResponse(result.ActiveIssuer)
+		resp.Issuer = &iss
+	}
+	response.WriteJSON(w, status, resp)
 }

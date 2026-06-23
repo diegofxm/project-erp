@@ -86,18 +86,26 @@ func (a *API) Handler() http.Handler {
 //
 // Resumen de rutas:
 //
-//	POST   /api/v1/auth/register                         → crea el emisor Y su primer usuario admin (público)
+//	POST   /api/v1/auth/register                         → crea el usuario, SIN empresa todavía (público, ver 9.32)
 //	POST   /api/v1/auth/login                             → inicia sesión, devuelve el token (público)
 //
-//	A partir de aquí, todo exige "Authorization: Bearer <token>" — "un usuario = un emisor",
-//	así que ningún endpoint recibe issuer_id del cliente: siempre se toma del token
-//	(middleware.GetTenantID), nunca de algo que el cliente pueda elegir.
+//	A partir de aquí, todo exige "Authorization: Bearer <token>". Un usuario puede tener cero,
+//	una, o varias empresas vinculadas (sección 9.32) — estas tres rutas NO exigen una empresa
+//	ACTIVA (son justamente las que se necesitan para conseguir una):
 //
-//	GET    /api/v1/issuers/me                            → consultar el emisor propio
-//	PUT    /api/v1/issuers/me                            → completar software/PIN/certificado del emisor propio (ver 9.25)
-//	POST   /api/v1/numbering-ranges                      → registrar rango de numeración del emisor propio
-//	GET    /api/v1/numbering-ranges                      → listar rangos del emisor propio (?dian_document_type_code=)
-//	GET    /api/v1/numbering-ranges/{id}                  → consultar rango (debe ser del emisor propio)
+//	POST   /api/v1/issuers                                → crear una empresa nueva y vincularla al usuario (rol owner)
+//	GET    /api/v1/issuers                                → listar las empresas del usuario
+//	POST   /api/v1/issuers/{id}/select                    → reemitir el token con esa empresa como activa
+//
+//	El resto SÍ exige una empresa activa (middleware.RequireTenant — 409 si no hay una) — el
+//	emisor/issuer_id nunca se recibe del cliente, siempre se toma del token
+//	(middleware.GetTenantID):
+//
+//	GET    /api/v1/issuers/me                            → consultar la empresa activa
+//	PUT    /api/v1/issuers/me                            → completar software/PIN/certificado de la empresa activa (ver 9.25)
+//	POST   /api/v1/numbering-ranges                      → registrar rango de numeración de la empresa activa
+//	GET    /api/v1/numbering-ranges                      → listar rangos de la empresa activa (?dian_document_type_code=)
+//	GET    /api/v1/numbering-ranges/{id}                  → consultar rango (debe ser de la empresa activa)
 //	POST   /api/v1/invoices                               → crear borrador de Factura (sin reclamar número)
 //	PUT    /api/v1/invoices/{id}                          → reemplazar un borrador de Factura
 //	POST   /api/v1/credit-notes                           → crear borrador de Nota Crédito
@@ -106,8 +114,8 @@ func (a *API) Handler() http.Handler {
 //	PUT    /api/v1/debit-notes/{id}                        → reemplazar un borrador de Nota Débito
 //	POST   /api/v1/documents/{id}/confirm                  → reclamar número + firmar + enviar (ver 9.25)
 //	DELETE /api/v1/documents/{id}                         → eliminar un borrador (debe seguir en borrador)
-//	GET    /api/v1/documents                              → listar documentos del emisor propio (filtros + ?limit=&offset=)
-//	GET    /api/v1/documents/{id}                         → consultar documento (debe ser del emisor propio)
+//	GET    /api/v1/documents                              → listar documentos de la empresa activa (filtros + ?limit=&offset=)
+//	GET    /api/v1/documents/{id}                         → consultar documento (debe ser de la empresa activa)
 //
 //	POST/GET/PUT/DELETE /api/v1/customers[/{id}]          → catálogo de adquirientes (conveniencia, ver internal/customers)
 //	POST/GET/PUT/DELETE /api/v1/products[/{id}]           → catálogo de ítems/servicios (conveniencia, ver internal/products)
@@ -116,7 +124,15 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/login", a.handleLogin)
 
 	protect := middleware.Auth(a.tokens)
-	handle := func(pattern string, h http.HandlerFunc) { mux.Handle(pattern, protect(h)) }
+	// handle exige una empresa ACTIVA (la mayoría de rutas); handleNoTenant solo exige estar
+	// autenticado — para las rutas de gestión de empresas, que un usuario sin empresa activa
+	// todavía necesita poder llamar (ver sección 9.32).
+	handle := func(pattern string, h http.HandlerFunc) { mux.Handle(pattern, protect(middleware.RequireTenant(h))) }
+	handleNoTenant := func(pattern string, h http.HandlerFunc) { mux.Handle(pattern, protect(h)) }
+
+	handleNoTenant("POST /api/v1/issuers", a.handleCreateIssuer)
+	handleNoTenant("GET /api/v1/issuers", a.handleListMyIssuers)
+	handleNoTenant("POST /api/v1/issuers/{id}/select", a.handleSelectIssuer)
 
 	handle("GET /api/v1/issuers/me", a.handleGetMyIssuer)
 	handle("PUT /api/v1/issuers/me", a.handleUpdateMyIssuer)

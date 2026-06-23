@@ -1,2 +1,0 @@
-ALTER TABLE documents DROP COLUMN IF EXISTS customer_id;
-DROP TABLE IF EXISTS customers;

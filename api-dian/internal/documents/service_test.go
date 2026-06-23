@@ -31,8 +31,9 @@ func (f *fakeIssuerPort) GetIssuer(_ context.Context, _ uuid.UUID) (*issuers.Iss
 }
 
 type fakeNumberingPort struct {
-	nr   *numbering.NumberingRange
-	next int64
+	nr       *numbering.NumberingRange
+	next     int64
+	released []int64 // números pasados a ReleaseIfCurrent, en orden — para que los tests confirmen cuándo se intentó devolver uno
 }
 
 func (f *fakeNumberingPort) GetRange(_ context.Context, _ uuid.UUID) (*numbering.NumberingRange, error) {
@@ -45,6 +46,16 @@ func (f *fakeNumberingPort) GetRange(_ context.Context, _ uuid.UUID) (*numbering
 func (f *fakeNumberingPort) ClaimNext(_ context.Context, _ uuid.UUID) (int64, error) {
 	f.next++
 	return f.next, nil
+}
+
+// ReleaseIfCurrent reproduce la misma condición atómica que numbering.PostgresRepository: solo
+// retrocede si number es de verdad el último entregado por ClaimNext.
+func (f *fakeNumberingPort) ReleaseIfCurrent(_ context.Context, _ uuid.UUID, number int64) error {
+	f.released = append(f.released, number)
+	if f.next == number {
+		f.next--
+	}
+	return nil
 }
 
 // fakeCustomerPort es un doble mínimo para el CustomerID opcional (ver model.go) — la
@@ -121,6 +132,7 @@ func testRequest(issuerID, rangeID uuid.UUID) documents.IssueInvoiceRequest {
 				{TaxableAmountCents: 10000, TaxAmountCents: 0, Percent: 0, TypeCode: "01", TypeName: "IVA"},
 			},
 		}},
+		PaymentMeans: []domain.PaymentMean{{Code: "1", PaymentMethodCode: "10"}},
 	}
 }
 
@@ -196,6 +208,44 @@ func TestConfirmDocument_ClaimsSequentialNumbers(t *testing.T) {
 	assert.Equal(t, int64(1), first.Number)
 	assert.Equal(t, int64(2), second.Number)
 	assert.NotEqual(t, first.DocumentKey, second.DocumentKey)
+}
+
+// TestConfirmDocument_ClaimLoadFailure_ReleasesNumberForRetry confirma el mecanismo central de
+// la sección 9.33: si confirmar falla DESPUÉS de reclamar un número pero ANTES de que el
+// documento exista de verdad (acá, un certificado corrupto — mismo camino que un rechazo de la
+// DIAN o un error de envío, ver finish() en service.go), el número se devuelve, y el SIGUIENTE
+// intento sobre el mismo borrador lo vuelve a reclamar en vez de saltar al siguiente y dejar un
+// hueco permanente.
+func TestConfirmDocument_ClaimLoadFailure_ReleasesNumberForRetry(t *testing.T) {
+	iss := testIssuer()
+	validCert, validPwd := iss.Certificate, iss.CertificatePassword
+	iss.Certificate = []byte("esto no es un certificado PKCS12 válido")
+	nr := testNumberingRange(iss.ID)
+	numberingPort := &fakeNumberingPort{nr: nr}
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		numberingPort,
+		&fakeCustomerPort{},
+	)
+
+	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
+	require.NoError(t, err)
+
+	_, err = svc.ConfirmDocument(context.Background(), iss.ID, draft.ID)
+	require.Error(t, err, "el certificado corrupto debe fallar al confirmar")
+	assert.Equal(t, []int64{1}, numberingPort.released, "el número 1 ya reclamado debe devolverse")
+	assert.Equal(t, int64(0), numberingPort.next, "current_number debe quedar como si nunca se hubiera reclamado")
+
+	stillDraft, err := svc.GetDocument(context.Background(), draft.ID)
+	require.NoError(t, err)
+	assert.Equal(t, documents.StatusDraft, stillDraft.Status, "el borrador nunca llegó a confirmarse, debe seguir en draft")
+
+	// El usuario "arregla" el certificado y reintenta sobre el MISMO borrador.
+	iss.Certificate, iss.CertificatePassword = validCert, validPwd
+	confirmed, err := svc.ConfirmDocument(context.Background(), iss.ID, draft.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), confirmed.Number, "debe reclamar de nuevo el número 1, no saltar al 2")
 }
 
 func TestConfirmDocument_NotDraft(t *testing.T) {
@@ -449,6 +499,7 @@ func TestCreateInvoiceDraft_Validations(t *testing.T) {
 		{"sin rango", func(r *documents.IssueInvoiceRequest) { r.NumberingRangeID = uuid.Nil }, documents.ErrMissingNumberingRange},
 		{"sin lineas", func(r *documents.IssueInvoiceRequest) { r.Lines = nil }, documents.ErrEmptyLines},
 		{"sin adquiriente", func(r *documents.IssueInvoiceRequest) { r.Customer = domain.Party{} }, documents.ErrMissingCustomer},
+		{"sin forma de pago", func(r *documents.IssueInvoiceRequest) { r.PaymentMeans = nil }, documents.ErrMissingPaymentMeans},
 	}
 
 	for _, tt := range tests {
@@ -481,6 +532,7 @@ func testNoteRequest(issuerID, rangeID uuid.UUID) documents.IssueNoteRequest {
 				{TaxableAmountCents: 10000, TaxAmountCents: 0, Percent: 0, TypeCode: "01", TypeName: "IVA"},
 			},
 		}},
+		PaymentMeans: []domain.PaymentMean{{Code: "1", PaymentMethodCode: "10"}},
 		BillingReference: documents.BillingReferenceInput{
 			Prefix:    "SETP",
 			Number:    "990068706",

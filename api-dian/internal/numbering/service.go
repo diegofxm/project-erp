@@ -47,10 +47,21 @@ func (s *Service) GetRange(ctx context.Context, id uuid.UUID) (*NumberingRange, 
 }
 
 // ClaimNext reclama el siguiente consecutivo del rango, de forma atómica y segura bajo
-// concurrencia. Es el único método que de verdad "gasta" un número — nunca se reintenta ni
-// se reutiliza uno fallido, eso violaría el invariante de no-repetición de la DIAN.
+// concurrencia. ClaimNext en sí mismo nunca reintenta ni reutiliza nada — siempre avanza. Ver
+// ReleaseIfCurrent para el único mecanismo que sí puede hacer que un número se vuelva a
+// entregar (porque nunca quedó realmente gastado ante la DIAN, no porque se esté repitiendo
+// uno ya válido).
 func (s *Service) ClaimNext(ctx context.Context, id uuid.UUID) (int64, error) {
 	return s.repo.ClaimNext(ctx, id)
+}
+
+// ReleaseIfCurrent revierte el último ClaimNext de id — pero solo si number sigue siendo el
+// número vigente del rango (nadie reclamó otro desde entonces). Pensado para un documento
+// rechazado por la DIAN o que nunca se logró transmitir (send_error): ahí el número nunca
+// quedó realmente registrado, así que el siguiente intento lo puede volver a reclamar en vez
+// de avanzar y dejar un hueco permanente (ver docs/api-dian-architecture.md sección 9.33).
+func (s *Service) ReleaseIfCurrent(ctx context.Context, id uuid.UUID, number int64) error {
+	return s.repo.ReleaseIfCurrent(ctx, id, number)
 }
 
 // ListRanges devuelve los rangos de numeración de un emisor, opcionalmente filtrados por tipo

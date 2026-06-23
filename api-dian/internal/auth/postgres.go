@@ -25,7 +25,7 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{pool: pool}
 }
 
-const userColumns = `id, issuer_id, email, password_hash, name, role, is_active, created_at, updated_at`
+const userColumns = `id, email, password_hash, name, role, is_active, created_at, updated_at`
 
 const userSelect = `SELECT ` + userColumns + ` FROM users`
 
@@ -37,7 +37,7 @@ func (r *PostgresRepository) Create(ctx context.Context, u User) (*User, error) 
 	u.CreatedAt = now
 	u.UpdatedAt = now
 
-	args := []any{u.ID, u.IssuerID, u.Email, u.PasswordHash, u.Name, u.Role, u.IsActive, u.CreatedAt, u.UpdatedAt}
+	args := []any{u.ID, u.Email, u.PasswordHash, u.Name, u.Role, u.IsActive, u.CreatedAt, u.UpdatedAt}
 	_, err := r.pool.Exec(ctx, `INSERT INTO users (`+userColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
 	if err != nil {
 		if isDuplicateKey(err) {
@@ -60,7 +60,7 @@ func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (*Use
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.IssuerID, &u.Email, &u.PasswordHash, &u.Name, &u.Role, &u.IsActive, &u.CreatedAt, &u.UpdatedAt)
+	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Role, &u.IsActive, &u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
@@ -68,6 +68,48 @@ func scanUser(row pgx.Row) (*User, error) {
 		return nil, fmt.Errorf("scan user: %w", err)
 	}
 	return &u, nil
+}
+
+// LinkIssuer es idempotente (ON CONFLICT DO NOTHING sobre la PK compuesta) — vincular dos
+// veces el mismo par (userID, issuerID) no debe fallar.
+func (r *PostgresRepository) LinkIssuer(ctx context.Context, userID, issuerID uuid.UUID, role string) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO user_issuers (user_id, issuer_id, role, created_at)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id, issuer_id) DO NOTHING`,
+		userID, issuerID, role, time.Now().UTC(),
+	)
+	if err != nil {
+		return fmt.Errorf("link issuer: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresRepository) ListIssuerIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := r.pool.Query(ctx, `SELECT issuer_id FROM user_issuers WHERE user_id = $1 ORDER BY created_at`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list issuer ids: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan issuer id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+func (r *PostgresRepository) HasAccess(ctx context.Context, userID, issuerID uuid.UUID) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM user_issuers WHERE user_id = $1 AND issuer_id = $2)`, userID, issuerID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check issuer access: %w", err)
+	}
+	return exists, nil
 }
 
 func isDuplicateKey(err error) bool {
