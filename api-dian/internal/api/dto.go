@@ -89,6 +89,90 @@ type discrepancyResponseDTO struct {
 	Description  string `json:"description"`
 }
 
+// totalsDTO es el inverso de domain.Totals — solo de lectura, ver totalsFromDomain.
+type totalsDTO struct {
+	LineExtensionCents int64 `json:"line_extension_cents"`
+	TaxExclusiveCents  int64 `json:"tax_exclusive_cents"`
+	TaxInclusiveCents  int64 `json:"tax_inclusive_cents"`
+	PrepaidCents       int64 `json:"prepaid_cents,omitempty"`
+	PayableCents       int64 `json:"payable_cents"`
+}
+
+func totalsFromDomain(t domain.Totals) totalsDTO {
+	return totalsDTO{
+		LineExtensionCents: t.LineExtensionCents,
+		TaxExclusiveCents:  t.TaxExclusiveCents,
+		TaxInclusiveCents:  t.TaxInclusiveCents,
+		PrepaidCents:       t.PrepaidCents,
+		PayableCents:       t.PayableCents,
+	}
+}
+
+func taxFromDomain(t domain.Tax) taxDTO {
+	return taxDTO{
+		TaxableAmountCents: t.TaxableAmountCents,
+		TaxAmountCents:     t.TaxAmountCents,
+		Percent:            t.Percent,
+		TypeCode:           t.TypeCode,
+		TypeName:           t.TypeName,
+	}
+}
+
+// lineFromDomain/linesFromDomain son el inverso de linesToDomain — no existían antes porque
+// ningún endpoint devolvía las líneas de un documento ya guardado (ver
+// docs/api-dian-architecture.md sección 9.28: GET /documents devolvía solo metadatos, nunca
+// el contenido — un frontend real sí lo necesita para mostrar algo más que un UUID).
+func lineFromDomain(l domain.Line) lineDTO {
+	dto := lineDTO{
+		Description:        l.Description,
+		Quantity:           l.Quantity,
+		UnitCode:           l.UnitCode,
+		LineExtensionCents: l.LineExtensionCents,
+		UnitPriceCents:     l.UnitPriceCents,
+		FreeOfCharge:       l.FreeOfCharge,
+		ItemCode:           l.ItemCode,
+		ItemTypeCode:       l.ItemTypeCode,
+		ItemTypeName:       l.ItemTypeName,
+		ItemTypeAgencyID:   l.ItemTypeAgencyID,
+	}
+	if l.ReferencePrice != nil {
+		dto.ReferencePrice = &referencePriceDTO{
+			PriceAmountCents: l.ReferencePrice.PriceAmountCents,
+			TypeCode:         l.ReferencePrice.TypeCode,
+		}
+	}
+	dto.Taxes = make([]taxDTO, len(l.Taxes))
+	for i, t := range l.Taxes {
+		dto.Taxes[i] = taxFromDomain(t)
+	}
+	return dto
+}
+
+func linesFromDomain(lines []domain.Line) []lineDTO {
+	out := make([]lineDTO, len(lines))
+	for i, l := range lines {
+		out[i] = lineFromDomain(l)
+	}
+	return out
+}
+
+func paymentMeanFromDomain(pm domain.PaymentMean) paymentMeanDTO {
+	return paymentMeanDTO{
+		Code:              pm.Code,
+		PaymentMethodCode: pm.PaymentMethodCode,
+		DueDate:           pm.DueDate,
+		PaymentReference:  pm.PaymentReference,
+	}
+}
+
+func paymentMeansFromDomain(pms []domain.PaymentMean) []paymentMeanDTO {
+	out := make([]paymentMeanDTO, len(pms))
+	for i, pm := range pms {
+		out[i] = paymentMeanFromDomain(pm)
+	}
+	return out
+}
+
 func (p partyDTO) toDomain() domain.Party {
 	party := domain.Party{
 		EntityTypeCode: p.EntityTypeCode,

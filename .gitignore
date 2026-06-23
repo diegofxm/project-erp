@@ -15,6 +15,9 @@ api-dian/.env.*
 # Binarios compilados
 api-dian.exe
 cofacture.exe
+frontend/devui.exe
+frontend/frontend.exe
+*.exe
 /bin/
 /dist/
 
@@ -23,6 +26,3 @@ cofacture.exe
 *.out
 coverage.html
 coverage.txt
-
-# Frentend proyectado a futuro
-/frontend

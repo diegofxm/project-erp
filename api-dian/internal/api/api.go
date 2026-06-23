@@ -19,20 +19,22 @@ import (
 
 // API agrupa los seis servicios de dominio y expone el http.Handler.
 type API struct {
-	log       *zap.Logger
-	issuers   *issuers.Service
-	numbering *numbering.Service
-	documents *documents.Service
-	auth      *auth.Service
-	tokens    *auth.TokenIssuer
-	customers *customers.Service
-	products  *products.Service
+	log            *zap.Logger
+	issuers        *issuers.Service
+	numbering      *numbering.Service
+	documents      *documents.Service
+	auth           *auth.Service
+	tokens         *auth.TokenIssuer
+	customers      *customers.Service
+	products       *products.Service
+	allowedOrigins []string
 }
 
 // New conecta los seis dominios sobre una sola base de datos y devuelve la API.
 // authJWTSecret firma los tokens de sesión (HS256) — deliberadamente distinto de
-// issuerSecretsKey (ver internal/config.Config.AuthJWTSecret).
-func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byte) *API {
+// issuerSecretsKey (ver internal/config.Config.AuthJWTSecret). allowedOrigins son los
+// orígenes permitidos por CORS (ver internal/api/middleware/cors.go).
+func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byte, allowedOrigins []string) *API {
 	issuerSvc := issuers.New(issuers.NewPostgresRepository(db.Pool, issuerSecretsKey), documents.ValidateCertificate)
 	numberingSvc := numbering.New(numbering.NewPostgresRepository(db.Pool, issuerSecretsKey))
 	customersSvc := customers.New(customers.NewPostgresRepository(db.Pool))
@@ -41,7 +43,7 @@ func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byt
 	tokens := auth.NewTokenIssuer(authJWTSecret)
 	authSvc := auth.New(auth.NewPostgresRepository(db.Pool), issuerSvc, tokens)
 
-	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc)
+	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, allowedOrigins)
 }
 
 // NewFromServices crea una API a partir de servicios ya construidos — útil para tests que
@@ -55,10 +57,12 @@ func NewFromServices(
 	tokens *auth.TokenIssuer,
 	customersSvc *customers.Service,
 	productsSvc *products.Service,
+	allowedOrigins []string,
 ) *API {
 	return &API{
 		log: log, issuers: issuerSvc, numbering: numberingSvc, documents: documentsSvc,
 		auth: authSvc, tokens: tokens, customers: customersSvc, products: productsSvc,
+		allowedOrigins: allowedOrigins,
 	}
 }
 
@@ -67,9 +71,13 @@ func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
 	a.registerRoutes(mux)
 
-	// Middleware aplicado de afuera hacia adentro: RequestID → Logging → Recovery.
+	// Middleware aplicado de afuera hacia adentro: RequestID → CORS → Logging → Recovery.
+	// CORS va antes de Logging a propósito: un preflight OPTIONS se responde y corta ahí
+	// mismo (ver middleware.CORS), nunca llega a generar una línea de log ni a tocar el mux
+	// (que no tiene rutas OPTIONS registradas).
 	h := middleware.Recovery(a.log)(mux)
 	h = middleware.Logging(a.log)(h)
+	h = middleware.CORS(a.allowedOrigins)(h)
 	h = middleware.RequestID(h)
 	return h
 }

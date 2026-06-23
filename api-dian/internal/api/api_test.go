@@ -55,7 +55,15 @@ func selfSignedP12Base64(t *testing.T) string {
 	return base64.StdEncoding.EncodeToString(p12)
 }
 
+// newTestEnv usa "*" como orígenes CORS permitidos — ninguno de estos tests manda un header
+// Origin, así que esto no cambia ningún comportamiento existente; ver newTestEnvWithOrigins
+// para los tests que sí necesitan probar CORS con una lista explícita.
 func newTestEnv(t *testing.T) *testEnv {
+	t.Helper()
+	return newTestEnvWithOrigins(t, []string{"*"})
+}
+
+func newTestEnvWithOrigins(t *testing.T, allowedOrigins []string) *testEnv {
 	t.Helper()
 	log := zap.NewNop()
 
@@ -67,7 +75,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	tokens := auth.NewTokenIssuer([]byte("clave-de-prueba-no-usar-en-produccion"))
 	authSvc := auth.New(auth.NewMemoryRepository(), issuerSvc, tokens)
 
-	a := api.NewFromServices(log, issuerSvc, numberingSvc, docsSvc, authSvc, tokens, customersSvc, productsSvc)
+	a := api.NewFromServices(log, issuerSvc, numberingSvc, docsSvc, authSvc, tokens, customersSvc, productsSvc, allowedOrigins)
 
 	return &testEnv{handler: a.Handler()}
 }
@@ -505,6 +513,19 @@ func TestAPI_CreateInvoiceDraft_OK(t *testing.T) {
 	assert.Empty(t, draft["number"], "un borrador no reclama número")
 	assert.Empty(t, draft["document_key"], "un borrador no tiene CUFE todavía")
 	assert.Empty(t, draft["signed_xml"], "un borrador no está firmado todavía")
+
+	// El contenido SÍ debe verse desde el borrador — un frontend real necesita mostrar
+	// "factura para X por $Y" sin tener que volver a pedirle los datos al usuario (ver
+	// docs/api-dian-architecture.md sección 9.28).
+	customer, ok := draft["customer"].(map[string]any)
+	require.True(t, ok, "customer debe venir en la respuesta")
+	assert.Equal(t, "Consumidor Final", customer["name"])
+	lines, ok := draft["lines"].([]any)
+	require.True(t, ok, "lines debe venir en la respuesta")
+	assert.Len(t, lines, 1)
+	totals, ok := draft["totals"].(map[string]any)
+	require.True(t, ok, "totals debe venir en la respuesta")
+	assert.EqualValues(t, 10000, totals["line_extension_cents"])
 }
 
 func TestAPI_ConfirmDocument_OK(t *testing.T) {
@@ -517,6 +538,10 @@ func TestAPI_ConfirmDocument_OK(t *testing.T) {
 	assert.Equal(t, "built", got["status"])
 	assert.NotEmpty(t, got["document_key"])
 	assert.Contains(t, got["signed_xml"], "<ds:Signature")
+
+	customer, ok := got["customer"].(map[string]any)
+	require.True(t, ok, "customer debe seguir presente después de confirmar")
+	assert.Equal(t, "Consumidor Final", customer["name"])
 }
 
 func TestAPI_ConfirmDocument_NotDraft(t *testing.T) {
@@ -1108,4 +1133,72 @@ func TestAPI_UnknownRoute_404(t *testing.T) {
 	env := newTestEnv(t)
 	rw := env.do(t, "GET", "/api/v1/no-existe", nil)
 	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+// ── CORS ─────────────────────────────────────────────────────────────────────────────────────
+
+// TestAPI_CORS_PreflightAllowedOrigin confirma que un preflight OPTIONS desde un origen
+// permitido se responde directamente (204), sin llegar al mux — que no tiene ninguna ruta
+// OPTIONS registrada y respondería 405/404 si el preflight no se cortara antes.
+func TestAPI_CORS_PreflightAllowedOrigin(t *testing.T) {
+	env := newTestEnvWithOrigins(t, []string{"http://localhost:5500"})
+
+	req := httptest.NewRequest("OPTIONS", "/api/v1/invoices", nil)
+	req.Header.Set("Origin", "http://localhost:5500")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	req.Header.Set("Access-Control-Request-Headers", "Content-Type, Authorization")
+	rw := httptest.NewRecorder()
+	env.handler.ServeHTTP(rw, req)
+
+	assert.Equal(t, http.StatusNoContent, rw.Code)
+	assert.Equal(t, "http://localhost:5500", rw.Header().Get("Access-Control-Allow-Origin"))
+	assert.Contains(t, rw.Header().Get("Access-Control-Allow-Methods"), "POST")
+	assert.Contains(t, rw.Header().Get("Access-Control-Allow-Headers"), "Authorization")
+}
+
+// TestAPI_CORS_PreflightDisallowedOrigin confirma que un origen NO permitido nunca recibe
+// Access-Control-Allow-Origin — el navegador lo bloqueará del lado del cliente.
+func TestAPI_CORS_PreflightDisallowedOrigin(t *testing.T) {
+	env := newTestEnvWithOrigins(t, []string{"http://localhost:5500"})
+
+	req := httptest.NewRequest("OPTIONS", "/api/v1/invoices", nil)
+	req.Header.Set("Origin", "http://evil.test")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	rw := httptest.NewRecorder()
+	env.handler.ServeHTTP(rw, req)
+
+	assert.Empty(t, rw.Header().Get("Access-Control-Allow-Origin"))
+}
+
+// TestAPI_CORS_ActualRequestEchoesOrigin confirma que una petición real (no preflight) desde
+// un origen permitido recibe el header reflejado exactamente (nunca "*" cuando la lista es
+// explícita) más Vary: Origin.
+func TestAPI_CORS_ActualRequestEchoesOrigin(t *testing.T) {
+	env := newTestEnvWithOrigins(t, []string{"http://localhost:5500"})
+	_, token := registerTestIssuer(t, env)
+
+	req := httptest.NewRequest("GET", "/api/v1/issuers/me", nil)
+	req.Header.Set("Origin", "http://localhost:5500")
+	req.Header.Set("Authorization", "Bearer "+token)
+	rw := httptest.NewRecorder()
+	env.handler.ServeHTTP(rw, req)
+
+	require.Equal(t, http.StatusOK, rw.Code)
+	assert.Equal(t, "http://localhost:5500", rw.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "Origin", rw.Header().Get("Vary"))
+}
+
+// TestAPI_CORS_WildcardAllowsAnyOrigin confirma que configurar "*" (solo para desarrollo
+// local) acepta cualquier origen, con el literal "*" — no el origen reflejado.
+func TestAPI_CORS_WildcardAllowsAnyOrigin(t *testing.T) {
+	env := newTestEnvWithOrigins(t, []string{"*"})
+
+	req := httptest.NewRequest("OPTIONS", "/api/v1/invoices", nil)
+	req.Header.Set("Origin", "http://cualquier-cosa.test")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	rw := httptest.NewRecorder()
+	env.handler.ServeHTTP(rw, req)
+
+	assert.Equal(t, http.StatusNoContent, rw.Code)
+	assert.Equal(t, "*", rw.Header().Get("Access-Control-Allow-Origin"))
 }

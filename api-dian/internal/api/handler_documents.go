@@ -62,30 +62,60 @@ type issueCreditNoteRequest struct {
 	CreditNoteTypeCode string `json:"credit_note_type_code"`
 }
 
-// documentResponse es la representación pública de un documento — Prefix/Number/DocumentKey/
-// IssueDate/QRURL/SignedXML son punteros/omitempty: nil mientras Status == "draft", porque
-// todavía no se reclamó número ni se firmó (ver documents.Document).
+// documentResponse es la representación pública de un documento. Customer/Lines/PaymentMeans/
+// Totals/Note/CurrencyCode están SIEMPRE presentes, incluso en borrador — son el contenido
+// que el usuario ya capturó. Prefix/Number/DocumentKey/IssueDate/QRURL/SignedXML son
+// punteros/omitempty: vacíos mientras Status == "draft", porque todavía no se reclamó número
+// ni se firmó (ver documents.Document).
+//
+// Customer/Lines/PaymentMeans/Totals se agregaron en la Fase 2.28 — antes GET /documents y
+// GET /documents/{id} solo devolvían metadatos (ID, status, fechas), nunca el contenido en
+// sí, así que un frontend no podía mostrar "factura para Juan Pérez por $119.000" sin volver
+// a pedirle los datos al usuario. Se encontró construyendo el dashboard real (ver
+// docs/api-dian-architecture.md sección 9.28) — exactamente el tipo de hueco que probar la
+// API como un usuario real, no solo con Postman, sí revela.
 type documentResponse struct {
-	ID                    uuid.UUID  `json:"id"`
-	IssuerID              uuid.UUID  `json:"issuer_id"`
-	NumberingRangeID      uuid.UUID  `json:"numbering_range_id"`
-	DianDocumentTypeCode  string     `json:"dian_document_type_code"`
-	Prefix                string     `json:"prefix,omitempty"`
-	Number                int64      `json:"number,omitempty"`
-	DocumentKey           string     `json:"document_key,omitempty"`
-	IssueDate             *time.Time `json:"issue_date,omitempty"`
-	Note                  string     `json:"note,omitempty"`
-	QRURL                 string     `json:"qr_url,omitempty"`
-	SignedXML             string     `json:"signed_xml,omitempty"`
-	Status                string     `json:"status"`
-	DianTrackID           string     `json:"dian_track_id,omitempty"`
-	DianStatusCode        string     `json:"dian_status_code,omitempty"`
-	DianStatusDescription string     `json:"dian_status_description,omitempty"`
-	DianStatusMessage     string     `json:"dian_status_message,omitempty"`
+	ID                   uuid.UUID `json:"id"`
+	IssuerID             uuid.UUID `json:"issuer_id"`
+	NumberingRangeID     uuid.UUID `json:"numbering_range_id"`
+	DianDocumentTypeCode string    `json:"dian_document_type_code"`
+	Status               string    `json:"status"`
+
+	Customer     partyDTO         `json:"customer"`
+	Lines        []lineDTO        `json:"lines"`
+	PaymentMeans []paymentMeanDTO `json:"payment_means,omitempty"`
+	Totals       totalsDTO        `json:"totals"`
+	Note         string           `json:"note,omitempty"`
+	CurrencyCode string           `json:"currency_code,omitempty"`
+
+	// Solo CreditNote/DebitNote — nil en Invoice.
+	BillingReference    *billingReferenceDTO    `json:"billing_reference,omitempty"`
+	DiscrepancyResponse *discrepancyResponseDTO `json:"discrepancy_response,omitempty"`
+	NoteTypeCode        string                  `json:"note_type_code,omitempty"`
+
+	// Solo se llenan al confirmar (POST /documents/{id}/confirm) — vacíos mientras Status ==
+	// "draft".
+	Prefix      string     `json:"prefix,omitempty"`
+	Number      int64      `json:"number,omitempty"`
+	DocumentKey string     `json:"document_key,omitempty"`
+	IssueDate   *time.Time `json:"issue_date,omitempty"`
+	QRURL       string     `json:"qr_url,omitempty"`
+	SignedXML   string     `json:"signed_xml,omitempty"`
+
+	DianTrackID           string `json:"dian_track_id,omitempty"`
+	DianStatusCode        string `json:"dian_status_code,omitempty"`
+	DianStatusDescription string `json:"dian_status_description,omitempty"`
+	DianStatusMessage     string `json:"dian_status_message,omitempty"`
 
 	// CustomerID es solo trazabilidad — ver documents.Document.CustomerID. nil si el
 	// documento no referenció un cliente guardado.
 	CustomerID *uuid.UUID `json:"customer_id,omitempty"`
+
+	// CreatedAt/UpdatedAt — mismo criterio que customerResponse/productResponse. Un borrador
+	// no tiene IssueDate todavía, así que es lo único con lo que un listado puede ordenar u
+	// ofrecer "creado hace X" antes de confirmar.
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func documentToResponse(d *documents.Document) documentResponse {
@@ -95,20 +125,43 @@ func documentToResponse(d *documents.Document) documentResponse {
 		NumberingRangeID:      d.NumberingRangeID,
 		CustomerID:            d.CustomerID,
 		DianDocumentTypeCode:  d.DianDocumentTypeCode,
+		Status:                string(d.Status),
+		Customer:              partyFromDomain(d.Customer),
+		Lines:                 linesFromDomain(d.Lines),
+		PaymentMeans:          paymentMeansFromDomain(d.PaymentMeans),
+		Totals:                totalsFromDomain(d.Totals),
+		Note:                  d.Note,
+		CurrencyCode:          d.CurrencyCode,
+		NoteTypeCode:          d.NoteTypeCode,
 		Prefix:                d.Prefix,
 		Number:                d.Number,
 		DocumentKey:           d.DocumentKey,
-		Note:                  d.Note,
 		QRURL:                 d.QRURL,
 		SignedXML:             d.SignedXML,
-		Status:                string(d.Status),
 		DianTrackID:           d.DianTrackID,
 		DianStatusCode:        d.DianStatusCode,
 		DianStatusDescription: d.DianStatusDescription,
 		DianStatusMessage:     d.DianStatusMessage,
+		CreatedAt:             d.CreatedAt,
+		UpdatedAt:             d.UpdatedAt,
 	}
 	if !d.IssueDate.IsZero() {
 		resp.IssueDate = &d.IssueDate
+	}
+	if d.BillingReference != nil {
+		resp.BillingReference = &billingReferenceDTO{
+			Prefix:    d.BillingReference.Prefix,
+			Number:    d.BillingReference.Number,
+			CUFE:      d.BillingReference.CUFE,
+			IssueDate: d.BillingReference.IssueDate,
+		}
+	}
+	if d.DiscrepancyResponse != nil {
+		resp.DiscrepancyResponse = &discrepancyResponseDTO{
+			ReferenceID:  d.DiscrepancyResponse.ReferenceID,
+			ResponseCode: d.DiscrepancyResponse.ResponseCode,
+			Description:  d.DiscrepancyResponse.Description,
+		}
 	}
 	return resp
 }

@@ -41,6 +41,14 @@ type Config struct {
 	// distinta de IssuerSecretsKey (cifra datos en reposo, no firma tokens; no deben
 	// compartir clave). Mínimo 32 bytes, base64. Generar con: openssl rand -base64 32
 	AuthJWTSecret []byte
+
+	// CORSAllowedOrigins son los orígenes desde los que un navegador puede llamar a esta API
+	// (otro puerto en desarrollo, el dominio del frontend en producción) — ver
+	// internal/api/middleware/cors.go. Sin default a propósito: quién puede llamar a la API
+	// desde un navegador es una decisión de seguridad explícita, no implícita. nil/vacío =
+	// ningún navegador puede leer las respuestas (curl/Postman no se ven afectados). Un único
+	// "*" permite cualquier origen — solo para desarrollo local, nunca producción.
+	CORSAllowedOrigins []string
 }
 
 func Load() (*Config, error) {
@@ -54,16 +62,17 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Env:              Environment(getEnv("APP_ENV", string(EnvDevelopment))),
-		ServiceName:      getEnv("SERVICE_NAME", "api-dian"),
-		Port:             getEnvInt("PORT", 8080),
-		Host:             getEnv("HOST", "0.0.0.0"),
-		DatabaseURL:      getEnv("DATABASE_URL", ""),
-		DatabaseMaxConn:  int32(getEnvInt("DATABASE_MAX_CONN", 25)),
-		DatabaseMinConn:  int32(getEnvInt("DATABASE_MIN_CONN", 5)),
-		LogLevel:         getEnv("LOG_LEVEL", "info"),
-		IssuerSecretsKey: issuerSecretsKey,
-		AuthJWTSecret:    authJWTSecret,
+		Env:                Environment(getEnv("APP_ENV", string(EnvDevelopment))),
+		ServiceName:        getEnv("SERVICE_NAME", "api-dian"),
+		Port:               getEnvInt("PORT", 8080),
+		Host:               getEnv("HOST", "0.0.0.0"),
+		DatabaseURL:        getEnv("DATABASE_URL", ""),
+		DatabaseMaxConn:    int32(getEnvInt("DATABASE_MAX_CONN", 25)),
+		DatabaseMinConn:    int32(getEnvInt("DATABASE_MIN_CONN", 5)),
+		LogLevel:           getEnv("LOG_LEVEL", "info"),
+		IssuerSecretsKey:   issuerSecretsKey,
+		AuthJWTSecret:      authJWTSecret,
+		CORSAllowedOrigins: getEnvList("CORS_ALLOWED_ORIGINS"),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -117,4 +126,22 @@ func getEnvInt(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+// getEnvList parsea una lista separada por comas (ej. CORS_ALLOWED_ORIGINS) — entradas vacías
+// (espacios, comas dobles) se descartan. nil si la variable no está definida.
+func getEnvList(key string) []string {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

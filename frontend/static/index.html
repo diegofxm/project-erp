@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>devui — api-dian</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header id="topbar">
+  <h1>devui <small>— probador manual de api-dian</small></h1>
+  <div id="topbar-fields">
+    <label>Base URL <input id="baseUrl" type="text" /></label>
+    <span id="authStatus" class="pill pill-off">sin sesión</span>
+    <button id="btnLogout" type="button">Cerrar sesión</button>
+  </div>
+</header>
+
+<section id="vars-panel">
+  <strong>Variables capturadas:</strong>
+  <span id="vars-list"></span>
+</section>
+
+<nav id="tabs"></nav>
+
+<main id="content"></main>
+
+<script src="app.js"></script>
+</body>
+</html>
