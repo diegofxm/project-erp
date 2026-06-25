@@ -47,11 +47,19 @@ type Issuer struct {
 	// (cofacture/domain.Party) — agregados en la Fase 2.5 al descubrir, construyendo el
 	// primer Invoice real, que faltaban para reproducir exactamente la factura que la DIAN ya
 	// autorizó en la Fase 1.7 (ver cofacture/soap/realsend_test.go).
-	EntityTypeCode             string   // domain.Party.EntityTypeCode — "1" en el caso real validado
-	TaxSchemeCode              string   // FK tax_types — "ZZ" ("No aplica") en el caso real validado
-	TaxSchemeName              string   // domain.Party.TaxSchemeName, acompaña a TaxSchemeCode
-	LiabilityCodes             []string // domain.Party.LiabilityCodes — responsabilidades fiscales, ej. "R-99-PN"
-	MerchantRegistrationNumber *string  // domain.Party.MerchantRegistrationNumber, opcional
+	EntityTypeCode string   // domain.Party.EntityTypeCode — "1" en el caso real validado
+	TaxSchemeCode  string   // FK tax_types — "ZZ" ("No aplica") en el caso real validado
+	TaxSchemeName  string   // domain.Party.TaxSchemeName, acompaña a TaxSchemeCode
+	LiabilityCodes []string // domain.Party.LiabilityCodes — responsabilidades fiscales, ej. "R-99-PN"
+	// TaxRegimeCode es *string (no string) porque el FK a tax_regimes es opcional — un
+	// catálogo sin código "no aplica" oficial (a diferencia de tax_types/ZZ), así que NULL es
+	// la única forma de modelar "no aplica" sin violar el FK con una cadena vacía.
+	TaxRegimeCode *string // FK tax_regimes — domain.Party.TaxRegimeCode (listName de TaxLevelCode)
+	// IndustryClassificationCodes son los códigos CIIU (catálogo DANE, no DIAN — sin FK,
+	// ver migración 000003_issuers). Máximo 4 (1 actividad principal + hasta 3 secundarias,
+	// estructura real del RUT) — validado en Service.validateIssuer, no en el esquema.
+	IndustryClassificationCodes []string
+	MerchantRegistrationNumber  *string // domain.Party.MerchantRegistrationNumber, opcional
 
 	// Credenciales DIAN. En este struct de dominio viajan en texto plano (el servicio y
 	// internal/documents las necesitan así para usarlas con cofacture) — es

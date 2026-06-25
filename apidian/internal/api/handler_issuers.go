@@ -21,49 +21,57 @@ import (
 // internal/issuers antes de guardar (AES-256-GCM) y NUNCA se devuelven en la respuesta — ver
 // issuerResponse.
 type createIssuerRequest struct {
-	NIT                        string   `json:"nit"`
-	CheckDigit                 string   `json:"check_digit"`
-	BusinessName               string   `json:"business_name"`
-	TradeName                  string   `json:"trade_name,omitempty"`
-	IdentificationTypeCode     string   `json:"identification_type_code"`
-	DepartmentCode             string   `json:"department_code"`
-	MunicipalityCode           string   `json:"municipality_code"`
-	AddressLine                string   `json:"address_line"`
-	Email                      string   `json:"email"`
-	Phone                      string   `json:"phone,omitempty"`
-	Environment                string   `json:"environment"`
-	EntityTypeCode             string   `json:"entity_type_code,omitempty"`
-	TaxSchemeCode              string   `json:"tax_scheme_code,omitempty"`
-	TaxSchemeName              string   `json:"tax_scheme_name,omitempty"`
-	LiabilityCodes             []string `json:"liability_codes,omitempty"`
-	MerchantRegistrationNumber *string  `json:"merchant_registration_number,omitempty"`
-	SoftwareID                 string   `json:"software_id"`
-	SoftwarePIN                string   `json:"software_pin"`
-	CertificateBase64          string   `json:"certificate_base64"`
-	CertificatePassword        string   `json:"certificate_password"`
+	NIT                    string   `json:"nit"`
+	CheckDigit             string   `json:"check_digit"`
+	BusinessName           string   `json:"business_name"`
+	TradeName              string   `json:"trade_name,omitempty"`
+	IdentificationTypeCode string   `json:"identification_type_code"`
+	DepartmentCode         string   `json:"department_code"`
+	MunicipalityCode       string   `json:"municipality_code"`
+	AddressLine            string   `json:"address_line"`
+	Email                  string   `json:"email"`
+	Phone                  string   `json:"phone,omitempty"`
+	Environment            string   `json:"environment"`
+	EntityTypeCode         string   `json:"entity_type_code,omitempty"`
+	TaxSchemeCode          string   `json:"tax_scheme_code,omitempty"`
+	TaxSchemeName          string   `json:"tax_scheme_name,omitempty"`
+	LiabilityCodes         []string `json:"liability_codes,omitempty"`
+	TaxRegimeCode          *string  `json:"tax_regime_code,omitempty"`
+	// IndustryClassificationCodes son los códigos CIIU (catálogo DANE, no DIAN) — máximo 4
+	// (1 actividad principal + hasta 3 secundarias, ver issuers.ErrTooManyIndustryClassificationCodes).
+	IndustryClassificationCodes []string `json:"industry_classification_codes,omitempty"`
+	MerchantRegistrationNumber  *string  `json:"merchant_registration_number,omitempty"`
+	SoftwareID                  string   `json:"software_id"`
+	SoftwarePIN                 string   `json:"software_pin"`
+	CertificateBase64           string   `json:"certificate_base64"`
+	CertificatePassword         string   `json:"certificate_password"`
 }
 
 // issuerResponse es deliberadamente angosto — nunca incluye Certificate/SoftwarePIN/
 // CertificatePassword, ni siquiera cifrados: una vez guardados, esta API no los expone más.
 type issuerResponse struct {
-	ID                     uuid.UUID `json:"id"`
-	NIT                    string    `json:"nit"`
-	BusinessName           string    `json:"business_name"`
-	IdentificationTypeCode string    `json:"identification_type_code"`
-	Environment            string    `json:"environment"`
-	IsActive               bool      `json:"is_active"`
-	CreatedAt              time.Time `json:"created_at"`
+	ID                          uuid.UUID `json:"id"`
+	NIT                         string    `json:"nit"`
+	BusinessName                string    `json:"business_name"`
+	IdentificationTypeCode      string    `json:"identification_type_code"`
+	Environment                 string    `json:"environment"`
+	TaxRegimeCode               *string   `json:"tax_regime_code,omitempty"`
+	IndustryClassificationCodes []string  `json:"industry_classification_codes,omitempty"`
+	IsActive                    bool      `json:"is_active"`
+	CreatedAt                   time.Time `json:"created_at"`
 }
 
 func issuerToResponse(iss *issuers.Issuer) issuerResponse {
 	return issuerResponse{
-		ID:                     iss.ID,
-		NIT:                    iss.NIT,
-		BusinessName:           iss.BusinessName,
-		IdentificationTypeCode: iss.IdentificationTypeCode,
-		Environment:            string(iss.Environment),
-		IsActive:               iss.IsActive,
-		CreatedAt:              iss.CreatedAt,
+		ID:                          iss.ID,
+		NIT:                         iss.NIT,
+		BusinessName:                iss.BusinessName,
+		IdentificationTypeCode:      iss.IdentificationTypeCode,
+		Environment:                 string(iss.Environment),
+		TaxRegimeCode:               iss.TaxRegimeCode,
+		IndustryClassificationCodes: iss.IndustryClassificationCodes,
+		IsActive:                    iss.IsActive,
+		CreatedAt:                   iss.CreatedAt,
 	}
 }
 
@@ -71,26 +79,28 @@ func issuerToResponse(iss *issuers.Issuer) issuerResponse {
 // donde se hace esta conversión, usado por handleRegister (handler_auth.go).
 func issuerFromRequest(req createIssuerRequest, cert []byte) issuers.Issuer {
 	return issuers.Issuer{
-		NIT:                        req.NIT,
-		CheckDigit:                 req.CheckDigit,
-		BusinessName:               req.BusinessName,
-		TradeName:                  req.TradeName,
-		IdentificationTypeCode:     req.IdentificationTypeCode,
-		DepartmentCode:             req.DepartmentCode,
-		MunicipalityCode:           req.MunicipalityCode,
-		AddressLine:                req.AddressLine,
-		Email:                      req.Email,
-		Phone:                      req.Phone,
-		Environment:                issuers.Environment(req.Environment),
-		EntityTypeCode:             req.EntityTypeCode,
-		TaxSchemeCode:              req.TaxSchemeCode,
-		TaxSchemeName:              req.TaxSchemeName,
-		LiabilityCodes:             req.LiabilityCodes,
-		MerchantRegistrationNumber: req.MerchantRegistrationNumber,
-		SoftwareID:                 req.SoftwareID,
-		SoftwarePIN:                req.SoftwarePIN,
-		Certificate:                cert,
-		CertificatePassword:        req.CertificatePassword,
+		NIT:                         req.NIT,
+		CheckDigit:                  req.CheckDigit,
+		BusinessName:                req.BusinessName,
+		TradeName:                   req.TradeName,
+		IdentificationTypeCode:      req.IdentificationTypeCode,
+		DepartmentCode:              req.DepartmentCode,
+		MunicipalityCode:            req.MunicipalityCode,
+		AddressLine:                 req.AddressLine,
+		Email:                       req.Email,
+		Phone:                       req.Phone,
+		Environment:                 issuers.Environment(req.Environment),
+		EntityTypeCode:              req.EntityTypeCode,
+		TaxSchemeCode:               req.TaxSchemeCode,
+		TaxSchemeName:               req.TaxSchemeName,
+		LiabilityCodes:              req.LiabilityCodes,
+		TaxRegimeCode:               req.TaxRegimeCode,
+		IndustryClassificationCodes: req.IndustryClassificationCodes,
+		MerchantRegistrationNumber:  req.MerchantRegistrationNumber,
+		SoftwareID:                  req.SoftwareID,
+		SoftwarePIN:                 req.SoftwarePIN,
+		Certificate:                 cert,
+		CertificatePassword:         req.CertificatePassword,
 	}
 }
 

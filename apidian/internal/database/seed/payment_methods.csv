@@ -1,7 +1,76 @@
 code,name,description
-10,Efectivo,Pago en efectivo
-20,Débito,Tarjeta débito
-30,Crédito,Tarjeta de crédito
-42,Transferencia,Transferencia bancaria
-47,Cheque,Pago con cheque
-48,Otros,Otros medios de pago
+1,Instrumento no definido,Instrumento no definido
+2,Crédito ACH,Crédito ACH
+3,Débito ACH,Débito ACH
+4,Reversión débito de demanda ACH,Reversión débito de demanda ACH
+5,Reversión crédito de demanda ACH,Reversión crédito de demanda ACH
+6,Crédito de demanda ACH,Crédito de demanda ACH
+7,Débito de demanda ACH,Débito de demanda ACH
+8,Mantener,Mantener
+9,Clearing Nacional o Regional,Clearing Nacional o Regional
+10,Efectivo,Efectivo
+11,Reversión Crédito Ahorro,Reversión Crédito Ahorro
+12,Reversión Débito Ahorro,Reversión Débito Ahorro
+13,Crédito Ahorro,Crédito Ahorro
+14,Débito Ahorro,Débito Ahorro
+15,Bookentry Crédito,Bookentry Crédito
+16,Bookentry Débito,Bookentry Débito
+17,Concentración de la demanda en efectivo /Desembolso Crédito (CCD),Concentración de la demanda en efectivo /Desembolso Crédito (CCD)
+18,Concentración de la demanda en efectivo / Desembolso (CCD) débito,Concentración de la demanda en efectivo / Desembolso (CCD) débito
+19,Crédito Pago negocio corporativo (CTP),Crédito Pago negocio corporativo (CTP)
+20,Cheque,Cheque
+21,Poyecto bancario,Poyecto bancario
+22,Proyecto bancario certificado,Proyecto bancario certificado
+23,Cheque bancario,Cheque bancario
+24,Nota cambiaria esperando aceptación,Nota cambiaria esperando aceptación
+25,Cheque certificado,Cheque certificado
+26,Cheque Local,Cheque Local
+27,Débito Pago Neogcio Corporativo (CTP),Débito Pago Neogcio Corporativo (CTP)
+28,Crédito Negocio Intercambio Corporativo (CTX),Crédito Negocio Intercambio Corporativo (CTX)
+29,Débito Negocio Intercambio Corporativo (CTX),Débito Negocio Intercambio Corporativo (CTX)
+30,Transferecia Crédito,Transferecia Crédito
+31,Transferencia Débito,Transferencia Débito
+32,Concentración Efectivo / Desembolso Crédito plus (CCD+),Concentración Efectivo / Desembolso Crédito plus (CCD+)
+33,Concentración Efectivo / Desembolso Débito plus (CCD+),Concentración Efectivo / Desembolso Débito plus (CCD+)
+34,Pago y depósito pre acordado (PPD),Pago y depósito pre acordado (PPD)
+35,Concentración efectivo ahorros / Desembolso Crédito (CCD),Concentración efectivo ahorros / Desembolso Crédito (CCD)
+36,Concentración efectivo ahorros / Desembolso Drédito (CCD),Concentración efectivo ahorros / Desembolso Drédito (CCD)
+37,Pago Negocio Corporativo Ahorros Crédito (CTP),Pago Negocio Corporativo Ahorros Crédito (CTP)
+38,Pago Neogcio Corporativo Ahorros Débito (CTP),Pago Neogcio Corporativo Ahorros Débito (CTP)
+39,Crédito Negocio Intercambio Corporativo (CTX),Crédito Negocio Intercambio Corporativo (CTX)
+40,Débito Negocio Intercambio Corporativo (CTX),Débito Negocio Intercambio Corporativo (CTX)
+41,Concentración efectivo/Desembolso Crédito plus (CCD+),Concentración efectivo/Desembolso Crédito plus (CCD+)
+42,Consiganción bancaria,Consiganción bancaria
+43,Concentración efectivo / Desembolso Débito plus (CCD+),Concentración efectivo / Desembolso Débito plus (CCD+)
+44,Nota cambiaria,Nota cambiaria
+45,Transferencia Crédito Bancario,Transferencia Crédito Bancario
+46,Transferencia Débito Interbancario,Transferencia Débito Interbancario
+47,Transferencia Débito Bancaria,Transferencia Débito Bancaria
+48,Tarjeta Crédito,Tarjeta Crédito
+49,Tarjeta Débito,Tarjeta Débito
+50,Postgiro,Postgiro
+51,Telex estándar bancario francés,Telex estándar bancario francés
+52,Pago comercial urgente,Pago comercial urgente
+53,Pago Tesorería Urgente,Pago Tesorería Urgente
+60,Nota promisoria,Nota promisoria
+61,Nota promisoria firmada por el acreedor,Nota promisoria firmada por el acreedor
+62,"Nota promisoria firmada por el acreedor, avalada por el banco","Nota promisoria firmada por el acreedor, avalada por el banco"
+63,"Nota promisoria firmada por el acreedor, avalada por un tercero","Nota promisoria firmada por el acreedor, avalada por un tercero"
+64,Nota promisoria firmada pro el banco,Nota promisoria firmada pro el banco
+65,Nota promisoria firmada por un banco avalada por otro banco,Nota promisoria firmada por un banco avalada por otro banco
+66,Nota promisoria firmada,Nota promisoria firmada
+67,Nota promisoria firmada por un tercero avalada por un banco,Nota promisoria firmada por un tercero avalada por un banco
+70,Retiro de nota por el por el acreedor,Retiro de nota por el por el acreedor
+74,Retiro de nota por el por el acreedor sobre un banco,Retiro de nota por el por el acreedor sobre un banco
+75,"Retiro de nota por el acreedor, avalada por otro banco","Retiro de nota por el acreedor, avalada por otro banco"
+76,"Retiro de nota por el acreedor, sobre un banco avalada por un tercero","Retiro de nota por el acreedor, sobre un banco avalada por un tercero"
+77,Retiro de una nota por el acreedor sobre un tercero,Retiro de una nota por el acreedor sobre un tercero
+78,Retiro de una nota por el acreedor sobre un tercero avalada por un banco,Retiro de una nota por el acreedor sobre un tercero avalada por un banco
+91,Nota bancaria tranferible,Nota bancaria tranferible
+92,Cheque local traferible,Cheque local traferible
+93,Giro referenciado,Giro referenciado
+94,Giro urgente,Giro urgente
+95,Giro formato abierto,Giro formato abierto
+96,Método de pago solicitado no usuado,Método de pago solicitado no usuado
+97,Clearing entre partners,Clearing entre partners
+ZZZ,Acuerdo mutuo,Acuerdo mutuo

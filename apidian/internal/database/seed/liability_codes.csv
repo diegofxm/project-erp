@@ -1,0 +1,7 @@
+code,name,description
+O-13,Gran contribuyente,Responsabilidad de Gran Contribuyente
+O-15,Autorretenedor,Responsabilidad de Autorretenedor
+O-23,Agente de retención IVA,Responsabilidad de Agente de Retención de IVA
+O-47,Régimen simple de tributación,Responsabilidad de Régimen Simple de Tributación
+R-99-PJ,No aplica (persona jurídica),"Catch-all confirmado en el Schematron real de la DIAN (2019) para personas jurídicas sin responsabilidades especiales"
+R-99-PN,No aplica (persona natural),"Catch-all usado como valor por defecto en este sistema (issuers.Service/documents.Service) — no aparece en el Schematron de 2019 de la Caja de Herramientas (desactualizado en este punto), pero CONFIRMADO real: factura SETP990300000 autorizada por la DIAN (StatusCode 00) usando este código, 2026-06-24"

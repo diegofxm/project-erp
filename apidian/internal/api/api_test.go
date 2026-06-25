@@ -23,6 +23,7 @@ import (
 
 	"github.com/diegofxm/apidian/internal/api"
 	"github.com/diegofxm/apidian/internal/auth"
+	"github.com/diegofxm/apidian/internal/catalogs"
 	"github.com/diegofxm/apidian/internal/customers"
 	"github.com/diegofxm/apidian/internal/documents"
 	"github.com/diegofxm/apidian/internal/issuers"
@@ -67,15 +68,16 @@ func newTestEnvWithOrigins(t *testing.T, allowedOrigins []string) *testEnv {
 	t.Helper()
 	log := zap.NewNop()
 
-	issuerSvc := issuers.New(issuers.NewMemoryRepository(), documents.ValidateCertificate)
+	catalogsRepo := catalogs.NewMemoryRepository()
+	issuerSvc := issuers.New(issuers.NewMemoryRepository(), documents.ValidateCertificate, catalogsRepo)
 	numberingSvc := numbering.New(numbering.NewMemoryRepository())
-	customersSvc := customers.New(customers.NewMemoryRepository())
+	customersSvc := customers.New(customers.NewMemoryRepository(), catalogsRepo)
 	productsSvc := products.New(products.NewMemoryRepository())
-	docsSvc := documents.New(documents.NewMemoryRepository(), issuerSvc, numberingSvc, customersSvc)
+	docsSvc := documents.New(documents.NewMemoryRepository(), issuerSvc, numberingSvc, customersSvc, catalogsRepo)
 	tokens := auth.NewTokenIssuer([]byte("clave-de-prueba-no-usar-en-produccion"))
 	authSvc := auth.New(auth.NewMemoryRepository(), issuerSvc, tokens)
 
-	a := api.NewFromServices(log, issuerSvc, numberingSvc, docsSvc, authSvc, tokens, customersSvc, productsSvc, allowedOrigins)
+	a := api.NewFromServices(log, issuerSvc, numberingSvc, docsSvc, authSvc, tokens, customersSvc, productsSvc, catalogsRepo, allowedOrigins)
 
 	return &testEnv{handler: a.Handler()}
 }

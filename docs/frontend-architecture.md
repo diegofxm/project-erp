@@ -138,22 +138,21 @@ correctos → toggle de tema oscuro → colapso de sidebar → logout → login 
 empresa (exactamente 1 vinculada) directo al dashboard. Sin errores de consola en ningún paso.
 Datos de prueba limpiados de la base real después.
 
-**Catálogos DIAN sin endpoint HTTP todavía** (hallazgo, no bloqueante para esta fase):
-`identification_type_code`, `department_code`, `municipality_code` en el formulario de
-creación de empresa son inputs de texto libre, no selects — `apidian` no expone ningún
-`GET /catalogs/...` para department/municipality/identification-types/tax-schemes/payment-
-methods (son tablas de catálogo en la base de datos, sembradas, pero nunca consultables vía
-HTTP). Para una experiencia pulida (selects en vez de texto libre) en fases futuras —
-configuración del emisor, formulario de clientes, formulario de productos/líneas de factura —
-hace falta agregar esos endpoints al backend primero. Anotado aquí porque es un hallazgo de
-construir el frontend, igual que los de la sección anterior.
+**Catálogos DIAN sin endpoint HTTP** — RESUELTO 2026-06-24: `apidian` ahora expone
+`GET /api/v1/catalogs/{departments,municipalities,identification-types,tax-types,
+payment-methods,payment-terms,unit-measures,tax-regimes,liability-codes,
+dian-document-types,currencies}` (`internal/catalogs`, ver
+`docs/apidian-architecture.md`). `OnboardingPage` (y cualquier formulario futuro de
+cliente/producto/factura) ya puede construir selects reales en vez de inputs de texto libre —
+queda como tarea de la Fase 2 del frontend, no un bloqueo de backend.
 
 ## Pendiente para próximas fases
 
 - Páginas reales para Facturas/Clientes/Productos/Numeración/Configuración (hoy son items de
   sidebar deshabilitados, sin ruta).
-- Endpoints de catálogos en `apidian` (ver hallazgo arriba) antes de construir los formularios
-  de cliente/producto/factura con selects reales en vez de texto libre.
+- Reemplazar los inputs de texto libre de `OnboardingPage` (department_code/municipality_code/
+  identification_type_code) por selects reales contra los endpoints de catálogos ya
+  disponibles (ver arriba) — es la primera ganancia rápida ahora que existen.
 - Cambiar de empresa activa DESPUÉS de ya estar en el dashboard (hoy `selectIssuer` solo se usa
   desde `OnboardingPage`; el menú de usuario del Navbar no lo expone todavía).
 - Los 3 hallazgos ya logueados arriba (snapshot de cliente incompleto, payment_means en el

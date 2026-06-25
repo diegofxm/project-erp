@@ -30,7 +30,8 @@ func NewPostgresRepository(pool *pgxpool.Pool, secretsKey []byte) *PostgresRepos
 const issuerColumns = `
 	id, nit, check_digit, business_name, trade_name, identification_type_code,
 	department_code, municipality_code, address_line, email, phone, environment,
-	entity_type_code, tax_scheme_code, tax_scheme_name, liability_codes, merchant_registration_number,
+	entity_type_code, tax_scheme_code, tax_scheme_name, liability_codes, tax_regime_code,
+	industry_classification_codes, merchant_registration_number,
 	software_id, software_pin, certificate, certificate_password, is_active,
 	created_at, updated_at`
 
@@ -40,7 +41,8 @@ const issuerColumns = `
 const issuerSelectWithNames = `
 	SELECT i.id, i.nit, i.check_digit, i.business_name, i.trade_name, i.identification_type_code,
 	       i.department_code, i.municipality_code, d.name, m.name, i.address_line, i.email, i.phone, i.environment,
-	       i.entity_type_code, i.tax_scheme_code, i.tax_scheme_name, i.liability_codes, i.merchant_registration_number,
+	       i.entity_type_code, i.tax_scheme_code, i.tax_scheme_name, i.liability_codes, i.tax_regime_code,
+	       i.industry_classification_codes, i.merchant_registration_number,
 	       i.software_id, i.software_pin, i.certificate, i.certificate_password, i.is_active,
 	       i.created_at, i.updated_at
 	FROM issuers i
@@ -75,11 +77,16 @@ func (r *PostgresRepository) Create(ctx context.Context, iss Issuer) (*Issuer, e
 	if liabilityCodes == nil {
 		liabilityCodes = []string{}
 	}
+	industryClassificationCodes := iss.IndustryClassificationCodes
+	if industryClassificationCodes == nil {
+		industryClassificationCodes = []string{}
+	}
 
 	args := []any{
 		iss.ID, iss.NIT, iss.CheckDigit, iss.BusinessName, iss.TradeName, iss.IdentificationTypeCode,
 		iss.DepartmentCode, iss.MunicipalityCode, iss.AddressLine, iss.Email, iss.Phone, string(iss.Environment),
-		iss.EntityTypeCode, iss.TaxSchemeCode, iss.TaxSchemeName, liabilityCodes, iss.MerchantRegistrationNumber,
+		iss.EntityTypeCode, iss.TaxSchemeCode, iss.TaxSchemeName, liabilityCodes, iss.TaxRegimeCode,
+		industryClassificationCodes, iss.MerchantRegistrationNumber,
 		iss.SoftwareID, encPIN, encCert, encCertPwd, iss.IsActive, iss.CreatedAt, iss.UpdatedAt,
 	}
 	_, err = r.pool.Exec(ctx, `INSERT INTO issuers (`+issuerColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
@@ -146,7 +153,8 @@ func (r *PostgresRepository) scan(row pgx.Row) (*Issuer, error) {
 		&iss.IdentificationTypeCode, &iss.DepartmentCode, &iss.MunicipalityCode,
 		&iss.DepartmentName, &iss.MunicipalityName, &iss.AddressLine,
 		&iss.Email, &iss.Phone, &env, &iss.EntityTypeCode, &iss.TaxSchemeCode, &iss.TaxSchemeName,
-		&iss.LiabilityCodes, &iss.MerchantRegistrationNumber, &iss.SoftwareID, &encPIN, &encCert, &encCertPwd,
+		&iss.LiabilityCodes, &iss.TaxRegimeCode, &iss.IndustryClassificationCodes,
+		&iss.MerchantRegistrationNumber, &iss.SoftwareID, &encPIN, &encCert, &encCertPwd,
 		&iss.IsActive, &iss.CreatedAt, &iss.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrIssuerNotFound

@@ -20,15 +20,12 @@ var seedFS embed.FS
 // una migración nueva. Pensado para catálogos de cualquier tamaño — currencies tiene 3 filas,
 // municipalities podría tener miles — por eso usa un batch, no inserciones una por una.
 //
-// Algunos catálogos del Anexo Técnico 1.9 (tax_level_codes, credit_note_concepts,
-// debit_note_concepts, countries, type_organizations, type_regimes) NO se cargan aquí
-// todavía: sus valores oficiales viven en la "Caja de Herramientas" de la DIAN (un .xlsx que
-// no está en este repositorio), no en el anexo en sí — ver migrations/000002_catalogs.up.sql.
-//
-// departments/municipalities tampoco están completos frente al catálogo real (33
-// departamentos / ~1.102 municipios DANE): solo se cargan los que ya traía el proyecto
-// legacy (24 departamentos, 10 municipios principales) — completar requiere la fuente
-// oficial DANE/DIVIPOLA.
+// 2026-06-24: completado contra la "Caja de Herramientas Factura Electrónica" oficial de la
+// DIAN (docs/reference/Caja de herramientas FE_V19_(v2026)/) — departments (33/33) y
+// municipalities (1.122/1.122, vía DIVIPOLA) ya están completos, igual que tax_types y
+// payment_methods. payment_terms/tax_regimes/liability_codes son catálogos nuevos que esa
+// misma fuente permitió agregar (antes no existían ni como tabla, ver
+// migrations/000002_catalogs.up.sql).
 func (d *DB) Seed(ctx context.Context) error {
 	tables := []struct {
 		name string
@@ -42,6 +39,9 @@ func (d *DB) Seed(ctx context.Context) error {
 		{"tax_types", []string{"code", "name", "description"}},
 		{"unit_measures", []string{"code", "name", "description"}},
 		{"dian_document_types", []string{"code", "name", "description"}},
+		{"payment_terms", []string{"code", "name", "description"}},
+		{"tax_regimes", []string{"code", "name", "description"}},
+		{"liability_codes", []string{"code", "name", "description"}},
 	}
 
 	for _, t := range tables {

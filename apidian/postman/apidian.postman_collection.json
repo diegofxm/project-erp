@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "apidian",
-    "description": "Pruebas manuales de la API de apidian (Fase 2.7-2.25). El certificado embebido en 'PUT Completar software + certificado' es uno autofirmado generado solo para pruebas (no es el certificado real de la DIAN) — sirve para construir y firmar XML localmente, nunca para enviar a la DIAN de verdad. Los requests están encadenados con variables de colección: corre las carpetas en orden y cada paso captura automáticamente los IDs/token que necesita el siguiente. Todo excepto Health y Auth exige el header Authorization: Bearer {{accessToken}}, capturado automáticamente al registrarse/iniciar sesión — ningún request manda issuer_id: siempre se toma de la empresa ACTIVA en el token (middleware.RequireTenant exige que haya una para casi todo, salvo las rutas de gestión de empresas mismas). Customers/Products son catálogos de conveniencia (no cambian cómo se emiten documentos — invoices sigue recibiendo customer/lines pass-through). Desde la sección 9.32: el registro (0. Auth) crea SOLO el usuario, sin ninguna empresa — un usuario puede tener cero, una, o varias empresas vinculadas ('POST Crear empresa'/'GET Listar mis empresas'/'POST Seleccionar empresa'); el login autoselecciona la empresa activa solo si hay exactamente una. Software/PIN/certificado tampoco son obligatorios al crear la empresa — eso se completa después, independientemente, en '0b. Configuración del emisor'. Y emitir un documento (2. Documents) ya no es una sola llamada: primero se crea un BORRADOR (POST, sin reclamar número), se puede editar (PUT) o eliminar (DELETE) libremente, y solo al confirmar (POST .../confirm) se reclama el consecutivo real, se firma, y se envía si el ambiente lo permite — así un error de captura no quema un número real de la DIAN.",
+    "description": "Pruebas manuales de la API de apidian (Fase 2.7-2.25). El certificado embebido en 'PUT Completar software + certificado' es uno autofirmado generado solo para pruebas (no es el certificado real de la DIAN) — sirve para construir y firmar XML localmente, nunca para enviar a la DIAN de verdad. Los requests están encadenados con variables de colección: corre las carpetas en orden y cada paso captura automáticamente los IDs/token que necesita el siguiente. Todo excepto Health y Auth exige el header Authorization: Bearer {{accessToken}}, capturado automáticamente al registrarse/iniciar sesión — ningún request manda issuer_id: siempre se toma de la empresa ACTIVA en el token (middleware.RequireTenant exige que haya una para casi todo, salvo las rutas de gestión de empresas mismas). Customers/Products son catálogos de conveniencia (no cambian cómo se emiten documentos — invoices sigue recibiendo customer/lines pass-through). Desde la sección 9.32: el registro (0. Auth) crea SOLO el usuario, sin ninguna empresa — un usuario puede tener cero, una, o varias empresas vinculadas ('POST Crear empresa'/'GET Listar mis empresas'/'POST Seleccionar empresa'); el login autoselecciona la empresa activa solo si hay exactamente una. Software/PIN/certificado tampoco son obligatorios al crear la empresa — eso se completa después, independientemente, en '0b. Configuración del emisor'. Y emitir un documento (2. Documents) ya no es una sola llamada: primero se crea un BORRADOR (POST, sin reclamar número), se puede editar (PUT) o eliminar (DELETE) libremente, y solo al confirmar (POST .../confirm) se reclama el consecutivo real, se firma, y se envía si el ambiente lo permite — así un error de captura no quema un número real de la DIAN. '5. Catalogs' son los catálogos DIAN/DANE de referencia (departamentos, municipios, tributos, formas/medios de pago, tipo de régimen, responsabilidades fiscales, etc.) — de solo lectura, no necesitan empresa activa, pensados para que un frontend construya selects reales en vez de inputs de texto libre.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -239,10 +239,10 @@
                 "value": "application/json"
               }
             ],
-            "description": "Crea una empresa nueva y la vincula al usuario autenticado como 'owner' — reemite el token con esta empresa ya activa. Solo los datos que la DIAN exige del emisor mismo: software_id/software_pin/certificate_base64/certificate_password ya NO son obligatorios aquí, se completan después en '0b. Configuración del emisor'. Sin ellos, esta empresa puede crear/editar/eliminar borradores de documentos, pero no confirmarlos.",
+            "description": "Crea una empresa nueva y la vincula al usuario autenticado como 'owner' — reemite el token con esta empresa ya activa. Solo los datos que la DIAN exige del emisor mismo: software_id/software_pin/certificate_base64/certificate_password ya NO son obligatorios aquí, se completan después en '0b. Configuración del emisor'. Sin ellos, esta empresa puede crear/editar/eliminar borradores de documentos, pero no confirmarlos. tax_regime_code/industry_classification_codes son opcionales (ver GET /catalogs/tax-regimes — CIIU no tiene catálogo en la API, es de la DANE, máx. 4 códigos).",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nit\": \"900373076\",\n  \"check_digit\": \"1\",\n  \"business_name\": \"Empresa de Prueba Postman S.A.S.\",\n  \"identification_type_code\": \"31\",\n  \"department_code\": \"11\",\n  \"municipality_code\": \"11001\",\n  \"address_line\": \"Calle 1 # 2-3\",\n  \"email\": \"facturacion@empresa.test\",\n  \"environment\": \"1\"\n}",
+              "raw": "{\n  \"nit\": \"900373076\",\n  \"check_digit\": \"1\",\n  \"business_name\": \"Empresa de Prueba Postman S.A.S.\",\n  \"identification_type_code\": \"31\",\n  \"department_code\": \"11\",\n  \"municipality_code\": \"11001\",\n  \"address_line\": \"Calle 1 # 2-3\",\n  \"email\": \"facturacion@empresa.test\",\n  \"environment\": \"1\",\n  \"tax_regime_code\": \"00\",\n  \"industry_classification_codes\": [\"4711\"]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1301,6 +1301,144 @@
                 "products",
                 "{{productId}}"
               ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Catalogs (solo lectura)",
+      "item": [
+        {
+          "name": "GET Departamentos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalogs/departments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "catalogs", "departments"]
+            }
+          }
+        },
+        {
+          "name": "GET Municipios (?department_code=)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalogs/municipalities?department_code=11",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "catalogs", "municipalities"],
+              "query": [{"key": "department_code", "value": "11"}]
+            }
+          }
+        },
+        {
+          "name": "GET Tipos de identificación",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalogs/identification-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "catalogs", "identification-types"]
+            }
+          }
+        },
+        {
+          "name": "GET Tributos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalogs/tax-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "catalogs", "tax-types"]
+            }
+          }
+        },
+        {
+          "name": "GET Medios de pago",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalogs/payment-methods",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "catalogs", "payment-methods"]
+            }
+          }
+        },
+        {
+          "name": "GET Formas de pago (payment-terms)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalogs/payment-terms",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "catalogs", "payment-terms"]
+            }
+          }
+        },
+        {
+          "name": "GET Unidades de medida",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalogs/unit-measures",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "catalogs", "unit-measures"]
+            }
+          }
+        },
+        {
+          "name": "GET Tipo de régimen",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalogs/tax-regimes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "catalogs", "tax-regimes"]
+            }
+          }
+        },
+        {
+          "name": "GET Responsabilidades fiscales",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalogs/liability-codes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "catalogs", "liability-codes"]
+            }
+          }
+        },
+        {
+          "name": "GET Tipos de documento DIAN",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalogs/dian-document-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "catalogs", "dian-document-types"]
+            }
+          }
+        },
+        {
+          "name": "GET Monedas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/catalogs/currencies",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "catalogs", "currencies"]
             }
           }
         }

@@ -72,6 +72,32 @@ func (f *fakeCustomerPort) GetCustomer(_ context.Context, _ uuid.UUID) (*custome
 	return f.customer, nil
 }
 
+// fakeCatalogPort acepta cualquier código por defecto — los tests que de verdad necesitan
+// probar un rechazo (código inválido) ponen valid (payment_means) o validLiability en false
+// explícitamente. Campos separados porque ambos chequeos viven en el mismo validateBase pero
+// se necesita poder rechazar uno sin afectar al otro (ver
+// TestCreateInvoiceDraft_InvalidLiabilityCode).
+type fakeCatalogPort struct {
+	valid          bool
+	validLiability bool
+}
+
+func newFakeCatalogPort() *fakeCatalogPort {
+	return &fakeCatalogPort{valid: true, validLiability: true}
+}
+
+func (f *fakeCatalogPort) IsValidPaymentTerm(_ context.Context, _ string) (bool, error) {
+	return f.valid, nil
+}
+
+func (f *fakeCatalogPort) IsValidPaymentMethod(_ context.Context, _ string) (bool, error) {
+	return f.valid, nil
+}
+
+func (f *fakeCatalogPort) IsValidLiabilityCode(_ context.Context, _ string) (bool, error) {
+	return f.validLiability, nil
+}
+
 func testIssuer() *issuers.Issuer {
 	cert, pwd := selfSignedTestP12()
 	return &issuers.Issuer{
@@ -156,6 +182,7 @@ func TestCreateInvoiceDraft_OK(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
@@ -176,6 +203,7 @@ func TestConfirmDocument_BuildsSignsAndPersists(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	doc := issueInvoice(t, svc, testRequest(iss.ID, nr.ID))
@@ -200,6 +228,7 @@ func TestConfirmDocument_ClaimsSequentialNumbers(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	first := issueInvoice(t, svc, testRequest(iss.ID, nr.ID))
@@ -227,6 +256,7 @@ func TestConfirmDocument_ClaimLoadFailure_ReleasesNumberForRetry(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		numberingPort,
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
@@ -256,6 +286,7 @@ func TestConfirmDocument_NotDraft(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	doc := issueInvoice(t, svc, testRequest(iss.ID, nr.ID))
@@ -272,6 +303,7 @@ func TestConfirmDocument_OtherIssuer(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
@@ -290,6 +322,7 @@ func TestConfirmDocument_IssuerNotReady(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
@@ -307,6 +340,7 @@ func TestUpdateInvoiceDraft_OK(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
@@ -331,6 +365,7 @@ func TestUpdateInvoiceDraft_NotDraft(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	doc := issueInvoice(t, svc, testRequest(iss.ID, nr.ID))
@@ -347,6 +382,7 @@ func TestUpdateInvoiceDraft_OtherIssuer(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
@@ -365,6 +401,7 @@ func TestDeleteDraft_OK(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
@@ -383,6 +420,7 @@ func TestDeleteDraft_NotDraft(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	doc := issueInvoice(t, svc, testRequest(iss.ID, nr.ID))
@@ -401,6 +439,7 @@ func TestCreateInvoiceDraft_WrongDocumentType(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	_, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
@@ -417,6 +456,7 @@ func TestCreateInvoiceDraft_NumberingRangeIssuerMismatch(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	_, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
@@ -433,6 +473,7 @@ func TestCreateInvoiceDraft_WithCustomerID_OK(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{customer: cust},
+		newFakeCatalogPort(),
 	)
 
 	req := testRequest(iss.ID, nr.ID)
@@ -454,6 +495,7 @@ func TestCreateInvoiceDraft_CustomerIssuerMismatch(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{customer: cust},
+		newFakeCatalogPort(),
 	)
 
 	req := testRequest(iss.ID, nr.ID)
@@ -471,6 +513,7 @@ func TestCreateInvoiceDraft_CustomerIDNotFound(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{}, // sin customer configurado -> GetCustomer siempre falla
+		newFakeCatalogPort(),
 	)
 
 	req := testRequest(iss.ID, nr.ID)
@@ -488,6 +531,7 @@ func TestCreateInvoiceDraft_Validations(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	tests := []struct {
@@ -510,6 +554,48 @@ func TestCreateInvoiceDraft_Validations(t *testing.T) {
 			assert.ErrorIs(t, err, tt.wantErr)
 		})
 	}
+}
+
+// TestCreateInvoiceDraft_InvalidPaymentMeans confirma el hallazgo de la auditoría de
+// catálogos huérfanos: payment_means vive en JSONB sin FK posible, así que un código que no
+// existe en payment_terms/payment_methods se rechaza en el servicio (CatalogPort), no solo al
+// confirmar con la DIAN rechazando el documento ya con un número real reclamado.
+func TestCreateInvoiceDraft_InvalidPaymentMeans(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+		&fakeCatalogPort{valid: false},
+	)
+
+	req := testRequest(iss.ID, nr.ID)
+	_, err := svc.CreateInvoiceDraft(context.Background(), req)
+	// fakeCatalogPort rechaza ambos catálogos cuando valid=false; validateBase comprueba
+	// PaymentTerm primero, así que ese es el error que se ve siempre.
+	assert.ErrorIs(t, err, documents.ErrInvalidPaymentTerm)
+}
+
+// TestCreateInvoiceDraft_InvalidLiabilityCode confirma la misma protección que
+// TestCreateInvoiceDraft_InvalidPaymentMeans pero para customer.liability_codes — el otro
+// catálogo que tampoco puede tener FK (TEXT[], no JSONB) y que se cerró en la misma sesión.
+func TestCreateInvoiceDraft_InvalidLiabilityCode(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+		&fakeCatalogPort{valid: true, validLiability: false},
+	)
+
+	req := testRequest(iss.ID, nr.ID)
+	req.Customer.LiabilityCodes = []string{"CODIGO-INVENTADO"}
+	_, err := svc.CreateInvoiceDraft(context.Background(), req)
+	assert.ErrorIs(t, err, documents.ErrInvalidLiabilityCode)
 }
 
 // ── Fase 2.6: CreditNote/DebitNote ──────────────────────────────────────────────────────────
@@ -589,6 +675,7 @@ func TestIssueCreditNote_BuildsSignsAndPersists(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	req := documents.IssueCreditNoteRequest{
@@ -617,6 +704,7 @@ func TestIssueDebitNote_BuildsSignsAndPersists(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	doc := issueDebitNote(t, svc, testNoteRequest(iss.ID, nr.ID))
@@ -641,6 +729,7 @@ func TestIssueCreditNote_DifferentCUDEThanInvoiceCUFE(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	req := documents.IssueCreditNoteRequest{
@@ -659,6 +748,7 @@ func TestCreateCreditNoteDraft_MissingBillingReference(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	req := documents.IssueCreditNoteRequest{
@@ -679,6 +769,7 @@ func TestCreateDebitNoteDraft_WrongDocumentType(t *testing.T) {
 		&fakeIssuerPort{issuer: iss},
 		&fakeNumberingPort{nr: nr},
 		&fakeCustomerPort{},
+		newFakeCatalogPort(),
 	)
 
 	_, err := svc.CreateDebitNoteDraft(context.Background(), testNoteRequest(iss.ID, nr.ID))
@@ -712,7 +803,7 @@ func seedDocument(t *testing.T, repo documents.Repository, issuerID uuid.UUID, d
 
 func TestListDocuments_FiltersByIssuer(t *testing.T) {
 	repo := documents.NewMemoryRepository()
-	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{}, &fakeCustomerPort{})
+	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{}, &fakeCustomerPort{}, newFakeCatalogPort())
 	issuerA, issuerB := uuid.New(), uuid.New()
 
 	seedDocument(t, repo, issuerA, "01", "accepted", time.Now())
@@ -726,7 +817,7 @@ func TestListDocuments_FiltersByIssuer(t *testing.T) {
 
 func TestListDocuments_FiltersByTypeAndStatus(t *testing.T) {
 	repo := documents.NewMemoryRepository()
-	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{}, &fakeCustomerPort{})
+	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{}, &fakeCustomerPort{}, newFakeCatalogPort())
 	issuerID := uuid.New()
 
 	seedDocument(t, repo, issuerID, "01", "accepted", time.Now())
@@ -748,7 +839,7 @@ func TestListDocuments_FiltersByTypeAndStatus(t *testing.T) {
 
 func TestListDocuments_FiltersByDateRange(t *testing.T) {
 	repo := documents.NewMemoryRepository()
-	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{}, &fakeCustomerPort{})
+	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{}, &fakeCustomerPort{}, newFakeCatalogPort())
 	issuerID := uuid.New()
 
 	seedDocument(t, repo, issuerID, "01", "accepted", time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC))
@@ -766,7 +857,7 @@ func TestListDocuments_FiltersByDateRange(t *testing.T) {
 
 func TestListDocuments_LimitNormalization(t *testing.T) {
 	repo := documents.NewMemoryRepository()
-	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{}, &fakeCustomerPort{})
+	svc := documents.New(repo, &fakeIssuerPort{}, &fakeNumberingPort{}, &fakeCustomerPort{}, newFakeCatalogPort())
 	issuerID := uuid.New()
 
 	for i := 0; i < 5; i++ {

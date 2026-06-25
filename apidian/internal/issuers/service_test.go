@@ -11,12 +11,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// fakeCatalogPort acepta cualquier código por defecto — TestRegisterIssuer_Validations pone
+// valid en false explícitamente para probar el rechazo de un código inválido.
+type fakeCatalogPort struct {
+	valid bool
+}
+
+func (f *fakeCatalogPort) IsValidLiabilityCode(_ context.Context, _ string) (bool, error) {
+	return f.valid, nil
+}
+
 // newService usa un validador permisivo (nunca rechaza) — estos tests prueban lógica de
 // dominio (NIT duplicado, campos vacíos, actualización parcial...), no el parseo real de un
 // .p12. El parseo real se prueba aparte en TestUpdateIssuer_InvalidCertificate con un
 // validador doble que sí falla, y en internal/api (vía documents.ValidateCertificate real).
 func newService() *issuers.Service {
-	return issuers.New(issuers.NewMemoryRepository(), func([]byte, string) error { return nil })
+	return issuers.New(issuers.NewMemoryRepository(), func([]byte, string) error { return nil }, &fakeCatalogPort{valid: true})
 }
 
 func validIssuer() issuers.Issuer {
@@ -98,6 +108,9 @@ func TestRegisterIssuer_Validations(t *testing.T) {
 		{"sin NIT", func(i *issuers.Issuer) { i.NIT = "" }, issuers.ErrEmptyNIT},
 		{"sin razón social", func(i *issuers.Issuer) { i.BusinessName = "" }, issuers.ErrEmptyBusinessName},
 		{"ambiente inválido", func(i *issuers.Issuer) { i.Environment = "9" }, issuers.ErrInvalidEnvironment},
+		{"más de 4 códigos CIIU", func(i *issuers.Issuer) {
+			i.IndustryClassificationCodes = []string{"4661", "4669", "4690", "4711", "4719"}
+		}, issuers.ErrTooManyIndustryClassificationCodes},
 	}
 
 	for _, tt := range tests {
@@ -109,6 +122,30 @@ func TestRegisterIssuer_Validations(t *testing.T) {
 			assert.ErrorIs(t, err, tt.wantErr)
 		})
 	}
+}
+
+// TestRegisterIssuer_FourIndustryClassificationCodes_OK confirma el límite exacto (1
+// actividad principal + 3 secundarias = 4, ver ErrTooManyIndustryClassificationCodes): 4
+// códigos se aceptan, 5 se rechazan (ya cubierto en TestRegisterIssuer_Validations).
+func TestRegisterIssuer_FourIndustryClassificationCodes_OK(t *testing.T) {
+	iss := validIssuer()
+	iss.IndustryClassificationCodes = []string{"4661", "4669", "4690", "4711"}
+	got, err := newService().RegisterIssuer(context.Background(), iss)
+	require.NoError(t, err)
+	assert.Equal(t, iss.IndustryClassificationCodes, got.IndustryClassificationCodes)
+}
+
+// TestRegisterIssuer_InvalidLiabilityCode confirma el hallazgo de la auditoría de catálogos
+// huérfanos: liability_codes es TEXT[], sin FK posible contra cada elemento, así que un
+// código que no existe en el catálogo se rechaza aquí — antes de este fix, no se rechazaba
+// en ningún lado hasta que la DIAN lo hiciera al confirmar un documento.
+func TestRegisterIssuer_InvalidLiabilityCode(t *testing.T) {
+	svc := issuers.New(issuers.NewMemoryRepository(), func([]byte, string) error { return nil }, &fakeCatalogPort{valid: false})
+	iss := validIssuer()
+	iss.LiabilityCodes = []string{"CODIGO-INVENTADO"}
+
+	_, err := svc.RegisterIssuer(context.Background(), iss)
+	assert.ErrorIs(t, err, issuers.ErrInvalidLiabilityCode)
 }
 
 // TestRegisterIssuer_WithoutCredentials_OK confirma el cambio central de esta fase: el
@@ -201,7 +238,7 @@ func TestUpdateIssuer_NotFound(t *testing.T) {
 // con un error de dominio claro, no recién al confirmar un documento.
 func TestUpdateIssuer_InvalidCertificate(t *testing.T) {
 	rejecting := func([]byte, string) error { return errors.New("contraseña incorrecta") }
-	svc := issuers.New(issuers.NewMemoryRepository(), rejecting)
+	svc := issuers.New(issuers.NewMemoryRepository(), rejecting, &fakeCatalogPort{valid: true})
 	created, err := svc.RegisterIssuer(context.Background(), validIssuer())
 	require.NoError(t, err)
 
@@ -220,7 +257,7 @@ func TestUpdateIssuer_InvalidCertificate(t *testing.T) {
 // todavía. El validador "explota" si se llama, para probar que de verdad nunca se invoca.
 func TestUpdateIssuer_CertificateWithoutPasswordSkipsValidation(t *testing.T) {
 	exploding := func([]byte, string) error { t.Fatal("el validador no debería llamarse todavía"); return nil }
-	svc := issuers.New(issuers.NewMemoryRepository(), exploding)
+	svc := issuers.New(issuers.NewMemoryRepository(), exploding, &fakeCatalogPort{valid: true})
 	iss := validIssuer()
 	iss.SoftwareID, iss.SoftwarePIN, iss.Certificate, iss.CertificatePassword = "", "", nil, ""
 	created, err := svc.RegisterIssuer(context.Background(), iss)

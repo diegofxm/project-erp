@@ -33,6 +33,7 @@ CREATE TABLE customers (
     tax_scheme_code                         VARCHAR(2) REFERENCES tax_types(code),
     tax_scheme_name                          TEXT,
     liability_codes                           TEXT[]   NOT NULL DEFAULT '{}',
+    tax_regime_code                            VARCHAR(2) REFERENCES tax_regimes(code),
     phone                                       TEXT,
     email                                        TEXT,
     merchant_registration_number                  TEXT,

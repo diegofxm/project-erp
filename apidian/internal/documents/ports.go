@@ -37,3 +37,19 @@ type NumberingPort interface {
 type CustomerPort interface {
 	GetCustomer(ctx context.Context, id uuid.UUID) (*customers.Customer, error)
 }
+
+// CatalogPort valida payment_means/liability_codes contra catálogos DIAN que viven en JSONB
+// (payment_terms/payment_methods) o en un TEXT[] sin FK posible (liability_codes) — ver
+// auditoría de catálogos huérfanos, docs/apidian-architecture.md. Sin esto, un código
+// inválido ahí solo se detectaba al confirmar, con la DIAN rechazando el documento — con esto
+// se detecta antes, al crear/editar el borrador.
+//
+// unit_measures (lines[].UnitCode) NO se valida aquí a propósito: ese catálogo sigue
+// incompleto (11 códigos de muestra frente al estándar UN/ECE Rec. 20 completo, ver
+// migrations/000006_products.up.sql) — validar contra un catálogo incompleto rechazaría
+// códigos legítimos que la DIAN sí aceptaría. Se agrega cuando se complete ese catálogo.
+type CatalogPort interface {
+	IsValidPaymentTerm(ctx context.Context, code string) (bool, error)
+	IsValidPaymentMethod(ctx context.Context, code string) (bool, error)
+	IsValidLiabilityCode(ctx context.Context, code string) (bool, error)
+}

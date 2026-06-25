@@ -18,6 +18,17 @@ var (
 	// rechazar (ver docs/apidian-architecture.md sección 9.30).
 	ErrMissingPaymentMeans = errors.New("documents: el documento debe tener al menos una forma de pago (payment_means)")
 
+	// ErrInvalidPaymentTerm/ErrInvalidPaymentMethod: payment_means vive en JSONB sin FK posible
+	// (ver CatalogPort en ports.go) — sin esto, un código inválido solo se detectaba al
+	// confirmar, con la DIAN rechazando el documento ya con un número real reclamado.
+	ErrInvalidPaymentTerm   = errors.New("documents: forma de pago (payment_means[].code) inválida")
+	ErrInvalidPaymentMethod = errors.New("documents: medio de pago (payment_means[].payment_method_code) inválido")
+
+	// ErrInvalidLiabilityCode: customer.liability_codes es TEXT[] pass-through del request,
+	// sin FK posible contra cada elemento (ver CatalogPort en ports.go) — mismo motivo y mismo
+	// momento de validación que ErrInvalidPaymentTerm/ErrInvalidPaymentMethod.
+	ErrInvalidLiabilityCode = errors.New("documents: responsabilidad fiscal (customer.liability_codes) inválida")
+
 	// ErrMissingBillingReference: CreditNote/DebitNote deben referenciar el CUFE del
 	// documento que corrigen — no se puede emitir una nota "al aire".
 	ErrMissingBillingReference = errors.New("documents: la nota debe referenciar el CUFE del documento que corrige")

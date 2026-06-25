@@ -11,8 +11,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// fakeCatalogPort acepta cualquier código por defecto — TestCreateCustomer_InvalidLiabilityCode
+// pone valid en false explícitamente para probar el rechazo.
+type fakeCatalogPort struct {
+	valid bool
+}
+
+func (f *fakeCatalogPort) IsValidLiabilityCode(_ context.Context, _ string) (bool, error) {
+	return f.valid, nil
+}
+
 func newService() *customers.Service {
-	return customers.New(customers.NewMemoryRepository())
+	return customers.New(customers.NewMemoryRepository(), &fakeCatalogPort{valid: true})
 }
 
 func validParty() domain.Party {
@@ -54,6 +64,18 @@ func TestCreateCustomer_Validations(t *testing.T) {
 			assert.ErrorIs(t, err, tt.wantErr)
 		})
 	}
+}
+
+// TestCreateCustomer_InvalidLiabilityCode confirma el hallazgo de la auditoría de catálogos
+// huérfanos: liability_codes es TEXT[], sin FK posible contra cada elemento, así que un
+// código que no existe en el catálogo se rechaza aquí.
+func TestCreateCustomer_InvalidLiabilityCode(t *testing.T) {
+	svc := customers.New(customers.NewMemoryRepository(), &fakeCatalogPort{valid: false})
+	p := validParty()
+	p.LiabilityCodes = []string{"CODIGO-INVENTADO"}
+
+	_, err := svc.CreateCustomer(context.Background(), uuid.New(), p)
+	assert.ErrorIs(t, err, customers.ErrInvalidLiabilityCode)
 }
 
 func TestGetCustomer_NotFound(t *testing.T) {

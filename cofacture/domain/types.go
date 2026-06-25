@@ -36,10 +36,16 @@ type Party struct {
 	// ej. O-13, O-15, O-47). La DIAN permite más de una por tercero — se serializan
 	// concatenadas con ";" en un único cbc:TaxLevelCode, no un elemento por código.
 	LiabilityCodes []string
-	TaxSchemeCode  string
-	TaxSchemeName  string
-	Phone          string
-	Email          string
+	// IndustryClassificationCodes son los códigos CIIU (catálogo DANE, no DIAN — por eso no
+	// hay tabla de catálogo que los valide, solo un límite de cardinalidad que aplica quien
+	// construya el Party, ver issuers.Service.validateIssuer). Solo aplica al emisor, nunca
+	// al receptor (el Anexo Técnico lo describe como "código de actividad económica del
+	// emisor"). Se serializan concatenados con ";" en un único cbc:IndustryClassificationCode.
+	IndustryClassificationCodes []string
+	TaxSchemeCode               string
+	TaxSchemeName               string
+	Phone                       string
+	Email                       string
 	// MerchantRegistrationNumber es el número de matrícula mercantil (Cámara de Comercio).
 	// nil si no aplica (siempre nil para el receptor; opcional para el emisor — ej. una
 	// persona natural sin registro mercantil no lo trae). El cbc:ID de
@@ -80,8 +86,8 @@ type Line struct {
 
 // PaymentMean es un medio de pago (PaymentMeans).
 type PaymentMean struct {
-	Code              string // catálogo payment_methods (forma de pago: contado/crédito)
-	PaymentMethodCode string // catálogo de medios de pago propiamente (efectivo, transferencia...)
+	Code              string // forma de pago: contado/crédito (catálogo "payment_terms" del orquestador)
+	PaymentMethodCode string // medio de pago propiamente: efectivo, transferencia... (catálogo "payment_methods" del orquestador)
 	DueDate           string // solo aplica cuando Code == "2" (a crédito)
 	PaymentReference  string
 }

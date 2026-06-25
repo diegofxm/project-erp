@@ -9,9 +9,16 @@
 -- Originalmente se agregaron en una migración aparte (000005_issuers_party_fields) y se
 -- unificaron aquí el 2026-06-21, sin datos reales en juego todavía.
 --
--- liability_codes (responsabilidades fiscales, ej. "R-99-PN") es un catálogo cuyos valores
--- oficiales completos viven en la "Caja de Herramientas" de la DIAN (ver migración 000002) —
--- aquí se guarda como texto libre por emisor, no como FK a un catálogo todavía sin esa fuente.
+-- liability_codes (responsabilidades fiscales, ej. "R-99-PN") sigue siendo TEXT[] sin FK a
+-- propósito, aunque desde la migración 000002_catalogs ya existe el catálogo liability_codes:
+-- Postgres no soporta un FK contra cada elemento de un array nativamente — cada código se
+-- valida en issuers.Service contra ese catálogo, no a nivel de esquema.
+--
+-- tax_regime_code (FK a tax_regimes, migración 000002_catalogs — por eso los catálogos van
+-- ANTES que issuers en la secuencia, no después) e industry_classification_codes
+-- (CIIU) se agregaron el 2026-06-24 — CIIU es catálogo de la DANE, no de la DIAN, por eso es
+-- TEXT[] sin FK, igual que liability_codes (validación de cardinalidad máx. 4 en
+-- issuers.Service, no en el esquema).
 --
 -- software_pin/certificate/certificate_password se guardan cifrados con AES-256-GCM
 -- (internal/issuers/secrets.go), nunca en texto plano. La clave de cifrado viene de la
@@ -43,6 +50,8 @@ CREATE TABLE issuers (
     tax_scheme_code                 VARCHAR(2) NOT NULL DEFAULT 'ZZ' REFERENCES tax_types(code),
     tax_scheme_name                  TEXT      NOT NULL DEFAULT 'No aplica',
     liability_codes                   TEXT[]   NOT NULL DEFAULT '{}',
+    tax_regime_code                VARCHAR(2) REFERENCES tax_regimes(code),
+    industry_classification_codes     TEXT[]   NOT NULL DEFAULT '{}',
     merchant_registration_number       TEXT,
     software_id                  TEXT,
     software_pin                 BYTEA,

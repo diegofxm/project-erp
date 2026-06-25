@@ -2,6 +2,7 @@ package customers
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/diegofxm/cofacture/domain"
@@ -12,17 +13,18 @@ import (
 // más allá de validar los campos mínimos. La capa HTTP es quien acota cada operación al
 // emisor autenticado (ver internal/api/handler_customers.go).
 type Service struct {
-	repo Repository
+	repo     Repository
+	catalogs CatalogPort
 }
 
 // New crea el servicio de clientes.
-func New(repo Repository) *Service {
-	return &Service{repo: repo}
+func New(repo Repository, catalogPort CatalogPort) *Service {
+	return &Service{repo: repo, catalogs: catalogPort}
 }
 
 // CreateCustomer valida y persiste un cliente nuevo.
 func (s *Service) CreateCustomer(ctx context.Context, issuerID uuid.UUID, party domain.Party) (*Customer, error) {
-	if err := validateParty(party); err != nil {
+	if err := s.validateParty(ctx, party); err != nil {
 		return nil, err
 	}
 	return s.repo.Create(ctx, Customer{IssuerID: issuerID, Party: party})
@@ -40,7 +42,7 @@ func (s *Service) ListCustomers(ctx context.Context, issuerID uuid.UUID) ([]*Cus
 
 // UpdateCustomer reemplaza los datos de un cliente existente del emisor dado.
 func (s *Service) UpdateCustomer(ctx context.Context, issuerID, id uuid.UUID, party domain.Party) (*Customer, error) {
-	if err := validateParty(party); err != nil {
+	if err := s.validateParty(ctx, party); err != nil {
 		return nil, err
 	}
 	return s.repo.Update(ctx, issuerID, id, party)
@@ -52,12 +54,24 @@ func (s *Service) DeleteCustomer(ctx context.Context, issuerID, id uuid.UUID) er
 	return s.repo.Delete(ctx, issuerID, id)
 }
 
-func validateParty(p domain.Party) error {
+// validateParty es un método de Service (no función libre) porque valida LiabilityCodes
+// contra el catálogo en Postgres — liability_codes es TEXT[], sin FK posible contra cada
+// elemento (ver CatalogPort en ports.go).
+func (s *Service) validateParty(ctx context.Context, p domain.Party) error {
 	if strings.TrimSpace(p.Name) == "" {
 		return ErrEmptyName
 	}
 	if strings.TrimSpace(p.Identification.Number) == "" {
 		return ErrEmptyIdentification
+	}
+	for _, code := range p.LiabilityCodes {
+		ok, err := s.catalogs.IsValidLiabilityCode(ctx, code)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%w: %q", ErrInvalidLiabilityCode, code)
+		}
 	}
 	return nil
 }

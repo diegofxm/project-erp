@@ -1,0 +1,6 @@
+code,name,description
+00,Régimen 00,"Código confirmado válido en el Schematron real de la DIAN (DIAN_UBL21-listacodigos_v1.6.sch, regla TipoRegimen) — nombre oficial no disponible en la Caja de Herramientas, no se inventa"
+02,Régimen 02,"Código confirmado válido en el Schematron real de la DIAN — nombre oficial no disponible en la Caja de Herramientas, no se inventa"
+03,Régimen 03,"Código confirmado válido en el Schematron real de la DIAN — nombre oficial no disponible en la Caja de Herramientas, no se inventa"
+04,Régimen 04,"Código confirmado válido en el Schematron real de la DIAN — nombre oficial no disponible en la Caja de Herramientas, no se inventa"
+05,Régimen 05,"Código confirmado válido en el Schematron real de la DIAN — nombre oficial no disponible en la Caja de Herramientas, no se inventa"

@@ -12,4 +12,14 @@ var (
 	ErrEmptyCertificate   = errors.New("issuers: el certificado es obligatorio")
 	ErrInvalidCertificate = errors.New("issuers: el certificado no se pudo leer con la contraseña dada — verifica el archivo .p12 y la contraseña")
 	ErrInvalidEnvironment = errors.New(`issuers: el ambiente debe ser "1" (producción) o "2" (habilitación)`)
+	// ErrTooManyIndustryClassificationCodes: máximo 4 códigos CIIU (1 actividad principal +
+	// hasta 3 secundarias) — límite basado en la estructura real del RUT (Actividad principal/
+	// Actividad secundaria/Otras actividades 1 y 2), no en una regla del Anexo Técnico (CIIU es
+	// catálogo DANE, no DIAN, así que no hay validación DIAN que lo exija — esto es solo para
+	// no aceptar algo que ningún RUT real podría tener).
+	ErrTooManyIndustryClassificationCodes = errors.New("issuers: máximo 4 códigos CIIU (1 actividad principal + hasta 3 secundarias)")
+	// ErrInvalidLiabilityCode: liability_codes es TEXT[], sin FK posible contra cada elemento
+	// (ver CatalogPort en ports.go) — antes de esto, un código inválido aquí no se detectaba
+	// nunca en este servicio, solo al confirmar un documento con la DIAN rechazándolo.
+	ErrInvalidLiabilityCode = errors.New("issuers: responsabilidad fiscal (liability_codes) inválida")
 )

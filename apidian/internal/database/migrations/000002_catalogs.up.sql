@@ -7,12 +7,15 @@
 -- docs/apidian-architecture.md sección 9.2): no incluye catálogos de Documento Soporte,
 -- Tiquete POS, Documentos Equivalentes ni Nómina — esos no aplican todavía.
 --
--- Catálogos pendientes (NO incluidos a propósito): tax_level_codes (responsabilidades
--- fiscales O-13/O-15/O-47...), credit_note_concepts, debit_note_concepts, countries,
--- type_organizations, type_regimes. El Anexo Técnico 1.9 remite esas tablas a la "Caja de
--- Herramientas Factura Electrónica" (archivo .xlsx aparte de la DIAN, secciones 13.2.7.4 y
--- 13.2.7.5) que no está en este repositorio — se agregan cuando se tenga esa fuente oficial,
--- para no inventar códigos de cumplimiento tributario.
+-- 2026-06-24: se consiguió la "Caja de Herramientas Factura Electrónica" oficial de la DIAN
+-- (docs/reference/Caja de herramientas FE_V19_(v2026)/) — de ahí salen `payment_terms`/
+-- `tax_regimes`/`liability_codes` (antes no existían ni como tabla) y se completaron con
+-- datos reales `municipalities`/`departments`/`tax_types`/`payment_methods` (ver
+-- docs/apidian-architecture.md sección 9.34). `type_organizations` (Persona Natural/Jurídica)
+-- NO tiene tabla a propósito: son solo 2 valores fijos ("1"/"2"), confirmados completos
+-- contra el catálogo oficial, y ya se validan en código (issuers.defaultEntityTypeCode) — una
+-- tabla de 2 filas no agrega nada. CIIU (actividad económica) tampoco es tabla: es catálogo
+-- de la DANE, no de la DIAN, se modela como array libre sin catálogo (ver issuers.Issuer).
 
 CREATE TABLE currencies (
     code        VARCHAR(3)  PRIMARY KEY,
@@ -40,8 +43,11 @@ CREATE TABLE departments (
 -- confirmados contra una factura real autorizada por la DIAN
 -- (cofacture/soap/realsend_test.go); el resto de códigos son el catálogo oficial estándar de
 -- "Tipo de Documento" de la DIAN, no confirmados con un envío propio porque ningún emisor de
--- prueba los usó todavía — el Anexo Técnico remite esta tabla a su "Caja de Herramientas"
--- (un .xlsx que no está en este repositorio, sección 13.2.7.1).
+-- prueba los usó todavía. Contrastado contra el `.sch` de validación real de la Caja de
+-- Herramientas (sección 13.2.7.1, fechado 2019): esa lista no incluye "47" (NIT de otro
+-- país) que sí tenemos — se deja como está a propósito (no se quita sin evidencia más
+-- reciente de que ya no es válido; el `.sch` tiene al menos una contradicción confirmada más
+-- abajo en liability_codes — así que no se trata como verdad absoluta).
 CREATE TABLE identification_types (
     code        VARCHAR(3)  PRIMARY KEY,
     name        TEXT        NOT NULL,
@@ -57,14 +63,42 @@ CREATE TABLE municipalities (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Medios de Pago (cbc:PaymentMeansCode) — no confundir con payment_terms (Formas de Pago,
+-- cbc:PaymentMeans/ID, más abajo), son catálogos distintos del Anexo Técnico. code llega a
+-- VARCHAR(3) porque el código catch-all oficial es "ZZZ", no "ZZ".
 CREATE TABLE payment_methods (
-    code        VARCHAR(2)  PRIMARY KEY,
+    code        VARCHAR(3)  PRIMARY KEY,
+    name        TEXT        NOT NULL,
+    description TEXT        NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Formas de Pago (cbc:PaymentMeans/ID) — NO confundir con payment_methods (Medios de Pago,
+-- cbc:PaymentMeansCode, arriba): son catálogos distintos del Anexo Técnico. Solo 2 valores
+-- oficiales ("1" Contado, "2" Crédito) — domain.PaymentMean.Code en cofacture ya distinguía
+-- este campo del medio de pago, pero hasta ahora no tenía catálogo detrás.
+CREATE TABLE payment_terms (
+    code        VARCHAR(1)  PRIMARY KEY,
     name        TEXT        NOT NULL,
     description TEXT        NOT NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE tax_types (
+    code        VARCHAR(2)  PRIMARY KEY,
+    name        TEXT        NOT NULL,
+    description TEXT        NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Tipo de Régimen — va como atributo listName de cbc:TaxLevelCode (domain.Party.TaxRegimeCode
+-- en cofacture, que ya existía pero nunca se poblaba desde apidian). La Caja de Herramientas
+-- no tiene un archivo .gc dedicado para este catálogo (a diferencia de los demás) — los
+-- valores vienen únicamente del Schematron de validación real (DIAN_UBL21-listacodigos_v1.6.
+-- sch, regla TipoRegimen), que no trae nombres legibles, solo los códigos válidos. Por eso
+-- "name"/"description" no son textos oficiales — se deja explícito en el seed (ver
+-- seed/tax_regimes.csv) en vez de inventar nombres con apariencia de oficiales.
+CREATE TABLE tax_regimes (
     code        VARCHAR(2)  PRIMARY KEY,
     name        TEXT        NOT NULL,
     description TEXT        NOT NULL,
@@ -78,6 +112,29 @@ CREATE TABLE unit_measures (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Responsabilidades fiscales (cbc:TaxLevelCode) — hasta ahora solo existía el valor por
+-- defecto "R-99-PN" en código (issuers.Service/documents.Service), sin catálogo real detrás.
+-- El Schematron real de la DIAN valida contra una lista mucho más larga (códigos O-xx/A-xx/
+-- E-xx/R-xx) que la Caja de Herramientas no nombra por completo — aquí se cargan los 5
+-- códigos que SÍ tienen nombre oficial confirmado en responsabilidad-2.1.gc (Gran
+-- contribuyente, Autorretenedor, Agente de retención IVA, Régimen simple, catch-all
+-- "No aplica" = R-99-PJ) MÁS "R-99-PN", el código catch-all que de verdad se usa hoy como
+-- default. No se inventan nombres para el resto de códigos válidos del Schematron.
+--
+-- Discrepancia ya RESUELTA con evidencia real (2026-06-24): el Schematron (2019) solo lista
+-- "R-99-PJ" como catch-all, no "R-99-PN" — pero una factura real (SETP990300000, NIT
+-- 6382356, persona natural) usando "R-99-PN" fue autorizada por la DIAN real (StatusCode 00,
+-- "Procesado Correctamente"). Confirma que el Schematron de 2019 está desactualizado en este
+-- punto y que el default actual del código ("R-99-PN") es correcto — se mantiene sin
+-- cambios. Se dejan ambos códigos en el catálogo (R-99-PJ también es válido, por si algún
+-- emisor persona jurídica lo necesita).
+CREATE TABLE liability_codes (
+    code        VARCHAR(10) PRIMARY KEY,
+    name        TEXT        NOT NULL,
+    description TEXT        NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Tipos de documento ELECTRÓNICO DIAN — compartido por Invoice/CreditNote/DebitNote y, a
 -- futuro, Documento Soporte/exportación/importación/contingencia (sección 13.2.4 del Anexo
 -- Técnico 1.9: "Tipo de Documento: cbc:InvoiceTypeCode y cbc:CreditnoteTypeCode" es un solo
@@ -86,7 +143,9 @@ CREATE TABLE unit_measures (
 --
 -- A diferencia de las demás, esta no viene de un CSV del proyecto legacy: son los tres
 -- códigos que ya implementa y valida cofacture (domain.DocumentTypeCode), confirmados contra
--- la DIAN real en la Fase 1. 02/03/04/05 quedan fuera hasta que cofacture los soporte.
+-- la DIAN real en la Fase 1. El `.sch` de la Caja de Herramientas confirma que el catálogo
+-- vigente real es 01/02/03/91/92 — 02/03 quedan fuera a propósito hasta que cofacture los
+-- soporte: un catálogo no debe aceptar un tipo de documento que el builder no sabe construir.
 CREATE TABLE dian_document_types (
     code        VARCHAR(2)  PRIMARY KEY,
     name        TEXT        NOT NULL,

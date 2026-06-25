@@ -1400,3 +1400,153 @@ Cobertura de tests: `numbering.TestReleaseIfCurrent_RevertsLastClaim`/
 `_NoOpIfNotCurrent` (la condición atómica en sí), `documents.
 TestConfirmDocument_ClaimLoadFailure_ReleasesNumberForRetry` (un fallo de certificado libera el
 número y el reintento sobre el mismo borrador lo reclama de nuevo).
+
+### 9.34 Auditoría completa de catálogos — `internal/catalogs`, Formas de Pago/Tipo de
+Régimen/Responsabilidades fiscales, CIIU
+
+El usuario pidió una auditoría profunda de todos los catálogos DIAN/DANE del sistema. Hallazgo
+central: desde la versión 1.9 del Anexo Técnico, la DIAN sacó **todas** las tablas de
+catálogo del PDF y las movió a un archivo separado ("Caja de Herramientas Factura
+Electrónica") — el PDF que ya teníamos en `docs/reference/` solo tiene las *reglas* de cada
+campo (cardinalidad, formato), nunca los *valores*. El usuario encontró y agregó esa caja de
+herramientas en `docs/reference/Caja de herramientas FE_V19_(v2026)/` — de ahí salen todos los
+datos reales de esta sección.
+
+**Fuentes usadas, en orden de confianza**:
+1. `Listas de valores/*.gc` (formato Genericode XML, code+name) — la más confiable.
+2. `Schemes/listacodigos/DIAN_UBL21-listacodigos_v1.6.sch` — el Schematron real que la DIAN
+   usa para validar (la lista de códigos válidos en sí es de fiar; los *nombres* no siempre
+   están, y el archivo está fechado 2019 mientras el Anexo es de 2023 — se encontró al menos
+   una discrepancia real (`CustomizationID` aceptaría solo "1"/"2"/"3" según el `.sch`, pero
+   "10"/"20"/"30" ya están confirmados reales contra la DIAN) — así que se usó como referencia
+   fuerte, nunca como verdad absoluta sin verificar.
+
+**Catálogos completados con datos 100% confiables** (`internal/database/seed/*.csv`):
+
+| Catálogo | Antes | Después | Fuente |
+|---|---|---|---|
+| `departments` | 24/33 | **33/33** | `Departamentos-2.1.gc` — faltaban Amazonas/Arauca/Casanare/Guainía/Guaviare/Putumayo/San Andrés/Vaupés/Vichada |
+| `municipalities` | 10/1.122 | **1.122/1.122** | `Municipio-2.1.gc` — `department_code` derivado de los primeros 2 dígitos del código DIVIPOLA de 5 |
+| `tax_types` | 5/16 | **16/16** | `TipoImpuesto-2.1.gc` |
+| `payment_methods` (Medios de Pago) | 6/75 | **75/75** | `MediosPago-2.1.gc` — **hallazgo crítico**: los 6 códigos que ya teníamos (10/20/30/42/47/48) tenían nombres INCORRECTOS (ej. "47" decía "Cheque", el oficial es "Transferencia Débito Bancaria") — no era solo incompleto, estaba mal |
+
+**Catálogos nuevos** (se integraron directamente en `000002_catalogs`, la misma migración que
+ya tenía el resto de catálogos — no en una migración separada: como todavía no hay datos
+reales en juego, se corrige de cero en vez de acumular migraciones nuevas para algo que
+lógicamente pertenece junto a los demás catálogos):
+
+- **`payment_terms`** (cbc:PaymentMeans/ID — 2 valores: "1" Contado, "2" Crédito; nombre en
+  inglés a propósito, igual que el resto del esquema — la versión inicial se llamó
+  `formas_pago` por error, sin que ningún dato real dependiera de eso todavía, así que se
+  corrigió en sitio). No confundir con `payment_methods` (Medios de Pago,
+  cbc:PaymentMeansCode) — son catálogos DIAN distintos que antes se confundían.
+  `domain.PaymentMean.Code`/`PaymentMethodCode` en `cofacture` ya distinguían los dos campos;
+  faltaba el catálogo de uno de ellos.
+- **`tax_regimes`** (Tipo de Régimen, listName de `cbc:TaxLevelCode`) — 5 códigos
+  (`00,02,03,04,05`) confirmados válidos solo por el `.sch` (sin nombre oficial disponible en
+  la Caja de Herramientas — el seed lo dice explícitamente, no se inventan nombres). Nuevo
+  campo `TaxRegimeCode` en `cofacture/domain.Party` que **ya existía pero `apidian` nunca lo
+  poblaba** — ahora `issuers.Issuer`/`customers.Customer` lo tienen (FK opcional,
+  `*string`/`nullableString`) y `documents.Service` lo mapea al `domain.Party` del emisor.
+- **`liability_codes`** (Responsabilidades fiscales) — antes solo el default `"R-99-PN"` en
+  código, sin catálogo real. Se cargaron los 5 códigos con nombre oficial confirmado
+  (`responsabilidad-2.1.gc`: Gran Contribuyente, Autorretenedor, Agente de Retención IVA,
+  Régimen Simple, y el catch-all `R-99-PJ`) más `R-99-PN` explícitamente, porque el `.sch` de
+  2019 NO lo lista (solo `R-99-PJ`) pero el código real lo usa como default desde la sección
+  9.29. **Resuelto con evidencia real** (ver más abajo): `R-99-PN` es válido.
+
+**CIIU** (actividad económica, catálogo de la DANE — no de la DIAN, por eso NO tiene tabla):
+nuevo campo `IndustryClassificationCodes []string` en `cofacture/domain.Party` (emite
+`cbc:IndustryClassificationCode`, confirmado contra
+`XSD/common/UBL-CommonAggregateComponents-2.1.xsd` que va ANTES de `PartyIdentification`/
+`PartyName` en la secuencia de `cac:Party`, no después) y en `issuers.Issuer` — array libre,
+máximo 4 códigos (`ErrTooManyIndustryClassificationCodes`), límite basado en la estructura
+real del RUT del usuario (1 actividad principal + 1 secundaria + 2 "otras actividades" = 4),
+no en una regla documentada de la DIAN. Solo aplica al emisor (nunca al receptor). El usuario
+aportó además un catálogo CIIU completo y real propio
+(`https://diegofxm.github.io/ciiu-classification/ciiu.json`, 21 secciones, 88 divisiones, 110
+grupos, **419 códigos hoja**) — queda anotado como candidato natural para una futura tabla
+`ciiu_codes` en `internal/catalogs` (convertiría el campo de "array libre" a "array validado
+contra catálogo real"), no construido todavía.
+
+**`internal/catalogs`** (paquete nuevo, solo lectura, sin `Service` — el `Repository` es el
+contrato completo): expone los 11 catálogos vía
+`GET /api/v1/catalogs/{departments,municipalities,identification-types,tax-types,
+payment-methods,payment-terms,unit-measures,tax-regimes,liability-codes,
+dian-document-types,currencies}` (`municipalities` acepta `?department_code=`), protegidos
+solo con `Auth` (no `RequireTenant` — son iguales para cualquier usuario). `Repository` es una
+interfaz (`PostgresRepository`/`MemoryRepository`, mismo patrón que el resto de dominios) que
+también satisface `documents.CatalogPort` estructuralmente.
+
+**`documents.CatalogPort`** — hallazgo de la auditoría: `payment_methods`/`payment_terms` viven
+dentro del `payment_means` JSONB, nunca tuvieron FK posible. `documents.Service.validateBase`
+ahora valida cada `payment_means[].code`/`payment_method_code` contra estos catálogos antes de
+persistir el borrador (`ErrInvalidPaymentTerm`/`ErrInvalidPaymentMethod`) — antes, un código
+inválido ahí solo se detectaba al confirmar, con la DIAN rechazando el documento ya con un
+número real reclamado. `unit_measures` (lines[].UnitCode) deliberadamente NO se valida así:
+ese catálogo sigue incompleto (11 códigos de muestra frente al estándar UN/ECE Rec. 20
+completo) — validar contra un catálogo incompleto rechazaría códigos legítimos que la DIAN sí
+aceptaría.
+
+**Verificado real, de punta a punta, contra Postgres y la DIAN real**: re-migrado limpio
+(conteos exactos: 33 departamentos, 1.122 municipios, 16 tributos, 75 medios de pago, 2 formas
+de pago, 5 regímenes, 6 responsabilidades, sin tocar identification_types/dian_document_types/
+unit_measures/currencies a propósito). Los 11 endpoints de catálogo confirmados vía curl. Una
+factura real (NIT 6382356, persona natural, mismo emisor de la Fase 1.7) con `tax_regime_code:
+"00"`, `industry_classification_codes: ["4711"]` (código CIIU real, "Comercio al por menor...")
+y `liability_codes: ["R-99-PN"]` (el default sin cambios) fue **autorizada por la DIAN real**:
+`StatusCode "00"`, `"Procesado Correctamente."`, `"La Factura electrónica SETP990300000, ha
+sido autorizada."` — resuelve definitivamente la duda `R-99-PN` vs `R-99-PJ` del `.sch` de
+2019: el código que ya usábamos es válido, el Schematron estaba desactualizado en ese punto.
+Datos de prueba limpiados de la base real después.
+
+Cobertura de tests nuevos: `issuers.TestRegisterIssuer_Validations` (caso "más de 4 códigos
+CIIU"), `issuers.TestRegisterIssuer_FourIndustryClassificationCodes_OK` (límite exacto),
+`documents.TestCreateInvoiceDraft_InvalidPaymentMeans` (`fakeCatalogPort` rechazando).
+
+**Corrección posterior, antes del commit** (mismo día): el usuario pidió revisar dos cosas.
+(1) La migración nueva se había dejado como `000003_catalogs_extra` separada de
+`000002_catalogs` — como todavía no hay datos reales en juego, se unificó en sitio dentro de
+`000002_catalogs` en vez de mantener una migración "extra" (mismo criterio ya aplicado toda
+la sesión: sin `ALTER`, se corrige de cero mientras se pueda). (2) El nombre de tabla
+`formas_pago` había quedado en español por error — se corrigió a `payment_terms` en todo el
+código (`internal/catalogs`, `documents.CatalogPort.IsValidPaymentTerm`,
+`ErrInvalidPaymentTerm`, ruta `GET /catalogs/payment-terms`, seed CSV, Postman) — confirmado
+que es el único identificador de base de datos en español en todo el esquema, revisando los
+nombres de columna de las 18 migraciones completas.
+
+**Cierre del hueco de `liability_codes` sin validar** (mismo día, detectado al revisar
+visualmente el diagrama de relaciones de la base de datos: `payment_terms`, `unit_measures`,
+`liability_codes` y `payment_methods` no tienen línea de FK porque ninguno puede tenerla —
+`payment_terms`/`payment_methods` viven dentro de JSONB (`documents.payment_means`),
+`liability_codes` es un `TEXT[]` (Postgres no soporta FK contra cada elemento de un array), y
+`unit_measures` queda deliberadamente sin validar porque el catálogo sigue incompleto). De los
+cuatro, `liability_codes` era el único de los tres "huérfanos reales" que NUNCA se validó en
+código — la migración ya tenía el comentario de que se validaría en `issuers.Service`, pero
+nunca se implementó. Cerrado así:
+
+- `catalogs.Repository` (+ `PostgresRepository`/`MemoryRepository`) ganó
+  `IsValidLiabilityCode(ctx, code)`, mismo patrón que `IsValidPaymentTerm`/
+  `IsValidPaymentMethod`.
+- `issuers.CatalogPort` (nuevo, `internal/issuers/ports.go`) y `customers.CatalogPort` (nuevo,
+  `internal/customers/ports.go`): interfaces angostas con ese único método, cumplidas
+  estructuralmente por `*catalogs.PostgresRepository`/`*catalogs.MemoryRepository`.
+  `issuers.Service`/`customers.Service` ganaron un campo `catalogs CatalogPort` (constructores
+  `New(...)` con un parámetro más); `validateIssuer`/`validateParty` pasaron de función libre a
+  método de `*Service` para poder consultar el catálogo (mismo motivo y mismo patrón que
+  `documents.validateBase` cuando ganó la validación de `payment_means`).
+- `documents.CatalogPort` también ganó `IsValidLiabilityCode` — `documents.Service.validateBase`
+  ahora valida `customer.LiabilityCodes` (el pass-through del request, el único de los tres
+  puntos de entrada — emisor/cliente guardado/cliente del documento — que seguía sin chequeo
+  alguno antes de esto; el emisor ya queda cubierto porque se valida al registrarse, y un
+  cliente guardado queda cubierto en `customers.Service`).
+- Nuevos errores `issuers.ErrInvalidLiabilityCode`/`customers.ErrInvalidLiabilityCode`/
+  `documents.ErrInvalidLiabilityCode`, los tres mapeados a 400 en `response.go` desde el
+  principio (para no repetir el olvido que sí pasó con `ErrInvalidPaymentTerm`/
+  `ErrInvalidPaymentMethod` en la corrección anterior).
+- `internal/api/api.go`: `catalogsRepo` ahora se construye primero (antes se construía después
+  de `issuerSvc`/`customersSvc`), para poder inyectarlo en los tres constructores.
+- Verificado con tests unitarios nuevos en los tres paquetes y, además, real contra Postgres +
+  servidor real: un emisor con un código inventado se rechaza con 400 y el mensaje esperado; un
+  emisor con `O-15` (código real del catálogo) se acepta con 201. Datos de prueba limpiados de
+  la base real después.

@@ -22,6 +22,14 @@ func appendAccountingParty(parent *etree.Element, node string, p domain.Party, s
 
 	party := root.CreateElement("cac:Party")
 
+	// cbc:IndustryClassificationCode (CIIU) va antes de PartyIdentification/PartyName en la
+	// secuencia de cac:Party — confirmado contra UBL-CommonAggregateComponents-2.1.xsd. Solo
+	// el emisor lo trae (showMerchantRegistration es el mismo indicador que distingue emisor
+	// de receptor en esta función).
+	if showMerchantRegistration && len(p.IndustryClassificationCodes) > 0 {
+		party.CreateElement("cbc:IndustryClassificationCode").SetText(strings.Join(p.IndustryClassificationCodes, ";"))
+	}
+
 	if p.EntityTypeCode == "2" {
 		partyID := party.CreateElement("cac:PartyIdentification").CreateElement("cbc:ID")
 		setIdentificationAttrs(partyID, p.Identification)

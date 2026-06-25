@@ -36,6 +36,7 @@ type partyDTO struct {
 	TaxSchemeCode              string            `json:"tax_scheme_code,omitempty"`
 	TaxSchemeName              string            `json:"tax_scheme_name,omitempty"`
 	LiabilityCodes             []string          `json:"liability_codes,omitempty"`
+	TaxRegimeCode              string            `json:"tax_regime_code,omitempty"`
 	Phone                      string            `json:"phone,omitempty"`
 	Email                      string            `json:"email,omitempty"`
 	MerchantRegistrationNumber *string           `json:"merchant_registration_number,omitempty"`
@@ -185,6 +186,7 @@ func (p partyDTO) toDomain() domain.Party {
 		TaxSchemeCode:              p.TaxSchemeCode,
 		TaxSchemeName:              p.TaxSchemeName,
 		LiabilityCodes:             p.LiabilityCodes,
+		TaxRegimeCode:              p.TaxRegimeCode,
 		Phone:                      p.Phone,
 		Email:                      p.Email,
 		MerchantRegistrationNumber: p.MerchantRegistrationNumber,
@@ -255,6 +257,7 @@ func partyFromDomain(p domain.Party) partyDTO {
 		TaxSchemeCode:              p.TaxSchemeCode,
 		TaxSchemeName:              p.TaxSchemeName,
 		LiabilityCodes:             p.LiabilityCodes,
+		TaxRegimeCode:              p.TaxRegimeCode,
 		Phone:                      p.Phone,
 		Email:                      p.Email,
 		MerchantRegistrationNumber: p.MerchantRegistrationNumber,

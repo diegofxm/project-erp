@@ -57,11 +57,12 @@ type Service struct {
 	issuers   IssuerPort
 	numbering NumberingPort
 	customers CustomerPort
+	catalogs  CatalogPort
 }
 
 // New crea el servicio de documentos.
-func New(repo Repository, issuerPort IssuerPort, numberingPort NumberingPort, customerPort CustomerPort) *Service {
-	return &Service{repo: repo, issuers: issuerPort, numbering: numberingPort, customers: customerPort}
+func New(repo Repository, issuerPort IssuerPort, numberingPort NumberingPort, customerPort CustomerPort, catalogPort CatalogPort) *Service {
+	return &Service{repo: repo, issuers: issuerPort, numbering: numberingPort, customers: customerPort, catalogs: catalogPort}
 }
 
 // IssueInvoiceRequest es el payload de una Factura Electrónica de Venta — sirve tanto para
@@ -113,7 +114,7 @@ type IssueCreditNoteRequest struct {
 
 // CreateInvoiceDraft valida y persiste un borrador de Factura Electrónica de Venta.
 func (s *Service) CreateInvoiceDraft(ctx context.Context, req IssueInvoiceRequest) (*Document, error) {
-	if err := validateBase(req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer, req.PaymentMeans); err != nil {
+	if err := s.validateBase(ctx, req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer, req.PaymentMeans); err != nil {
 		return nil, err
 	}
 	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, invoiceDianDocumentType, req.CustomerID); err != nil {
@@ -142,7 +143,7 @@ func (s *Service) CreateInvoiceDraft(ctx context.Context, req IssueInvoiceReques
 // dado (ErrDocumentNotFound si no, mismo criterio "indistinguible de no-existe" que el resto
 // de la API).
 func (s *Service) UpdateInvoiceDraft(ctx context.Context, id uuid.UUID, req IssueInvoiceRequest) (*Document, error) {
-	if err := validateBase(req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer, req.PaymentMeans); err != nil {
+	if err := s.validateBase(ctx, req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer, req.PaymentMeans); err != nil {
 		return nil, err
 	}
 	if err := s.requireOwnDraft(ctx, req.IssuerID, id); err != nil {
@@ -172,7 +173,7 @@ func (s *Service) UpdateInvoiceDraft(ctx context.Context, id uuid.UUID, req Issu
 
 // CreateCreditNoteDraft valida y persiste un borrador de Nota Crédito.
 func (s *Service) CreateCreditNoteDraft(ctx context.Context, req IssueCreditNoteRequest) (*Document, error) {
-	if err := validateNoteRequest(req.IssueNoteRequest); err != nil {
+	if err := s.validateNoteRequest(ctx, req.IssueNoteRequest); err != nil {
 		return nil, err
 	}
 	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, creditNoteDianDocumentType, req.CustomerID); err != nil {
@@ -186,7 +187,7 @@ func (s *Service) CreateCreditNoteDraft(ctx context.Context, req IssueCreditNote
 // UpdateCreditNoteDraft reemplaza por completo los datos de un borrador de Nota Crédito
 // existente — mismas reglas que UpdateInvoiceDraft.
 func (s *Service) UpdateCreditNoteDraft(ctx context.Context, id uuid.UUID, req IssueCreditNoteRequest) (*Document, error) {
-	if err := validateNoteRequest(req.IssueNoteRequest); err != nil {
+	if err := s.validateNoteRequest(ctx, req.IssueNoteRequest); err != nil {
 		return nil, err
 	}
 	if err := s.requireOwnDraft(ctx, req.IssuerID, id); err != nil {
@@ -203,7 +204,7 @@ func (s *Service) UpdateCreditNoteDraft(ctx context.Context, id uuid.UUID, req I
 
 // CreateDebitNoteDraft valida y persiste un borrador de Nota Débito.
 func (s *Service) CreateDebitNoteDraft(ctx context.Context, req IssueNoteRequest) (*Document, error) {
-	if err := validateNoteRequest(req); err != nil {
+	if err := s.validateNoteRequest(ctx, req); err != nil {
 		return nil, err
 	}
 	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, debitNoteDianDocumentType, req.CustomerID); err != nil {
@@ -216,7 +217,7 @@ func (s *Service) CreateDebitNoteDraft(ctx context.Context, req IssueNoteRequest
 // UpdateDebitNoteDraft reemplaza por completo los datos de un borrador de Nota Débito
 // existente — mismas reglas que UpdateInvoiceDraft.
 func (s *Service) UpdateDebitNoteDraft(ctx context.Context, id uuid.UUID, req IssueNoteRequest) (*Document, error) {
-	if err := validateNoteRequest(req); err != nil {
+	if err := s.validateNoteRequest(ctx, req); err != nil {
 		return nil, err
 	}
 	if err := s.requireOwnDraft(ctx, req.IssuerID, id); err != nil {
@@ -746,7 +747,15 @@ func (s *Service) finish(ctx context.Context, d *Document, status Status, trackI
 // Invoice/CreditNote/DebitNote según el Anexo Técnico — confirmado real: 3 facturas
 // rechazadas por la DIAN ("errores en campos mandatorios") por mandarlo vacío (ver
 // docs/apidian-architecture.md sección 9.30).
-func validateBase(issuerID, rangeID uuid.UUID, lines []domain.Line, customer domain.Party, paymentMeans []domain.PaymentMean) error {
+//
+// También valida cada código de payment_means y de customer.liability_codes contra su
+// catálogo en Postgres — payment_terms/payment_methods NUNCA tuvieron FK posible aquí porque
+// viven en JSONB (payment_means), y liability_codes tampoco porque es un TEXT[] (Postgres no
+// soporta FK contra cada elemento de un array) — ver auditoría de catálogos huérfanos,
+// docs/apidian-architecture.md. Es un método de Service (no función libre) justo por esto:
+// necesita s.catalogs para consultar la base de datos. lines[].UnitCode NO se valida así —
+// ver el comentario de CatalogPort en ports.go.
+func (s *Service) validateBase(ctx context.Context, issuerID, rangeID uuid.UUID, lines []domain.Line, customer domain.Party, paymentMeans []domain.PaymentMean) error {
 	if issuerID == uuid.Nil {
 		return ErrMissingIssuer
 	}
@@ -762,11 +771,36 @@ func validateBase(issuerID, rangeID uuid.UUID, lines []domain.Line, customer dom
 	if len(paymentMeans) == 0 {
 		return ErrMissingPaymentMeans
 	}
+	for _, pm := range paymentMeans {
+		ok, err := s.catalogs.IsValidPaymentTerm(ctx, pm.Code)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%w: %q", ErrInvalidPaymentTerm, pm.Code)
+		}
+		ok, err = s.catalogs.IsValidPaymentMethod(ctx, pm.PaymentMethodCode)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%w: %q", ErrInvalidPaymentMethod, pm.PaymentMethodCode)
+		}
+	}
+	for _, code := range customer.LiabilityCodes {
+		ok, err := s.catalogs.IsValidLiabilityCode(ctx, code)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%w: %q", ErrInvalidLiabilityCode, code)
+		}
+	}
 	return nil
 }
 
-func validateNoteRequest(req IssueNoteRequest) error {
-	if err := validateBase(req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer, req.PaymentMeans); err != nil {
+func (s *Service) validateNoteRequest(ctx context.Context, req IssueNoteRequest) error {
+	if err := s.validateBase(ctx, req.IssuerID, req.NumberingRangeID, req.Lines, req.Customer, req.PaymentMeans); err != nil {
 		return err
 	}
 	if req.BillingReference.CUFE == "" {
@@ -779,6 +813,13 @@ func validateNoteRequest(req IssueNoteRequest) error {
 
 // partyFromIssuer construye el cac:AccountingSupplierParty/cac:Party a partir del emisor.
 func partyFromIssuer(iss *issuers.Issuer) domain.Party {
+	// TaxRegimeCode es *string en issuers.Issuer (FK opcional, ver model.go) pero string
+	// plano en domain.Party — domain.Party no distingue "nunca se mandó" de "vacío", el
+	// builder simplemente omite el atributo listName si queda vacío.
+	var taxRegimeCode string
+	if iss.TaxRegimeCode != nil {
+		taxRegimeCode = *iss.TaxRegimeCode
+	}
 	return domain.Party{
 		EntityTypeCode: iss.EntityTypeCode,
 		Identification: domain.Identification{
@@ -795,12 +836,14 @@ func partyFromIssuer(iss *issuers.Issuer) domain.Party {
 			CountryCode: "CO",
 			CountryName: "Colombia",
 		},
-		LiabilityCodes:             iss.LiabilityCodes,
-		TaxSchemeCode:              iss.TaxSchemeCode,
-		TaxSchemeName:              iss.TaxSchemeName,
-		Phone:                      iss.Phone,
-		Email:                      iss.Email,
-		MerchantRegistrationNumber: iss.MerchantRegistrationNumber,
+		LiabilityCodes:              iss.LiabilityCodes,
+		TaxRegimeCode:               taxRegimeCode,
+		IndustryClassificationCodes: iss.IndustryClassificationCodes,
+		TaxSchemeCode:               iss.TaxSchemeCode,
+		TaxSchemeName:               iss.TaxSchemeName,
+		Phone:                       iss.Phone,
+		Email:                       iss.Email,
+		MerchantRegistrationNumber:  iss.MerchantRegistrationNumber,
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/diegofxm/apidian/internal/api/middleware"
 	"github.com/diegofxm/apidian/internal/api/response"
 	"github.com/diegofxm/apidian/internal/auth"
+	"github.com/diegofxm/apidian/internal/catalogs"
 	"github.com/diegofxm/apidian/internal/customers"
 	"github.com/diegofxm/apidian/internal/database"
 	"github.com/diegofxm/apidian/internal/documents"
@@ -17,7 +18,7 @@ import (
 	"github.com/diegofxm/apidian/internal/products"
 )
 
-// API agrupa los seis servicios de dominio y expone el http.Handler.
+// API agrupa los siete servicios de dominio y expone el http.Handler.
 type API struct {
 	log            *zap.Logger
 	issuers        *issuers.Service
@@ -27,23 +28,28 @@ type API struct {
 	tokens         *auth.TokenIssuer
 	customers      *customers.Service
 	products       *products.Service
+	catalogs       catalogs.Repository
 	allowedOrigins []string
 }
 
-// New conecta los seis dominios sobre una sola base de datos y devuelve la API.
+// New conecta los siete dominios sobre una sola base de datos y devuelve la API.
 // authJWTSecret firma los tokens de sesión (HS256) — deliberadamente distinto de
 // issuerSecretsKey (ver internal/config.Config.AuthJWTSecret). allowedOrigins son los
 // orígenes permitidos por CORS (ver internal/api/middleware/cors.go).
 func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byte, allowedOrigins []string) *API {
-	issuerSvc := issuers.New(issuers.NewPostgresRepository(db.Pool, issuerSecretsKey), documents.ValidateCertificate)
+	// catalogsRepo va primero: issuers/customers/documents lo necesitan para validar
+	// liability_codes/payment_terms/payment_methods (catálogos sin FK posible, ver
+	// docs/apidian-architecture.md sección 9.34).
+	catalogsRepo := catalogs.NewPostgresRepository(db.Pool)
+	issuerSvc := issuers.New(issuers.NewPostgresRepository(db.Pool, issuerSecretsKey), documents.ValidateCertificate, catalogsRepo)
 	numberingSvc := numbering.New(numbering.NewPostgresRepository(db.Pool, issuerSecretsKey))
-	customersSvc := customers.New(customers.NewPostgresRepository(db.Pool))
+	customersSvc := customers.New(customers.NewPostgresRepository(db.Pool), catalogsRepo)
 	productsSvc := products.New(products.NewPostgresRepository(db.Pool))
-	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc, customersSvc)
+	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc, customersSvc, catalogsRepo)
 	tokens := auth.NewTokenIssuer(authJWTSecret)
 	authSvc := auth.New(auth.NewPostgresRepository(db.Pool), issuerSvc, tokens)
 
-	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, allowedOrigins)
+	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, catalogsRepo, allowedOrigins)
 }
 
 // NewFromServices crea una API a partir de servicios ya construidos — útil para tests que
@@ -57,11 +63,13 @@ func NewFromServices(
 	tokens *auth.TokenIssuer,
 	customersSvc *customers.Service,
 	productsSvc *products.Service,
+	catalogsRepo catalogs.Repository,
 	allowedOrigins []string,
 ) *API {
 	return &API{
 		log: log, issuers: issuerSvc, numbering: numberingSvc, documents: documentsSvc,
 		auth: authSvc, tokens: tokens, customers: customersSvc, products: productsSvc,
+		catalogs:       catalogsRepo,
 		allowedOrigins: allowedOrigins,
 	}
 }
@@ -119,6 +127,12 @@ func (a *API) Handler() http.Handler {
 //
 //	POST/GET/PUT/DELETE /api/v1/customers[/{id}]          → catálogo de adquirientes (conveniencia, ver internal/customers)
 //	POST/GET/PUT/DELETE /api/v1/products[/{id}]           → catálogo de ítems/servicios (conveniencia, ver internal/products)
+//
+//	GET /api/v1/catalogs/{departments,municipalities,identification-types,tax-types,
+//	    payment-methods,payment-terms,unit-measures,tax-regimes,liability-codes,
+//	    dian-document-types,currencies} → catálogos de referencia DIAN/DANE, de solo lectura,
+//	    iguales para cualquier usuario autenticado (ver internal/catalogs). municipalities
+//	    acepta ?department_code= para filtrar.
 func (a *API) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/register", a.handleRegister)
 	mux.HandleFunc("POST /api/v1/auth/login", a.handleLogin)
@@ -162,6 +176,20 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("GET /api/v1/products/{id}", a.handleGetProduct)
 	handle("PUT /api/v1/products/{id}", a.handleUpdateProduct)
 	handle("DELETE /api/v1/products/{id}", a.handleDeleteProduct)
+
+	// Catálogos: iguales para cualquier usuario autenticado, no dependen de la empresa activa
+	// — por eso usan handleNoTenant (solo Auth), no handle (que exigiría RequireTenant).
+	handleNoTenant("GET /api/v1/catalogs/departments", a.handleListDepartments)
+	handleNoTenant("GET /api/v1/catalogs/municipalities", a.handleListMunicipalities)
+	handleNoTenant("GET /api/v1/catalogs/identification-types", a.handleListIdentificationTypes)
+	handleNoTenant("GET /api/v1/catalogs/tax-types", a.handleListTaxTypes)
+	handleNoTenant("GET /api/v1/catalogs/payment-methods", a.handleListPaymentMethods)
+	handleNoTenant("GET /api/v1/catalogs/payment-terms", a.handleListPaymentTerms)
+	handleNoTenant("GET /api/v1/catalogs/unit-measures", a.handleListUnitMeasures)
+	handleNoTenant("GET /api/v1/catalogs/tax-regimes", a.handleListTaxRegimes)
+	handleNoTenant("GET /api/v1/catalogs/liability-codes", a.handleListLiabilityCodes)
+	handleNoTenant("GET /api/v1/catalogs/dian-document-types", a.handleListDianDocumentTypes)
+	handleNoTenant("GET /api/v1/catalogs/currencies", a.handleListCurrencies)
 }
 
 // ── helpers compartidos ─────────────────────────────────────────────────────────────────────

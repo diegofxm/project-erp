@@ -1,5 +1,13 @@
 package issuers
 
+import "context"
+
+// CatalogPort valida LiabilityCodes contra el catálogo liability_codes — TEXT[], sin FK
+// posible contra cada elemento (mismo motivo y mismo patrón que documents.CatalogPort).
+type CatalogPort interface {
+	IsValidLiabilityCode(ctx context.Context, code string) (bool, error)
+}
+
 // CertificateValidator confirma que certificate+password formen un .p12 (PKCS12) válido y
 // parseable. internal/issuers no importa cofacture directamente — documents es el único
 // paquete de apidian que lo hace (ver docs/apidian-architecture.md sección 4.1) — por eso

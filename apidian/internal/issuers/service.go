@@ -12,12 +12,13 @@ import (
 type Service struct {
 	repo      Repository
 	validator CertificateValidator
+	catalogs  CatalogPort
 }
 
 // New crea el servicio de emisores. validator puede ser nil (no valida certificados) — ver
 // CertificateValidator.
-func New(repo Repository, validator CertificateValidator) *Service {
-	return &Service{repo: repo, validator: validator}
+func New(repo Repository, validator CertificateValidator, catalogPort CatalogPort) *Service {
+	return &Service{repo: repo, validator: validator, catalogs: catalogPort}
 }
 
 // RegisterIssuer valida y persiste un nuevo emisor. SoftwareID/SoftwarePIN/Certificate son
@@ -29,7 +30,7 @@ func New(repo Repository, validator CertificateValidator) *Service {
 // docs/apidian-architecture.md sección 9.25.
 func (s *Service) RegisterIssuer(ctx context.Context, iss Issuer) (*Issuer, error) {
 	applyDefaults(&iss)
-	if err := validateIssuer(iss); err != nil {
+	if err := s.validateIssuer(ctx, iss); err != nil {
 		return nil, err
 	}
 	iss.IsActive = true
@@ -149,8 +150,11 @@ func (s *Service) GetIssuerByNIT(ctx context.Context, nit string) (*Issuer, erro
 }
 
 // validateIssuer solo exige los datos que la DIAN pide del emisor mismo — NO exige
-// SoftwareID/SoftwarePIN/Certificate, esos se completan después (ver RegisterIssuer).
-func validateIssuer(iss Issuer) error {
+// SoftwareID/SoftwarePIN/Certificate, esos se completan después (ver RegisterIssuer). Es un
+// método de Service (no función libre) porque valida LiabilityCodes contra el catálogo en
+// Postgres — liability_codes es TEXT[], sin FK posible contra cada elemento (ver CatalogPort
+// en ports.go).
+func (s *Service) validateIssuer(ctx context.Context, iss Issuer) error {
 	if strings.TrimSpace(iss.NIT) == "" {
 		return ErrEmptyNIT
 	}
@@ -161,6 +165,18 @@ func validateIssuer(iss Issuer) error {
 	case EnvironmentProduccion, EnvironmentHabilitacion:
 	default:
 		return ErrInvalidEnvironment
+	}
+	if len(iss.IndustryClassificationCodes) > 4 {
+		return ErrTooManyIndustryClassificationCodes
+	}
+	for _, code := range iss.LiabilityCodes {
+		ok, err := s.catalogs.IsValidLiabilityCode(ctx, code)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%w: %q", ErrInvalidLiabilityCode, code)
+		}
 	}
 	return nil
 }

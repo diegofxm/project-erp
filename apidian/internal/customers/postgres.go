@@ -44,6 +44,7 @@ const customerColumns = `
 	tax_scheme_code,
 	tax_scheme_name,
 	liability_codes,
+	tax_regime_code,
 	phone,
 	email,
 	merchant_registration_number,
@@ -118,15 +119,16 @@ func (r *PostgresRepository) Update(ctx context.Context, issuerID, id uuid.UUID,
 			tax_scheme_code = $13,
 			tax_scheme_name = $14,
 			liability_codes = $15,
-			phone = $16,
-			email = $17,
-			merchant_registration_number = $18,
-			updated_at = $19
-		WHERE id = $20 AND issuer_id = $21`,
+			tax_regime_code = $16,
+			phone = $17,
+			email = $18,
+			merchant_registration_number = $19,
+			updated_at = $20
+		WHERE id = $21 AND issuer_id = $22`,
 		party.EntityTypeCode, party.Identification.Number, party.Identification.TypeCode, party.Identification.VerificationCode,
 		party.Name, nullableString(party.Address.Line), nullableString(party.Address.CityCode), nullableString(party.Address.CityName),
 		nullableString(party.Address.StateCode), nullableString(party.Address.StateName), nullableString(party.Address.CountryCode), nullableString(party.Address.CountryName),
-		nullableString(party.TaxSchemeCode), nullableString(party.TaxSchemeName), liabilityCodes, party.Phone, party.Email, party.MerchantRegistrationNumber,
+		nullableString(party.TaxSchemeCode), nullableString(party.TaxSchemeName), liabilityCodes, nullableString(party.TaxRegimeCode), party.Phone, party.Email, party.MerchantRegistrationNumber,
 		now, id, issuerID,
 	)
 	if err != nil {
@@ -161,19 +163,19 @@ func partyArgs(id, issuerID uuid.UUID, p domain.Party, createdAt, updatedAt time
 		// tax_scheme_code es FK a tax_types(code) — una cadena vacía no es un código válido,
 		// tiene que llegar como NULL de verdad cuando no se especifica (omitido del payload,
 		// se completa después con defaults al emitir, ver documents.applyCustomerDefaults).
-		nullableString(p.TaxSchemeCode), nullableString(p.TaxSchemeName), liabilityCodes, p.Phone, p.Email, p.MerchantRegistrationNumber, createdAt, updatedAt,
+		nullableString(p.TaxSchemeCode), nullableString(p.TaxSchemeName), liabilityCodes, nullableString(p.TaxRegimeCode), p.Phone, p.Email, p.MerchantRegistrationNumber, createdAt, updatedAt,
 	}
 }
 
 func scanCustomer(row pgx.Row) (*Customer, error) {
 	var c Customer
 	var addrLine, addrCityCode, addrCityName, addrStateCode, addrStateName, addrCountryCode, addrCountryName *string
-	var taxSchemeCode, taxSchemeName *string
+	var taxSchemeCode, taxSchemeName, taxRegimeCode *string
 
 	err := row.Scan(
 		&c.ID, &c.IssuerID, &c.Party.EntityTypeCode, &c.Party.Identification.Number, &c.Party.Identification.TypeCode, &c.Party.Identification.VerificationCode,
 		&c.Party.Name, &addrLine, &addrCityCode, &addrCityName, &addrStateCode, &addrStateName, &addrCountryCode, &addrCountryName,
-		&taxSchemeCode, &taxSchemeName, &c.Party.LiabilityCodes, &c.Party.Phone, &c.Party.Email, &c.Party.MerchantRegistrationNumber,
+		&taxSchemeCode, &taxSchemeName, &c.Party.LiabilityCodes, &taxRegimeCode, &c.Party.Phone, &c.Party.Email, &c.Party.MerchantRegistrationNumber,
 		&c.CreatedAt, &c.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -185,6 +187,7 @@ func scanCustomer(row pgx.Row) (*Customer, error) {
 
 	c.Party.TaxSchemeCode = deref(taxSchemeCode)
 	c.Party.TaxSchemeName = deref(taxSchemeName)
+	c.Party.TaxRegimeCode = deref(taxRegimeCode)
 	c.Party.Address = domain.Address{
 		Line:        deref(addrLine),
 		CityCode:    deref(addrCityCode),
