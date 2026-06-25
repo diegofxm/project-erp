@@ -20,7 +20,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/clientes", label: "Clientes", icon: <Users className="h-3.5 w-3.5" />, enabled: false },
   { to: "/productos", label: "Productos", icon: <Package className="h-3.5 w-3.5" />, enabled: false },
   { to: "/numeracion", label: "Numeración", icon: <Hash className="h-3.5 w-3.5" />, enabled: false },
-  { to: "/configuracion", label: "Configuración", icon: <Settings className="h-3.5 w-3.5" />, enabled: false },
+  { to: "/configuracion", label: "Configuración", icon: <Settings className="h-3.5 w-3.5" />, enabled: true },
 ];
 
 export function Sidebar() {

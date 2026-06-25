@@ -1,9 +1,17 @@
 import { useState } from "react";
-import { ChevronDown, LogOut, Server, Layers, User as UserIcon } from "lucide-react";
+import { Link } from "react-router";
+import { ChevronDown, LogOut, Server, Layers, Settings, UserCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { ThemeToggle } from "./ThemeToggle";
+
+function getInitials(name: string | undefined): string {
+  if (!name) return "?";
+  const [first, second] = name.trim().split(/\s+/);
+  return ((first?.[0] ?? "") + (second?.[0] ?? "")).toUpperCase();
+}
 
 // Barra única h-10, fondo oscuro — única zona oscura de la UI (sección 5 del design system).
+// Solo lleva el avatar (iniciales) a la derecha — nombre/correo completos viven en el
+// desplegable, no en la barra fija (mismo patrón que GitHub/Linear/Vercel).
 export function Navbar() {
   const { user, activeIssuer, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -28,15 +36,16 @@ export function Navbar() {
       </div>
 
       <div className="flex items-center gap-1">
-        <ThemeToggle />
         <div className="relative">
           <button
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
-            className="flex items-center gap-1.5 rounded px-2 py-1 text-xs hover:bg-white/10"
+            className="flex items-center gap-1 rounded px-1.5 py-1 hover:bg-white/10"
+            title={user?.name}
           >
-            <UserIcon className="h-3.5 w-3.5" />
-            <span>{user?.name}</span>
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-(--accent-primary) text-[10px] font-semibold text-white">
+              {getInitials(user?.name)}
+            </span>
             <ChevronDown className="h-3 w-3" />
           </button>
           {menuOpen && (
@@ -45,10 +54,26 @@ export function Navbar() {
                 <p className="text-xs font-medium">{user?.name}</p>
                 <p className="text-xs text-(--text-muted)">{user?.email}</p>
               </div>
+              <Link
+                to="/configuracion?tab=account"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs text-(--text-primary) hover:bg-(--bg-hover)"
+              >
+                <UserCircle className="h-3.5 w-3.5" />
+                Mi cuenta
+              </Link>
+              <Link
+                to="/configuracion?tab=general"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs text-(--text-primary) hover:bg-(--bg-hover)"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Configuración
+              </Link>
               <button
                 type="button"
                 onClick={logout}
-                className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-xs text-(--color-danger) hover:bg-(--bg-hover)"
+                className="flex w-full items-center gap-1.5 border-t border-(--border-light) px-3 py-2 text-left text-xs text-(--color-danger) hover:bg-(--bg-hover)"
               >
                 <LogOut className="h-3.5 w-3.5" />
                 Cerrar sesión

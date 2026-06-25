@@ -37,23 +37,44 @@ export interface LoginPayload {
   password: string;
 }
 
-// Payload mínimo de creación de empresa para esta fase — software_id/software_pin/
-// certificate_base64 se completan después en la configuración del emisor (otra fase), no son
-// obligatorios para crear la empresa (ver issuers.validateIssuer: solo exige nit/business_name/
-// environment).
+// Payload de creación de empresa — todo lo que la DIAN exige del emisor mismo, completo
+// salvo la configuración técnica (software_id/software_pin/certificate_base64), que se
+// completa después en una fase de configuración aparte (PUT /issuers/me, ver
+// issuers.UpdateIssuerRequest). Espejo de createIssuerRequest en
+// apidian/internal/api/handler_issuers.go, sin esos 4 campos.
 export interface CreateIssuerPayload {
   nit: string;
   check_digit: string;
   business_name: string;
+  trade_name?: string;
   identification_type_code: string;
   department_code: string;
   municipality_code: string;
   address_line: string;
   email: string;
+  phone?: string;
   environment: IssuerEnvironment;
+  entity_type_code?: string;
+  tax_scheme_code?: string;
+  tax_scheme_name?: string;
+  liability_codes?: string[];
+  tax_regime_code?: string;
+  industry_classification_codes?: string[];
+  merchant_registration_number?: string;
 }
 
 export interface ListIssuersResult {
   issuers: Issuer[];
   count: number;
+}
+
+// Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.
+export interface CatalogEntry {
+  code: string;
+  name: string;
+  description: string;
+}
+
+export interface Municipality extends CatalogEntry {
+  department_code: string;
 }

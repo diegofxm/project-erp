@@ -16,14 +16,21 @@ export function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   if (isReady && isAuthenticated) return <Navigate to="/" replace />;
 
+  const passwordMismatch = confirmPassword.length > 0 && password !== confirmPassword;
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (password !== confirmPassword) {
+      setError("Las contraseñas no coinciden");
+      return;
+    }
     setLoading(true);
     try {
       await register({ name, email, password });
@@ -63,6 +70,17 @@ export function RegisterPage() {
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+          />
+          <Input
+            id="confirmPassword"
+            type="password"
+            label="Confirmar contraseña"
+            autoComplete="new-password"
+            required
+            minLength={8}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            error={passwordMismatch ? "Las contraseñas no coinciden" : undefined}
           />
           <Button type="submit" icon={<UserPlus className="h-3.5 w-3.5" />} loading={loading} className="w-full">
             Crear cuenta

@@ -2,7 +2,8 @@ import { Moon, Sun } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 
 // Sugerencia #3 del design system: la paleta oscura ya está modelada, lo que faltaba en el
-// proyecto original era justo este control.
+// proyecto original era justo este control. Vive en Configuración → General (no en el Navbar,
+// que ya no lleva controles propios fuera del menú de usuario).
 export function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
   return (
@@ -10,7 +11,7 @@ export function ThemeToggle() {
       type="button"
       onClick={toggleTheme}
       title={theme === "light" ? "Cambiar a tema oscuro" : "Cambiar a tema claro"}
-      className="rounded p-1.5 text-(--navbar-text) opacity-80 hover:bg-white/10 hover:opacity-100"
+      className="rounded border border-(--border-color) p-1.5 text-(--text-secondary) hover:bg-(--bg-hover)"
     >
       {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
     </button>

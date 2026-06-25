@@ -1448,6 +1448,34 @@ lógicamente pertenece junto a los demás catálogos):
   campo `TaxRegimeCode` en `cofacture/domain.Party` que **ya existía pero `apidian` nunca lo
   poblaba** — ahora `issuers.Issuer`/`customers.Customer` lo tienen (FK opcional,
   `*string`/`nullableString`) y `documents.Service` lo mapea al `domain.Party` del emisor.
+
+**Corrección de nombres de `tax_regimes`** (2026-06-25, durante la construcción del formulario
+de empresa del frontend): el usuario notó en su propio RUT real (`docs/reference/
+141227953056.pdf`, casilla 53 "Responsabilidades, Calidades y Atributos") el código
+`"05- Impto. renta y compl. régimen ordinario"` y preguntó si los nombres genéricos
+("Régimen 00".."05") que se habían puesto decían algo. Investigación: `@listName` de
+`cbc:TaxLevelCode` no tiene tabla propia en la Caja de Herramientas de facturación
+electrónica (por eso no se le encontró nombre ahí), pero **sí es un código real de OTRA tabla
+DIAN** — la tabla de "Responsabilidades Tributarias" del RUT (Formulario 001, casilla 53), que
+es una tabla mucho más larga (no de la Caja de Herramientas de facturación, sino del RUT) de la
+que la Anexo Técnico solo reutiliza un subconjunto pequeño para este atributo específico.
+Confirmado contra dos fuentes externas (Gerencie.com, Actualícese) más el propio RUT del
+usuario:
+
+| Código | Nombre real (tabla RUT casilla 53) |
+|---|---|
+| `00` | No aplica — no es código RUT real (la tabla oficial empieza en `01`); es el valor que el Anexo Técnico instruye usar cuando `@listName` se informa sin régimen específico (FAJ27/CAJ27/DAJ27 etc.: "Opcional, si informado indicar 'No aplica'") |
+| `02` | Gravamen a los movimientos financieros (GMF / 4×1000) |
+| `03` | Impuesto al patrimonio |
+| `04` | Renta y complementario - régimen especial |
+| `05` | Renta y complementario - régimen ordinario — **confirmado literalmente en el RUT real del usuario** |
+
+(`01`, "Aporte especial para la administración de justicia", existe en la tabla del RUT pero
+queda fuera del set válido para `@listName` según el `.sch` — consistente con que no es una
+clasificación de "régimen", es un aporte aparte). `internal/database/seed/tax_regimes.csv`
+actualizado con estos nombres reales (antes: "Régimen 00".."05" genéricos); reseed verificado
+contra Postgres real vía `GET /catalogs/tax-regimes` y visualmente en el selector del
+formulario de empresa del frontend.
 - **`liability_codes`** (Responsabilidades fiscales) — antes solo el default `"R-99-PN"` en
   código, sin catálogo real. Se cargaron los 5 códigos con nombre oficial confirmado
   (`responsabilidad-2.1.gc`: Gran Contribuyente, Autorretenedor, Agente de Retención IVA,

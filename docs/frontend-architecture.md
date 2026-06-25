@@ -146,15 +146,53 @@ dian-document-types,currencies}` (`internal/catalogs`, ver
 cliente/producto/factura) ya puede construir selects reales en vez de inputs de texto libre —
 queda como tarea de la Fase 2 del frontend, no un bloqueo de backend.
 
+## Fase 1.5 — registro, empresa por pestañas, Navbar/Configuración (2026-06-25)
+
+A pedido del usuario, tras un recorrido manual del dashboard de la Fase 1, tres mejoras antes
+de construir páginas nuevas:
+
+1. **`RegisterPage`**: campo "Confirmar contraseña", validado solo en el navegador (nunca llega
+   al backend si no coincide) — no es una regla de `auth.Service`.
+2. **`OnboardingPage`**: el formulario plano de creación de empresa se reemplazó por
+   `components/company-form/CompanyForm.tsx` — pestañas (`ui/Tabs.tsx`, mismo patrón de la
+   secc. 7 del design system) "Identificación" / "Ubicación y contacto" / "Información
+   tributaria" / "Revisión". Ahora pide todo lo que `createIssuerRequest` acepta del emisor
+   (antes solo 8 de ~17 campos) usando los catálogos reales de `internal/catalogs`
+   (`lib/catalogs.ts`, memoizados a nivel de módulo): tipo de identificación, departamento→
+   municipio dependiente, tipo de impuesto, tipo de régimen, responsabilidades fiscales
+   (checkboxes), códigos CIIU (`ui/TagInput.tsx`, máx. 4, sin catálogo — DANE no DIAN),
+   matrícula mercantil. La validación de obligatorios solo se exige en la pestaña de revisión
+   (banner con enlaces a la pestaña correspondiente); software/PIN/certificado siguen fuera de
+   alcance (fase de configuración técnica aparte). Esto resuelve el pendiente que quedó anotado
+   en la Fase 1 ("reemplazar inputs de texto libre por selects reales").
+3. **Navbar y Configuración**: el botón de usuario ya no muestra el nombre, solo un avatar de
+   iniciales (`bg-(--accent-primary)`, patrón GitHub/Linear/Vercel: identidad completa vive en
+   el desplegable, no en la barra fija) — el desplegable ganó enlaces "Mi cuenta"/
+   "Configuración" antes de "Cerrar sesión". El icono de tema se sacó del Navbar y ahora vive en
+   `pages/SettingsPage.tsx` (nueva, ruta `/configuracion`, ítem de `Sidebar` habilitado), con
+   pestañas General (tema) / Mi cuenta (nombre, correo — de solo lectura, no hay endpoint de
+   edición de perfil todavía) / Empresa (deshabilitada, "próximamente" — configuración de
+   empresa explícitamente fuera de alcance por ahora). Se decidió NO mostrar `User.role` en el
+   desplegable como "cargo": en el backend (`internal/auth/model.go`) ese campo es siempre
+   `"admin"` hoy (no hay roles granulares de usuario), mostrarlo habría sido engañoso.
+
+Verificado de punta a punta con un navegador real (Playwright vía `chromium`, no solo
+`tsc`/build): registro con contraseñas distintas → error inline sin llamar a la API → registro
+con contraseñas iguales → onboarding → las 4 pestañas con datos de catálogo reales (el filtro
+departamento→municipio funcionó, el banner de campos faltantes desapareció al completarlos) →
+crear empresa real → dashboard → Navbar con avatar → desplegable → Configuración → toggle de
+tema → Mi cuenta. Sin errores de consola en ningún paso. Datos de prueba limpiados de la base
+real después.
+
 ## Pendiente para próximas fases
 
-- Páginas reales para Facturas/Clientes/Productos/Numeración/Configuración (hoy son items de
-  sidebar deshabilitados, sin ruta).
-- Reemplazar los inputs de texto libre de `OnboardingPage` (department_code/municipality_code/
-  identification_type_code) por selects reales contra los endpoints de catálogos ya
-  disponibles (ver arriba) — es la primera ganancia rápida ahora que existen.
+- Páginas reales para Facturas/Clientes/Productos/Numeración (hoy son items de sidebar
+  deshabilitados, sin ruta) y para Configuración → Empresa (deshabilitada a propósito, ver
+  arriba).
 - Cambiar de empresa activa DESPUÉS de ya estar en el dashboard (hoy `selectIssuer` solo se usa
   desde `OnboardingPage`; el menú de usuario del Navbar no lo expone todavía).
+- Endpoint para editar perfil de usuario (nombre/correo) — hoy Configuración → Mi cuenta es de
+  solo lectura porque no existe.
 - Los 3 hallazgos ya logueados arriba (snapshot de cliente incompleto, payment_means en el
   formulario de factura, claridad del consecutivo actual) siguen pendientes para cuando se
   construya la página de Facturas real.
