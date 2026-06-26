@@ -16,11 +16,11 @@ interface NavItem {
 // arquitectónica (qué va a vivir en el sidebar) sea visible desde ya.
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Inicio", icon: <Home className="h-3.5 w-3.5" />, enabled: true },
-  { to: "/facturas", label: "Facturas", icon: <FileText className="h-3.5 w-3.5" />, enabled: false },
-  { to: "/clientes", label: "Clientes", icon: <Users className="h-3.5 w-3.5" />, enabled: false },
-  { to: "/productos", label: "Productos", icon: <Package className="h-3.5 w-3.5" />, enabled: false },
-  { to: "/numeracion", label: "Numeración", icon: <Hash className="h-3.5 w-3.5" />, enabled: false },
-  { to: "/configuracion", label: "Configuración", icon: <Settings className="h-3.5 w-3.5" />, enabled: true },
+  { to: "/invoices", label: "Facturas", icon: <FileText className="h-3.5 w-3.5" />, enabled: false },
+  { to: "/customers", label: "Clientes", icon: <Users className="h-3.5 w-3.5" />, enabled: false },
+  { to: "/products", label: "Productos", icon: <Package className="h-3.5 w-3.5" />, enabled: false },
+  { to: "/numbering", label: "Numeración", icon: <Hash className="h-3.5 w-3.5" />, enabled: false },
+  { to: "/settings", label: "Configuración", icon: <Settings className="h-3.5 w-3.5" />, enabled: true },
 ];
 
 export function Sidebar() {

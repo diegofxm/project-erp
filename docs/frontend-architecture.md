@@ -184,13 +184,153 @@ crear empresa real → dashboard → Navbar con avatar → desplegable → Confi
 tema → Mi cuenta. Sin errores de consola en ningún paso. Datos de prueba limpiados de la base
 real después.
 
+## Fase 1.6 — rutas en inglés, multi-empresa desde el dashboard, iconos de Navbar (2026-06-26)
+
+Continuación pedida por el usuario, antes de seguir con Customers/Products/Documents. La hoja
+de ruta de roles (superadmin/dueño de empresa/contador) que se discutió en esta misma fase
+quedó documentada aparte en `docs/apidian-architecture.md` secc. 9.35 — no aquí, porque es un
+diseño que afecta el modelo de datos y el JWT del backend, no solo el frontend.
+
+1. **Rutas en inglés** (solo los *paths*, las etiquetas visibles siguen en español):
+   `/configuracion`→`/settings`, `/facturas`→`/invoices`, `/clientes`→`/customers`,
+   `/productos`→`/products`, `/numeracion`→`/numbering`, nueva `/issuers`.
+2. **`components/IssuerManager.tsx`** (nuevo): la lógica de listar/seleccionar/crear empresa se
+   extrajo de `OnboardingPage` para poder reusarla también dentro del dashboard ya con una
+   empresa activa. `pages/IssuersPage.tsx` (nueva, ruta `/issuers`) la envuelve con el chrome de
+   una página de dashboard normal; `OnboardingPage` sigue envolviéndola con su Card centrada de
+   antes (gate previo al login, sin cambios de comportamiento ahí). Bug encontrado y corregido
+   durante la verificación: crear una empresa desde `/issuers` no refrescaba la lista (se
+   quedaba con los datos de antes de crear, la empresa nueva no aparecía) —
+   `IssuerManager.handleCreate` ahora vuelve a pedir `listIssuers()` después de crear en vez de
+   confiar en el estado ya cargado.
+3. **Navbar**: dos iconos nuevos a la izquierda del avatar — uno funcional (`Building2`, enlaza
+   a `/issuers`) y uno reservado/deshabilitado (`Bell`, notificaciones — no existe backend de
+   notificaciones todavía, se deja el lugar reservado en vez de inventar contenido).
+
+Verificado con un navegador real: registro → crear Empresa A → icono de empresas del Navbar →
+`/issuers` → crear Empresa B desde ahí mismo → el Navbar refleja el cambio a B → volver a
+`/issuers` y cambiar de vuelta a A → el Navbar lo refleja. Cero errores de consola. Datos de
+prueba limpiados de la base real después.
+
+## Fase 1.7 — Configuración → Empresa (software/certificado/numeración) y regla de ancho de página (2026-06-26)
+
+A pedido explícito del usuario, la pestaña "Empresa" de `SettingsPage` (antes deshabilitada,
+"próximamente") se construyó — completa exactamente lo que `CompanyForm` deja fuera a propósito
+desde la Fase 1.5 (configuración técnica), más el registro de resoluciones:
+
+- **`components/issuer-settings/SoftwareCertificateForm.tsx`**: completa `software_id`/
+  `software_pin`/certificado/`certificate_password` vía `PUT /issuers/me`
+  (`AuthContext.updateIssuer`, nuevo — a diferencia de `login`/`createIssuer`/`selectIssuer`,
+  este NO reemite el token, solo actualiza `activeIssuer` y la sesión persistida, porque sigue
+  siendo la misma empresa activa). El certificado `.p12` se sube como archivo y se convierte a
+  base64 en el navegador (`lib/fileToBase64.ts`, nuevo) antes de mandarlo — nunca como
+  multipart. Cada campo es independiente (omitir = no tocar, mismo contrato que
+  `issuers.UpdateIssuerRequest`); badges "✓ Software"/"✓ Certificado" muestran si ya está
+  configurado sin que el secreto viaje nunca de vuelta — requirió agregar
+  `has_software_credentials`/`has_certificate` (solo presencia, nunca el valor) a
+  `issuerResponse` en el backend, ver `docs/apidian-architecture.md` (es un cambio de apidian,
+  documentado allá).
+- **`components/issuer-settings/NumberingRangesPanel.tsx` + `NumberingRangeForm.tsx`**:
+  registra una resolución de numeración (`POST /numbering-ranges`, `lib/numberingRanges.ts`
+  nuevo — a diferencia de `lib/catalogs.ts`, sin memoización: son datos propios del tenant, no
+  catálogos estáticos). Dos campos condicionales: clave técnica (CUFE) solo si el tipo de
+  documento es Factura ("01"); **set de pruebas** solo si el ambiente es Habilitación — pedido
+  explícito del usuario ("no olvides la parte de set de pruebas para que pueda colocar los
+  datos antes de hacer pruebas"), es el identificador que la DIAN exige para confirmar
+  documentos durante el proceso de habilitación.
+- Verificado con el certificado y las credenciales DIAN reales del usuario
+  (`docs/reference/certificado.p12`/`credenciales.txt`, sobre una empresa de prueba, no la
+  empresa real) contra Postgres real: guardar software+certificado → badges cambian a "✓";
+  registrar un rango con set de pruebas → aparece en la lista con su número actual. Encontrado
+  en el camino: el backend que estaba corriendo en la máquina era una compilación anterior a
+  este cambio — los campos nuevos de `issuerResponse` no llegaban hasta reiniciarlo (no es un
+  bug del código, solo un recordatorio de reiniciar `go run` tras tocar Go).
+
+**Regla de ancho de página** (el usuario notó que `/issuers` mostraba la lista de empresas con
+un límite de ancho raro a la derecha, y diagnosticó correctamente que era "por el formulario de
+creación"). Pasó por dos iteraciones antes de quedar bien:
+
+1. Primer intento: listados a todo el ancho, formularios acotados a `max-w-2xl` (igual que
+   `CompanyForm` desde el principio). El usuario lo corrigió: quería que los formularios
+   **también** usaran el espacio completo, no solo los listados.
+2. Segundo intento: formularios a todo el ancho con grillas `grid-cols-[repeat(auto-fit,
+   minmax(Npx,1fr))]` (cada campo se redistribuye según cuántos quepan). El usuario lo corrigió
+   otra vez: con `auto-fit` la cantidad de columnas que caben cambia con el ancho disponible, así
+   que al colapsar/expandir el Sidebar los campos **se reordenan/saltan de fila** — "poco
+   profesional". También causaba que el texto de algunos `<select>` quedara escondido cuando le
+   tocaba una columna muy angosta en el recálculo.
+
+**Regla final**: grilla de **12 columnas fijas** (`grid grid-cols-12 gap-3`, sin `auto-fit` ni
+`minmax`), cada campo con un `col-span-N` fijo elegido a mano según qué tan corto/largo es su
+contenido esperado (ej. `DV` — antes "Dígito verificación" — es `col-span-1`; "Razón social" es
+`col-span-4`; un `<select>` con opciones largas como "Tipo de identificación" recibe más
+columnas que uno con opciones cortas como "Ambiente"). Con columnas fijas, redimensionar el
+contenedor (colapsar el Sidebar, por ejemplo) solo cambia el ancho en píxeles de cada columna —
+nunca cuántas hay ni en qué fila/posición cae cada campo. Aplica a `IdentificationStep`/
+`LocationStep`/`TaxStep` (los 3 pasos de `CompanyForm`), `SoftwareCertificateForm`, y
+`NumberingRangeForm`. Bloques que no son un campo de una sola línea (el cuadro de checkboxes de
+responsabilidades fiscales, `TagInput` de CIIU) usan `col-span-12` (la fila completa) en vez de
+competir por espacio con los campos cortos.
+
+Etiquetas acortadas de paso, mismo pedido del usuario: "Dígito verificación" → "DV" (como en el
+RUT real), "Próximo número a reclamar (opcional)" → "Próximo número (opcional)".
+
+Los listados (`/issuers`, filas de `NumberingRangesPanel`) y los paneles sueltos de un solo
+control (pestaña General de `SettingsPage`, una sola tarjeta) no necesitan esta grilla — un
+listado ya se redistribuye bien con `flex items-center justify-between` por fila, y una tarjeta
+suelta simplemente no debe estirarse a ocupar todo el ancho solo porque puede (se deja del
+tamaño de su contenido).
+
+Verificado con un navegador real a 1440px: comparé las coordenadas DOM de cada campo de
+`NumberingRangeForm` antes y después de colapsar el Sidebar — mismo orden, misma fila para cada
+uno, solo cambió el ancho en píxeles de cada columna. Sin errores de consola.
+
+## Estados de carga (2026-06-26)
+
+El usuario notó que, por ejemplo, al entrar a `/issuers`, la tarjeta no mostraba nada — ni
+contenido ni ningún indicador — hasta que `listIssuers()` resolvía; mientras tanto se veía como
+una tarjeta "encogida". Causa: varios componentes ya distinguían `null` ("todavía no llegó la
+respuesta") de `[]` ("llegó y está vacío") en su estado, pero el JSX no renderizaba *nada*
+mientras el valor era `null` — ni un spinner, ni un alto mínimo. Corregido en todo el frontend
+con dos piezas nuevas y reutilizables:
+
+- **`components/ui/Spinner.tsx`**: envuelve `Loader2` de lucide-react con `animate-spin` — es
+  la convención que el design system ya documentaba (secc. 14, "Spinners de carga:
+  RefreshCw/Loader2 con animate-spin") pero que **nunca se había implementado** en este
+  proyecto. Sin color propio: hereda `currentColor` (blanco dentro de un botón primario,
+  `--text-muted` cuando se centra solo dentro de una tarjeta).
+- **`components/ui/Button.tsx`**: el prop `loading` ya existía pero **no hacía nada visible**
+  — solo deshabilitaba el botón. Ahora reemplaza el ícono por `<Spinner>` mientras `loading` es
+  `true`. Esto se corrigió en un solo lugar y se propaga automáticamente a todos los botones de
+  envío que ya pasaban `loading` (Login, Register, los 3 pasos de `CompanyForm`,
+  `SoftwareCertificateForm`, `NumberingRangeForm`).
+- **`lib/useCatalog.ts`** (hook nuevo): envuelve cualquier fetcher de `lib/catalogs.ts` y
+  devuelve `{ data, loading }` — antes cada paso de `CompanyForm` y `NumberingRangeForm`
+  repetía el mismo `useState<T[]>([]) + useEffect(() => fetcher().then(setX))`, indistinguible
+  de "cargó y está vacío". Con el hook, cada `<Select>` que depende de un catálogo muestra una
+  única opción deshabilitada "Cargando…" en vez de un `<select>` vacío con cero opciones
+  mientras llega la primera respuesta (memoizada después, así que solo se nota una vez por
+  catálogo por sesión). Aplicado en `IdentificationStep`, `LocationStep` (departamentos;
+  municipios mantiene su propio flag porque depende del departamento elegido),
+  `TaxStep`, `NumberingRangeForm`.
+- **Listas con estado `null`** (`IssuerManager.issuers`, `NumberingRangesPanel.ranges`): ahora
+  muestran `<Spinner>` centrado con una altura mínima (`min-h-32`/`min-h-20`) mientras el valor
+  sigue en `null`, en vez de no renderizar nada — la tarjeta que lo contiene ya no se ve
+  "encogida" durante la carga.
+
+Verificado con un navegador real interceptando todas las llamadas a `/api/v1/` con un retraso
+artificial de 1.5s (en localhost todo responde casi instantáneo, sin esto no se vería el
+estado de carga en absoluto): el botón "Crear cuenta" muestra el spinner mientras
+`POST /auth/register` está en curso; `/issuers` muestra el spinner centrado en vez de una
+tarjeta vacía; el `<select>` de "Tipo de identificación" muestra "Cargando…" hasta que el
+catálogo llega. Sin errores de consola. Datos de prueba limpiados de la base real después.
+
 ## Pendiente para próximas fases
 
-- Páginas reales para Facturas/Clientes/Productos/Numeración (hoy son items de sidebar
-  deshabilitados, sin ruta) y para Configuración → Empresa (deshabilitada a propósito, ver
-  arriba).
-- Cambiar de empresa activa DESPUÉS de ya estar en el dashboard (hoy `selectIssuer` solo se usa
-  desde `OnboardingPage`; el menú de usuario del Navbar no lo expone todavía).
+- Páginas reales para Facturas/Clientes/Productos (hoy son items de sidebar deshabilitados, sin
+  ruta). El ítem "Numeración" del Sidebar sigue deshabilitado a propósito — sigue siendo una
+  página distinta (pensada para historial/consumo de cada rango), separada de la creación
+  básica de resoluciones ya disponible en Configuración → Empresa desde la Fase 1.7.
 - Endpoint para editar perfil de usuario (nombre/correo) — hoy Configuración → Mi cuenta es de
   solo lectura porque no existe.
 - Los 3 hallazgos ya logueados arriba (snapshot de cliente incompleto, payment_means en el

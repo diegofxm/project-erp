@@ -1,6 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { apiClient, setAuthToken } from "../lib/apiClient";
-import type { AuthResult, CreateIssuerPayload, Issuer, ListIssuersResult, LoginPayload, RegisterPayload, User } from "../lib/types";
+import type {
+  AuthResult,
+  CreateIssuerPayload,
+  Issuer,
+  ListIssuersResult,
+  LoginPayload,
+  RegisterPayload,
+  UpdateIssuerPayload,
+  User,
+} from "../lib/types";
 
 const STORAGE_KEY = "apidian.session";
 
@@ -21,6 +30,7 @@ interface AuthContextValue {
   listIssuers: () => Promise<Issuer[]>;
   createIssuer: (payload: CreateIssuerPayload) => Promise<void>;
   selectIssuer: (id: string) => Promise<void>;
+  updateIssuer: (payload: UpdateIssuerPayload) => Promise<Issuer>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -106,6 +116,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applyAuthResult],
   );
 
+  // A diferencia de login/register/createIssuer/selectIssuer, PUT /issuers/me NO reemite el
+  // token (sigue siendo la misma empresa activa, solo cambian sus datos) — se actualiza
+  // activeIssuer y la sesión persistida directamente, sin pasar por applyAuthResult.
+  const updateIssuer = useCallback(async (payload: UpdateIssuerPayload) => {
+    const updated = await apiClient.put<Issuer>("/issuers/me", payload);
+    setActiveIssuer(updated);
+    const stored = readStoredSession();
+    if (stored) writeStoredSession({ ...stored, issuer: updated });
+    return updated;
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -118,8 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       listIssuers,
       createIssuer,
       selectIssuer,
+      updateIssuer,
     }),
-    [user, activeIssuer, isReady, login, register, logout, listIssuers, createIssuer, selectIssuer],
+    [user, activeIssuer, isReady, login, register, logout, listIssuers, createIssuer, selectIssuer, updateIssuer],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

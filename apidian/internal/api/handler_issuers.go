@@ -49,6 +49,8 @@ type createIssuerRequest struct {
 
 // issuerResponse es deliberadamente angosto — nunca incluye Certificate/SoftwarePIN/
 // CertificatePassword, ni siquiera cifrados: una vez guardados, esta API no los expone más.
+// HasSoftwareCredentials/HasCertificate son solo presencia (true/false) — para que el
+// frontend pueda mostrar "ya configurado" sin que el secreto en sí viaje de vuelta nunca.
 type issuerResponse struct {
 	ID                          uuid.UUID `json:"id"`
 	NIT                         string    `json:"nit"`
@@ -57,6 +59,8 @@ type issuerResponse struct {
 	Environment                 string    `json:"environment"`
 	TaxRegimeCode               *string   `json:"tax_regime_code,omitempty"`
 	IndustryClassificationCodes []string  `json:"industry_classification_codes,omitempty"`
+	HasSoftwareCredentials      bool      `json:"has_software_credentials"`
+	HasCertificate              bool      `json:"has_certificate"`
 	IsActive                    bool      `json:"is_active"`
 	CreatedAt                   time.Time `json:"created_at"`
 }
@@ -70,6 +74,8 @@ func issuerToResponse(iss *issuers.Issuer) issuerResponse {
 		Environment:                 string(iss.Environment),
 		TaxRegimeCode:               iss.TaxRegimeCode,
 		IndustryClassificationCodes: iss.IndustryClassificationCodes,
+		HasSoftwareCredentials:      iss.SoftwareID != "" && iss.SoftwarePIN != "",
+		HasCertificate:              len(iss.Certificate) > 0 && iss.CertificatePassword != "",
 		IsActive:                    iss.IsActive,
 		CreatedAt:                   iss.CreatedAt,
 	}

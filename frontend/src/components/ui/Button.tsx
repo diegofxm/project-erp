@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { Spinner } from "./Spinner";
 
 // Taxonomía de botones del design system (sección 10): 5 variantes, sin componente
 // reutilizable en el proyecto original — esto corrige justamente esa falta de aquí en
@@ -26,7 +27,7 @@ export function Button({ variant = "primary", icon, loading, children, className
       disabled={disabled || loading}
       {...rest}
     >
-      {icon}
+      {loading ? <Spinner className="h-3.5 w-3.5" /> : icon}
       {children}
     </button>
   );

@@ -37,6 +37,11 @@ export const listLiabilityCodes = memoized(async () => {
   return res.liability_codes;
 });
 
+export const listDianDocumentTypes = memoized(async () => {
+  const res = await apiClient.get<{ dian_document_types: CatalogEntry[] }>("/catalogs/dian-document-types");
+  return res.dian_document_types;
+});
+
 const municipalitiesCache = new Map<string, Municipality[]>();
 
 export async function listMunicipalities(departmentCode: string): Promise<Municipality[]> {

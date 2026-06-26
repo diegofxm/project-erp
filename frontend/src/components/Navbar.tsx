@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { ChevronDown, LogOut, Server, Layers, Settings, UserCircle } from "lucide-react";
+import { Bell, Building2, ChevronDown, LogOut, Server, Layers, Settings, UserCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 function getInitials(name: string | undefined): string {
@@ -36,6 +36,21 @@ export function Navbar() {
       </div>
 
       <div className="flex items-center gap-1">
+        <Link
+          to="/issuers"
+          title="Mis empresas"
+          className="rounded p-1.5 text-(--navbar-text) opacity-80 hover:bg-white/10 hover:opacity-100"
+        >
+          <Building2 className="h-4 w-4" />
+        </Link>
+        <button
+          type="button"
+          disabled
+          title="Notificaciones (próximamente)"
+          className="cursor-not-allowed rounded p-1.5 text-(--navbar-text) opacity-40"
+        >
+          <Bell className="h-4 w-4" />
+        </button>
         <div className="relative">
           <button
             type="button"
@@ -55,7 +70,7 @@ export function Navbar() {
                 <p className="text-xs text-(--text-muted)">{user?.email}</p>
               </div>
               <Link
-                to="/configuracion?tab=account"
+                to="/settings?tab=account"
                 onClick={() => setMenuOpen(false)}
                 className="flex items-center gap-1.5 px-3 py-2 text-xs text-(--text-primary) hover:bg-(--bg-hover)"
               >
@@ -63,7 +78,7 @@ export function Navbar() {
                 Mi cuenta
               </Link>
               <Link
-                to="/configuracion?tab=general"
+                to="/settings?tab=general"
                 onClick={() => setMenuOpen(false)}
                 className="flex items-center gap-1.5 px-3 py-2 text-xs text-(--text-primary) hover:bg-(--bg-hover)"
               >

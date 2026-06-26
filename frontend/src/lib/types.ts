@@ -16,6 +16,10 @@ export interface Issuer {
   business_name: string;
   identification_type_code: string;
   environment: IssuerEnvironment;
+  // Solo presencia (true/false) — el secreto en sí (software_pin/certificate/
+  // certificate_password) nunca viaja de vuelta, ver issuerResponse en apidian.
+  has_software_credentials: boolean;
+  has_certificate: boolean;
   is_active: boolean;
   created_at: string;
 }
@@ -68,6 +72,16 @@ export interface ListIssuersResult {
   count: number;
 }
 
+// Completar software/PIN/certificado DESPUÉS de creada la empresa — PUT /issuers/me. Cada
+// campo es independiente (omitido = "no tocar"), espejo de issuers.UpdateIssuerRequest. Nunca
+// se manda "" para un campo que el usuario no llenó — se omite la llave entera.
+export interface UpdateIssuerPayload {
+  software_id?: string;
+  software_pin?: string;
+  certificate_base64?: string;
+  certificate_password?: string;
+}
+
 // Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.
 export interface CatalogEntry {
   code: string;
@@ -77,4 +91,40 @@ export interface CatalogEntry {
 
 export interface Municipality extends CatalogEntry {
   department_code: string;
+}
+
+// Espejo de numberingRangeResponse en apidian/internal/api/handler_issuers.go.
+export interface NumberingRange {
+  id: string;
+  issuer_id: string;
+  dian_document_type_code: string;
+  prefix: string;
+  range_from: number;
+  range_to?: number;
+  current_number: number;
+  environment: IssuerEnvironment;
+  is_active: boolean;
+}
+
+export interface ListNumberingRangesResult {
+  numbering_ranges: NumberingRange[];
+  count: number;
+}
+
+// Espejo de createNumberingRangeRequest. technical_key solo aplica cuando
+// dian_document_type_code es "01" (Factura, CUFE); test_set_id solo aplica en habilitación
+// ("2") — es el "set de pruebas" que la DIAN asigna para poder confirmar documentos de prueba.
+export interface CreateNumberingRangePayload {
+  dian_document_type_code: string;
+  prefix: string;
+  resolution_number: string;
+  resolution_date: string; // YYYY-MM-DD
+  range_from: number;
+  range_to?: number;
+  valid_from: string; // YYYY-MM-DD
+  valid_to: string; // YYYY-MM-DD
+  environment: IssuerEnvironment;
+  technical_key?: string;
+  test_set_id?: string;
+  next_number?: number;
 }

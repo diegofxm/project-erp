@@ -1578,3 +1578,86 @@ nunca se implementó. Cerrado así:
   servidor real: un emisor con un código inventado se rechaza con 400 y el mensaje esperado; un
   emisor con `O-15` (código real del catálogo) se acepta con 201. Datos de prueba limpiados de
   la base real después.
+
+### 9.35 Hoja de ruta de roles y permisos (diseño, sin implementar todavía)
+
+El usuario pidió dejar planeado desde ya un sistema de roles de tres niveles, para no tener
+que deshacer nada cuando llegue el momento de construirlo. Decisión explícita: por ahora solo
+se documenta la taxonomía y el mecanismo — no se toca código (ni JWT, ni middleware, ni
+`user_issuers.role`) hasta que exista un caso real (un contador real que invitar, una
+funcionalidad real de planes que vender).
+
+**Nivel 1 — `platform_admin`** (el usuario, dueño de la plataforma apidian misma): control
+total — planes, venta de documentos electrónicos, facturación de la plataforma, visibilidad
+cruzada de todas las empresas que existan en el sistema. Es un concepto **distinto** de
+`RoleOwner` (que es la relación de un usuario con UNA empresa puntual vía `user_issuers`):
+`platform_admin` no está ligado a ningún `tenant_id`, opera por encima de todas las empresas.
+
+- Backend: nuevo valor de `auth.User.Role` (junto al actual `RoleAdmin`, que en ese punto pasa
+  a significar simplemente "usuario normal registrado", no "administrador" — el nombre quedó
+  mal elegido desde el principio porque era el único rol que existía). Asignación manual/
+  seed, nunca seleccionable desde el registro público.
+- Middleware nuevo `RequirePlatformAdmin`, mismo patrón que `RequireTenant`
+  (`internal/api/middleware/tenant.go`) — un helper más en el `handle`/`handleNoTenant` de
+  `internal/api/api.go` (ej. `handlePlatform`).
+- Rutas nuevas bajo `/api/v1/admin/...`, sin pasar por `RequireTenant` (un platform_admin no
+  necesita una empresa activa para administrar la plataforma).
+- Frontend: árbol de rutas separado `/admin/*` con su propio layout (NO `DashboardLayout`, que
+  asume y exige una empresa activa — un panel de superadmin no opera "dentro" de una empresa).
+- Diferido hasta que exista una funcionalidad real de planes/facturación de la plataforma que
+  construir — no se reserva esquema de "planes"/"créditos" todavía, ese diseño se hace cuando
+  se aborde explícitamente.
+
+**Nivel 2 — `owner`** (dueño/administrador de una empresa): ya existe hoy
+(`auth.RoleOwner = "owner"`, asignado en `user_issuers.role` por `CreateIssuerForUser` —
+`internal/auth/service.go:120`). Ya tiene de facto acceso completo a su empresa, porque hoy
+ningún middleware restringe nada ("cualquier vínculo da acceso completo",
+`internal/auth/model.go:37`). A futuro sin cambios de modelo: configuración de la empresa,
+software/certificado, rangos de numeración, y la capacidad de invitar/quitar usuarios de su
+propia empresa (ver mecanismo de invitación abajo). Puede crear y administrar varias empresas
+propias — esto YA funciona (Fase 9.32, multi-empresa vía `user_issuers` N:M).
+
+**Nivel 3 — `accountant`** (u otro staff de una empresa): no existe todavía. Cuando se
+construya: nuevo valor de `user_issuers.role` junto a `"owner"`; acceso al día a día
+(documentos, clientes, productos) sin acceso a configuración/certificado/secretos de la
+empresa ni a invitar/quitar otros usuarios. La taxonomía queda abierta a un nivel intermedio
+adicional más adelante (ej. "viewer" de solo lectura) sin requerir un cambio de esquema —
+agregar un rol nuevo es agregar un valor de enum + los chequeos donde haga falta, no una
+migración.
+
+**Mecanismo de enforcement, boceto para cuando se construya** (no implementado):
+- `internal/auth/token.go`: el struct `claims{UserID, TenantID, jwt.RegisteredClaims}` ganaría
+  un campo `Role` (el rol del usuario en `TenantID`) — mismo patrón exacto que `TenantID`, se
+  reemitiría en `Login`/`SelectIssuer`/`CreateIssuerForUser`. Implica que un cambio de rol solo
+  se refleja tras un nuevo login/selección de empresa, igual que un cambio de empresa activa
+  hoy — compromiso aceptable, no se construye revocación inmediata.
+- Middleware nuevo `RequireIssuerRole(min)`, mismo patrón que `RequireTenant`.
+- `POST /api/v1/issuers/me/members` (solo owner): vincula a un usuario **ya registrado** por
+  correo con un rol. `GET /api/v1/issuers/me/members` (listar), `DELETE .../members/{userID}`
+  (quitar). Deliberadamente NO se soporta invitar a alguien sin cuenta todavía — no hay
+  infraestructura de envío de correo en el proyecto; ese flujo se construye junto con esa
+  infraestructura, no antes.
+
+**Sucursales — aclaración de alcance** (el usuario confirmó que se refiere a una misma empresa
+facturando desde varias ciudades/sedes, no a empresas separadas):
+- Empresas legalmente separadas, cada una con su propio NIT (ej. una franquicia) — esto **ya
+  está completamente soportado** hoy vía multi-empresa (`user_issuers` N:M, Fase 9.32). No hace
+  falta construir nada nuevo para este caso.
+- Una misma empresa (un solo NIT) facturando desde varias sedes/ciudades — **ya parcialmente
+  soportado** hoy: cada sede puede tener su propio rango de numeración con su propio `prefix`
+  (`numbering_ranges.prefix`, ej. "BOG"/"MED"), que es lo único que la DIAN exige distinguir
+  por sede en la factura misma. Una entidad "sede" propia (con su propia dirección/contacto,
+  más allá del prefijo) es una mejora posible a futuro, **solo si** el enfoque de
+  solo-prefijo resulta insuficiente en la práctica — no se modela ahora.
+
+### 9.36 `issuerResponse` gana `has_software_credentials`/`has_certificate`
+
+Cambio chico, motivado por el frontend (Configuración → Empresa, ver
+`docs/frontend-architecture.md` Fase 1.7): `issuerResponse` (`internal/api/handler_issuers.go`)
+nunca expuso, ni expondrá, los secretos (`software_pin`/`certificate`/`certificate_password`)
+de vuelta — pero antes tampoco había forma de saber si ya estaban configurados o no. Se
+agregaron dos booleanos calculados (`iss.SoftwareID != "" && iss.SoftwarePIN != ""`,
+`len(iss.Certificate) > 0 && iss.CertificatePassword != ""`), sin tocar el dominio ni el
+esquema — propagan automáticamente a todas las respuestas que ya pasaban por
+`issuerToResponse` (`GET/PUT /issuers/me`, y el campo `issuer` de `authResponse` en
+login/register/crear empresa/seleccionar empresa).
