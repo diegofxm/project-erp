@@ -67,4 +67,24 @@ var (
 	// esos códigos no existen en tax_types.
 	ErrInvalidTaxSchemeCode = errors.New("documents: tipo de régimen tributario del cliente (customer.tax_scheme_code) inválido")
 	ErrInvalidTaxTypeCode   = errors.New("documents: tipo de impuesto de línea (lines[].tax_type_code) inválido")
+
+	// ErrPDFNotSupportedForDocumentType: la representación gráfica (ver
+	// docs/apidian-architecture.md sección 9.39) por ahora solo está implementada para
+	// Factura — Nota Crédito/Nota Débito se agregan cuando el ciclo de Factura esté probado
+	// de punta a punta (PDF + correo).
+	ErrPDFNotSupportedForDocumentType = errors.New("documents: la representación gráfica todavía no está disponible para este tipo de documento")
+
+	// ErrEmailNotSupportedForDocumentType: mismo criterio que ErrPDFNotSupportedForDocumentType
+	// — el envío por correo (ver docs/apidian-architecture.md sección 9.42) por ahora solo
+	// está implementado para Factura.
+	ErrEmailNotSupportedForDocumentType = errors.New("documents: el envío por correo todavía no está disponible para este tipo de documento")
+
+	// ErrDocumentNotAccepted: solo se envía al cliente un documento que la DIAN ya aceptó
+	// (StatusAccepted) — nunca un borrador, uno rechazado/con error de envío, ni uno en
+	// StatusSent (resultado todavía desconocido, podría acabar rechazado).
+	ErrDocumentNotAccepted = errors.New("documents: el documento debe estar aceptado por la DIAN antes de enviarlo al cliente")
+
+	// ErrCustomerEmailMissing: el snapshot del cliente (ver model.go) no trae correo — sin él
+	// no hay a dónde enviar la factura.
+	ErrCustomerEmailMissing = errors.New("documents: el cliente no tiene un correo registrado, no se puede enviar la factura")
 )

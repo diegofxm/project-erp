@@ -31,6 +31,10 @@
 -- consiguiendo (ver docs/apidian-architecture.md sección 9.25). documents.Service los exige
 -- recién al confirmar un documento (ErrIssuerNotReadyToIssue si faltan), nunca antes.
 --
+-- logo/logo_content_type (agregados para la representación gráfica en PDF, ver
+-- docs/apidian-architecture.md sección 9.39): NULLABLE, opcionales — un emisor sin logo
+-- todavía debe poder emitir y generar su PDF sin esa imagen. No son secretos, no se cifran.
+--
 -- created_at/updated_at van al final de la tabla por convención en todo este esquema (ver
 -- docs/apidian-architecture.md sección 4.1) — nunca intercalados entre columnas de negocio.
 CREATE TABLE issuers (
@@ -57,6 +61,8 @@ CREATE TABLE issuers (
     software_pin                 BYTEA,
     certificate                  BYTEA,
     certificate_password         BYTEA,
+    logo                          BYTEA,
+    logo_content_type             VARCHAR(10),
     is_active                    BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at                   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at                   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

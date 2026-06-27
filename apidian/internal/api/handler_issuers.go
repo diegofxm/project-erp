@@ -63,8 +63,12 @@ type issuerResponse struct {
 	IndustryClassificationCodes []string  `json:"industry_classification_codes,omitempty"`
 	HasSoftwareCredentials      bool      `json:"has_software_credentials"`
 	HasCertificate              bool      `json:"has_certificate"`
-	IsActive                    bool      `json:"is_active"`
-	CreatedAt                   time.Time `json:"created_at"`
+	// HasLogo: mismo criterio que HasSoftwareCredentials/HasCertificate — solo presencia, el
+	// logo en sí se sirve aparte (GET /issuers/me/logo, más abajo en este archivo) para no
+	// inflar esta respuesta con bytes de imagen en cada GET/PUT.
+	HasLogo   bool      `json:"has_logo"`
+	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func issuerToResponse(iss *issuers.Issuer) issuerResponse {
@@ -78,6 +82,7 @@ func issuerToResponse(iss *issuers.Issuer) issuerResponse {
 		IndustryClassificationCodes: iss.IndustryClassificationCodes,
 		HasSoftwareCredentials:      iss.SoftwareID != "" && iss.SoftwarePIN != "",
 		HasCertificate:              len(iss.Certificate) > 0 && iss.CertificatePassword != "",
+		HasLogo:                     len(iss.Logo) > 0,
 		IsActive:                    iss.IsActive,
 		CreatedAt:                   iss.CreatedAt,
 	}
@@ -197,6 +202,11 @@ type updateIssuerRequest struct {
 	SoftwarePIN         *string `json:"software_pin,omitempty"`
 	CertificateBase64   *string `json:"certificate_base64,omitempty"`
 	CertificatePassword *string `json:"certificate_password,omitempty"`
+	// LogoBase64/LogoContentType: para la representación gráfica en PDF (ver
+	// docs/apidian-architecture.md sección 9.39) — mismo criterio *string que el resto de este
+	// payload (nil = no tocar).
+	LogoBase64      *string `json:"logo_base64,omitempty"`
+	LogoContentType *string `json:"logo_content_type,omitempty"`
 }
 
 // handleUpdateMyIssuer completa/reemplaza software/PIN/certificado del emisor autenticado —
@@ -221,6 +231,15 @@ func (a *API) handleUpdateMyIssuer(w http.ResponseWriter, r *http.Request) {
 		}
 		svcReq.Certificate = cert
 	}
+	if req.LogoBase64 != nil {
+		logo, err := base64.StdEncoding.DecodeString(*req.LogoBase64)
+		if err != nil {
+			response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "logo_base64 no es base64 válido"})
+			return
+		}
+		svcReq.Logo = logo
+	}
+	svcReq.LogoContentType = req.LogoContentType
 
 	iss, err := a.issuers.UpdateIssuer(r.Context(), middleware.GetTenantID(r.Context()), svcReq)
 	if err != nil {
@@ -229,6 +248,24 @@ func (a *API) handleUpdateMyIssuer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.WriteJSON(w, http.StatusOK, issuerToResponse(iss))
+}
+
+// handleGetMyIssuerLogo sirve el logo del emisor autenticado en crudo (mismo patrón binario
+// que handleGetDocumentPDF) — separado de issuerResponse a propósito, para no inflar esa
+// respuesta JSON con bytes de imagen en cada GET/PUT de /issuers/me.
+func (a *API) handleGetMyIssuerLogo(w http.ResponseWriter, r *http.Request) {
+	iss, err := a.issuers.GetIssuer(r.Context(), middleware.GetTenantID(r.Context()))
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	if len(iss.Logo) == 0 {
+		response.WriteJSON(w, http.StatusNotFound, response.Error{Error: "la empresa todavía no tiene un logo configurado"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/"+iss.LogoContentType)
+	_, _ = w.Write(iss.Logo)
 }
 
 // createNumberingRangeRequest es el payload de registro de un rango de numeración para el

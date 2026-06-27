@@ -12,6 +12,7 @@ import (
 	"github.com/diegofxm/apidian/internal/api"
 	"github.com/diegofxm/apidian/internal/config"
 	"github.com/diegofxm/apidian/internal/database"
+	"github.com/diegofxm/apidian/internal/email"
 )
 
 // Server is the HTTP entry point for the apidian service.
@@ -57,7 +58,15 @@ func (s *Server) routes() http.Handler {
 
 	// API de negocio (/api/v1/...) — solo si hay DB disponible, igual patrón que core-bank.
 	if s.db != nil {
-		mux.Handle("/api/", api.New(s.log, s.db, s.cfg.IssuerSecretsKey, s.cfg.AuthJWTSecret, s.cfg.CORSAllowedOrigins).Handler())
+		smtpCfg := email.Config{
+			Host:        s.cfg.SMTPHost,
+			Port:        s.cfg.SMTPPort,
+			Username:    s.cfg.SMTPUsername,
+			Password:    s.cfg.SMTPPassword,
+			FromAddress: s.cfg.SMTPFromAddress,
+			FromName:    s.cfg.SMTPFromName,
+		}
+		mux.Handle("/api/", api.New(s.log, s.db, s.cfg.IssuerSecretsKey, s.cfg.AuthJWTSecret, s.cfg.CORSAllowedOrigins, smtpCfg).Handler())
 	}
 
 	return mux

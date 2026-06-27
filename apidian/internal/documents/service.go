@@ -58,11 +58,12 @@ type Service struct {
 	numbering NumberingPort
 	customers CustomerPort
 	catalogs  CatalogPort
+	email     EmailPort
 }
 
 // New crea el servicio de documentos.
-func New(repo Repository, issuerPort IssuerPort, numberingPort NumberingPort, customerPort CustomerPort, catalogPort CatalogPort) *Service {
-	return &Service{repo: repo, issuers: issuerPort, numbering: numberingPort, customers: customerPort, catalogs: catalogPort}
+func New(repo Repository, issuerPort IssuerPort, numberingPort NumberingPort, customerPort CustomerPort, catalogPort CatalogPort, emailPort EmailPort) *Service {
+	return &Service{repo: repo, issuers: issuerPort, numbering: numberingPort, customers: customerPort, catalogs: catalogPort, email: emailPort}
 }
 
 // IssueInvoiceRequest es el payload de una Factura Electrónica de Venta — sirve tanto para

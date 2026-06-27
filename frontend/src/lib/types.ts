@@ -20,6 +20,9 @@ export interface Issuer {
   // certificate_password) nunca viaja de vuelta, ver issuerResponse en apidian.
   has_software_credentials: boolean;
   has_certificate: boolean;
+  // has_logo: el logo en sí se sirve aparte (GET /issuers/me/logo) — ver
+  // docs/apidian-architecture.md sección 9.39.
+  has_logo: boolean;
   is_active: boolean;
   created_at: string;
 }
@@ -79,6 +82,10 @@ export interface UpdateIssuerPayload {
   software_pin?: string;
   certificate_base64?: string;
   certificate_password?: string;
+  // logo_base64/logo_content_type: para la representación gráfica en PDF (ver
+  // docs/apidian-architecture.md sección 9.39). logo_content_type es "png"/"jpg"/"jpeg".
+  logo_base64?: string;
+  logo_content_type?: string;
 }
 
 // Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.

@@ -1758,3 +1758,301 @@ vez antes (rechazo real de la sección 9.30, ya corregido); quedó consumido de 
 Verificación hecha con un usuario de prueba vinculado por `user_issuers` al emisor real (sin
 tocar la cuenta ni el borrador propios del usuario, que seguían en uso en paralelo) — limpiado
 todo lo propio de la verificación al terminar.
+
+### 9.39 Representación gráfica (PDF) — `internal/pdf`, generada en memoria, nunca a disco
+
+Siguiente pieza del ciclo de Factura (después de construcción + transmisión): el usuario pidió
+la representación gráfica como módulo propio del backend, sin escribir nada a disco — se
+genera al vuelo en cada petición y se sirve directo. Entregó un mini-paquete de referencia
+(`docs/reference/maroto/`, no incorporado a este proyecto) con dos prototipos: uno a mano con
+`gofpdf` (posicionamiento absoluto, `SetXY` por todas partes) y uno empezado con **maroto v2**
+(grid de filas/columnas). Se evaluaron ambos más `chromedp` (HTML/CSS vía Chrome headless) y se
+eligió **maroto v2**: mismo resultado visual profesional que `gofpdf` con una fracción del
+código (el prototipo de referencia necesitaba ~700 líneas para una factura completa; el
+encabezado equivalente en maroto tomaba ~180), sin la fragilidad de reajustar coordenadas en
+cascada cada vez que cambia un espaciado, y sin agregar una dependencia de binario externo
+(Chromium) a un proyecto que hasta ahora es 100% Go puro en tiempo de ejecución (`cofacture`
+firma con la librería estándar, no un binario externo — mismo criterio aquí).
+
+**`internal/pdf` (nuevo paquete)** — deliberadamente no conoce `documents`/`issuers`/
+`cofacture`, mismo principio de puertos angostos que el resto de `apidian`:
+- `InvoiceInput`: struct plano con exactamente lo que la plantilla necesita (emisor incluido
+  logo opcional, cliente, líneas ya con montos calculados — no se recalcula nada acá, eso ya
+  lo hizo `documents.Service` —, totales, impuestos agregados, forma/medio de pago ya
+  resueltos a nombre legible, datos de la resolución/rango, y `IsDraft bool` que decide si se
+  muestra CUFE/QR/número reales o "BORRADOR").
+- `BuildInvoicePDF(InvoiceInput) ([]byte, error)`: arma el documento con maroto (header con
+  logo+QR, barra CUFE o "BORRADOR — PENDIENTE DE CONFIRMACIÓN", bloque cliente/factura a dos
+  columnas, tabla de items vía `list.Build` — pagina sola si hay muchas líneas, algo que la
+  versión a mano con `gofpdf` no tenía —, totales, desglose de impuestos, total en letras, pie
+  con el rango autorizado) y devuelve `document.GetBytes()` — nunca `Save()`.
+- `amountwords.go`: conversión número→letras en español para el "Son: ... PESOS" — no existía
+  en el proyecto. Verificado contra el mismo monto que ya había producido el mini-paquete de
+  referencia (195001 → "CIENTO NOVENTA Y CINCO MIL UNO PESOS") como ancla de regresión.
+
+**Logo del emisor** — campo nuevo en `issuers` (`Logo []byte`/`LogoContentType string`,
+ambos opcionales, no son secretos, no se cifran). La migración `000003_issuers` se **editó
+directamente** (no se agregó una nueva con `ALTER TABLE`) porque el usuario vació la base de
+datos justo antes de esta fase para poder hacerlo así — mismo criterio que la sección 9.31
+cuando no hay datos reales en juego. `PUT /issuers/me` gana `logo_base64`/`logo_content_type`
+(mismo patrón *nil-no-toca* que `certificate_base64`); `issuerResponse` gana `has_logo` (no
+el logo en sí, igual criterio que `has_certificate`); nuevo `GET /issuers/me/logo` sirve la
+imagen en crudo. `ErrInvalidLogoContentType` solo acepta `"png"/"jpg"/"jpeg"` (los que maroto
+soporta).
+
+**Nombres legibles para el PDF** — `catalogs.Repository` ganó `GetPaymentTermName`/
+`GetPaymentMethodName`/`GetIdentificationTypeName` (mismo patrón que `GetTaxTypeName` de la
+Fase 0; se extrajo un helper `getName(table, code)` compartido por los cuatro, segundo caso
+real de uso del mismo patrón). `documents.CatalogPort` los reutiliza para que la representación
+gráfica muestre "Contado"/"Transferencia Débito Bancaria"/"Cédula de Ciudadanía" en vez de los
+códigos numéricos crudos.
+
+**`documents.Service.RenderInvoicePDF(ctx, issuerID, id) ([]byte, error)`** (nuevo,
+`internal/documents/pdf.go`) — mismo rol orquestador que ya cumple este Service para el XML vía
+`cofacture`: carga el documento (mismo chequeo de pertenencia al emisor que el resto de
+`/documents`), el emisor (`IssuerPort.GetIssuer`, ya existía) y el rango
+(`NumberingPort.GetRange`, ya existía) — **cero puertos nuevos** para esos tres, reusa
+`aggregateTaxes(d.Lines)` (ya existía, para el desglose de impuestos del pie) — y le delega la
+construcción real a `internal/pdf`. Solo Invoice por ahora
+(`ErrPDFNotSupportedForDocumentType` en cualquier otro tipo) — Nota Crédito/Nota Débito se
+agregan cuando el ciclo de Factura esté probado de punta a punta (PDF + correo).
+`GET /api/v1/documents/{id}/pdf` (`internal/api`) sirve los bytes con `Content-Type:
+application/pdf`/`Content-Disposition: inline` — nada se guarda a disco en ningún punto.
+
+**Bug real encontrado verificando con un navegador real**: cuando un rango de numeración no
+tiene `range_to` (nil — válido, `numbering.NumberingRange.RangeTo` es `*int64` justamente
+porque CreditNote/DebitNote no tienen tope impuesto por la DIAN, ver sección del modelo), el
+pie del PDF mostraba literalmente *"Rango autorizado desde QAPDF1 hasta **QAPDF0**"* — un dato
+inventado, porque `InvoiceInput.RangeTo` era `int64` (no `*int64`), perdiendo la distinción
+"sin tope" vs "tope es 0". Corregido: `RangeTo` pasó a `*int64` en `InvoiceInput`, y el texto
+del pie omite la cláusula "hasta..." por completo cuando es `nil`, en vez de inventar un
+número. Se extrajo `resolutionDisclaimer(in) string` (antes inline en `buildFooter`)
+específicamente para poder probar este caso sin inspeccionar bytes de PDF.
+
+**Verificado con un navegador real, de punta a punta**: empresa nueva → subir logo (PNG real,
+se ve en la vista previa) → subir software/certificado real (mismo `.p12` de
+`docs/reference/`, sin tocar el emisor real del usuario — ver el hallazgo de la sección 9.38
+sobre por qué `LoadPKCS12` no necesita que el NIT coincida con el certificado) → rango de
+numeración en habilitación con el set de pruebas real (ya cerrado, mismo resultado esperado de
+la sección 9.10) → crear borrador de factura → "Ver PDF" muestra el logo + "BORRADOR" + QR
+pendiente, sin CUFE → confirmar (construye/firma/persiste con CUFE/QR/número reales antes de
+intentar enviar, independientemente de si la DIAN later acepta) → "Ver PDF" de nuevo muestra el
+mismo logo + CUFE real + QR real + número real. 0 errores de consola en las dos corridas (la
+primera reveló el bug del `RangeTo`, la segunda ya no lo mostraba). Los bytes del PDF se
+bajaron directo por `fetch` con el token real (mismos bytes que vería el navegador) para
+inspección visual, en vez de confiar en una captura de pantalla del visor nativo de PDF de
+Chromium (poco fiable en modo headless). Datos de prueba eliminados al terminar.
+
+### 9.40 Correo (`internal/email`) — solo el módulo SMTP, sin envío al cliente todavía
+
+Siguiente pieza del ciclo (después de PDF, sección 9.39): el "enviar la factura al cliente" se
+secuenció en dos partes por decisión explícita del usuario — primero el módulo de correo en sí
+(genérico, reusable), después (fase aparte) conectarlo a un flujo real que adjunte PDF+XML y lo
+dispare desde la UI. Esta sección documenta solo la primera parte.
+
+**Decisión de proveedor** (discutida en conversación antes de tocar código): nada de servicios
+transaccionales externos (SendGrid/SES/Mailgun/etc.) ni de costos recurrentes adicionales — el
+usuario quiere SMTP propio con credenciales por `.env`, igual que cualquier otro secreto de este
+proyecto. Se evaluó también auto-alojar el propio servidor de correo (Mailu, con TLS propio) por
+"más control", pero la reputación de envío (que determina si los correos caen en spam) depende
+del historial del dominio/IP emisor, no del software que corre el servidor — un VPS nuevo con
+Mailu empieza en cero exactamente igual que un dominio nuevo en cualquier otro lado. Para
+empezar, un proveedor de hosting de correo con reputación de salida ya establecida (ej.
+dondominio, evaluado por el usuario: 5 cuentas / 100MB cada una) es la opción más segura;
+usando la cuenta solo para enviar (SMTP directo) sin leerla por webmail, 100MB no es una
+limitación real para este caso de uso. Esto puede cambiar de proveedor más adelante sin tocar
+código: `internal/email` no conoce el proveedor, solo recibe host/usuario/contraseña por config.
+
+**`internal/email` (nuevo paquete)** — sin interfaz propia todavía: solo hay una implementación
+(SMTP) y ningún consumidor real aún. Mismo principio de puertos angostos del resto del proyecto:
+el consumidor define su propia interfaz angosta el día que la necesite (ej. un futuro
+`documents.EmailPort`), satisfecha estructuralmente por `*SMTPSender` sin que este paquete tenga
+que anticipar esa forma — igual que `issuers.PostgresRepository` satisface `documents.IssuerPort`
+hoy sin importarlo.
+
+- `message.go`: `Message` (To, Subject, BodyText, BodyHTML, Attachments) y `Attachment`
+  (Filename, ContentType, Content []byte) — `ContentType` explícito, mismo criterio que
+  `issuers.LogoContentType` (no se adivina por extensión).
+- `smtp.go`: `Config` (Host, Port, Username, Password, FromAddress, FromName);
+  `NewSMTPSender(cfg)`; `(*SMTPSender).Send(ctx, Message) error`. Validaciones tempranas y
+  explícitas dentro de `Send` (`Host` vacío, `To`/`Subject`/cuerpo vacíos) — un correo mal
+  formado o sin configurar falla con un mensaje claro en español, no con un error críptico de
+  red o de la librería SMTP.
+
+**Librería**: `github.com/wneessen/go-mail` (sin dependencias externas más allá de la librería
+estándar, mantenimiento activo, soporta STARTTLS/TLS implícito, adjuntos y multipart texto+HTML)
+en vez de construir MIME a mano sobre `net/smtp` (tedioso y propenso a errores de encoding en
+adjuntos) o usar `gomail.v2` (más antiguo, menos activo). Mismo criterio que maroto v2 para el
+PDF: no reinventar un protocolo ya bien resuelto por una librería madura cuando no hay una razón
+real para hacerlo (a diferencia de UBL/SOAP en `cofacture`, donde sí hizo falta construirlo a
+mano porque no existía nada usable en Go). La API exacta se verificó con `go doc` contra el
+módulo ya instalado antes de escribir el código final (mismo método ya usado con maroto):
+`mail.NewMsg()` + `From/FromFormat/To/Subject/SetBodyString/AddAlternativeString/AttachReader`
+para construir el mensaje, `mail.NewClient(host, ...opts) ` +
+`client.DialAndSendWithContext(ctx, msg)` para enviarlo. Autenticación con
+`mail.SMTPAuthAutoDiscover` (negocia el mecanismo que soporte el servidor — LOGIN/PLAIN/CRAM-MD5/
+etc. — en vez de asumir uno fijo, ya que todavía no se sabe qué exigirá el proveedor real) y
+`mail.TLSMandatory` (falla claro si el servidor no soporta STARTTLS, en vez de degradar
+silenciosamente a texto plano).
+
+**Config** (`internal/config`): `SMTPHost/SMTPPort/SMTPUsername/SMTPPassword/SMTPFromAddress/
+SMTPFromName`, todas opcionales y sin validar en `validate()` — a diferencia de
+`ISSUER_SECRETS_KEY`/`AUTH_JWT_SECRET`, esto no es crítico para que el servidor arranque, y
+**deliberadamente no se conecta a `cmd/server/main.go` en esta fase**: construir
+`email.NewSMTPSender(cfg)` y guardarlo donde se vaya a usar es trabajo de la fase "enviar al
+cliente", cuando exista un consumidor real. `SMTP_PORT` default `587` (STARTTLS, lo normal en
+hosting compartido) — documentado en `.env.example` junto con la alternativa `465` (TLS
+implícito) por si el proveedor lo exige así.
+
+**Pruebas** (`internal/email/smtp_test.go`) — sin red real: se prueba `buildMsg` (la traducción
+de `Message` a `*gomail.Msg`, separada de `Send` justamente para poder probarla así) volcando el
+mensaje generado a bytes vía `Msg.WriteTo` e inspeccionando que contenga To/From/Subject/cuerpo/
+adjunto esperados — cubre texto+HTML, solo texto, con adjunto, y remitente con/sin nombre. Más
+las 4 validaciones tempranas de `Send` (sin host, sin destinatario, sin asunto, sin cuerpo).
+
+**Envío real verificado (2026-06-27)**: el usuario consiguió una cuenta sandbox de Mailtrap
+(`sandbox.smtp.mailtrap.io`, pensada exactamente para esto — captura los correos sin entregarlos
+a una bandeja real, ideal para probar sin arriesgar nada) y la configuró en `apidian/.env`
+(`SMTP_*`, password puesta directamente por el usuario, nunca pegada en el chat). Verificado con
+un script descartable (`cmd/sendtest`, borrado después de usarlo — mismo patrón ya usado para
+PDF/DIAN, no se commitea): `email.NewSMTPSender` con la config real + `Send` de un mensaje con
+texto, HTML y un adjunto simulado → la llamada devolvió éxito, confirmando que `internal/email`
+funciona de punta a punta contra un servidor SMTP real (dial, STARTTLS, auth, envío), no solo en
+las pruebas unitarias sin red. La verificación visual del correo capturado en el inbox de
+Mailtrap queda del lado del usuario (su cuenta).
+
+**Alcance deliberadamente fuera de esta fase**: sin interfaz/puerto dentro de `internal/email`,
+sin wiring a `cmd/server`/HTTP, sin CC/BCC/múltiples destinatarios, sin plantilla de cuerpo real
+de correo (eso se diseña junto con el flujo real de "enviar al cliente"). Eso es la fase
+siguiente.
+
+### 9.41 Pendiente (no implementado): verificación de adquiriente vía DIAN + autorregistro de clientes por QR
+
+Dos preguntas del usuario (2026-06-27) sobre el flujo de captura de clientes, registradas aquí
+para no perderlas — **nada de esto se implementó todavía**.
+
+**1. `GetAcquirer` — confirmado real en el WSDL** (`docs/reference/wsdl/xsd0.xsd`/`xsd10.xsd`),
+parte de la misma interfaz `IWcfDianCustomerServices` de la que `cofacture/soap` ya implementa
+`GetStatus`/`GetStatusZip` (mismo endpoint de habilitación, mismo sobre WS-Security):
+
+```
+GetAcquirer(identificationType, identificationNumber) -> AdquirienteResponse {
+  Message, StatusCode, ReceiverName, ReceiverEmail
+}
+```
+
+El namespace de la respuesta (`Gosocket.Dian.Services.Utils.Common`) y los campos
+(`ReceiverName`/`ReceiverEmail`, no datos completos de RUT como régimen/responsabilidades/
+dirección) sugieren que esto consulta el **registro de intercambio/notificación** de la DIAN
+(si ese NIT/cédula ya tiene un nombre y correo registrados para recibir documentos
+electrónicos) — no es una consulta de RUT completa. Es información parcial: útil para validar
+que el dato coincide con lo que la DIAN tiene registrado para ese adquiriente, no para traer
+régimen tributario/responsabilidades/dirección completos. Implementarlo sería una extensión
+pequeña y bien fundamentada de `cofacture/soap/operations.go` (mismo patrón que `GetStatus`) si
+se decide construir el punto 2.
+
+**2. Autorregistro de clientes por QR (patrón D1 y similares) — sí es un flujo real y normal**
+en retail colombiano de alto volumen/bajo valor: pedir al cajero que digite los datos de cada
+cliente en el mostrador no escala, y la DIAN no exige revisión manual de un RUT físico para
+facturación de consumidor final — esa exigencia (KYC documental) es típica de relaciones de
+crédito/financieras, no de un punto de venta. La responsabilidad de que el dato sea correcto
+sigue siendo del emisor, pero la mitigación estándar es validación automática, no revisión
+manual:
+
+- Validación de formato (longitud/patrón por tipo de identificación; dígito de verificación
+  módulo 11 para NIT) — **no existe todavía en este proyecto**: `issuers.CheckDigit`/
+  `customers`/`documents.Customer.Identification` guardan lo que se les manda, sin calcular ni
+  validar el dígito de verificación en ningún punto.
+- Cruce opcional contra `GetAcquirer` cuando el tipo de identificación sugiere una empresa
+  (NIT) — útil para detectar un NIT mal escrito antes de que quede en un documento legal difícil
+  de corregir (una factura aceptada solo se "deshace" con nota crédito). **No es universal**:
+  la mayoría de personas naturales (cédula, el caso típico de un cliente de mostrador) no tienen
+  registro de intercambio en la DIAN, así que un `GetAcquirer` vacío/"no encontrado" es el
+  resultado normal y esperado, no un error — el flujo debe poder continuar igual, usando el
+  nombre que la persona escribió.
+
+**Conclusión por ahora**: el patrón de autorregistro por QR es legítimo y no requiere revisión
+de RUT; si se construye, la mejora de calidad de datos razonable es validación de formato +
+dígito de verificación (nuevo) + `GetAcquirer` como ayuda opcional para NIT (no bloqueante).
+Esto queda pendiente de priorizar — no es parte del ciclo actual (PDF + email + envío al
+cliente con un solo documento).
+
+### 9.42 Enviar la Factura al cliente por correo — cierre del ciclo
+
+Última pieza del ciclo completo con un solo documento (Factura): conectar `internal/email`
+(sección 9.40, hasta ahora desconectado de cualquier flujo real a propósito) a un envío real que
+adjunte PDF+XML y se dispare desde la UI.
+
+**`documents.EmailPort`** (nuevo puerto angosto, `ports.go`) — `Send(ctx, email.Message) error`,
+satisfecho estructuralmente por `*email.SMTPSender` sin que `internal/email` lo importe, mismo
+patrón que `IssuerPort`/`CatalogPort`/`CustomerPort`. Existe para poder fakear el envío en tests
+(`fakeEmailPort` en `service_test.go`, guarda los `email.Message` enviados o devuelve un error
+fijo configurable), no porque haya más de una implementación real. `documents.Service` gana el
+campo `email EmailPort` y `New(...)` un sexto parámetro posicional — mismo estilo que los otros
+4 puertos, sin introducir un patrón de options struct solo para este. Esto tocó los ~30 call
+sites de `documents.New` en `service_test.go` (dos `Edit` con `replace_all` cubrieron casi
+todos, 2 más a mano por tener una forma ligeramente distinta) y el único call site de
+`api.go`/`api_test.go`.
+
+**`loadInvoiceAndIssuer`** (refactor pequeño, antes inline en `RenderInvoicePDF`) — extraído
+porque `SendInvoiceEmail` necesita la MISMA secuencia (cargar documento, validar pertenencia al
+emisor, validar que es Factura, cargar el emisor) que `RenderInvoicePDF` ya hacía — segunda
+necesidad real del mismo bloque, justo el criterio de extracción que se usa en todo el proyecto.
+`notSupportedErr` es un parámetro porque cada llamador tiene su propio mensaje
+(`ErrPDFNotSupportedForDocumentType` vs `ErrEmailNotSupportedForDocumentType`) para el mismo
+chequeo.
+
+**`documents.Service.SendInvoiceEmail(ctx, issuerID, id) error`** (nuevo, `email.go`) — solo
+Factura (mismo alcance que PDF) y **solo `StatusAccepted`**: nunca un borrador, nunca
+`StatusRejected`/`StatusSendError` (no es una factura válida que mandarle a nadie), nunca
+`StatusSent` (resultado de la DIAN todavía desconocido en ese momento, podría acabar
+rechazado más tarde — mandar el correo antes de saberlo sería prometerle al cliente un
+documento que después podría no ser válido). `ErrCustomerEmailMissing` si el snapshot del
+cliente no trae correo. Reusa `RenderInvoicePDF` tal cual para el adjunto PDF (duplica un par
+de `SELECT` por UUID dentro de la misma petición — aceptable, no se justificó una variante
+interna solo para evitarlo) y `d.SignedXML` tal cual para el adjunto XML. Asunto/cuerpo fijos en
+español (`invoiceEmailText`/`invoiceEmailHTML`, funciones puras) — `invoiceEmailHTML` escapa con
+`html.EscapeString` los campos interpolados (`Customer.Name`/`iss.BusinessName` son datos del
+cliente/snapshot, no se confía en que no traigan caracteres HTML especiales).
+
+**Endpoint**: `POST /api/v1/documents/{id}/send-email` → `204 No Content`, mismo estilo que
+`handleDeleteDocument`. Sin test dedicado en `api_test.go` — mismo criterio que
+`GET .../pdf`, que tampoco lo tiene: la cobertura real está en `service_test.go` (6 casos:
+éxito, no aceptado, sin correo, otro emisor, tipo no soportado, error de `Send` propagado) más
+la verificación con navegador real de abajo.
+
+**Wiring de config**: `api.New` gana un parámetro `smtpCfg email.Config`; `internal/server`
+lo construye desde `cfg.SMTPHost/Port/Username/Password/FromAddress/FromName` (ya existían
+desde la sección 9.40) y lo pasa. Dentro de `api.New`: `email.NewSMTPSender(smtpCfg)` →
+`documents.New(..., emailSender)` — primer consumidor real del módulo de correo.
+
+**Alcance deliberadamente excluido**: sin columna de "enviado al cliente"/historial — el botón
+siempre está disponible mientras el documento esté `accepted`, se puede reenviar las veces que
+haga falta, sin marca persistida de cuándo se envió la última vez (si hace falta auditoría de
+envíos más adelante, se agrega con su propia migración). Sin CC al emisor, sin plantilla
+configurable por el usuario.
+
+**Frontend**: `lib/documents.ts` gana `sendInvoiceEmail(id)`; `InvoiceEditorPage` gana el botón
+"Enviar al cliente" (icono `Mail`) junto a "Ver PDF" — visible solo cuando
+`doc?.status === "accepted"`, con `window.confirm` antes de enviar (mismo criterio que eliminar
+borrador/confirmar factura: es una acción visible para un tercero real) y un
+`<Banner tone="success">` al terminar.
+
+**Verificado de punta a punta contra Mailtrap real** (el usuario ya tenía una cuenta sandbox
+configurada en `apidian/.env`, ver sección 9.40): en vez de gastar un consecutivo real de la
+DIAN solo para llegar a `StatusAccepted` (ese camino ya está probado de sobra en secciones
+anteriores), se creó una empresa/rango/factura de prueba vía API real contra Postgres real, y se
+marcó el documento como `accepted` directamente en la base (mismo criterio que `seedInvoice` en
+los tests unitarios, pero contra Postgres real en vez de memoria) — la parte que esta
+verificación necesitaba probar es el envío, no repetir la aceptación de la DIAN. Primero
+`POST /documents/{id}/send-email` por `curl` directo → `204`. Después, en el navegador real:
+login → factura → botón "Enviar al cliente" visible solo por estar `accepted` → diálogo de
+confirmación con el correo correcto del cliente → banner de éxito. 0 errores de consola. Dos
+correos reales llegaron al sandbox de Mailtrap del usuario en esta verificación (uno por curl,
+uno por el botón) — confirmación visual de contenido queda del lado del usuario revisando su
+inbox, fuera de mi alcance. Datos de prueba eliminados al terminar.
+
+Con esto queda cerrado el ciclo completo de un solo documento: Factura Electrónica →
+representación gráfica en PDF → envío al cliente por correo, los tres verificados contra
+servicios reales (DIAN real, Postgres real, SMTP real). Lo que sigue, cuando el usuario lo
+decida, es repetir este mismo patrón para Nota Crédito/Nota Débito.

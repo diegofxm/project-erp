@@ -26,4 +26,10 @@ var (
 	// docs/apidian-architecture.md) — el servicio lo deriva del catálogo a partir de
 	// TaxSchemeCode, y este es el error si ese código no existe en tax_types.
 	ErrInvalidTaxSchemeCode = errors.New("issuers: tipo de régimen tributario (tax_scheme_code) inválido")
+	// ErrEmptyLogo/ErrInvalidLogoContentType: para la representación gráfica en PDF (ver
+	// docs/apidian-architecture.md sección 9.39) — mismo criterio que ErrEmptyCertificate, un
+	// puntero no-nil con datos vacíos es casi siempre un error de quien llama, nunca una forma
+	// válida de "borrar" el logo.
+	ErrEmptyLogo              = errors.New("issuers: el logo es obligatorio si se manda este campo")
+	ErrInvalidLogoContentType = errors.New(`issuers: logo_content_type debe ser "png", "jpg" o "jpeg"`)
 )

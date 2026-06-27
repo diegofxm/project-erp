@@ -518,6 +518,59 @@ autorizada."`). En el camino se encontró que el rango de numeración real segu�
 con un `test_set_id` obsoleto (de antes de que existiera `SendBillSync`), corregido
 directamente en la base — ver el detalle en la sección 9.38, no es un hallazgo de frontend.
 
+## Representación gráfica (PDF) — logo del emisor y botón "Ver PDF" (2026-06-27)
+
+Siguiente pieza del ciclo de Factura — backend nuevo (`internal/pdf`, ver
+`docs/apidian-architecture.md` sección 9.39), frontend mínimo para usarlo: subir el logo y
+abrir el PDF, sin construir nada de la representación gráfica en sí (eso vive 100% en el
+servidor).
+
+- `lib/apiClient.ts` ganó `getBlob(path): Promise<Blob>` — la función `request()` existente
+  siempre asume JSON (`res.text()` + `JSON.parse`), incompatible con bytes de un PDF/imagen.
+- `lib/documents.ts` ganó `getInvoicePdfBlobUrl(id)` — trae el PDF como blob y devuelve un
+  Object URL. Hace falta el blob (no un `<a href>` plano) porque el endpoint exige
+  `Authorization: Bearer`, que un link estático no puede mandar.
+- `components/issuer-settings/LogoForm.tsx` (nuevo, en Configuración → Empresa junto a
+  `SoftwareCertificateForm`): sube el logo (reusa `fileToBase64`, ya existía) y muestra una
+  vista previa en miniatura trayendo `GET /issuers/me/logo` con el mismo patrón de blob.
+  `StatusBadge` (el "✓/—" de `SoftwareCertificateForm`) se exportó para reusarlo aquí — segundo
+  caso real de uso, mismo criterio de extracción que el resto del proyecto.
+- `InvoiceEditorPage`: botón "Ver PDF" junto al badge de estado — visible para cualquier
+  factura ya creada (no en `:id === "new"`), funciona igual en borrador (muestra "BORRADOR" en
+  vez de CUFE/QR/número) que confirmada. Abre el blob en una pestaña nueva
+  (`window.open(objectUrl, "_blank")`).
+
+**Verificado con un navegador real, de punta a punta**: subir un logo PNG real (se ve la vista
+previa) → crear borrador de factura → "Ver PDF" muestra el logo + "BORRADOR" → confirmar
+(habilitación, set de pruebas real ya cerrado — mismo resultado esperado de la sección 9.10 de
+`apidian-architecture.md`, construye/firma/persiste con CUFE/QR/número reales antes de
+intentar enviar) → "Ver PDF" de nuevo muestra el mismo logo + CUFE/QR/número reales. 0 errores
+de consola. Se encontró y corrigió un bug real en el camino (`RangeTo` nulo mostrando un tope
+inventado en el pie del PDF) — detalle completo en `apidian-architecture.md` sección 9.39, es
+un hallazgo de backend, no de este frontend.
+
+## Enviar la factura al cliente por correo (2026-06-27)
+
+Cierre del ciclo completo (Factura → PDF → correo) — ver `apidian-architecture.md` sección
+9.42 para el detalle de backend. Frontend mínimo, sin formulario propio (asunto/cuerpo son
+fijos en el servidor):
+
+- `lib/documents.ts` ganó `sendInvoiceEmail(id)` — `POST /documents/{id}/send-email`, sin body
+  ni respuesta (204).
+- `InvoiceEditorPage`: botón "Enviar al cliente" (icono `Mail`) junto a "Ver PDF" — visible
+  **solo** cuando `doc.status === "accepted"` (nunca en borrador/rechazada/con error de envío,
+  mismo criterio que el backend). `window.confirm` antes de enviar, mismo patrón que eliminar
+  borrador/confirmar factura (es una acción visible para un tercero real, el cliente). Éxito
+  muestra un `<Banner tone="success">` con el correo al que se envió; sin marca persistida de
+  "ya enviado" — el botón sigue disponible para reenviar las veces que haga falta.
+
+**Verificado de punta a punta contra Mailtrap real**: empresa/factura de prueba creadas vía API
+contra Postgres real, documento marcado `accepted` directamente en la base (para no gastar un
+consecutivo real de la DIAN solo para llegar a ese estado, ya probado de sobra en fases
+anteriores) → en el navegador, el botón apareció solo por estar `accepted`, el diálogo de
+confirmación mostró el correo correcto del cliente, y el banner de éxito apareció tras el envío
+real. 0 errores de consola. Datos de prueba eliminados al terminar.
+
 ## Pendiente para próximas fases
 
 - Nota Crédito/Nota Débito siguen sin página propia (deshabilitadas en el Sidebar) — mismo

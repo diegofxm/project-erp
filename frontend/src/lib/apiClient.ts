@@ -33,6 +33,23 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
+// getBlob es para respuestas binarias (ej. el PDF de una factura, ver lib/documents.ts) — la
+// función request() de arriba siempre asume JSON (res.text() + JSON.parse), incompatible con
+// bytes de un PDF.
+async function getBlob(path: string): Promise<Blob> {
+  const headers = new Headers();
+  if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+
+  const res = await fetch(`${API_BASE_URL}${path}`, { method: "GET", headers });
+  if (!res.ok) {
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : null;
+    const message = (data && typeof data === "object" && "error" in data ? String(data.error) : null) ?? `Error ${res.status}`;
+    throw new ApiError(res.status, message);
+  }
+  return res.blob();
+}
+
 export const apiClient = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
   post: <T>(path: string, body?: unknown) =>
@@ -40,4 +57,5 @@ export const apiClient = {
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: body !== undefined ? JSON.stringify(body) : undefined }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  getBlob,
 };

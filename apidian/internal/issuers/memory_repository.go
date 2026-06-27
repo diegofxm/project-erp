@@ -67,6 +67,8 @@ func (r *MemoryRepository) Update(_ context.Context, iss Issuer) (*Issuer, error
 	existing.SoftwarePIN = iss.SoftwarePIN
 	existing.Certificate = iss.Certificate
 	existing.CertificatePassword = iss.CertificatePassword
+	existing.Logo = iss.Logo
+	existing.LogoContentType = iss.LogoContentType
 	existing.UpdatedAt = time.Now().UTC()
 
 	cp := *existing

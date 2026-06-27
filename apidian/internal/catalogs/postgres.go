@@ -147,13 +147,34 @@ func (r *PostgresRepository) IsValidLiabilityCode(ctx context.Context, code stri
 // GetTaxTypeName implementa issuers.CatalogPort/customers.CatalogPort/products.CatalogPort/
 // documents.CatalogPort — ver el comentario en Repository.
 func (r *PostgresRepository) GetTaxTypeName(ctx context.Context, code string) (string, bool, error) {
+	return r.getName(ctx, "tax_types", code)
+}
+
+// GetPaymentTermName/GetPaymentMethodName implementan documents.CatalogPort — ver el
+// comentario en Repository.
+func (r *PostgresRepository) GetPaymentTermName(ctx context.Context, code string) (string, bool, error) {
+	return r.getName(ctx, "payment_terms", code)
+}
+
+func (r *PostgresRepository) GetPaymentMethodName(ctx context.Context, code string) (string, bool, error) {
+	return r.getName(ctx, "payment_methods", code)
+}
+
+func (r *PostgresRepository) GetIdentificationTypeName(ctx context.Context, code string) (string, bool, error) {
+	return r.getName(ctx, "identification_types", code)
+}
+
+// getName es el helper compartido por GetTaxTypeName/GetPaymentTermName/GetPaymentMethodName
+// — los tres son "busca el nombre de este código en este catálogo", solo cambia la tabla.
+func (r *PostgresRepository) getName(ctx context.Context, table, code string) (string, bool, error) {
 	var name string
-	err := r.pool.QueryRow(ctx, "SELECT name FROM tax_types WHERE code = $1", code).Scan(&name)
+	query := fmt.Sprintf("SELECT name FROM %s WHERE code = $1", table)
+	err := r.pool.QueryRow(ctx, query, code).Scan(&name)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", false, nil
 	}
 	if err != nil {
-		return "", false, fmt.Errorf("buscar nombre en tax_types: %w", err)
+		return "", false, fmt.Errorf("buscar nombre en %s: %w", table, err)
 	}
 	return name, true, nil
 }

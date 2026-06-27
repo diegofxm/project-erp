@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
-import { Send, Trash2 } from "lucide-react";
+import { FileText, Mail, Send, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
-import { confirmDocument, createInvoiceDraft, deleteDraft, getDocument, updateInvoiceDraft } from "../lib/documents";
+import {
+  confirmDocument,
+  createInvoiceDraft,
+  deleteDraft,
+  getDocument,
+  getInvoicePdfBlobUrl,
+  sendInvoiceEmail,
+  updateInvoiceDraft,
+} from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
 import { useAuth } from "../context/AuthContext";
@@ -26,6 +34,9 @@ export function InvoiceEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isNew || !id) return;
@@ -82,6 +93,42 @@ export function InvoiceEditorPage() {
     }
   }
 
+  // handleViewPdf abre la representación gráfica en una pestaña nueva — sirve igual en
+  // borrador (muestra "BORRADOR" donde irían CUFE/QR/número) que ya confirmada. Se trae como
+  // blob (no <a href> plano) porque el endpoint exige Authorization: Bearer.
+  async function handleViewPdf() {
+    if (!id || isNew) return;
+    setError(null);
+    setLoadingPdf(true);
+    try {
+      const url = await getInvoicePdfBlobUrl(id);
+      window.open(url, "_blank");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo generar el PDF");
+    } finally {
+      setLoadingPdf(false);
+    }
+  }
+
+  // handleSendEmail envía la Factura ya accepted al correo del cliente con el PDF y el XML
+  // firmados adjuntos (ver docs/apidian-architecture.md sección 9.42) — visible para un
+  // tercero real, por eso pide confirmación igual que eliminar/confirmar.
+  async function handleSendEmail() {
+    if (!id || isNew || !doc) return;
+    if (!window.confirm(`¿Enviar esta factura por correo a ${doc.customer.email || "el cliente"}?`)) return;
+    setError(null);
+    setSuccessMessage(null);
+    setSendingEmail(true);
+    try {
+      await sendInvoiceEmail(id);
+      setSuccessMessage(`Factura enviada a ${doc.customer.email}`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo enviar la factura por correo");
+    } finally {
+      setSendingEmail(false);
+    }
+  }
+
   const issuerNotReady = !activeIssuer?.has_software_credentials || !activeIssuer?.has_certificate;
 
   if (loadingDocument) {
@@ -98,10 +145,23 @@ export function InvoiceEditorPage() {
         <h1 className="text-sm font-semibold text-(--text-primary)">
           {isNew ? "Nueva factura" : doc ? `Factura ${doc.prefix ?? ""}${doc.number ?? "(borrador)"}` : "Factura"}
         </h1>
-        {doc && <StatusBadge status={doc.status} />}
+        <div className="flex items-center gap-2">
+          {doc && <StatusBadge status={doc.status} />}
+          {!isNew && doc && (
+            <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
+              Ver PDF
+            </Button>
+          )}
+          {!isNew && doc?.status === "accepted" && (
+            <Button type="button" variant="secondary" icon={<Mail className="h-3.5 w-3.5" />} loading={sendingEmail} onClick={handleSendEmail}>
+              Enviar al cliente
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && <Banner tone="danger">{error}</Banner>}
+      {successMessage && <Banner tone="success">{successMessage}</Banner>}
 
       {!isNew && doc?.status === "draft" && issuerNotReady && (
         <Banner tone="info">

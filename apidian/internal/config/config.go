@@ -49,6 +49,17 @@ type Config struct {
 	// ningún navegador puede leer las respuestas (curl/Postman no se ven afectados). Un único
 	// "*" permite cualquier origen — solo para desarrollo local, nunca producción.
 	CORSAllowedOrigins []string
+
+	// SMTP* configura internal/email.SMTPSender (ver docs/apidian-architecture.md sección
+	// 9.40) — credenciales de un proveedor de hosting de correo propio, no de un servicio
+	// transaccional externo. Deliberadamente opcionales y sin validar acá: todavía no hay
+	// ningún consumidor real que dependa de que estén presentes para arrancar el servidor.
+	SMTPHost        string
+	SMTPPort        int
+	SMTPUsername    string
+	SMTPPassword    string
+	SMTPFromAddress string
+	SMTPFromName    string
 }
 
 func Load() (*Config, error) {
@@ -73,6 +84,12 @@ func Load() (*Config, error) {
 		IssuerSecretsKey:   issuerSecretsKey,
 		AuthJWTSecret:      authJWTSecret,
 		CORSAllowedOrigins: getEnvList("CORS_ALLOWED_ORIGINS"),
+		SMTPHost:           getEnv("SMTP_HOST", ""),
+		SMTPPort:           getEnvInt("SMTP_PORT", 587),
+		SMTPUsername:       getEnv("SMTP_USERNAME", ""),
+		SMTPPassword:       getEnv("SMTP_PASSWORD", ""),
+		SMTPFromAddress:    getEnv("SMTP_FROM_ADDRESS", ""),
+		SMTPFromName:       getEnv("SMTP_FROM_NAME", ""),
 	}
 
 	if err := cfg.validate(); err != nil {

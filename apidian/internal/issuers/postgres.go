@@ -32,8 +32,8 @@ const issuerColumns = `
 	department_code, municipality_code, address_line, email, phone, environment,
 	entity_type_code, tax_scheme_code, tax_scheme_name, liability_codes, tax_regime_code,
 	industry_classification_codes, merchant_registration_number,
-	software_id, software_pin, certificate, certificate_password, is_active,
-	created_at, updated_at`
+	software_id, software_pin, certificate, certificate_password, logo, logo_content_type,
+	is_active, created_at, updated_at`
 
 // issuerSelectWithNames hace JOIN con departments/municipalities para traer
 // DepartmentName/MunicipalityName — la DIAN exige el nombre, no solo el código, en
@@ -43,7 +43,8 @@ const issuerSelectWithNames = `
 	       i.department_code, i.municipality_code, d.name, m.name, i.address_line, i.email, i.phone, i.environment,
 	       i.entity_type_code, i.tax_scheme_code, i.tax_scheme_name, i.liability_codes, i.tax_regime_code,
 	       i.industry_classification_codes, i.merchant_registration_number,
-	       i.software_id, i.software_pin, i.certificate, i.certificate_password, i.is_active,
+	       i.software_id, i.software_pin, i.certificate, i.certificate_password,
+	       i.logo, i.logo_content_type, i.is_active,
 	       i.created_at, i.updated_at
 	FROM issuers i
 	JOIN departments d ON d.code = i.department_code
@@ -87,7 +88,8 @@ func (r *PostgresRepository) Create(ctx context.Context, iss Issuer) (*Issuer, e
 		iss.DepartmentCode, iss.MunicipalityCode, iss.AddressLine, iss.Email, iss.Phone, string(iss.Environment),
 		iss.EntityTypeCode, iss.TaxSchemeCode, iss.TaxSchemeName, liabilityCodes, iss.TaxRegimeCode,
 		industryClassificationCodes, iss.MerchantRegistrationNumber,
-		iss.SoftwareID, encPIN, encCert, encCertPwd, iss.IsActive, iss.CreatedAt, iss.UpdatedAt,
+		iss.SoftwareID, encPIN, encCert, encCertPwd, iss.Logo, iss.LogoContentType,
+		iss.IsActive, iss.CreatedAt, iss.UpdatedAt,
 	}
 	_, err = r.pool.Exec(ctx, `INSERT INTO issuers (`+issuerColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
 	if err != nil {
@@ -99,9 +101,10 @@ func (r *PostgresRepository) Create(ctx context.Context, iss Issuer) (*Issuer, e
 	return &iss, nil
 }
 
-// Update persiste software_id/software_pin/certificate/certificate_password — los únicos
-// campos editables vía UpdateIssuer (ver service.go), cifrando PIN/certificado/password con
-// el mismo esquema que Create.
+// Update persiste software_id/software_pin/certificate/certificate_password/logo/
+// logo_content_type — los únicos campos editables vía UpdateIssuer (ver service.go),
+// cifrando PIN/certificado/password con el mismo esquema que Create. logo/logo_content_type
+// no son secretos, no se cifran.
 func (r *PostgresRepository) Update(ctx context.Context, iss Issuer) (*Issuer, error) {
 	encPIN, err := cryptutil.Encrypt(r.key, []byte(iss.SoftwarePIN))
 	if err != nil {
@@ -116,14 +119,16 @@ func (r *PostgresRepository) Update(ctx context.Context, iss Issuer) (*Issuer, e
 		return nil, fmt.Errorf("cifrar certificate_password: %w", err)
 	}
 
-	// software_id se manda tal cual (nunca como NULL explícito) aunque la columna lo permita
-	// — igual que Create: iss.SoftwareID == "" se guarda como cadena vacía. scan() lee la
-	// columna directo a un string de Go (no *string); un NULL real ahí rompería el Scan.
+	// software_id/logo_content_type se mandan tal cual (nunca como NULL explícito) aunque la
+	// columna lo permita — igual que Create: una cadena vacía se guarda como cadena vacía.
+	// scan() lee esas columnas directo a un string de Go (no *string); un NULL real ahí
+	// rompería el Scan.
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE issuers SET
-			software_id = $1, software_pin = $2, certificate = $3, certificate_password = $4, updated_at = $5
-		WHERE id = $6`,
-		iss.SoftwareID, encPIN, encCert, encCertPwd, time.Now().UTC(), iss.ID,
+			software_id = $1, software_pin = $2, certificate = $3, certificate_password = $4,
+			logo = $5, logo_content_type = $6, updated_at = $7
+		WHERE id = $8`,
+		iss.SoftwareID, encPIN, encCert, encCertPwd, iss.Logo, iss.LogoContentType, time.Now().UTC(), iss.ID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update issuer: %w", err)
@@ -155,6 +160,7 @@ func (r *PostgresRepository) scan(row pgx.Row) (*Issuer, error) {
 		&iss.Email, &iss.Phone, &env, &iss.EntityTypeCode, &iss.TaxSchemeCode, &iss.TaxSchemeName,
 		&iss.LiabilityCodes, &iss.TaxRegimeCode, &iss.IndustryClassificationCodes,
 		&iss.MerchantRegistrationNumber, &iss.SoftwareID, &encPIN, &encCert, &encCertPwd,
+		&iss.Logo, &iss.LogoContentType,
 		&iss.IsActive, &iss.CreatedAt, &iss.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrIssuerNotFound

@@ -474,3 +474,42 @@ func (a *API) handleGetDocument(w http.ResponseWriter, r *http.Request) {
 
 	response.WriteJSON(w, http.StatusOK, documentToResponse(doc))
 }
+
+// handleGetDocumentPDF sirve la representación gráfica en PDF — generada en memoria en cada
+// petición, nunca se guarda a disco (ver docs/apidian-architecture.md sección 9.39). Sirve
+// igual para un borrador (muestra "BORRADOR" donde irían CUFE/QR/número) que para uno ya
+// confirmado. La pertenencia al emisor autenticado la valida documents.Service.RenderInvoicePDF
+// (ErrDocumentNotFound si no es de este emisor, mismo criterio que el resto de /documents).
+func (a *API) handleGetDocumentPDF(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+
+	pdfBytes, err := a.documents.RenderInvoicePDF(r.Context(), middleware.GetTenantID(r.Context()), id)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", `inline; filename="factura.pdf"`)
+	_, _ = w.Write(pdfBytes)
+}
+
+// handleSendDocumentEmail envía la Factura (debe estar accepted, ver
+// docs/apidian-architecture.md sección 9.42) al correo del cliente con el PDF y el XML
+// firmado adjuntos. Sin body de respuesta — el documento no cambia como resultado de esto, no
+// se guarda un historial de envíos (ver alcance deliberado de la sección 9.42).
+func (a *API) handleSendDocumentEmail(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+
+	if err := a.documents.SendInvoiceEmail(r.Context(), middleware.GetTenantID(r.Context()), id); err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

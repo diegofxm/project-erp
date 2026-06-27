@@ -8,7 +8,8 @@ import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 import { Banner } from "../ui/Banner";
 
-function StatusBadge({ label, ok }: { label: string; ok: boolean }) {
+// Exportado: LogoForm.tsx reusa el mismo indicador "✓/—" para has_logo.
+export function StatusBadge({ label, ok }: { label: string; ok: boolean }) {
   return (
     <span className={`flex items-center gap-1 text-xs ${ok ? "text-(--color-success)" : "text-(--text-muted)"}`}>
       {ok ? "✓" : "—"} {label}

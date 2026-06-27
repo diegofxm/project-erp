@@ -102,12 +102,32 @@ func (r *MemoryRepository) IsValidLiabilityCode(_ context.Context, code string) 
 }
 
 func (r *MemoryRepository) GetTaxTypeName(_ context.Context, code string) (string, bool, error) {
-	for _, e := range r.taxTypes {
+	name := getName(r.taxTypes, code)
+	return name, name != "", nil
+}
+
+func (r *MemoryRepository) GetPaymentTermName(_ context.Context, code string) (string, bool, error) {
+	name := getName(r.paymentTerms, code)
+	return name, name != "", nil
+}
+
+func (r *MemoryRepository) GetPaymentMethodName(_ context.Context, code string) (string, bool, error) {
+	name := getName(r.paymentMethods, code)
+	return name, name != "", nil
+}
+
+func (r *MemoryRepository) GetIdentificationTypeName(_ context.Context, code string) (string, bool, error) {
+	name := getName(r.identificationTypes, code)
+	return name, name != "", nil
+}
+
+func getName(entries []Entry, code string) string {
+	for _, e := range entries {
 		if e.Code == code {
-			return e.Name, true, nil
+			return e.Name
 		}
 	}
-	return "", false, nil
+	return ""
 }
 
 func containsCode(entries []Entry, code string) bool {

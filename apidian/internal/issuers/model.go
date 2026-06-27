@@ -71,6 +71,13 @@ type Issuer struct {
 	Certificate         []byte // contenido del .p12
 	CertificatePassword string
 
+	// Logo/LogoContentType: para la representación gráfica en PDF (ver
+	// docs/apidian-architecture.md sección 9.39) — opcionales, no son secretos, no se cifran.
+	// LogoContentType es "png"/"jpg"/"jpeg" (mismos valores que acepta maroto vía
+	// internal/pdf), nunca vacío si Logo no está vacío.
+	Logo            []byte
+	LogoContentType string
+
 	IsActive  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time

@@ -66,6 +66,8 @@ type UpdateIssuerRequest struct {
 	SoftwarePIN         *string
 	Certificate         []byte // nil = no tocar
 	CertificatePassword *string
+	Logo                []byte  // nil = no tocar
+	LogoContentType     *string // "png"/"jpg"/"jpeg"
 }
 
 // UpdateIssuer completa/reemplaza software/PIN/certificado de un emisor ya registrado. Un
@@ -112,6 +114,21 @@ func (s *Service) UpdateIssuer(ctx context.Context, id uuid.UUID, req UpdateIssu
 	if touchedCertificate && s.validator != nil && len(iss.Certificate) > 0 && iss.CertificatePassword != "" {
 		if err := s.validator(iss.Certificate, iss.CertificatePassword); err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidCertificate, err)
+		}
+	}
+
+	if req.Logo != nil {
+		if len(req.Logo) == 0 {
+			return nil, ErrEmptyLogo
+		}
+		iss.Logo = req.Logo
+	}
+	if req.LogoContentType != nil {
+		switch *req.LogoContentType {
+		case "png", "jpg", "jpeg":
+			iss.LogoContentType = *req.LogoContentType
+		default:
+			return nil, ErrInvalidLogoContentType
 		}
 	}
 

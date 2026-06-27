@@ -22,6 +22,15 @@ export function getDocument(id: string): Promise<Document> {
   return apiClient.get<Document>(`/documents/${id}`);
 }
 
+// getInvoicePdfBlobUrl trae la representación gráfica (generada en memoria en el servidor,
+// nunca guardada a disco, ver docs/apidian-architecture.md sección 9.39) y devuelve un
+// Object URL para abrirla en una pestaña nueva — necesario porque el endpoint exige
+// Authorization: Bearer, que un <a href> plano no puede mandar.
+export async function getInvoicePdfBlobUrl(id: string): Promise<string> {
+  const blob = await apiClient.getBlob(`/documents/${id}/pdf`);
+  return URL.createObjectURL(blob);
+}
+
 export function createInvoiceDraft(payload: IssueInvoicePayload): Promise<Document> {
   return apiClient.post<Document>("/invoices", payload);
 }
@@ -39,6 +48,13 @@ export function deleteDraft(id: string): Promise<void> {
 // en el borrador persistido.
 export function confirmDocument(id: string): Promise<Document> {
   return apiClient.post<Document>(`/documents/${id}/confirm`);
+}
+
+// sendInvoiceEmail envía la Factura (debe estar accepted) al correo del cliente con el PDF y el
+// XML firmado adjuntos (ver docs/apidian-architecture.md sección 9.42). Sin body de petición ni
+// de respuesta — todo lo que necesita ya está en el documento persistido.
+export function sendInvoiceEmail(id: string): Promise<void> {
+  return apiClient.post<void>(`/documents/${id}/send-email`);
 }
 
 // lineToInput es el inverso de lo que calcula el servidor — para editar un borrador ya

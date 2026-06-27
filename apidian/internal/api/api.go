@@ -13,6 +13,7 @@ import (
 	"github.com/diegofxm/apidian/internal/customers"
 	"github.com/diegofxm/apidian/internal/database"
 	"github.com/diegofxm/apidian/internal/documents"
+	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
 	"github.com/diegofxm/apidian/internal/products"
@@ -35,8 +36,10 @@ type API struct {
 // New conecta los siete dominios sobre una sola base de datos y devuelve la API.
 // authJWTSecret firma los tokens de sesión (HS256) — deliberadamente distinto de
 // issuerSecretsKey (ver internal/config.Config.AuthJWTSecret). allowedOrigins son los
-// orígenes permitidos por CORS (ver internal/api/middleware/cors.go).
-func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byte, allowedOrigins []string) *API {
+// orígenes permitidos por CORS (ver internal/api/middleware/cors.go). smtpCfg configura el
+// envío de correo al cliente (ver docs/apidian-architecture.md sección 9.42) — vacío es válido,
+// SendInvoiceEmail simplemente falla con un mensaje claro si nunca se configuró.
+func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byte, allowedOrigins []string, smtpCfg email.Config) *API {
 	// catalogsRepo va primero: issuers/customers/documents lo necesitan para validar
 	// liability_codes/payment_terms/payment_methods (catálogos sin FK posible, ver
 	// docs/apidian-architecture.md sección 9.34).
@@ -45,7 +48,8 @@ func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byt
 	numberingSvc := numbering.New(numbering.NewPostgresRepository(db.Pool, issuerSecretsKey))
 	customersSvc := customers.New(customers.NewPostgresRepository(db.Pool), catalogsRepo)
 	productsSvc := products.New(products.NewPostgresRepository(db.Pool), catalogsRepo)
-	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc, customersSvc, catalogsRepo)
+	emailSender := email.NewSMTPSender(smtpCfg)
+	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc, customersSvc, catalogsRepo, emailSender)
 	tokens := auth.NewTokenIssuer(authJWTSecret)
 	authSvc := auth.New(auth.NewPostgresRepository(db.Pool), issuerSvc, tokens)
 
@@ -110,7 +114,8 @@ func (a *API) Handler() http.Handler {
 //	(middleware.GetTenantID):
 //
 //	GET    /api/v1/issuers/me                            → consultar la empresa activa
-//	PUT    /api/v1/issuers/me                            → completar software/PIN/certificado de la empresa activa (ver 9.25)
+//	PUT    /api/v1/issuers/me                            → completar software/PIN/certificado/logo de la empresa activa (ver 9.25/9.39)
+//	GET    /api/v1/issuers/me/logo                       → logo en crudo de la empresa activa (404 si no tiene, ver 9.39)
 //	POST   /api/v1/numbering-ranges                      → registrar rango de numeración de la empresa activa
 //	GET    /api/v1/numbering-ranges                      → listar rangos de la empresa activa (?dian_document_type_code=)
 //	GET    /api/v1/numbering-ranges/{id}                  → consultar rango (debe ser de la empresa activa)
@@ -124,6 +129,8 @@ func (a *API) Handler() http.Handler {
 //	DELETE /api/v1/documents/{id}                         → eliminar un borrador (debe seguir en borrador)
 //	GET    /api/v1/documents                              → listar documentos de la empresa activa (filtros + ?limit=&offset=)
 //	GET    /api/v1/documents/{id}                         → consultar documento (debe ser de la empresa activa)
+//	GET    /api/v1/documents/{id}/pdf                      → representación gráfica en PDF, generada en memoria (ver 9.39)
+//	POST   /api/v1/documents/{id}/send-email               → envía la Factura accepted al correo del cliente, PDF+XML adjuntos (ver 9.42)
 //
 //	POST/GET/PUT/DELETE /api/v1/customers[/{id}]          → catálogo de adquirientes (conveniencia, ver internal/customers)
 //	POST/GET/PUT/DELETE /api/v1/products[/{id}]           → catálogo de ítems/servicios (conveniencia, ver internal/products)
@@ -150,6 +157,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 
 	handle("GET /api/v1/issuers/me", a.handleGetMyIssuer)
 	handle("PUT /api/v1/issuers/me", a.handleUpdateMyIssuer)
+	handle("GET /api/v1/issuers/me/logo", a.handleGetMyIssuerLogo)
 	handle("POST /api/v1/numbering-ranges", a.handleCreateNumberingRange)
 	handle("GET /api/v1/numbering-ranges", a.handleListNumberingRanges)
 	handle("GET /api/v1/numbering-ranges/{id}", a.handleGetNumberingRange)
@@ -164,6 +172,8 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("DELETE /api/v1/documents/{id}", a.handleDeleteDocument)
 	handle("GET /api/v1/documents", a.handleListDocuments)
 	handle("GET /api/v1/documents/{id}", a.handleGetDocument)
+	handle("GET /api/v1/documents/{id}/pdf", a.handleGetDocumentPDF)
+	handle("POST /api/v1/documents/{id}/send-email", a.handleSendDocumentEmail)
 
 	handle("POST /api/v1/customers", a.handleCreateCustomer)
 	handle("GET /api/v1/customers", a.handleListCustomers)

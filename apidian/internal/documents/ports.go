@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/diegofxm/apidian/internal/customers"
+	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
 	"github.com/google/uuid"
@@ -58,4 +59,19 @@ type CatalogPort interface {
 	IsValidPaymentMethod(ctx context.Context, code string) (bool, error)
 	IsValidLiabilityCode(ctx context.Context, code string) (bool, error)
 	GetTaxTypeName(ctx context.Context, code string) (name string, found bool, err error)
+
+	// GetPaymentTermName/GetPaymentMethodName/GetIdentificationTypeName — para
+	// RenderInvoicePDF (ver docs/apidian-architecture.md sección 9.39): la representación
+	// gráfica muestra "Contado"/"Transferencia.../"Cédula de Ciudadanía", no el código crudo.
+	GetPaymentTermName(ctx context.Context, code string) (name string, found bool, err error)
+	GetPaymentMethodName(ctx context.Context, code string) (name string, found bool, err error)
+	GetIdentificationTypeName(ctx context.Context, code string) (name string, found bool, err error)
+}
+
+// EmailPort define lo que documents necesita para enviar correo — ver
+// docs/apidian-architecture.md sección 9.42. Angosta a propósito (no *email.SMTPSender
+// directamente) para poder fakear el envío en tests, mismo motivo que el resto de los puertos
+// de este archivo, no porque haya más de una implementación real todavía.
+type EmailPort interface {
+	Send(ctx context.Context, msg email.Message) error
 }

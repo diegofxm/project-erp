@@ -33,4 +33,12 @@ type Repository interface {
 	// derivar *_name desde *_code en vez de confiar en que el cliente los mande coherentes
 	// (ver docs/apidian-architecture.md).
 	GetTaxTypeName(ctx context.Context, code string) (name string, found bool, err error)
+
+	// GetPaymentTermName/GetPaymentMethodName/GetIdentificationTypeName — mismo patrón que
+	// GetTaxTypeName, para que la representación gráfica en PDF (internal/pdf, ver sección
+	// 9.39) muestre "Contado"/"Transferencia.../"Cédula de Ciudadanía" en vez del código
+	// numérico crudo, sin que documents tenga que adivinar el texto.
+	GetPaymentTermName(ctx context.Context, code string) (name string, found bool, err error)
+	GetPaymentMethodName(ctx context.Context, code string) (name string, found bool, err error)
+	GetIdentificationTypeName(ctx context.Context, code string) (name string, found bool, err error)
 }

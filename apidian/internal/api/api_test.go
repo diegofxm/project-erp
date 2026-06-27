@@ -26,6 +26,7 @@ import (
 	"github.com/diegofxm/apidian/internal/catalogs"
 	"github.com/diegofxm/apidian/internal/customers"
 	"github.com/diegofxm/apidian/internal/documents"
+	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
 	"github.com/diegofxm/apidian/internal/products"
@@ -73,7 +74,7 @@ func newTestEnvWithOrigins(t *testing.T, allowedOrigins []string) *testEnv {
 	numberingSvc := numbering.New(numbering.NewMemoryRepository())
 	customersSvc := customers.New(customers.NewMemoryRepository(), catalogsRepo)
 	productsSvc := products.New(products.NewMemoryRepository(), catalogsRepo)
-	docsSvc := documents.New(documents.NewMemoryRepository(), issuerSvc, numberingSvc, customersSvc, catalogsRepo)
+	docsSvc := documents.New(documents.NewMemoryRepository(), issuerSvc, numberingSvc, customersSvc, catalogsRepo, email.NewSMTPSender(email.Config{}))
 	tokens := auth.NewTokenIssuer([]byte("clave-de-prueba-no-usar-en-produccion"))
 	authSvc := auth.New(auth.NewMemoryRepository(), issuerSvc, tokens)
 
