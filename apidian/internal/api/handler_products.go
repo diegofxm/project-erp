@@ -15,16 +15,18 @@ import (
 // incluye quantity/line_extension_cents ni una lista de impuestos (eso es dato de USO, ver
 // internal/products/model.go) — solo un impuesto por defecto, de conveniencia.
 type productRequest struct {
-	Description      string  `json:"description"`
-	UnitCode         string  `json:"unit_code"`
-	UnitPriceCents   int64   `json:"unit_price_cents"`
-	ItemCode         string  `json:"item_code,omitempty"`
-	ItemTypeCode     string  `json:"item_type_code,omitempty"`
-	ItemTypeName     string  `json:"item_type_name,omitempty"`
-	ItemTypeAgencyID string  `json:"item_type_agency_id,omitempty"`
-	TaxTypeCode      string  `json:"tax_type_code,omitempty"`
-	TaxTypeName      string  `json:"tax_type_name,omitempty"`
-	TaxPercent       float64 `json:"tax_percent,omitempty"`
+	Description      string `json:"description"`
+	UnitCode         string `json:"unit_code"`
+	UnitPriceCents   int64  `json:"unit_price_cents"`
+	ItemCode         string `json:"item_code,omitempty"`
+	ItemTypeCode     string `json:"item_type_code,omitempty"`
+	ItemTypeName     string `json:"item_type_name,omitempty"`
+	ItemTypeAgencyID string `json:"item_type_agency_id,omitempty"`
+	// TaxTypeCode es el único campo que se manda — TaxTypeName se deriva del catálogo
+	// tax_types en products.Service, nunca se acepta del cliente (ver
+	// docs/apidian-architecture.md).
+	TaxTypeCode string  `json:"tax_type_code,omitempty"`
+	TaxPercent  float64 `json:"tax_percent,omitempty"`
 }
 
 func (req productRequest) toDomain() products.Product {
@@ -37,7 +39,6 @@ func (req productRequest) toDomain() products.Product {
 		ItemTypeName:     req.ItemTypeName,
 		ItemTypeAgencyID: req.ItemTypeAgencyID,
 		TaxTypeCode:      req.TaxTypeCode,
-		TaxTypeName:      req.TaxTypeName,
 		TaxPercent:       req.TaxPercent,
 	}
 }

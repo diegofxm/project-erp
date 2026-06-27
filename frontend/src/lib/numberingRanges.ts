@@ -3,8 +3,9 @@
 import { apiClient } from "./apiClient";
 import type { CreateNumberingRangePayload, ListNumberingRangesResult, NumberingRange } from "./types";
 
-export async function listNumberingRanges(): Promise<NumberingRange[]> {
-  const res = await apiClient.get<ListNumberingRangesResult>("/numbering-ranges");
+export async function listNumberingRanges(dianDocumentTypeCode?: string): Promise<NumberingRange[]> {
+  const query = dianDocumentTypeCode ? `?dian_document_type_code=${encodeURIComponent(dianDocumentTypeCode)}` : "";
+  const res = await apiClient.get<ListNumberingRangesResult>(`/numbering-ranges${query}`);
   return res.numbering_ranges;
 }
 

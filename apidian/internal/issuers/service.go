@@ -30,11 +30,30 @@ func New(repo Repository, validator CertificateValidator, catalogPort CatalogPor
 // docs/apidian-architecture.md sección 9.25.
 func (s *Service) RegisterIssuer(ctx context.Context, iss Issuer) (*Issuer, error) {
 	applyDefaults(&iss)
+	if err := s.resolveTaxSchemeName(ctx, &iss); err != nil {
+		return nil, err
+	}
 	if err := s.validateIssuer(ctx, iss); err != nil {
 		return nil, err
 	}
 	iss.IsActive = true
 	return s.repo.Create(ctx, iss)
+}
+
+// resolveTaxSchemeName deriva TaxSchemeName del catálogo tax_types a partir de TaxSchemeCode
+// — el cliente ya no puede mandar el nombre (ver createIssuerRequest), así ningún consumidor
+// de la API puede guardar un código y un nombre que no correspondan entre sí. TaxSchemeCode
+// nunca está vacío aquí: applyDefaults ya lo completó con "ZZ" si hacía falta.
+func (s *Service) resolveTaxSchemeName(ctx context.Context, iss *Issuer) error {
+	name, found, err := s.catalogs.GetTaxTypeName(ctx, iss.TaxSchemeCode)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("%w: %q", ErrInvalidTaxSchemeCode, iss.TaxSchemeCode)
+	}
+	iss.TaxSchemeName = name
+	return nil
 }
 
 // UpdateIssuerRequest son los campos que se completan gradualmente después del registro
@@ -116,9 +135,6 @@ func applyDefaults(iss *Issuer) {
 	}
 	if iss.TaxSchemeCode == "" {
 		iss.TaxSchemeCode = "ZZ"
-	}
-	if iss.TaxSchemeName == "" {
-		iss.TaxSchemeName = "No aplica"
 	}
 	if len(iss.LiabilityCodes) == 0 {
 		iss.LiabilityCodes = []string{"R-99-PN"}

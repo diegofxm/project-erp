@@ -26,4 +26,11 @@ type Repository interface {
 	// Postgres no soporta un FK contra cada elemento de un array nativamente, así que la
 	// validación de "este código existe en el catálogo" se hace aquí, en código.
 	IsValidLiabilityCode(ctx context.Context, code string) (bool, error)
+
+	// GetTaxTypeName resuelve el nombre real de un código de tax_types — found=false (sin
+	// error) si el código no existe, igual criterio que los IsValid*: el llamador decide qué
+	// error de dominio lanzar. Existe para que issuers/customers/products/documents puedan
+	// derivar *_name desde *_code en vez de confiar en que el cliente los mande coherentes
+	// (ver docs/apidian-architecture.md).
+	GetTaxTypeName(ctx context.Context, code string) (name string, found bool, err error)
 }

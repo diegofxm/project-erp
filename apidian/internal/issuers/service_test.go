@@ -21,6 +21,14 @@ func (f *fakeCatalogPort) IsValidLiabilityCode(_ context.Context, _ string) (boo
 	return f.valid, nil
 }
 
+// GetTaxTypeName replica el subconjunto de tax_types que usan estos tests — "ZZ" es el
+// default real que applyDefaults aplica cuando el emisor no manda tax_scheme_code.
+func (f *fakeCatalogPort) GetTaxTypeName(_ context.Context, code string) (string, bool, error) {
+	names := map[string]string{"ZZ": "No aplica", "01": "IVA"}
+	name, ok := names[code]
+	return name, ok, nil
+}
+
 // newService usa un validador permisivo (nunca rechaza) — estos tests prueban lógica de
 // dominio (NIT duplicado, campos vacíos, actualización parcial...), no el parseo real de un
 // .p12. El parseo real se prueba aparte en TestUpdateIssuer_InvalidCertificate con un

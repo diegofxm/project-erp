@@ -98,6 +98,13 @@ func (f *fakeCatalogPort) IsValidLiabilityCode(_ context.Context, _ string) (boo
 	return f.validLiability, nil
 }
 
+// GetTaxTypeName replica el subconjunto de tax_types que usan estos tests.
+func (f *fakeCatalogPort) GetTaxTypeName(_ context.Context, code string) (string, bool, error) {
+	names := map[string]string{"ZZ": "No aplica", "01": "IVA"}
+	name, ok := names[code]
+	return name, ok, nil
+}
+
 func testIssuer() *issuers.Issuer {
 	cert, pwd := selfSignedTestP12()
 	return &issuers.Issuer{
@@ -148,15 +155,13 @@ func testRequest(issuerID, rangeID uuid.UUID) documents.IssueInvoiceRequest {
 			Identification: domain.Identification{Number: "222222222222", TypeCode: "13"},
 			Name:           "Consumidor Final",
 		},
-		Lines: []domain.Line{{
-			Description:        "Servicio de prueba",
-			Quantity:           1,
-			UnitCode:           "94",
-			LineExtensionCents: 10000,
-			UnitPriceCents:     10000,
-			Taxes: []domain.Tax{
-				{TaxableAmountCents: 10000, TaxAmountCents: 0, Percent: 0, TypeCode: "01", TypeName: "IVA"},
-			},
+		Lines: []documents.LineInput{{
+			Description:    "Servicio de prueba",
+			Quantity:       1,
+			UnitCode:       "94",
+			UnitPriceCents: 10000,
+			TaxTypeCode:    "01",
+			TaxPercent:     0,
 		}},
 		PaymentMeans: []domain.PaymentMean{{Code: "1", PaymentMethodCode: "10"}},
 	}
@@ -348,7 +353,6 @@ func TestUpdateInvoiceDraft_OK(t *testing.T) {
 
 	updated := testRequest(iss.ID, nr.ID)
 	updated.Lines[0].Description = "Servicio corregido"
-	updated.Lines[0].LineExtensionCents = 20000
 	updated.Lines[0].UnitPriceCents = 20000
 
 	got, err := svc.UpdateInvoiceDraft(context.Background(), draft.ID, updated)
@@ -608,15 +612,13 @@ func testNoteRequest(issuerID, rangeID uuid.UUID) documents.IssueNoteRequest {
 			Identification: domain.Identification{Number: "222222222222", TypeCode: "13"},
 			Name:           "Consumidor Final",
 		},
-		Lines: []domain.Line{{
-			Description:        "Anulación de servicio de prueba",
-			Quantity:           1,
-			UnitCode:           "94",
-			LineExtensionCents: 10000,
-			UnitPriceCents:     10000,
-			Taxes: []domain.Tax{
-				{TaxableAmountCents: 10000, TaxAmountCents: 0, Percent: 0, TypeCode: "01", TypeName: "IVA"},
-			},
+		Lines: []documents.LineInput{{
+			Description:    "Anulación de servicio de prueba",
+			Quantity:       1,
+			UnitCode:       "94",
+			UnitPriceCents: 10000,
+			TaxTypeCode:    "01",
+			TaxPercent:     0,
 		}},
 		PaymentMeans: []domain.PaymentMean{{Code: "1", PaymentMethodCode: "10"}},
 		BillingReference: documents.BillingReferenceInput{

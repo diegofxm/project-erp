@@ -21,6 +21,13 @@ func (f *fakeCatalogPort) IsValidLiabilityCode(_ context.Context, _ string) (boo
 	return f.valid, nil
 }
 
+// GetTaxTypeName replica el subconjunto de tax_types que usan estos tests.
+func (f *fakeCatalogPort) GetTaxTypeName(_ context.Context, code string) (string, bool, error) {
+	names := map[string]string{"ZZ": "No aplica", "01": "IVA"}
+	name, ok := names[code]
+	return name, ok, nil
+}
+
 func newService() *customers.Service {
 	return customers.New(customers.NewMemoryRepository(), &fakeCatalogPort{valid: true})
 }

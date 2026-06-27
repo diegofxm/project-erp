@@ -72,7 +72,7 @@ type IssueInvoiceRequest struct {
 	IssuerID         uuid.UUID
 	NumberingRangeID uuid.UUID
 	Customer         domain.Party
-	Lines            []domain.Line
+	Lines            []LineInput
 	PaymentMeans     []domain.PaymentMean
 	Note             string
 	CurrencyCode     string // default "COP" si vacío
@@ -88,7 +88,7 @@ type IssueNoteRequest struct {
 	IssuerID            uuid.UUID
 	NumberingRangeID    uuid.UUID
 	Customer            domain.Party
-	Lines               []domain.Line
+	Lines               []LineInput
 	PaymentMeans        []domain.PaymentMean
 	Note                string
 	CurrencyCode        string
@@ -121,6 +121,13 @@ func (s *Service) CreateInvoiceDraft(ctx context.Context, req IssueInvoiceReques
 		return nil, err
 	}
 	applyCustomerDefaults(&req.Customer)
+	if err := s.resolveCustomerTaxSchemeName(ctx, &req.Customer); err != nil {
+		return nil, err
+	}
+	lines, err := s.linesFromInput(ctx, req.Lines)
+	if err != nil {
+		return nil, err
+	}
 
 	draft := Document{
 		IssuerID:             req.IssuerID,
@@ -130,9 +137,9 @@ func (s *Service) CreateInvoiceDraft(ctx context.Context, req IssueInvoiceReques
 		Note:                 req.Note,
 		Customer:             req.Customer,
 		CustomerID:           req.CustomerID,
-		Lines:                req.Lines,
+		Lines:                lines,
 		PaymentMeans:         req.PaymentMeans,
-		Totals:               computeTotals(req.Lines),
+		Totals:               computeTotals(lines),
 		Status:               StatusDraft,
 	}
 	return s.repo.Create(ctx, draft)
@@ -153,6 +160,13 @@ func (s *Service) UpdateInvoiceDraft(ctx context.Context, id uuid.UUID, req Issu
 		return nil, err
 	}
 	applyCustomerDefaults(&req.Customer)
+	if err := s.resolveCustomerTaxSchemeName(ctx, &req.Customer); err != nil {
+		return nil, err
+	}
+	lines, err := s.linesFromInput(ctx, req.Lines)
+	if err != nil {
+		return nil, err
+	}
 
 	draft := Document{
 		ID:                   id,
@@ -163,9 +177,9 @@ func (s *Service) UpdateInvoiceDraft(ctx context.Context, id uuid.UUID, req Issu
 		Note:                 req.Note,
 		Customer:             req.Customer,
 		CustomerID:           req.CustomerID,
-		Lines:                req.Lines,
+		Lines:                lines,
 		PaymentMeans:         req.PaymentMeans,
-		Totals:               computeTotals(req.Lines),
+		Totals:               computeTotals(lines),
 		Status:               StatusDraft,
 	}
 	return s.repo.UpdateDraft(ctx, draft)
@@ -179,7 +193,10 @@ func (s *Service) CreateCreditNoteDraft(ctx context.Context, req IssueCreditNote
 	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, creditNoteDianDocumentType, req.CustomerID); err != nil {
 		return nil, err
 	}
-	draft := noteDraftFromRequest(req.IssueNoteRequest, creditNoteDianDocumentType)
+	draft, err := s.noteDraftFromRequest(ctx, req.IssueNoteRequest, creditNoteDianDocumentType)
+	if err != nil {
+		return nil, err
+	}
 	draft.NoteTypeCode = req.CreditNoteTypeCode
 	return s.repo.Create(ctx, draft)
 }
@@ -196,7 +213,10 @@ func (s *Service) UpdateCreditNoteDraft(ctx context.Context, id uuid.UUID, req I
 	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, creditNoteDianDocumentType, req.CustomerID); err != nil {
 		return nil, err
 	}
-	draft := noteDraftFromRequest(req.IssueNoteRequest, creditNoteDianDocumentType)
+	draft, err := s.noteDraftFromRequest(ctx, req.IssueNoteRequest, creditNoteDianDocumentType)
+	if err != nil {
+		return nil, err
+	}
 	draft.ID = id
 	draft.NoteTypeCode = req.CreditNoteTypeCode
 	return s.repo.UpdateDraft(ctx, draft)
@@ -210,7 +230,10 @@ func (s *Service) CreateDebitNoteDraft(ctx context.Context, req IssueNoteRequest
 	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, debitNoteDianDocumentType, req.CustomerID); err != nil {
 		return nil, err
 	}
-	draft := noteDraftFromRequest(req, debitNoteDianDocumentType)
+	draft, err := s.noteDraftFromRequest(ctx, req, debitNoteDianDocumentType)
+	if err != nil {
+		return nil, err
+	}
 	return s.repo.Create(ctx, draft)
 }
 
@@ -226,7 +249,10 @@ func (s *Service) UpdateDebitNoteDraft(ctx context.Context, id uuid.UUID, req Is
 	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, debitNoteDianDocumentType, req.CustomerID); err != nil {
 		return nil, err
 	}
-	draft := noteDraftFromRequest(req, debitNoteDianDocumentType)
+	draft, err := s.noteDraftFromRequest(ctx, req, debitNoteDianDocumentType)
+	if err != nil {
+		return nil, err
+	}
 	draft.ID = id
 	return s.repo.UpdateDraft(ctx, draft)
 }
@@ -256,7 +282,16 @@ func (s *Service) requireOwnDraft(ctx context.Context, issuerID, id uuid.UUID) e
 	return nil
 }
 
-func noteDraftFromRequest(req IssueNoteRequest, dianDocType string) Document {
+func (s *Service) noteDraftFromRequest(ctx context.Context, req IssueNoteRequest, dianDocType string) (Document, error) {
+	applyCustomerDefaults(&req.Customer)
+	if err := s.resolveCustomerTaxSchemeName(ctx, &req.Customer); err != nil {
+		return Document{}, err
+	}
+	lines, err := s.linesFromInput(ctx, req.Lines)
+	if err != nil {
+		return Document{}, err
+	}
+
 	d := Document{
 		IssuerID:             req.IssuerID,
 		NumberingRangeID:     req.NumberingRangeID,
@@ -265,16 +300,15 @@ func noteDraftFromRequest(req IssueNoteRequest, dianDocType string) Document {
 		Note:                 req.Note,
 		Customer:             req.Customer,
 		CustomerID:           req.CustomerID,
-		Lines:                req.Lines,
+		Lines:                lines,
 		PaymentMeans:         req.PaymentMeans,
-		Totals:               computeTotals(req.Lines),
+		Totals:               computeTotals(lines),
 		Status:               StatusDraft,
 	}
-	applyCustomerDefaults(&d.Customer)
 	billingRef := billingReferenceInputCopy(req.BillingReference)
 	d.BillingReference = &billingRef
 	d.DiscrepancyResponse = req.DiscrepancyResponse
-	return d
+	return d, nil
 }
 
 func billingReferenceInputCopy(b BillingReferenceInput) BillingReferenceInput {
@@ -755,7 +789,7 @@ func (s *Service) finish(ctx context.Context, d *Document, status Status, trackI
 // docs/apidian-architecture.md. Es un método de Service (no función libre) justo por esto:
 // necesita s.catalogs para consultar la base de datos. lines[].UnitCode NO se valida así —
 // ver el comentario de CatalogPort en ports.go.
-func (s *Service) validateBase(ctx context.Context, issuerID, rangeID uuid.UUID, lines []domain.Line, customer domain.Party, paymentMeans []domain.PaymentMean) error {
+func (s *Service) validateBase(ctx context.Context, issuerID, rangeID uuid.UUID, lines []LineInput, customer domain.Party, paymentMeans []domain.PaymentMean) error {
 	if issuerID == uuid.Nil {
 		return ErrMissingIssuer
 	}
@@ -902,9 +936,6 @@ func applyCustomerDefaults(p *domain.Party) {
 	}
 	if p.TaxSchemeCode == "" {
 		p.TaxSchemeCode = "ZZ"
-	}
-	if p.TaxSchemeName == "" {
-		p.TaxSchemeName = "No aplica"
 	}
 	if len(p.LiabilityCodes) == 0 {
 		p.LiabilityCodes = []string{"R-99-PN"}

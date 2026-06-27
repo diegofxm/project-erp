@@ -60,4 +60,11 @@ var (
 	// documento sin esos datos. Mensaje propio, más claro que el error de bajo nivel que
 	// lanzaría signer.LoadPKCS12 al recibir un certificado vacío.
 	ErrIssuerNotReadyToIssue = errors.New("documents: el emisor todavía no tiene software/certificado configurados — complétalos con PUT /issuers/me antes de confirmar")
+
+	// ErrInvalidTaxSchemeCode/ErrInvalidTaxTypeCode: el cliente ya no manda customer.
+	// tax_scheme_name ni lines[].tax_type_name (ver docs/apidian-architecture.md) — el
+	// servicio los deriva del catálogo a partir de sus códigos, y estos son los errores si
+	// esos códigos no existen en tax_types.
+	ErrInvalidTaxSchemeCode = errors.New("documents: tipo de régimen tributario del cliente (customer.tax_scheme_code) inválido")
+	ErrInvalidTaxTypeCode   = errors.New("documents: tipo de impuesto de línea (lines[].tax_type_code) inválido")
 )

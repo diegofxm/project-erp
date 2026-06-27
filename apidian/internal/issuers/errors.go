@@ -22,4 +22,8 @@ var (
 	// (ver CatalogPort en ports.go) — antes de esto, un código inválido aquí no se detectaba
 	// nunca en este servicio, solo al confirmar un documento con la DIAN rechazándolo.
 	ErrInvalidLiabilityCode = errors.New("issuers: responsabilidad fiscal (liability_codes) inválida")
+	// ErrInvalidTaxSchemeCode: el cliente ya no manda tax_scheme_name (ver
+	// docs/apidian-architecture.md) — el servicio lo deriva del catálogo a partir de
+	// TaxSchemeCode, y este es el error si ese código no existe en tax_types.
+	ErrInvalidTaxSchemeCode = errors.New("issuers: tipo de régimen tributario (tax_scheme_code) inválido")
 )

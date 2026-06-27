@@ -34,12 +34,14 @@ frameworks):
   adelante al dashboard definitivo en React+TS (título de este documento) en vez de seguir
   parchando este.
 
-## Hallazgos pendientes para el dashboard definitivo
+## Hallazgos pendientes para el dashboard definitivo (los 3 ya resueltos — ver "Factura Electrónica" más abajo)
 
 Encontrados probando el ciclo completo con el dashboard improvisado (plano, JS sin build
 step) — el usuario decidió explícitamente NO seguir parchando ese dashboard (quiere dedicar
 el esfuerzo al dashboard definitivo en vez de invertir más en el improvisado), así que estos
-quedan anotados para cuando se construya ese, no para arreglarse ahora.
+quedan anotados para cuando se construya ese, no para arreglarse ahora. **Resueltos los 3 al
+construir Factura Electrónica en el dashboard definitivo (2026-06-26)** — se deja el detalle
+histórico de abajo (por qué importaba cada uno) y se anota dónde quedó resuelto.
 
 ### 1. El snapshot de cliente en una factura nueva solo copia 4 campos del cliente guardado
 
@@ -325,14 +327,207 @@ estado de carga en absoluto): el botón "Crear cuenta" muestra el spinner mientr
 tarjeta vacía; el `<select>` de "Tipo de identificación" muestra "Cargando…" hasta que el
 catálogo llega. Sin errores de consola. Datos de prueba limpiados de la base real después.
 
+## Clientes (2026-06-26)
+
+Primera página real de "lista de registros" del frontend (las anteriores —`/issuers`— eran
+como máximo 2-3 botones, no una tabla). Backend ya completo (`internal/customers`), sin huecos
+que resolver antes — confirmado al revisar `handler_customers.go`/`service.go`/`errors.go`.
+
+- **`lib/customers.ts`** (nuevo, sin memoización — datos del tenant, no catálogo estático):
+  `listCustomers`/`createCustomer`/`updateCustomer`/`deleteCustomer`, mismo estilo que
+  `lib/numberingRanges.ts`.
+- **`components/customer-form/CustomerForm.tsx`** (nuevo): a diferencia de `CompanyForm`, un
+  solo formulario sin pestañas — un cliente tiene menos campos que una empresa (sin software/
+  certificado, sin CIIU, sin matrícula mercantil — `cofacture/domain/types.go` ya documenta que
+  esos campos "solo aplican al emisor, nunca al receptor"/"siempre nil para el receptor", así
+  que ni se piden). Misma grilla fija de 12 columnas y mismos hooks (`useCatalog`) que el resto
+  del frontend. El campo `address` del payload (`partyDTO` en apidian) usa nomenclatura UBL
+  genérica (`state_code`/`state_name`/`city_code`/`city_name`) en vez de
+  `department_code`/`municipality_code` como en `Issuer` — el formulario sigue usando los
+  mismos catálogos `listDepartments`/`listMunicipalities`, solo mapea código→nombre a mano al
+  enviar (a diferencia de `issuers`, que hace ese join del lado del servidor).
+- **`pages/CustomersPage.tsx`** (nuevo, ruta `/customers`, ítem de Sidebar habilitado): primera
+  tabla real de datos del frontend — cabecera `bg-tertiary`, filas en zebra striping, acciones
+  Editar/Eliminar por fila (iconos, sin confirmación con modal propio — `window.confirm` nativo
+  por ahora, no existe un componente de diálogo de confirmación todavía). Sin búsqueda ni
+  paginación a propósito (mismo criterio que `numbering.Repository.ListByIssuer`: no se agrega
+  hasta que haya suficientes datos reales para necesitarlo). El formulario de creación/edición
+  reemplaza la tabla mientras está abierto (mismo patrón que `IssuerManager`/
+  `NumberingRangesPanel`).
+- **Corrección de paso, encontrada al construir esto**: `CompanyForm`'s `TaxStep` nunca
+  actualizaba `tax_scheme_name` cuando el usuario cambiaba `tax_scheme_code` — se quedaba en el
+  default `"No aplica"` aunque el código elegido fuera, por ejemplo, `"01"` (IVA), mandando un
+  par código/nombre inconsistente a la DIAN. Corregido ahí mismo y aplicado correctamente desde
+  el principio en `CustomerForm`.
+
+Verificado con un navegador real: crear cliente (con departamento→municipio dependiente) →
+aparece en la tabla → editar (formulario prellenado) → cambia teléfono → se refleja en la tabla
+→ eliminar (confirmación nativa) → tabla vacía de nuevo. También verificado el fix de
+`tax_scheme_name` en `CompanyForm`: elegir "01 — IVA" y confirmar que la pestaña de Revisión
+muestra "01 — IVA", no el default. Sin errores de consola. Datos de prueba limpiados de la base
+real después.
+
+## Productos (2026-06-26)
+
+Mismo patrón que Clientes (ver sección anterior), backend ya completo
+(`internal/products`) — confirmado revisando `handler_products.go`/`service.go`/`errors.go`,
+sin huecos.
+
+- **`lib/products.ts`** (nuevo, sin memoización): `listProducts`/`createProduct`/
+  `updateProduct`/`deleteProduct`.
+- **`lib/catalogs.ts`** ganó `listUnitMeasures` (`GET /catalogs/unit-measures`) — catálogo
+  incompleto a propósito (11 de los cientos de códigos reales UN/ECE Rec. 20; por eso
+  `documents.Service` nunca lo valida del lado del servidor), pero un select con 11 opciones
+  reales sigue siendo mejor que un input de texto libre.
+- **`components/product-form/ProductForm.tsx`** (nuevo): un producto tiene menos campos que un
+  cliente o una empresa — sin identificación, sin dirección. Único punto delicado:
+  `unit_price_cents` viaja en centavos (mismo criterio que `domain.Line` en cofacture) pero el
+  formulario lo muestra y edita en pesos normales, convirtiendo al guardar/precargar
+  (`centsToAmount`/`× 100` al enviar) — mostrarle centavos crudos a quien llena el formulario
+  hubiera sido confuso. Mismo fix de `tax_type_name` derivado de la selección de
+  `tax_type_code` que ya se corrigió en `CompanyForm`/`CustomerForm`, aplicado bien desde el
+  principio aquí.
+- **`pages/ProductsPage.tsx`** (nuevo, ruta `/products`, ítem de Sidebar habilitado): misma
+  tabla con cabecera `bg-tertiary` y zebra striping que `CustomersPage`, precio formateado con
+  `Intl.NumberFormat("es-CO", { style: "currency", currency: "COP" })`.
+
+Verificado con un navegador real: crear producto (unidad de medida + impuesto por defecto) →
+aparece en la tabla con el precio formateado en pesos → editar (precio prellenado
+correctamente de vuelta en pesos, no en centavos) → cambia precio → eliminar → tabla vacía de
+nuevo. Sin errores de consola. Datos de prueba limpiados de la base real después.
+
+## Sidebar: grupo "Documentos" expandible, se quita "Numeración" (2026-06-26)
+
+El usuario notó que el ítem "Numeración" del Sidebar ya no tenía sentido como entrada propia
+— la creación de resoluciones vive en Configuración → Empresa desde la Fase 1.7, y nunca llegó
+a tener una página dedicada. Se eliminó del todo (no solo deshabilitado).
+
+Para Facturas/Notas, en vez de un ítem plano "Facturas" se decidió un grupo expandible
+**"Documentos"** con tres hijos: Factura Electrónica, Nota Crédito, Nota Débito — razón: el
+backend ya maneja los 3 bajo un único `documents.Service` (mismo ciclo borrador→confirmar,
+mismo `dian_document_type_code` los distingue), así que la navegación los agrupa igual en vez
+de inventar 3 ítems de primer nivel sueltos. El patrón de árbol expandible (chevron que rota
+90° al expandir/contraer) no es nuevo — ya lo describe `docs/reference/DESIGN_SYSTEM.md` secc.
+6 para el sidebar original (conexiones → tablas), solo que el dashboard nuevo nunca lo había
+necesitado hasta ahora.
+
+- `components/Sidebar.tsx`: `NAV_ITEMS` pasa de una lista plana a una mezcla de hojas
+  (`NavLeaf`) y grupos (`NavGroup`, con `children: NavLeaf[]`). Estado de expansión por grupo
+  persistido en `localStorage` (`apidian.sidebarExpandedGroups`), "Documentos" expandido por
+  default. Si el Sidebar completo está colapsado (modo solo-iconos), los grupos no se pueden
+  expandir — no hay espacio para mostrar hijos, mismo criterio que ya aplicaba a las etiquetas
+  de las hojas.
+- Los 3 hijos de "Documentos" siguen deshabilitados ("próximamente") — construir la página de
+  Facturas es la pieza más grande que falta y necesita su propia sesión de planeación (ver
+  "Pendiente" abajo), esta sesión solo resolvió la navegación.
+
+Verificado con un navegador real: "Numeración" ya no aparece en ningún lado; "Documentos"
+aparece expandido por default mostrando sus 3 hijos; clic en "Documentos" colapsa/expande
+correctamente; colapsar el Sidebar completo oculta los hijos sin romper nada. Sin errores de
+consola.
+
+## Simplificación: `tax_scheme_name`/`tax_type_name` ya no se mandan (2026-06-26)
+
+Al planear la construcción de Factura, se encontró (y se corrigió en el backend, ver
+`docs/apidian-architecture.md` sección 9.37) que `tax_scheme_name` (empresa/cliente) y
+`tax_type_name` (producto) ahora se derivan del catálogo `tax_types` a partir del código — el
+backend ya no acepta ni confía en el nombre que mande el cliente. Esto vuelve innecesaria la
+lógica que esta misma sesión había agregado un poco antes (`handleTaxSchemeChange`/
+`handleTaxTypeChange`, que derivaban el nombre en el `<select>` para no mandarlo
+desincronizado): se quitó por completo de `CompanyForm`/`TaxStep`, `CustomerForm` y
+`ProductForm` — los `<select>` de tipo de impuesto vuelven a ser un simple `onChange` que solo
+actualiza el código, sin estado ni derivación para el nombre. El `<select>` sigue mostrando
+"código — nombre" para elegir (viene del catálogo), solo que ya no hace falta mandar el nombre
+de vuelta al guardar.
+
+`CreateIssuerPayload` perdió el campo `tax_scheme_name` del todo (issuers nunca lo expuso en la
+respuesta, era puramente de escritura). `CustomerPayload`/`ProductPayload` lo conservan en
+`lib/types.ts`: la respuesta del backend sigue incluyéndolo (ahora siempre correcto), así que
+sigue siendo un campo legítimo de lectura — solo que ningún formulario lo vuelve a escribir.
+
+Verificado con un navegador real + inspección directa de Postgres: crear empresa/cliente/
+producto eligiendo "01 — IVA" (no el default) y confirmar que `tax_scheme_name`/`tax_type_name`
+quedan en `"IVA"` en la base, sin que el frontend lo haya mandado.
+
+## Factura Electrónica — construcción del borrador y transmisión a la DIAN (2026-06-26)
+
+Pedido explícito: usar todos los campos ya construidos de issuers/customers/products para
+armar la factura, primero la construcción del borrador, después la transmisión — en ese orden
+("primero la construcción de factura, luego la transmisión por favor"). Antes de empezar se
+encontró (y se corrigió en el backend, ver `docs/apidian-architecture.md` sección 9.37) que
+`computeTotals`/`aggregateTaxes` eran pass-through puro — esto determinó el contrato que el
+formulario nuevo termina usando: cantidad/precio/% de impuesto, nunca montos ya calculados.
+
+**Tipos y cliente HTTP**: `lib/types.ts` ganó `DocumentLineInput`/`DocumentLine`/`Tax`/
+`PaymentMean`/`Totals`/`IssueInvoicePayload`/`Document` (espejo de `documentResponse`, sin
+`billing_reference`/`discrepancy_response`/`note_type_code` — esos son solo de Nota Crédito/
+Nota Débito, que no tienen UI todavía). `lib/documents.ts` (nuevo): CRUD de borradores +
+`confirmDocument`; `lineToInput` es el inverso de lo que calcula el servidor, para poder
+re-editar un borrador ya guardado sin mostrar campos calculados como si fueran editables.
+`lib/catalogs.ts` ganó `listPaymentTerms`/`listPaymentMethods`; `listNumberingRanges` ganó un
+filtro opcional por `dian_document_type_code`. `lib/invoiceMath.ts` (nuevo) replica la misma
+fórmula que el servidor — **solo para la vista previa** mientras se escribe, nunca la fuente
+de verdad final (eso siempre es la respuesta del servidor tras guardar). `lib/currency.ts`
+(nuevo) — `formatCOP`/`centsToAmount`/`amountToCents` compartidos por los componentes nuevos
+(no se tocó el `centsToAmount`/`formatCOP` propios que ya tenían `ProductForm`/`ProductsPage`,
+para no arriesgar algo ya verificado sin necesidad).
+
+**Componentes**: `components/party-fields/PartyFields.tsx` (nuevo, extraído de
+`CustomerForm`) — los campos de un `CustomerPayload` como componente controlado
+(`value`/`onChange`), reusado por `CustomerForm` y por la sección de cliente de Factura.
+`components/invoice-form/`: `CustomerSection` (selector de cliente guardado — copia TODOS los
+campos vía `customers.customerToPayload`, resuelve el hallazgo "snapshot incompleto" de la
+Fase 1 — + `PartyFields` editable debajo), `LineItemsEditor` (selector de producto guardado o
+entrada manual, vista previa de cada línea con `invoiceMath`), `PaymentMeansEditor` (resuelve
+el hallazgo "PaymentMeans nunca se pide" de la Fase 1 — obligatorio, no se puede enviar el
+formulario sin al menos una), `TotalsSummary`, `StatusBadge` (estados de `Document`, mismos
+tokens pastel que `Banner`), `InvoiceForm` (junta todo + selector de rango de numeración
+filtrado a Factura con "Próximo número: N" — resuelve el hallazgo "sin claridad del
+consecutivo" de la Fase 1).
+
+**Páginas y rutas**: `pages/InvoicesPage.tsx` (`/documents/invoices`, lista) y
+`pages/InvoiceEditorPage.tsx` (`/documents/invoices/:id` — primer parámetro de ruta dinámico
+de este frontend; `:id === "new"` crea, `draft` edita, cualquier otro estado es solo lectura
+con el bloque de estado DIAN). `components/Sidebar.tsx`: "Factura Electrónica" pasó de
+deshabilitada a su página real (Nota Crédito/Nota Débito siguen deshabilitadas, sin UI propia
+todavía).
+
+**Transmisión a la DIAN**: en `InvoiceEditorPage`, con el borrador en `status === "draft"`,
+botón "Confirmar y enviar" — deshabilitado con aviso si el emisor activo no tiene
+`has_software_credentials`/`has_certificate`. Al confirmar, recarga el documento y muestra
+CUFE, enlace a la representación gráfica de la DIAN, y el bloque de estado (`dian_status_code`/
+`dian_status_description`/`dian_status_message`).
+
+**Limitación deliberada** (anotada, no se construye ahora): 0 o 1 impuesto por línea — la DIAN
+permite más, pero es el caso avanzado que se agrega cuando haga falta de verdad. Tampoco hay
+UI para líneas sin cargo (`free_of_charge`/`reference_price`, muestras comerciales).
+
+**Verificado con un navegador real** (datos QA descartables): crear empresa/cliente/producto
+→ crear factura (cliente guardado, línea con producto guardado, forma de pago) → el total
+mostrado coincidió exactamente con el que devolvió el servidor tras guardar → editar (cambiar
+cantidad, recalculó bien, `PUT` 200) → listar → eliminar. 0 errores de consola. Los dos
+"bugs" que parecían reales en el camino resultaron ser artefactos del propio script de
+verificación (navegar/cerrar el navegador antes de que la petición —de ~1.5-2s— terminara,
+cancelando el contexto en el servidor), no del producto.
+
+**Verificado contra la DIAN real** (sandbox de habilitación, NIT 6382356, ver
+`docs/apidian-architecture.md` sección 9.38 para el detalle): confirmar una factura desde la
+UI nueva construyó, firmó, envió y mostró la respuesta real de la DIAN de punta a punta —
+**autorizada** (`StatusCode "00"`, `"La Factura electrónica SETP990000001, ha sido
+autorizada."`). En el camino se encontró que el rango de numeración real seguía configurado
+con un `test_set_id` obsoleto (de antes de que existiera `SendBillSync`), corregido
+directamente en la base — ver el detalle en la sección 9.38, no es un hallazgo de frontend.
+
 ## Pendiente para próximas fases
 
-- Páginas reales para Facturas/Clientes/Productos (hoy son items de sidebar deshabilitados, sin
-  ruta). El ítem "Numeración" del Sidebar sigue deshabilitado a propósito — sigue siendo una
-  página distinta (pensada para historial/consumo de cada rango), separada de la creación
-  básica de resoluciones ya disponible en Configuración → Empresa desde la Fase 1.7.
+- Nota Crédito/Nota Débito siguen sin página propia (deshabilitadas en el Sidebar) — mismo
+  patrón que Factura Electrónica, reusando `IssueNoteRequest`/`BillingReference`/
+  `DiscrepancyResponse`, ya soportados en el backend.
 - Endpoint para editar perfil de usuario (nombre/correo) — hoy Configuración → Mi cuenta es de
   solo lectura porque no existe.
-- Los 3 hallazgos ya logueados arriba (snapshot de cliente incompleto, payment_means en el
-  formulario de factura, claridad del consecutivo actual) siguen pendientes para cuando se
-  construya la página de Facturas real.
+- Componente de diálogo de confirmación reutilizable — `CustomersPage`/`ProductsPage`/
+  `InvoiceEditorPage` usan `window.confirm` nativo para eliminar/confirmar; vale la
+  pena un componente propio en vez de seguir repitiendo el nativo del navegador.
+- ~~Los 3 hallazgos ya logueados arriba (snapshot de cliente incompleto, payment_means en el
+  formulario de factura, claridad del consecutivo actual)~~ — resueltos al construir Factura
+  Electrónica (ver sección de arriba).

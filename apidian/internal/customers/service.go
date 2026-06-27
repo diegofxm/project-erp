@@ -24,6 +24,9 @@ func New(repo Repository, catalogPort CatalogPort) *Service {
 
 // CreateCustomer valida y persiste un cliente nuevo.
 func (s *Service) CreateCustomer(ctx context.Context, issuerID uuid.UUID, party domain.Party) (*Customer, error) {
+	if err := s.resolveTaxSchemeName(ctx, &party); err != nil {
+		return nil, err
+	}
 	if err := s.validateParty(ctx, party); err != nil {
 		return nil, err
 	}
@@ -42,6 +45,9 @@ func (s *Service) ListCustomers(ctx context.Context, issuerID uuid.UUID) ([]*Cus
 
 // UpdateCustomer reemplaza los datos de un cliente existente del emisor dado.
 func (s *Service) UpdateCustomer(ctx context.Context, issuerID, id uuid.UUID, party domain.Party) (*Customer, error) {
+	if err := s.resolveTaxSchemeName(ctx, &party); err != nil {
+		return nil, err
+	}
 	if err := s.validateParty(ctx, party); err != nil {
 		return nil, err
 	}
@@ -52,6 +58,28 @@ func (s *Service) UpdateCustomer(ctx context.Context, issuerID, id uuid.UUID, pa
 // conservan su propio snapshot (ver model.go).
 func (s *Service) DeleteCustomer(ctx context.Context, issuerID, id uuid.UUID) error {
 	return s.repo.Delete(ctx, issuerID, id)
+}
+
+// resolveTaxSchemeName deriva TaxSchemeName del catálogo tax_types a partir de
+// TaxSchemeCode — el cliente ya no puede mandar el nombre (ver partyDTO en
+// internal/api/dto.go), así ningún consumidor de la API puede guardar un código y un nombre
+// que no correspondan entre sí. A diferencia de issuers (donde siempre hay un default "ZZ"),
+// en customers TaxSchemeCode es opcional: vacío significa "sin régimen tributario registrado
+// para este cliente", se omite la derivación.
+func (s *Service) resolveTaxSchemeName(ctx context.Context, p *domain.Party) error {
+	if p.TaxSchemeCode == "" {
+		p.TaxSchemeName = ""
+		return nil
+	}
+	name, found, err := s.catalogs.GetTaxTypeName(ctx, p.TaxSchemeCode)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("%w: %q", ErrInvalidTaxSchemeCode, p.TaxSchemeCode)
+	}
+	p.TaxSchemeName = name
+	return nil
 }
 
 // validateParty es un método de Service (no función libre) porque valida LiabilityCodes

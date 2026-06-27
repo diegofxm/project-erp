@@ -32,7 +32,7 @@ import (
 type issueInvoiceRequest struct {
 	NumberingRangeID string           `json:"numbering_range_id"`
 	Customer         partyDTO         `json:"customer"`
-	Lines            []lineDTO        `json:"lines"`
+	Lines            []lineInputDTO   `json:"lines"`
 	PaymentMeans     []paymentMeanDTO `json:"payment_means,omitempty"`
 	Note             string           `json:"note,omitempty"`
 	CurrencyCode     string           `json:"currency_code,omitempty"`
@@ -48,7 +48,7 @@ type issueInvoiceRequest struct {
 type issueNoteRequest struct {
 	NumberingRangeID    string                  `json:"numbering_range_id"`
 	Customer            partyDTO                `json:"customer"`
-	Lines               []lineDTO               `json:"lines"`
+	Lines               []lineInputDTO          `json:"lines"`
 	PaymentMeans        []paymentMeanDTO        `json:"payment_means,omitempty"`
 	Note                string                  `json:"note,omitempty"`
 	CurrencyCode        string                  `json:"currency_code,omitempty"`
@@ -220,7 +220,7 @@ func decodeIssueInvoiceRequest(w http.ResponseWriter, r *http.Request) (document
 		IssuerID:         middleware.GetTenantID(r.Context()),
 		NumberingRangeID: rangeID,
 		Customer:         req.Customer.toDomain(),
-		Lines:            linesToDomain(req.Lines),
+		Lines:            linesToInput(req.Lines),
 		PaymentMeans:     paymentMeansToDomain(req.PaymentMeans),
 		Note:             req.Note,
 		CurrencyCode:     req.CurrencyCode,
@@ -337,7 +337,7 @@ func toServiceNoteRequest(w http.ResponseWriter, issuerID uuid.UUID, req issueNo
 		IssuerID:         issuerID,
 		NumberingRangeID: rangeID,
 		Customer:         req.Customer.toDomain(),
-		Lines:            linesToDomain(req.Lines),
+		Lines:            linesToInput(req.Lines),
 		PaymentMeans:     paymentMeansToDomain(req.PaymentMeans),
 		Note:             req.Note,
 		CurrencyCode:     req.CurrencyCode,

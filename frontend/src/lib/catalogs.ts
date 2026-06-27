@@ -42,6 +42,27 @@ export const listDianDocumentTypes = memoized(async () => {
   return res.dian_document_types;
 });
 
+// payment_terms (forma de pago: "1" contado/"2" crédito) y payment_methods (medio de pago:
+// efectivo, transferencia, etc.) — payment_means de un documento necesita un código de cada
+// uno (ver documents.PaymentMean).
+export const listPaymentTerms = memoized(async () => {
+  const res = await apiClient.get<{ payment_terms: CatalogEntry[] }>("/catalogs/payment-terms");
+  return res.payment_terms;
+});
+
+export const listPaymentMethods = memoized(async () => {
+  const res = await apiClient.get<{ payment_methods: CatalogEntry[] }>("/catalogs/payment-methods");
+  return res.payment_methods;
+});
+
+// Catálogo incompleto a propósito (11 de los cientos de códigos reales UN/ECE Rec. 20) — se
+// usa igual aquí porque un select con 11 opciones reales es mejor que un input de texto libre,
+// y no se valida del lado del servidor por la misma razón (ver documents.Service).
+export const listUnitMeasures = memoized(async () => {
+  const res = await apiClient.get<{ unit_measures: CatalogEntry[] }>("/catalogs/unit-measures");
+  return res.unit_measures;
+});
+
 const municipalitiesCache = new Map<string, Municipality[]>();
 
 export async function listMunicipalities(departmentCode: string): Promise<Municipality[]> {

@@ -1661,3 +1661,100 @@ agregaron dos booleanos calculados (`iss.SoftwareID != "" && iss.SoftwarePIN != 
 esquema — propagan automáticamente a todas las respuestas que ya pasaban por
 `issuerToResponse` (`GET/PUT /issuers/me`, y el campo `issuer` de `authResponse` en
 login/register/crear empresa/seleccionar empresa).
+
+### 9.37 El backend calcula, no confía — aritmética de líneas y nombres derivados del catálogo
+
+Motivado por construir el formulario de Factura Electrónica: al revisar cómo
+`documents.Service` iba a recibir las líneas, se encontró que `computeTotals`/`aggregateTaxes`
+eran **pass-through puro** — solo sumaban `line_extension_cents`/`taxes[].tax_amount_cents` que
+ya vinieran calculados en la petición, sin verificar que de verdad fueran cantidad×precio o
+impuesto×porcentaje. Cualquier consumidor de la API (este frontend u otro) tenía que
+reimplementar esa aritmética correctamente y sin ningún tipo de red de seguridad del lado del
+servidor — para documentos legales firmados y enviados a la DIAN, ese es un riesgo real, no
+cosmético.
+
+Buscando el mismo patrón en el resto de la API se encontró una anomalía hermana, presente desde
+antes: `tax_scheme_code`/`tax_scheme_name` (issuers, customers) y `tax_type_code`/
+`tax_type_name` (products) eran pares que el cliente mandaba por separado, sin que el backend
+verificara que el nombre correspondiera de verdad al código — la única corrección que existía
+era del lado del frontend (un `<select>` que derivaba el nombre al elegir el código), no en el
+backend. Mismo principio en los dos casos: el backend debe derivar/calcular valores que
+dependen de otros campos, nunca confiar en que el cliente los mande coherentes.
+
+**Nombres derivados del catálogo, no del cliente:**
+- `catalogs.Repository` ganó `GetTaxTypeName(ctx, code) (name string, found bool, err error)`
+  — mismo patrón que `IsValidLiabilityCode` (un booleano de "se encontró", el llamador decide
+  qué error de dominio lanzar).
+- `issuers`/`customers`: `CatalogPort` ganó ese método; `createIssuerRequest` y `partyDTO`
+  dejaron de ser fuente de verdad para `tax_scheme_name` — `issuers.Service.RegisterIssuer`/
+  `customers.Service.CreateCustomer`/`UpdateCustomer` lo derivan de `tax_scheme_code` justo
+  después de aplicar los defaults de siempre. `createIssuerRequest` perdió el campo por
+  completo (issuers nunca lo expuso en la respuesta); `partyDTO` lo conserva para la respuesta
+  de customers (sigue siendo información real, solo que ya no se confía en lo que llega).
+- `products`: no tenía ningún `CatalogPort` — se agregó (`internal/products/ports.go`, nuevo),
+  igual que `New(repo, catalogPort)`. `productRequest` perdió `tax_type_name`.
+- `documents`: `applyCustomerDefaults` (ya derivaba `EntityTypeCode`/`TaxSchemeCode`/
+  `LiabilityCodes`) ganó la derivación de `TaxSchemeName` en el mismo lugar, así que cubre
+  tanto un cliente guardado (ya viene correcto desde `customers`) como uno capturado a mano al
+  facturar.
+- Nuevos errores `ErrInvalidTaxSchemeCode`/`ErrInvalidTaxTypeCode` por paquete, mapeados a 400.
+
+**Aritmética de líneas, no pass-through:** `internal/documents` ganó un tipo nuevo,
+`LineInput` (`description/quantity/unit_code/unit_price_cents/item_code/item_type_*/
+tax_type_code/tax_percent` — sin `line_extension_cents` ni `taxes[]`), que reemplaza a
+`domain.Line` como tipo de **entrada** en `IssueInvoiceRequest.Lines`/`IssueNoteRequest.Lines`.
+`domain.Line` no cambió — sigue siendo la forma ya calculada que cofacture necesita para
+construir el XML; este cambio vive enteramente en `internal/documents`, sin tocar cofacture.
+`(s *Service) linesFromInput(ctx, []LineInput) ([]domain.Line, error)` (nuevo,
+`internal/documents/lines.go`) calcula `LineExtensionCents = round(Quantity × UnitPriceCents)`
+y, si `TaxTypeCode != ""`, resuelve el nombre vía `GetTaxTypeName` y calcula
+`TaxAmountCents = round(LineExtensionCents × TaxPercent / 100)` — soporta 0 o 1 impuesto por
+línea (el caso común; la DIAN permite más, pero es el caso avanzado que se agrega cuando haga
+falta de verdad). `CreateInvoiceDraft`/`UpdateInvoiceDraft`/`noteDraftFromRequest` (ahora método,
+ya que necesita `ctx`+catálogo) llaman esto antes de `computeTotals` — que sigue exactamente
+igual, ya hacía bien su parte (sumar), solo agregaba lo que ya estaba mal calculado más abajo.
+
+En `apidian/internal/api/dto.go`, `lineDTO` (forma de salida, ya calculada — la sigue usando
+`documentResponse`) se acompañó de un `lineInputDTO` nuevo (forma de entrada, sin aritmética);
+`linesToDomain` se reemplazó por `linesToInput`. El contrato JSON de una línea al crear/editar
+un borrador quedó simétrico con `products.Product` (precio + impuesto por defecto, sin
+aritmética) — no por casualidad, es la misma idea aplicada en los dos lugares.
+
+Verificado: `go test ./...` limpio en `apidian` (incluye los fixtures de
+`internal/documents/service_test.go`, que pasaron de líneas pre-calculadas a `LineInput`); y
+con un navegador real — crear empresa/cliente/producto eligiendo un impuesto distinto al
+default ("01" IVA) y confirmar contra Postgres que el nombre persistido es el real del
+catálogo, no algo que el frontend mandara (porque ya no manda nada: ver
+`docs/frontend-architecture.md`).
+
+### 9.38 Factura Electrónica end-to-end contra la DIAN real — `test_set_id` huérfano en el rango ya registrado
+
+Al verificar el nuevo botón "Confirmar y enviar" (frontend, ver `docs/frontend-architecture.md`)
+contra el emisor real del usuario (NIT 6382356, rango `SETP` 990000000–995000000 ya
+registrado en sesiones anteriores), el primer intento devolvió `StatusCode "2"`/`IsValid
+false` ("Set de prueba ... se encuentra Aceptado") — el mismo síntoma ya documentado en la
+sección 9.10. La causa: ese rango **todavía tenía `test_set_id` cargado** desde antes de que
+existiera `SendBillSync` (sección 9.14/9.15) — `finalizeAndSend` sigue enrutando por
+`TestSetID presente → SendTestSetAsync` aunque ese camino ya no sirva para nada (el set de
+pruebas oficial está cerrado desde hace varias fases), en vez de `SendBillSync` (el camino que
+la 9.14 ya probó que SÍ sigue funcionando contra habilitación con el set cerrado).
+
+No hay `PUT /numbering-ranges/{id}` (nunca hizo falta uno hasta ahora) — se corrigió
+directamente en la base de datos, mismo criterio que el fix del emisor real en la sección
+9.29. Al hacerlo apareció un bug real de paso: poner `test_set_id = NULL` (en vez de `''`)
+rompió `GET /numbering-ranges` con un 500 — `numbering.NumberingRange.TestSetID` es un
+`string` plano, sin envoltorio nullable, y `internal/numbering/postgres.go` lo escanea
+directo (`&nr.TestSetID`) asumiendo que la columna nunca es `NULL` a nivel de fila (solo
+`''`/vacío) aunque la columna en sí no tiene `NOT NULL`. Corregido a `''`. **No se tocó
+código** — es un recordatorio de que esa columna admite `NULL` en el esquema pero el código
+nunca lo espera; si alguna vez se agrega una migración para esa tabla, vale la pena agregarle
+`NOT NULL DEFAULT ''` para que esto no se pueda repetir.
+
+Con el rango ya corregido, la factura de prueba se confirmó de nuevo: la DIAN la **autorizó**
+de verdad — `StatusCode "00"`, `"Procesado Correctamente."`, `"La Factura electrónica
+SETP990000001, ha sido autorizada."` — construida/firmada/enviada/consultada/mostrada de
+punta a punta a través de la UI nueva. El número 990000001 había sido reclamado y liberado una
+vez antes (rechazo real de la sección 9.30, ya corregido); quedó consumido de verdad esta vez.
+Verificación hecha con un usuario de prueba vinculado por `user_issuers` al emisor real (sin
+tocar la cuenta ni el borrador propios del usuario, que seguían en uso en paralelo) — limpiado
+todo lo propio de la verificación al terminar.

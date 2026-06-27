@@ -10,8 +10,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// fakeCatalogPort replica el subconjunto de tax_types que usan estos tests.
+type fakeCatalogPort struct{}
+
+func (fakeCatalogPort) GetTaxTypeName(_ context.Context, code string) (string, bool, error) {
+	names := map[string]string{"ZZ": "No aplica", "01": "IVA"}
+	name, ok := names[code]
+	return name, ok, nil
+}
+
 func newService() *products.Service {
-	return products.New(products.NewMemoryRepository())
+	return products.New(products.NewMemoryRepository(), fakeCatalogPort{})
 }
 
 func validProduct() products.Product {

@@ -21,22 +21,24 @@ import (
 // internal/issuers antes de guardar (AES-256-GCM) y NUNCA se devuelven en la respuesta — ver
 // issuerResponse.
 type createIssuerRequest struct {
-	NIT                    string   `json:"nit"`
-	CheckDigit             string   `json:"check_digit"`
-	BusinessName           string   `json:"business_name"`
-	TradeName              string   `json:"trade_name,omitempty"`
-	IdentificationTypeCode string   `json:"identification_type_code"`
-	DepartmentCode         string   `json:"department_code"`
-	MunicipalityCode       string   `json:"municipality_code"`
-	AddressLine            string   `json:"address_line"`
-	Email                  string   `json:"email"`
-	Phone                  string   `json:"phone,omitempty"`
-	Environment            string   `json:"environment"`
-	EntityTypeCode         string   `json:"entity_type_code,omitempty"`
-	TaxSchemeCode          string   `json:"tax_scheme_code,omitempty"`
-	TaxSchemeName          string   `json:"tax_scheme_name,omitempty"`
-	LiabilityCodes         []string `json:"liability_codes,omitempty"`
-	TaxRegimeCode          *string  `json:"tax_regime_code,omitempty"`
+	NIT                    string `json:"nit"`
+	CheckDigit             string `json:"check_digit"`
+	BusinessName           string `json:"business_name"`
+	TradeName              string `json:"trade_name,omitempty"`
+	IdentificationTypeCode string `json:"identification_type_code"`
+	DepartmentCode         string `json:"department_code"`
+	MunicipalityCode       string `json:"municipality_code"`
+	AddressLine            string `json:"address_line"`
+	Email                  string `json:"email"`
+	Phone                  string `json:"phone,omitempty"`
+	Environment            string `json:"environment"`
+	EntityTypeCode         string `json:"entity_type_code,omitempty"`
+	// TaxSchemeCode es el único campo que se manda — TaxSchemeName se deriva del catálogo
+	// tax_types en issuers.Service, nunca se acepta del cliente (ver
+	// docs/apidian-architecture.md).
+	TaxSchemeCode  string   `json:"tax_scheme_code,omitempty"`
+	LiabilityCodes []string `json:"liability_codes,omitempty"`
+	TaxRegimeCode  *string  `json:"tax_regime_code,omitempty"`
 	// IndustryClassificationCodes son los códigos CIIU (catálogo DANE, no DIAN) — máximo 4
 	// (1 actividad principal + hasta 3 secundarias, ver issuers.ErrTooManyIndustryClassificationCodes).
 	IndustryClassificationCodes []string `json:"industry_classification_codes,omitempty"`
@@ -98,7 +100,6 @@ func issuerFromRequest(req createIssuerRequest, cert []byte) issuers.Issuer {
 		Environment:                 issuers.Environment(req.Environment),
 		EntityTypeCode:              req.EntityTypeCode,
 		TaxSchemeCode:               req.TaxSchemeCode,
-		TaxSchemeName:               req.TaxSchemeName,
 		LiabilityCodes:              req.LiabilityCodes,
 		TaxRegimeCode:               req.TaxRegimeCode,
 		IndustryClassificationCodes: req.IndustryClassificationCodes,

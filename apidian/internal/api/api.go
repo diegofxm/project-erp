@@ -44,7 +44,7 @@ func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byt
 	issuerSvc := issuers.New(issuers.NewPostgresRepository(db.Pool, issuerSecretsKey), documents.ValidateCertificate, catalogsRepo)
 	numberingSvc := numbering.New(numbering.NewPostgresRepository(db.Pool, issuerSecretsKey))
 	customersSvc := customers.New(customers.NewPostgresRepository(db.Pool), catalogsRepo)
-	productsSvc := products.New(products.NewPostgresRepository(db.Pool))
+	productsSvc := products.New(products.NewPostgresRepository(db.Pool), catalogsRepo)
 	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc, customersSvc, catalogsRepo)
 	tokens := auth.NewTokenIssuer(authJWTSecret)
 	authSvc := auth.New(auth.NewPostgresRepository(db.Pool), issuerSvc, tokens)

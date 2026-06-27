@@ -101,6 +101,15 @@ func (r *MemoryRepository) IsValidLiabilityCode(_ context.Context, code string) 
 	return containsCode(r.liabilityCodes, code), nil
 }
 
+func (r *MemoryRepository) GetTaxTypeName(_ context.Context, code string) (string, bool, error) {
+	for _, e := range r.taxTypes {
+		if e.Code == code {
+			return e.Name, true, nil
+		}
+	}
+	return "", false, nil
+}
+
 func containsCode(entries []Entry, code string) bool {
 	for _, e := range entries {
 		if e.Code == code {

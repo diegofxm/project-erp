@@ -72,7 +72,7 @@ func newTestEnvWithOrigins(t *testing.T, allowedOrigins []string) *testEnv {
 	issuerSvc := issuers.New(issuers.NewMemoryRepository(), documents.ValidateCertificate, catalogsRepo)
 	numberingSvc := numbering.New(numbering.NewMemoryRepository())
 	customersSvc := customers.New(customers.NewMemoryRepository(), catalogsRepo)
-	productsSvc := products.New(products.NewMemoryRepository())
+	productsSvc := products.New(products.NewMemoryRepository(), catalogsRepo)
 	docsSvc := documents.New(documents.NewMemoryRepository(), issuerSvc, numberingSvc, customersSvc, catalogsRepo)
 	tokens := auth.NewTokenIssuer([]byte("clave-de-prueba-no-usar-en-produccion"))
 	authSvc := auth.New(auth.NewMemoryRepository(), issuerSvc, tokens)

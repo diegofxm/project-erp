@@ -35,7 +35,6 @@ const EMPTY_FORM: CreateIssuerPayload = {
   environment: "2",
   entity_type_code: "",
   tax_scheme_code: "ZZ",
-  tax_scheme_name: "No aplica",
   liability_codes: ["R-99-PN"],
   tax_regime_code: "",
   industry_classification_codes: [],

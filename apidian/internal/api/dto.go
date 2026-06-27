@@ -1,6 +1,9 @@
 package api
 
-import "github.com/diegofxm/cofacture/domain"
+import (
+	"github.com/diegofxm/apidian/internal/documents"
+	"github.com/diegofxm/cofacture/domain"
+)
 
 // Los DTOs de este archivo son el contrato JSON público de la API — deliberadamente
 // independientes de los structs de dominio de cofacture (que no tienen tags json y pueden
@@ -68,6 +71,28 @@ type lineDTO struct {
 	ItemTypeName       string             `json:"item_type_name,omitempty"`
 	ItemTypeAgencyID   string             `json:"item_type_agency_id,omitempty"`
 	Taxes              []taxDTO           `json:"taxes,omitempty"`
+}
+
+// lineInputDTO es la forma de ENTRADA de una línea — sin line_extension_cents ni taxes[]:
+// documents.Service.linesFromInput (vía linesToInput) calcula esos valores a partir de
+// quantity/unit_price_cents/tax_percent, así ningún consumidor de la API tiene que
+// reimplementar esa aritmética ni puede mandarla inconsistente (hallazgo de la auditoría de
+// catálogos huérfanos, ver docs/apidian-architecture.md). lineDTO sigue siendo la forma de
+// SALIDA, con esos valores ya calculados por el servidor — documentResponse la usa para
+// mostrar un documento ya guardado.
+type lineInputDTO struct {
+	Description      string  `json:"description"`
+	Quantity         float64 `json:"quantity"`
+	UnitCode         string  `json:"unit_code"`
+	UnitPriceCents   int64   `json:"unit_price_cents"`
+	ItemCode         string  `json:"item_code,omitempty"`
+	ItemTypeCode     string  `json:"item_type_code,omitempty"`
+	ItemTypeName     string  `json:"item_type_name,omitempty"`
+	ItemTypeAgencyID string  `json:"item_type_agency_id,omitempty"`
+	// TaxTypeCode vacío significa "esta línea no lleva impuesto" — 0 o 1 por línea (ver
+	// documents.LineInput).
+	TaxTypeCode string  `json:"tax_type_code,omitempty"`
+	TaxPercent  float64 `json:"tax_percent,omitempty"`
 }
 
 type paymentMeanDTO struct {
@@ -205,38 +230,21 @@ func (p partyDTO) toDomain() domain.Party {
 	return party
 }
 
-func linesToDomain(lines []lineDTO) []domain.Line {
-	out := make([]domain.Line, len(lines))
+func linesToInput(lines []lineInputDTO) []documents.LineInput {
+	out := make([]documents.LineInput, len(lines))
 	for i, l := range lines {
-		dl := domain.Line{
-			Description:        l.Description,
-			Quantity:           l.Quantity,
-			UnitCode:           l.UnitCode,
-			LineExtensionCents: l.LineExtensionCents,
-			UnitPriceCents:     l.UnitPriceCents,
-			FreeOfCharge:       l.FreeOfCharge,
-			ItemCode:           l.ItemCode,
-			ItemTypeCode:       l.ItemTypeCode,
-			ItemTypeName:       l.ItemTypeName,
-			ItemTypeAgencyID:   l.ItemTypeAgencyID,
+		out[i] = documents.LineInput{
+			Description:      l.Description,
+			Quantity:         l.Quantity,
+			UnitCode:         l.UnitCode,
+			UnitPriceCents:   l.UnitPriceCents,
+			ItemCode:         l.ItemCode,
+			ItemTypeCode:     l.ItemTypeCode,
+			ItemTypeName:     l.ItemTypeName,
+			ItemTypeAgencyID: l.ItemTypeAgencyID,
+			TaxTypeCode:      l.TaxTypeCode,
+			TaxPercent:       l.TaxPercent,
 		}
-		if l.ReferencePrice != nil {
-			dl.ReferencePrice = &domain.ReferencePrice{
-				PriceAmountCents: l.ReferencePrice.PriceAmountCents,
-				TypeCode:         l.ReferencePrice.TypeCode,
-			}
-		}
-		dl.Taxes = make([]domain.Tax, len(l.Taxes))
-		for j, t := range l.Taxes {
-			dl.Taxes[j] = domain.Tax{
-				TaxableAmountCents: t.TaxableAmountCents,
-				TaxAmountCents:     t.TaxAmountCents,
-				Percent:            t.Percent,
-				TypeCode:           t.TypeCode,
-				TypeName:           t.TypeName,
-			}
-		}
-		out[i] = dl
 	}
 	return out
 }

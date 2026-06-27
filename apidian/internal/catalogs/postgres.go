@@ -2,8 +2,10 @@ package catalogs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -140,6 +142,20 @@ func (r *PostgresRepository) IsValidPaymentMethod(ctx context.Context, code stri
 // (liability_codes es TEXT[], sin FK posible contra cada elemento).
 func (r *PostgresRepository) IsValidLiabilityCode(ctx context.Context, code string) (bool, error) {
 	return r.exists(ctx, "liability_codes", code)
+}
+
+// GetTaxTypeName implementa issuers.CatalogPort/customers.CatalogPort/products.CatalogPort/
+// documents.CatalogPort — ver el comentario en Repository.
+func (r *PostgresRepository) GetTaxTypeName(ctx context.Context, code string) (string, bool, error) {
+	var name string
+	err := r.pool.QueryRow(ctx, "SELECT name FROM tax_types WHERE code = $1", code).Scan(&name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("buscar nombre en tax_types: %w", err)
+	}
+	return name, true, nil
 }
 
 func (r *PostgresRepository) exists(ctx context.Context, table, code string) (bool, error) {

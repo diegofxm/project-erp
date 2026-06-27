@@ -64,6 +64,7 @@ func classify(err error) (int, string) {
 		errors.Is(err, issuers.ErrInvalidEnvironment),
 		errors.Is(err, issuers.ErrTooManyIndustryClassificationCodes),
 		errors.Is(err, issuers.ErrInvalidLiabilityCode),
+		errors.Is(err, issuers.ErrInvalidTaxSchemeCode),
 		errors.Is(err, numbering.ErrMissingIssuer),
 		errors.Is(err, numbering.ErrMissingDocumentType),
 		errors.Is(err, numbering.ErrEmptyPrefix),
@@ -78,6 +79,8 @@ func classify(err error) (int, string) {
 		errors.Is(err, documents.ErrInvalidPaymentTerm),
 		errors.Is(err, documents.ErrInvalidPaymentMethod),
 		errors.Is(err, documents.ErrInvalidLiabilityCode),
+		errors.Is(err, documents.ErrInvalidTaxSchemeCode),
+		errors.Is(err, documents.ErrInvalidTaxTypeCode),
 		errors.Is(err, documents.ErrMissingBillingReference),
 		errors.Is(err, auth.ErrEmptyEmail),
 		errors.Is(err, auth.ErrEmptyPassword),
@@ -86,9 +89,11 @@ func classify(err error) (int, string) {
 		errors.Is(err, customers.ErrEmptyName),
 		errors.Is(err, customers.ErrEmptyIdentification),
 		errors.Is(err, customers.ErrInvalidLiabilityCode),
+		errors.Is(err, customers.ErrInvalidTaxSchemeCode),
 		errors.Is(err, products.ErrEmptyDescription),
 		errors.Is(err, products.ErrEmptyUnitCode),
-		errors.Is(err, products.ErrInvalidUnitPrice):
+		errors.Is(err, products.ErrInvalidUnitPrice),
+		errors.Is(err, products.ErrInvalidTaxTypeCode):
 		return http.StatusBadRequest, err.Error()
 
 	// ── 422 (regla de negocio: la petición está bien formada pero no se puede

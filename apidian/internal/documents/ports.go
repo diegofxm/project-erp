@@ -48,8 +48,14 @@ type CustomerPort interface {
 // incompleto (11 códigos de muestra frente al estándar UN/ECE Rec. 20 completo, ver
 // migrations/000006_products.up.sql) — validar contra un catálogo incompleto rechazaría
 // códigos legítimos que la DIAN sí aceptaría. Se agrega cuando se complete ese catálogo.
+//
+// GetTaxTypeName resuelve customer.tax_scheme_name/lines[].tax_type_name a partir de sus
+// códigos — ninguno de los dos se acepta ya del cliente (ver applyCustomerDefaults/
+// linesFromInput), así un documento nunca puede guardar un código y un nombre que no
+// correspondan entre sí.
 type CatalogPort interface {
 	IsValidPaymentTerm(ctx context.Context, code string) (bool, error)
 	IsValidPaymentMethod(ctx context.Context, code string) (bool, error)
 	IsValidLiabilityCode(ctx context.Context, code string) (bool, error)
+	GetTaxTypeName(ctx context.Context, code string) (name string, found bool, err error)
 }
