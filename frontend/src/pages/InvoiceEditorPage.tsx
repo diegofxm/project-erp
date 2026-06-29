@@ -14,6 +14,8 @@ import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
 import { dianStatusLabel } from "../lib/dianStatus";
 import { useAuth } from "../context/AuthContext";
+import { useConfirm } from "../context/ConfirmContext";
+import { useToast } from "../context/ToastContext";
 import type { Document, IssueInvoicePayload } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
@@ -28,6 +30,8 @@ export function InvoiceEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { activeIssuer } = useAuth();
+  const confirmDialog = useConfirm();
+  const toast = useToast();
   const isNew = id === "new";
 
   const [doc, setDoc] = useState<Document | null>(null);
@@ -37,7 +41,6 @@ export function InvoiceEditorPage() {
   const [confirming, setConfirming] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isNew || !id) return;
@@ -68,12 +71,13 @@ export function InvoiceEditorPage() {
 
   async function handleDelete() {
     if (!id || isNew) return;
-    if (!window.confirm("¿Eliminar este borrador? Esta acción no se puede deshacer.")) return;
+    if (!(await confirmDialog("¿Eliminar este borrador? Esta acción no se puede deshacer.", { tone: "danger" }))) return;
     try {
       await deleteDraft(id);
+      toast.success("Borrador eliminado.");
       navigate("/documents/invoices");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo eliminar el borrador");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el borrador");
     }
   }
 
@@ -82,13 +86,18 @@ export function InvoiceEditorPage() {
   // número real — antes de esto el borrador se podía editar o eliminar libremente.
   async function handleConfirm() {
     if (!id || isNew) return;
-    if (!window.confirm("¿Confirmar y enviar esta factura? Reclama el número real ante la DIAN y ya no se puede editar ni eliminar.")) return;
-    setError(null);
+    if (
+      !(await confirmDialog("¿Confirmar y enviar esta factura? Reclama el número real ante la DIAN y ya no se puede editar ni eliminar.", {
+        confirmLabel: "Confirmar y enviar",
+      }))
+    )
+      return;
     setConfirming(true);
     try {
       setDoc(await confirmDocument(id));
+      toast.success("Factura confirmada.");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo confirmar la factura");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo confirmar la factura");
     } finally {
       setConfirming(false);
     }
@@ -99,13 +108,12 @@ export function InvoiceEditorPage() {
   // blob (no <a href> plano) porque el endpoint exige Authorization: Bearer.
   async function handleViewPdf() {
     if (!id || isNew) return;
-    setError(null);
     setLoadingPdf(true);
     try {
       const url = await getInvoicePdfBlobUrl(id);
       window.open(url, "_blank");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo generar el PDF");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo generar el PDF");
     } finally {
       setLoadingPdf(false);
     }
@@ -116,15 +124,13 @@ export function InvoiceEditorPage() {
   // tercero real, por eso pide confirmación igual que eliminar/confirmar.
   async function handleSendEmail() {
     if (!id || isNew || !doc) return;
-    if (!window.confirm(`¿Enviar esta factura por correo a ${doc.customer.email || "el cliente"}?`)) return;
-    setError(null);
-    setSuccessMessage(null);
+    if (!(await confirmDialog(`¿Enviar esta factura por correo a ${doc.customer.email || "el cliente"}?`))) return;
     setSendingEmail(true);
     try {
       await sendInvoiceEmail(id);
-      setSuccessMessage(`Factura enviada a ${doc.customer.email}`);
+      toast.success(`Factura enviada a ${doc.customer.email}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo enviar la factura por correo");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo enviar la factura por correo");
     } finally {
       setSendingEmail(false);
     }
@@ -179,7 +185,6 @@ export function InvoiceEditorPage() {
       </div>
 
       {error && <Banner tone="danger">{error}</Banner>}
-      {successMessage && <Banner tone="success">{successMessage}</Banner>}
 
       {!isNew && doc?.status === "draft" && issuerNotReady && (
         <Banner tone="info">

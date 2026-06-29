@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { NavLink } from "react-router";
+import { NavLink, useLocation } from "react-router";
 import { ChevronRight, FileMinus, FilePlus, FileText, Files, Home, Menu, Package, Settings, Users } from "lucide-react";
 
 const COLLAPSED_KEY = "apidian.sidebarCollapsed";
@@ -52,9 +52,34 @@ function readExpandedGroups(): Set<string> {
   }
 }
 
+// syncExpandedGroups fuerza que un grupo esté expandido si y solo si la ruta actual cae dentro
+// de sus hijos (corrige el "se queda pegado" — antes solo la flechita lo cambiaba, sin relación
+// con la navegación) — devuelve la MISMA instancia si no hubo que cambiar nada, para no
+// disparar un re-render/escritura a localStorage de más.
+function syncExpandedGroups(current: Set<string>, pathname: string): Set<string> {
+  const next = new Set(current);
+  let changed = false;
+  for (const item of NAV_ITEMS) {
+    if (!isGroup(item)) continue;
+    const onGroupRoute = item.children.some((child) => pathname.startsWith(child.to));
+    if (onGroupRoute && !next.has(item.label)) {
+      next.add(item.label);
+      changed = true;
+    } else if (!onGroupRoute && next.has(item.label)) {
+      next.delete(item.label);
+      changed = true;
+    }
+  }
+  return changed ? next : current;
+}
+
 export function Sidebar() {
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "true");
-  const [expandedGroups, setExpandedGroups] = useState(readExpandedGroups);
+  // Sincronizado con la ruta ya desde el estado inicial (no solo en un efecto post-montaje) —
+  // si no, en la primera pintura podría verse "Documentos" expandido un instante aunque la
+  // ruta actual no tenga nada que ver, antes de que el efecto lo corrija.
+  const [expandedGroups, setExpandedGroups] = useState(() => syncExpandedGroups(readExpandedGroups(), location.pathname));
   // openFlyout solo aplica con el sidebar colapsado — un grupo con hijos no puede expandirse
   // in-place ahí (no hay espacio para mostrar la etiqueta de los hijos), así que en vez de no
   // hacer nada al hacer clic, se abre un menú flotante al lado del ícono.
@@ -71,6 +96,18 @@ export function Sidebar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [openFlyout]);
+
+  // Mismo chequeo en cada cambio de ruta — sin esto, "Documentos" se quedaba expandido para
+  // siempre una vez abierto, sin relación con dónde navegaras después. Solo corre cuando
+  // cambia el pathname (no en cada render), así que seguir usando la flechita para abrir/
+  // cerrar manualmente mientras estás en una ruta no relacionada sigue funcionando igual.
+  useEffect(() => {
+    setExpandedGroups((current) => {
+      const next = syncExpandedGroups(current, location.pathname);
+      if (next !== current) localStorage.setItem(EXPANDED_GROUPS_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  }, [location.pathname]);
 
   function toggleCollapsed() {
     setCollapsed((current) => {
@@ -113,12 +150,18 @@ export function Sidebar() {
         {NAV_ITEMS.map((item) => {
           if (isGroup(item)) {
             const expanded = expandedGroups.has(item.label);
+            // Mismo criterio que el isActive de cada NavLink hijo (ver NavLeafItem) — el botón
+            // del grupo en sí nunca es una ruta navegable, así que su estado "activo" se deriva
+            // de si la ruta actual cae dentro de alguno de sus hijos, no de un NavLink propio.
+            const onGroupRoute = item.children.some((child) => location.pathname.startsWith(child.to));
             return (
               <div key={item.label} className="relative">
                 <button
                   type="button"
                   onClick={() => handleGroupClick(item.label)}
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs font-medium text-(--text-secondary) hover:bg-(--bg-hover)"
+                  className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs font-medium ${
+                    onGroupRoute ? "bg-(--bg-selected) text-(--accent-primary)" : "text-(--text-secondary) hover:bg-(--bg-hover)"
+                  }`}
                 >
                   {item.icon}
                   {!collapsed && (

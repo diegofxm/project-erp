@@ -22,9 +22,12 @@ import (
 // falta tocar ese servicio para esto.
 
 // publicIssuerResponse es deliberadamente angosto — nunca reusar issuerResponse aquí, que
-// expone has_software_credentials/has_certificate/etc. a cualquiera en internet.
+// expone has_software_credentials/has_certificate/etc. a cualquiera en internet. HasLogo sigue
+// el mismo criterio que issuerResponse.HasLogo: solo presencia, el logo en sí se sirve aparte
+// (GET .../logo) para no inflar esta respuesta con bytes de imagen.
 type publicIssuerResponse struct {
 	BusinessName string `json:"business_name"`
+	HasLogo      bool   `json:"has_logo"`
 }
 
 // handleGetPublicIssuer sirve el nombre del emisor para el encabezado del formulario público
@@ -46,7 +49,29 @@ func (a *API) handleGetPublicIssuer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.WriteJSON(w, http.StatusOK, publicIssuerResponse{BusinessName: iss.BusinessName})
+	response.WriteJSON(w, http.StatusOK, publicIssuerResponse{BusinessName: iss.BusinessName, HasLogo: len(iss.Logo) > 0})
+}
+
+// handleGetPublicIssuerLogo sirve el logo del emisor en crudo, sin sesión — mismo patrón
+// binario que handleGetMyIssuerLogo, pero el emisor viene del path (es público), no del token.
+func (a *API) handleGetPublicIssuerLogo(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+
+	iss, err := a.issuers.GetIssuer(r.Context(), id)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	if !iss.IsActive || len(iss.Logo) == 0 {
+		response.WriteJSON(w, http.StatusNotFound, response.Error{Error: "la empresa no tiene un logo configurado"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/"+iss.LogoContentType)
+	_, _ = w.Write(iss.Logo)
 }
 
 // publicCustomerRequest es el subconjunto mínimo de partyDTO que tiene sentido pedirle a un

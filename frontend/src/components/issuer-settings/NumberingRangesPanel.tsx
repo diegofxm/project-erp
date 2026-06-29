@@ -4,6 +4,8 @@ import { listDianDocumentTypes } from "../../lib/catalogs";
 import { createNumberingRange, deactivateNumberingRange, listNumberingRanges } from "../../lib/numberingRanges";
 import { ApiError } from "../../lib/apiClient";
 import { useCatalog } from "../../lib/useCatalog";
+import { useConfirm } from "../../context/ConfirmContext";
+import { useToast } from "../../context/ToastContext";
 import type { CreateNumberingRangePayload, NumberingRange, NumberingRangeStatus } from "../../lib/types";
 import { Button } from "../ui/Button";
 import { Banner } from "../ui/Banner";
@@ -32,13 +34,15 @@ export function NumberingRangesPanel() {
   const [ranges, setRanges] = useState<NumberingRange[] | null>(null);
   const { data: docTypes } = useCatalog(listDianDocumentTypes);
   const [showForm, setShowForm] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const confirm = useConfirm();
+  const toast = useToast();
 
   function refresh() {
     listNumberingRanges()
       .then(setRanges)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar los rangos de numeración"));
+      .catch((err) => setLoadError(err instanceof ApiError ? err.message : "No se pudieron cargar los rangos de numeración"));
   }
 
   useEffect(() => {
@@ -50,14 +54,14 @@ export function NumberingRangesPanel() {
   }
 
   async function handleCreate(payload: CreateNumberingRangePayload) {
-    setError(null);
     setLoading(true);
     try {
       await createNumberingRange(payload);
       setShowForm(false);
+      toast.success("Rango de numeración registrado.");
       refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo registrar el rango de numeración");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo registrar el rango de numeración");
     } finally {
       setLoading(false);
     }
@@ -67,20 +71,20 @@ export function NumberingRangesPanel() {
   // numbering.Repository.Deactivate en apidian: un rango ya usado tiene FK real desde
   // documents.Document, y una resolución de numeración es un dato legal/auditable.
   async function handleDeactivate(r: NumberingRange) {
-    if (!window.confirm(`¿Eliminar el rango "${r.prefix}"? Dejará de poder usarse para emitir facturas.`)) return;
-    setError(null);
+    if (!(await confirm(`¿Eliminar el rango "${r.prefix}"? Dejará de poder usarse para emitir facturas.`, { tone: "danger" }))) return;
     try {
       await deactivateNumberingRange(r.id);
+      toast.success("Rango de numeración eliminado.");
       refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo eliminar el rango de numeración");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el rango de numeración");
     }
   }
 
   return (
     <div className="flex flex-col gap-3 rounded border border-(--border-color) p-4">
       <h2 className="text-xs font-semibold text-(--text-primary)">Rangos de numeración</h2>
-      {error && <Banner tone="danger">{error}</Banner>}
+      {loadError && <Banner tone="danger">{loadError}</Banner>}
 
       {ranges === null && (
         <div className="flex min-h-20 items-center justify-center">

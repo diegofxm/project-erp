@@ -2,7 +2,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "react-router";
 import { CheckCircle2, UserPlus } from "lucide-react";
 import { ApiError } from "../lib/apiClient";
-import { getPublicIssuer, registerPublicCustomer } from "../lib/publicRegistration";
+import { getPublicIssuer, getPublicIssuerLogoBlobUrl, registerPublicCustomer } from "../lib/publicRegistration";
+import { AsyncImage } from "../components/ui/AsyncImage";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -27,7 +28,9 @@ const IDENTIFICATION_TYPES = [
 export function PublicCustomerRegisterPage() {
   const { issuerId } = useParams<{ issuerId: string }>();
   const [businessName, setBusinessName] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [loadingIssuer, setLoadingIssuer] = useState(true);
+  const [loadingLogo, setLoadingLogo] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
   const [typeCode, setTypeCode] = useState("13");
@@ -41,10 +44,32 @@ export function PublicCustomerRegisterPage() {
 
   useEffect(() => {
     if (!issuerId) return;
+    let objectUrl: string | null = null;
+    // El logo se trae aparte, sin bloquear que el formulario aparezca — mismo Spinner de
+    // AsyncImage que LogoForm.tsx mientras llega, en vez de esperar el blob para mostrar todo
+    // junto (regla general: ninguna imagen asíncrona deja un hueco en blanco, pero tampoco
+    // detiene el resto de la pantalla).
     getPublicIssuer(issuerId)
-      .then((iss) => setBusinessName(iss.business_name))
+      .then((iss) => {
+        setBusinessName(iss.business_name);
+        if (iss.has_logo) {
+          setLoadingLogo(true);
+          getPublicIssuerLogoBlobUrl(issuerId)
+            .then((url) => {
+              objectUrl = url;
+              setLogoUrl(url);
+            })
+            .catch(() => setLogoUrl(null))
+            .finally(() => setLoadingLogo(false));
+        }
+      })
       .catch(() => setNotFound(true))
       .finally(() => setLoadingIssuer(false));
+    // Mismo criterio que LogoForm.tsx: revocar el Object URL al desmontar, no dejarlo vivo más
+    // de lo necesario.
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, [issuerId]);
 
   async function handleSubmit(e: FormEvent) {
@@ -69,7 +94,7 @@ export function PublicCustomerRegisterPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-(--bg-primary) px-4">
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-md">
         {loadingIssuer ? (
           <div className="flex min-h-32 items-center justify-center p-4">
             <Spinner className="h-5 w-5 text-(--text-muted)" />
@@ -79,32 +104,54 @@ export function PublicCustomerRegisterPage() {
             <Banner tone="danger">Este enlace de registro no es válido.</Banner>
           </div>
         ) : done ? (
-          <div className="flex flex-col items-center gap-2 p-6 text-center">
+          <div className="flex flex-col items-center gap-3 p-8 text-center">
+            {(loadingLogo || logoUrl) && (
+              <AsyncImage src={logoUrl} loading={loadingLogo} alt={businessName ?? ""} className="h-14 w-14 rounded-lg p-1" />
+            )}
             <CheckCircle2 className="h-8 w-8 text-(--color-success-text)" />
-            <p className="text-sm font-medium text-(--text-primary)">¡Listo!</p>
-            <p className="text-xs text-(--text-secondary)">
-              Quedaste registrado — {businessName} ya puede facturarte electrónicamente.
-            </p>
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-semibold text-(--text-primary)">¡Listo!</p>
+              <p className="text-xs text-(--text-secondary)">
+                Quedaste registrado — {businessName} ya puede facturarte electrónicamente.
+              </p>
+            </div>
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2 border-b border-(--border-light) px-4 py-3">
-              <UserPlus className="h-5 w-5 text-(--accent-primary)" />
-              <h1 className="text-sm font-semibold text-(--text-primary)">Regístrate como cliente de {businessName}</h1>
+            <div className="flex flex-col items-center gap-3 border-b border-(--border-light) px-6 py-7 text-center">
+              {(loadingLogo || logoUrl) && (
+                <AsyncImage src={logoUrl} loading={loadingLogo} alt={businessName ?? ""} className="h-16 w-16 rounded-lg p-1" />
+              )}
+              <div className="flex flex-col gap-0.5">
+                <p className="text-xs text-(--text-secondary)">Regístrate como cliente de</p>
+                <h1 className="text-base font-semibold text-(--text-primary)">{businessName}</h1>
+              </div>
             </div>
-            <form className="flex flex-col gap-3 p-4" onSubmit={handleSubmit}>
+            <form className="flex flex-col gap-3 p-5" onSubmit={handleSubmit}>
               {error && <Banner tone="danger">{error}</Banner>}
-              <Select label="Tipo de identificación" required value={typeCode} onChange={(e) => setTypeCode(e.target.value)}>
-                {IDENTIFICATION_TYPES.map((t) => (
-                  <option key={t.code} value={t.code}>
-                    {t.name}
-                  </option>
-                ))}
-              </Select>
-              <Input label="Número de identificación" required value={number} onChange={(e) => setNumber(e.target.value)} />
-              <Input label="Nombre completo" required value={name} onChange={(e) => setName(e.target.value)} />
-              <Input label="Correo (opcional)" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              <Input label="Teléfono (opcional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-5">
+                  <Select label="Tipo de identificación" required value={typeCode} onChange={(e) => setTypeCode(e.target.value)}>
+                    {IDENTIFICATION_TYPES.map((t) => (
+                      <option key={t.code} value={t.code}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="col-span-7">
+                  <Input label="Número de identificación" required value={number} onChange={(e) => setNumber(e.target.value)} />
+                </div>
+                <div className="col-span-12">
+                  <Input label="Nombre completo" required value={name} onChange={(e) => setName(e.target.value)} />
+                </div>
+                <div className="col-span-6">
+                  <Input label="Correo (opcional)" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                </div>
+                <div className="col-span-6">
+                  <Input label="Teléfono (opcional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </div>
+              </div>
               <Button type="submit" icon={<UserPlus className="h-3.5 w-3.5" />} loading={submitting} className="w-full">
                 Registrarme
               </Button>

@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { Pencil, Plus, Repeat } from "lucide-react";
 import { ApiError } from "../../lib/apiClient";
 import { createCustomer, customerToPayload, listCustomers, updateCustomer } from "../../lib/customers";
+import { useToast } from "../../context/ToastContext";
 import type { Customer, CustomerPayload } from "../../lib/types";
 import { PartyFields } from "../party-fields/PartyFields";
-import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import { Combobox } from "../ui/Combobox";
 
@@ -43,7 +43,7 @@ export function CustomerSection({ value, customerId, onChange }: CustomerSection
   const [picker, setPicker] = useState("");
   const [draft, setDraft] = useState<CustomerPayload>(value);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     refreshCustomers();
@@ -73,31 +73,28 @@ export function CustomerSection({ value, customerId, onChange }: CustomerSection
 
   function startCreate() {
     setDraft(NEW_CUSTOMER);
-    setError(null);
     setMode("form");
   }
 
   function startEdit() {
     setDraft(value);
-    setError(null);
     setMode("form");
   }
 
   function cancelForm() {
-    setError(null);
     setMode(customerId ? "summary" : "search");
   }
 
   async function handleSaveForm() {
     setSaving(true);
-    setError(null);
     try {
       const saved = customerId ? await updateCustomer(customerId, draft) : await createCustomer(draft);
       await refreshCustomers();
       onChange(customerToPayload(saved), saved.id);
+      toast.success(customerId ? "Cliente actualizado." : "Cliente creado.");
       setMode("summary");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo guardar el cliente");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo guardar el cliente");
     } finally {
       setSaving(false);
     }
@@ -105,8 +102,6 @@ export function CustomerSection({ value, customerId, onChange }: CustomerSection
 
   return (
     <div className="flex flex-col gap-3">
-      {error && <Banner tone="danger">{error}</Banner>}
-
       {mode === "search" && (
         <div className="flex flex-col gap-2">
           <div className="grid grid-cols-12 gap-3">

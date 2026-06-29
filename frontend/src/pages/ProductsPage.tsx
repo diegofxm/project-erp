@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { createProduct, deleteProduct, listProducts, updateProduct } from "../lib/products";
 import { ApiError } from "../lib/apiClient";
+import { useConfirm } from "../context/ConfirmContext";
+import { useToast } from "../context/ToastContext";
 import type { Product, ProductPayload } from "../lib/types";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
@@ -20,6 +22,8 @@ export function ProductsPage() {
   const [editing, setEditing] = useState<Editing>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const confirm = useConfirm();
+  const toast = useToast();
 
   function refresh() {
     listProducts()
@@ -50,13 +54,13 @@ export function ProductsPage() {
   }
 
   async function handleDelete(product: Product) {
-    if (!window.confirm(`¿Eliminar "${product.description}"? Esto no afecta documentos ya emitidos.`)) return;
-    setError(null);
+    if (!(await confirm(`¿Eliminar "${product.description}"? Esto no afecta documentos ya emitidos.`, { tone: "danger" }))) return;
     try {
       await deleteProduct(product.id);
+      toast.success("Producto eliminado.");
       refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo eliminar el producto");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el producto");
     }
   }
 

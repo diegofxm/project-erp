@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { apiClient, setAuthToken } from "../lib/apiClient";
+import { apiClient, ApiError, setAuthToken } from "../lib/apiClient";
 import type {
   AuthResult,
   CreateIssuerPayload,
@@ -24,6 +24,11 @@ interface AuthContextValue {
   activeIssuer: Issuer | null;
   isAuthenticated: boolean;
   isReady: boolean; // ya se intentó rehidratar la sesión desde localStorage
+  // connectionError: el backend no respondió al validar la sesión guardada (servidor apagado,
+  // sin red) — distinto de un token inválido (401 real, ese sí cierra sesión). No se castiga
+  // al usuario por algo que no es culpa de sus credenciales.
+  connectionError: boolean;
+  retryConnection: () => Promise<void>;
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
@@ -54,16 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [activeIssuer, setActiveIssuer] = useState<Issuer | null>(null);
   const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    const stored = readStoredSession();
-    if (stored) {
-      setAuthToken(stored.token);
-      setUser(stored.user);
-      setActiveIssuer(stored.issuer);
-    }
-    setIsReady(true);
-  }, []);
+  const [connectionError, setConnectionError] = useState(false);
 
   const applyAuthResult = useCallback((result: AuthResult) => {
     const session: StoredSession = { token: result.token, user: result.user, issuer: result.issuer ?? null };
@@ -94,7 +90,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(null);
     setUser(null);
     setActiveIssuer(null);
+    setConnectionError(false);
   }, []);
+
+  // verifySession confirma que el token guardado todavía sirve Y que el backend responde —
+  // GET /issuers (handleNoTenant en apidian) exige solo estar autenticado, nunca una empresa
+  // activa, así que funciona sin importar si activeIssuer es null. Un 401 real (token
+  // inválido/expirado) sí cierra sesión; cualquier otra falla (fetch nunca llegó a responder
+  // porque el backend está apagado) NO toca la sesión, solo prende connectionError — no es
+  // culpa de las credenciales que el servidor esté caído.
+  const verifySession = useCallback(async () => {
+    try {
+      await apiClient.get("/issuers");
+      setConnectionError(false);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 401) logout();
+        setConnectionError(false);
+      } else {
+        setConnectionError(true);
+      }
+    }
+  }, [logout]);
+
+  useEffect(() => {
+    const stored = readStoredSession();
+    if (!stored) {
+      setIsReady(true);
+      return;
+    }
+    setAuthToken(stored.token);
+    setUser(stored.user);
+    setActiveIssuer(stored.issuer);
+    // Solo al montar a propósito — verifySession/logout no cambian de identidad entre renders
+    // (useCallback sin dependencias variables), así que omitirlas del arreglo no esconde nada.
+    verifySession().finally(() => setIsReady(true));
+  }, []);
+
+  const retryConnection = useCallback(async () => {
+    await verifySession();
+  }, [verifySession]);
 
   const listIssuers = useCallback(async () => {
     const result = await apiClient.get<ListIssuersResult>("/issuers");
@@ -144,6 +179,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       activeIssuer,
       isAuthenticated: user !== null,
       isReady,
+      connectionError,
+      retryConnection,
       login,
       register,
       logout,
@@ -153,7 +190,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateIssuer,
       deleteIssuerLogo,
     }),
-    [user, activeIssuer, isReady, login, register, logout, listIssuers, createIssuer, selectIssuer, updateIssuer, deleteIssuerLogo],
+    [
+      user,
+      activeIssuer,
+      isReady,
+      connectionError,
+      retryConnection,
+      login,
+      register,
+      logout,
+      listIssuers,
+      createIssuer,
+      selectIssuer,
+      updateIssuer,
+      deleteIssuerLogo,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

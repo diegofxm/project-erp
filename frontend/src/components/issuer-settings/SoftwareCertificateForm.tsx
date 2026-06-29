@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { ShieldCheck } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 import { ApiError } from "../../lib/apiClient";
 import { fileToBase64 } from "../../lib/fileToBase64";
 import type { UpdateIssuerPayload } from "../../lib/types";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
-import { Banner } from "../ui/Banner";
 
 // Exportado: LogoForm.tsx reusa el mismo indicador "✓/—" para has_logo.
 export function StatusBadge({ label, ok }: { label: string; ok: boolean }) {
@@ -22,21 +22,18 @@ export function StatusBadge({ label, ok }: { label: string; ok: boolean }) {
 // configurados o no (activeIssuer.has_software_credentials/has_certificate).
 export function SoftwareCertificateForm() {
   const { activeIssuer, updateIssuer } = useAuth();
+  const toast = useToast();
   const [softwareId, setSoftwareId] = useState("");
   const [softwarePin, setSoftwarePin] = useState("");
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
   const [certificatePassword, setCertificatePassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
 
     if ((certificateFile && !certificatePassword.trim()) || (!certificateFile && certificatePassword.trim())) {
-      setError("El certificado y su contraseña se deben actualizar juntos.");
+      toast.error("El certificado y su contraseña se deben actualizar juntos.");
       return;
     }
 
@@ -49,20 +46,20 @@ export function SoftwareCertificateForm() {
     }
 
     if (Object.keys(payload).length === 0) {
-      setError("No hay ningún campo nuevo para guardar.");
+      toast.error("No hay ningún campo nuevo para guardar.");
       return;
     }
 
     setLoading(true);
     try {
       await updateIssuer(payload);
-      setSuccess("Guardado correctamente.");
+      toast.success("Guardado correctamente.");
       setSoftwareId("");
       setSoftwarePin("");
       setCertificateFile(null);
       setCertificatePassword("");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo guardar la configuración");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo guardar la configuración");
     } finally {
       setLoading(false);
     }
@@ -77,8 +74,6 @@ export function SoftwareCertificateForm() {
           <StatusBadge label="Certificado" ok={activeIssuer?.has_certificate ?? false} />
         </div>
       </div>
-      {error && <Banner tone="danger">{error}</Banner>}
-      {success && <Banner tone="success">{success}</Banner>}
       <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
         {/* Grilla de 12 columnas fijas, ver company-form/IdentificationStep.tsx para el porqué. */}
         <div className="grid grid-cols-12 gap-3">

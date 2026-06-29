@@ -1178,6 +1178,57 @@ func TestAPI_GetPublicIssuer_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rw.Code)
 }
 
+// tinyPNGBase64 es un PNG 1x1 transparente válido — mismo criterio que selfSignedP12Base64,
+// el contenido real no importa para estas pruebas, solo que sea un archivo de imagen real.
+const tinyPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+
+func TestAPI_GetPublicIssuer_HasLogo(t *testing.T) {
+	env := newTestEnv(t)
+	issuerID, token := registerTestIssuer(t, env)
+
+	rw := env.doAuth(t, "PUT", "/api/v1/issuers/me", token, map[string]any{
+		"logo_base64":       tinyPNGBase64,
+		"logo_content_type": "png",
+	})
+	require.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
+
+	rw = env.do(t, "GET", "/api/v1/public/issuers/"+issuerID, nil)
+	require.Equal(t, http.StatusOK, rw.Code)
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.Equal(t, true, got["has_logo"])
+}
+
+func TestAPI_GetPublicIssuerLogo_OK(t *testing.T) {
+	env := newTestEnv(t)
+	issuerID, token := registerTestIssuer(t, env)
+
+	rw := env.doAuth(t, "PUT", "/api/v1/issuers/me", token, map[string]any{
+		"logo_base64":       tinyPNGBase64,
+		"logo_content_type": "png",
+	})
+	require.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
+
+	rw = env.do(t, "GET", "/api/v1/public/issuers/"+issuerID+"/logo", nil)
+	require.Equal(t, http.StatusOK, rw.Code)
+	assert.Equal(t, "image/png", rw.Header().Get("Content-Type"))
+	assert.NotEmpty(t, rw.Body.Bytes())
+}
+
+func TestAPI_GetPublicIssuerLogo_NotConfigured(t *testing.T) {
+	env := newTestEnv(t)
+	issuerID, _ := registerTestIssuer(t, env)
+
+	rw := env.do(t, "GET", "/api/v1/public/issuers/"+issuerID+"/logo", nil)
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+func TestAPI_GetPublicIssuerLogo_IssuerNotFound(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "GET", "/api/v1/public/issuers/"+uuid.New().String()+"/logo", nil)
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
 func TestAPI_CreatePublicCustomer_OK(t *testing.T) {
 	env := newTestEnv(t)
 	issuerID, token := registerTestIssuer(t, env)

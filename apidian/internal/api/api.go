@@ -101,6 +101,7 @@ func (a *API) Handler() http.Handler {
 //	POST   /api/v1/auth/register                         → crea el usuario, SIN empresa todavía (público, ver 9.32)
 //	POST   /api/v1/auth/login                             → inicia sesión, devuelve el token (público)
 //	GET    /api/v1/public/issuers/{id}                    → nombre del emisor para el formulario de autorregistro (público, ver 9.41)
+//	GET    /api/v1/public/issuers/{id}/logo               → logo del emisor en crudo, sin sesión (404 si no tiene)
 //	POST   /api/v1/public/issuers/{id}/customers          → autorregistro de cliente por QR, sin sesión (público, ver 9.41)
 //
 //	A partir de aquí, todo exige "Authorization: Bearer <token>". Un usuario puede tener cero,
@@ -149,6 +150,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/register", a.handleRegister)
 	mux.HandleFunc("POST /api/v1/auth/login", a.handleLogin)
 	mux.HandleFunc("GET /api/v1/public/issuers/{id}", a.handleGetPublicIssuer)
+	mux.HandleFunc("GET /api/v1/public/issuers/{id}/logo", a.handleGetPublicIssuerLogo)
 	mux.HandleFunc("POST /api/v1/public/issuers/{id}/customers", a.handleCreatePublicCustomer)
 
 	protect := middleware.Auth(a.tokens)

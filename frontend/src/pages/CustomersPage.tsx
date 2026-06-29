@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { createCustomer, deleteCustomer, listCustomers, updateCustomer } from "../lib/customers";
 import { ApiError } from "../lib/apiClient";
+import { useConfirm } from "../context/ConfirmContext";
+import { useToast } from "../context/ToastContext";
 import type { Customer, CustomerPayload } from "../lib/types";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
@@ -19,6 +21,8 @@ export function CustomersPage() {
   const [editing, setEditing] = useState<Editing>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const confirm = useConfirm();
+  const toast = useToast();
 
   function refresh() {
     listCustomers()
@@ -49,13 +53,13 @@ export function CustomersPage() {
   }
 
   async function handleDelete(customer: Customer) {
-    if (!window.confirm(`¿Eliminar a "${customer.name}"? Esto no afecta documentos ya emitidos.`)) return;
-    setError(null);
+    if (!(await confirm(`¿Eliminar a "${customer.name}"? Esto no afecta documentos ya emitidos.`, { tone: "danger" }))) return;
     try {
       await deleteCustomer(customer.id);
+      toast.success("Cliente eliminado.");
       refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo eliminar el cliente");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el cliente");
     }
   }
 
