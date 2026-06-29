@@ -12,6 +12,7 @@ import {
 } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { dianStatusLabel } from "../lib/dianStatus";
 import { useAuth } from "../context/AuthContext";
 import type { Document, IssueInvoicePayload } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -157,6 +158,23 @@ export function InvoiceEditorPage() {
               Enviar al cliente
             </Button>
           )}
+          {!isNew && doc?.status === "draft" && (
+            <>
+              <Button type="button" variant="danger" icon={<Trash2 className="h-3.5 w-3.5" />} onClick={handleDelete} disabled={confirming}>
+                Eliminar borrador
+              </Button>
+              <Button
+                type="button"
+                variant="success"
+                icon={<Send className="h-3.5 w-3.5" />}
+                onClick={handleConfirm}
+                disabled={issuerNotReady}
+                loading={confirming}
+              >
+                Confirmar y enviar
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -170,46 +188,31 @@ export function InvoiceEditorPage() {
       )}
 
       {isNew || doc?.status === "draft" ? (
-        <>
-          <Card className="mt-3">
-            <InvoiceForm initial={isNew ? null : doc} onSubmit={handleSubmit} onCancel={() => navigate("/documents/invoices")} loading={saving} />
-          </Card>
-          {!isNew && doc?.status === "draft" && (
-            <div className="mt-3 flex gap-2">
-              <Button
-                type="button"
-                variant="danger"
-                icon={<Trash2 className="h-3.5 w-3.5" />}
-                onClick={handleDelete}
-                disabled={confirming}
-              >
-                Eliminar borrador
-              </Button>
-              <Button
-                type="button"
-                variant="success"
-                icon={<Send className="h-3.5 w-3.5" />}
-                onClick={handleConfirm}
-                disabled={issuerNotReady}
-                loading={confirming}
-              >
-                Confirmar y enviar
-              </Button>
-            </div>
-          )}
-        </>
+        <Card className="mt-3">
+          <InvoiceForm initial={isNew ? null : doc} onSubmit={handleSubmit} onCancel={() => navigate("/documents/invoices")} loading={saving} />
+        </Card>
       ) : doc ? (
         <Card className="mt-3 flex flex-col gap-4 p-4">
           <div className="grid grid-cols-12 gap-3 text-xs">
-            <div className="col-span-4">
+            <div className="col-span-3">
               <span className="text-(--text-secondary)">Cliente</span>
               <p className="text-(--text-primary)">{doc.customer.name}</p>
             </div>
-            <div className="col-span-4">
+            <div className="col-span-3">
               <span className="text-(--text-secondary)">Total</span>
               <p className="font-mono text-(--text-primary)">{formatCOP.format(doc.totals.payable_cents / 100)}</p>
             </div>
-            <div className="col-span-4">
+            <div className="col-span-3">
+              <span className="text-(--text-secondary)">Impuestos</span>
+              <p className="font-mono text-(--text-primary)">
+                {formatCOP.format((doc.totals.tax_inclusive_cents - doc.totals.tax_exclusive_cents) / 100)}
+              </p>
+            </div>
+            <div className="col-span-3">
+              <span className="text-(--text-secondary)">Fecha de emisión</span>
+              <p className="text-(--text-primary)">{doc.issue_date ? new Date(doc.issue_date).toLocaleDateString("es-CO") : "—"}</p>
+            </div>
+            <div className="col-span-12">
               <span className="text-(--text-secondary)">CUFE</span>
               <p className="break-all font-mono text-(--text-primary)">{doc.document_key || "—"}</p>
             </div>
@@ -225,7 +228,7 @@ export function InvoiceEditorPage() {
 
           {(doc.dian_status_code || doc.dian_status_description) && (
             <div className="rounded border border-(--border-color) bg-(--bg-primary) p-3 text-xs">
-              <p className="font-medium text-(--text-primary)">Estado DIAN: {doc.dian_status_code ?? "—"}</p>
+              <p className="font-medium text-(--text-primary)">Estado DIAN: {dianStatusLabel(doc.dian_status_code)}</p>
               {doc.dian_status_description && <p className="mt-1 text-(--text-secondary)">{doc.dian_status_description}</p>}
               {doc.dian_status_message && <p className="mt-1 text-(--text-secondary)">{doc.dian_status_message}</p>}
             </div>

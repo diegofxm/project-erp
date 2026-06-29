@@ -126,6 +126,26 @@ func (r *PostgresRepository) ListMunicipalities(ctx context.Context, departmentC
 	return out, rows.Err()
 }
 
+// ListItemStandards devuelve las 4 filas fijas de la tabla 13.3.5 (sección 9.45) — usado por
+// el frontend para construir el selector de estándar de clasificación de ítems.
+func (r *PostgresRepository) ListItemStandards(ctx context.Context) ([]ItemStandard, error) {
+	rows, err := r.pool.Query(ctx, "SELECT code, name, agency_id, description FROM item_standards ORDER BY code")
+	if err != nil {
+		return nil, fmt.Errorf("listar item_standards: %w", err)
+	}
+	defer rows.Close()
+
+	var out []ItemStandard
+	for rows.Next() {
+		var s ItemStandard
+		if err := rows.Scan(&s.Code, &s.Name, &s.AgencyID, &s.Description); err != nil {
+			return nil, fmt.Errorf("leer item_standards: %w", err)
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
 // IsValidPaymentTerm/IsValidPaymentMethod implementan documents.CatalogPort — ver el comentario
 // en internal/documents/ports.go sobre por qué hace falta esto (payment_means vive en JSONB,
 // nunca pudo tener un FK real).
@@ -162,6 +182,26 @@ func (r *PostgresRepository) GetPaymentMethodName(ctx context.Context, code stri
 
 func (r *PostgresRepository) GetIdentificationTypeName(ctx context.Context, code string) (string, bool, error) {
 	return r.getName(ctx, "identification_types", code)
+}
+
+// GetItemStandardName implementa documents.CatalogPort/products.CatalogPort — ver el
+// comentario en Repository (sección 9.45).
+func (r *PostgresRepository) GetItemStandardName(ctx context.Context, code string) (string, bool, error) {
+	return r.getName(ctx, "item_standards", code)
+}
+
+// GetItemStandardAgencyID — separado de GetItemStandardName porque agency_id puede ser ""
+// con found=true (fila 999, donde el atributo no debe usarse en el XML).
+func (r *PostgresRepository) GetItemStandardAgencyID(ctx context.Context, code string) (string, bool, error) {
+	var agencyID string
+	err := r.pool.QueryRow(ctx, "SELECT agency_id FROM item_standards WHERE code = $1", code).Scan(&agencyID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("buscar agency_id en item_standards: %w", err)
+	}
+	return agencyID, true, nil
 }
 
 // getName es el helper compartido por GetTaxTypeName/GetPaymentTermName/GetPaymentMethodName

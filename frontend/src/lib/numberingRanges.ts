@@ -12,3 +12,9 @@ export async function listNumberingRanges(dianDocumentTypeCode?: string): Promis
 export function createNumberingRange(payload: CreateNumberingRangePayload): Promise<NumberingRange> {
   return apiClient.post<NumberingRange>("/numbering-ranges", payload);
 }
+
+// "Borrar" un rango es desactivarlo (is_active=false) — nunca un DELETE real, ver
+// numbering.Repository.Deactivate en apidian.
+export function deactivateNumberingRange(id: string): Promise<void> {
+  return apiClient.del<void>(`/numbering-ranges/${id}`);
+}

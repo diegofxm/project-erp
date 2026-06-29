@@ -120,3 +120,26 @@ func TestResult_HasRejectionsAndToValidationResult(t *testing.T) {
 		t.Errorf("ApplicationResponseXML no se propagó: %q", vr.ApplicationResponseXML)
 	}
 }
+
+func TestResult_IsTestSetClosed(t *testing.T) {
+	// Respuesta real que produjo el rechazo en la sección 9.43 — sin Messages, solo
+	// StatusDescription.
+	closed := Result{
+		StatusCode:        "2",
+		StatusDescription: "Set de prueba con identificador 653bf9d9-b2b1-44ae-a66d-3b9cdc4271c3 se encuentra Aceptado.",
+	}
+	if !closed.IsTestSetClosed() {
+		t.Error("debería detectar el set de pruebas cerrado")
+	}
+
+	// Un rechazo normal de contenido no debe confundirse con esto, aunque también tenga
+	// StatusCode "2".
+	contentRejection := Result{
+		StatusCode:        "2",
+		StatusDescription: "Documento rechazado",
+		Messages:          []Message{parseMessage("Regla: ZE02, Rechazo: Valor de la firma inválido.")},
+	}
+	if contentRejection.IsTestSetClosed() {
+		t.Error("un rechazo de contenido normal no debería detectarse como set de pruebas cerrado")
+	}
+}

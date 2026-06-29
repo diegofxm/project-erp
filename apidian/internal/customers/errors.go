@@ -13,4 +13,8 @@ var (
 	// docs/apidian-architecture.md) — el servicio lo deriva del catálogo a partir de
 	// TaxSchemeCode, y este es el error si ese código no existe en tax_types.
 	ErrInvalidTaxSchemeCode = errors.New("customers: tipo de régimen tributario (tax_scheme_code) inválido")
+	// ErrInvalidIdentificationNumber: identification.type_code "31" (NIT) exige un número
+	// puramente numérico — el dígito de verificación se deriva de él (ver internal/nit), nunca
+	// se acepta del cliente.
+	ErrInvalidIdentificationNumber = errors.New("customers: número de identificación inválido para NIT")
 )

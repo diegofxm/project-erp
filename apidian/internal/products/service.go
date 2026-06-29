@@ -25,6 +25,9 @@ func (s *Service) CreateProduct(ctx context.Context, issuerID uuid.UUID, p Produ
 	if err := s.resolveTaxTypeName(ctx, &p); err != nil {
 		return nil, err
 	}
+	if err := s.resolveItemStandard(ctx, &p); err != nil {
+		return nil, err
+	}
 	if err := validateProduct(p); err != nil {
 		return nil, err
 	}
@@ -52,6 +55,33 @@ func (s *Service) resolveTaxTypeName(ctx context.Context, p *Product) error {
 	return nil
 }
 
+// resolveItemStandard deriva ItemTypeName/ItemTypeAgencyID del catálogo item_standards a
+// partir de ItemTypeCode (tabla 13.3.5 del Anexo Técnico, ver
+// docs/apidian-architecture.md sección 9.45) — el cliente ya no puede mandarlos (ver
+// productRequest en internal/api/handler_products.go). A diferencia de TaxTypeCode (opcional,
+// "sin impuesto por defecto" es válido), ItemTypeCode vacío defaultea a "999" (estándar propio
+// del contribuyente) — la DIAN exige que cac:StandardItemIdentification siempre tenga una
+// clasificación válida, nunca "ninguna".
+func (s *Service) resolveItemStandard(ctx context.Context, p *Product) error {
+	if p.ItemTypeCode == "" {
+		p.ItemTypeCode = "999"
+	}
+	name, found, err := s.catalogs.GetItemStandardName(ctx, p.ItemTypeCode)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("%w: %q", ErrInvalidItemStandardCode, p.ItemTypeCode)
+	}
+	agencyID, _, err := s.catalogs.GetItemStandardAgencyID(ctx, p.ItemTypeCode)
+	if err != nil {
+		return err
+	}
+	p.ItemTypeName = name
+	p.ItemTypeAgencyID = agencyID
+	return nil
+}
+
 // GetProduct devuelve un producto por ID.
 func (s *Service) GetProduct(ctx context.Context, id uuid.UUID) (*Product, error) {
 	return s.repo.GetByID(ctx, id)
@@ -65,6 +95,9 @@ func (s *Service) ListProducts(ctx context.Context, issuerID uuid.UUID) ([]*Prod
 // UpdateProduct reemplaza los datos de un producto existente del emisor dado.
 func (s *Service) UpdateProduct(ctx context.Context, issuerID, id uuid.UUID, p Product) (*Product, error) {
 	if err := s.resolveTaxTypeName(ctx, &p); err != nil {
+		return nil, err
+	}
+	if err := s.resolveItemStandard(ctx, &p); err != nil {
 		return nil, err
 	}
 	if err := validateProduct(p); err != nil {

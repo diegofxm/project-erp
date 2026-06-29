@@ -15,13 +15,15 @@ import (
 // incluye quantity/line_extension_cents ni una lista de impuestos (eso es dato de USO, ver
 // internal/products/model.go) — solo un impuesto por defecto, de conveniencia.
 type productRequest struct {
-	Description      string `json:"description"`
-	UnitCode         string `json:"unit_code"`
-	UnitPriceCents   int64  `json:"unit_price_cents"`
-	ItemCode         string `json:"item_code,omitempty"`
-	ItemTypeCode     string `json:"item_type_code,omitempty"`
-	ItemTypeName     string `json:"item_type_name,omitempty"`
-	ItemTypeAgencyID string `json:"item_type_agency_id,omitempty"`
+	Description    string `json:"description"`
+	UnitCode       string `json:"unit_code"`
+	UnitPriceCents int64  `json:"unit_price_cents"`
+	ItemCode       string `json:"item_code,omitempty"`
+	// ItemTypeCode: selector de estándar de clasificación ("001" UNSPSC/"010" GTIN/"020"
+	// Partida Arancelaria/"999" propio, vacío = "999" — ver catalogs.ItemStandard,
+	// docs/apidian-architecture.md sección 9.45). ItemTypeName/ItemTypeAgencyID ya NO se
+	// aceptan del cliente, products.Service los deriva del catálogo.
+	ItemTypeCode string `json:"item_type_code,omitempty"`
 	// TaxTypeCode es el único campo que se manda — TaxTypeName se deriva del catálogo
 	// tax_types en products.Service, nunca se acepta del cliente (ver
 	// docs/apidian-architecture.md).
@@ -31,15 +33,13 @@ type productRequest struct {
 
 func (req productRequest) toDomain() products.Product {
 	return products.Product{
-		Description:      req.Description,
-		UnitCode:         req.UnitCode,
-		UnitPriceCents:   req.UnitPriceCents,
-		ItemCode:         req.ItemCode,
-		ItemTypeCode:     req.ItemTypeCode,
-		ItemTypeName:     req.ItemTypeName,
-		ItemTypeAgencyID: req.ItemTypeAgencyID,
-		TaxTypeCode:      req.TaxTypeCode,
-		TaxPercent:       req.TaxPercent,
+		Description:    req.Description,
+		UnitCode:       req.UnitCode,
+		UnitPriceCents: req.UnitPriceCents,
+		ItemCode:       req.ItemCode,
+		ItemTypeCode:   req.ItemTypeCode,
+		TaxTypeCode:    req.TaxTypeCode,
+		TaxPercent:     req.TaxPercent,
 	}
 }
 

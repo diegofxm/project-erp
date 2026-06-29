@@ -33,9 +33,10 @@ func (f *fakeIssuerPort) GetIssuer(_ context.Context, _ uuid.UUID) (*issuers.Iss
 }
 
 type fakeNumberingPort struct {
-	nr       *numbering.NumberingRange
-	next     int64
-	released []int64 // números pasados a ReleaseIfCurrent, en orden — para que los tests confirmen cuándo se intentó devolver uno
+	nr               *numbering.NumberingRange
+	next             int64
+	released         []int64 // números pasados a ReleaseIfCurrent, en orden — para que los tests confirmen cuándo se intentó devolver uno
+	testSetIDCleared int     // veces que se llamó ClearTestSetID — para que los tests confirmen la sección 9.43
 }
 
 func (f *fakeNumberingPort) GetRange(_ context.Context, _ uuid.UUID) (*numbering.NumberingRange, error) {
@@ -57,6 +58,11 @@ func (f *fakeNumberingPort) ReleaseIfCurrent(_ context.Context, _ uuid.UUID, num
 	if f.next == number {
 		f.next--
 	}
+	return nil
+}
+
+func (f *fakeNumberingPort) ClearTestSetID(_ context.Context, _ uuid.UUID) error {
+	f.testSetIDCleared++
 	return nil
 }
 
@@ -141,6 +147,20 @@ func (f *fakeCatalogPort) GetIdentificationTypeName(_ context.Context, code stri
 	names := map[string]string{"13": "Cédula de Ciudadanía", "31": "NIT"}
 	name, ok := names[code]
 	return name, ok, nil
+}
+
+// GetItemStandardName/GetItemStandardAgencyID replican la tabla 13.3.5 real (sección 9.45) —
+// solo "999" (estándar propio) tiene AgencyID vacío, a propósito.
+func (f *fakeCatalogPort) GetItemStandardName(_ context.Context, code string) (string, bool, error) {
+	names := map[string]string{"001": "UNSPSC", "010": "GTIN", "020": "Partida Arancelaria", "999": "Estándar de adopción del contribuyente"}
+	name, ok := names[code]
+	return name, ok, nil
+}
+
+func (f *fakeCatalogPort) GetItemStandardAgencyID(_ context.Context, code string) (string, bool, error) {
+	agencyIDs := map[string]string{"001": "10", "010": "9", "020": "195", "999": ""}
+	agencyID, ok := agencyIDs[code]
+	return agencyID, ok, nil
 }
 
 func testIssuer() *issuers.Issuer {
@@ -237,6 +257,192 @@ func TestCreateInvoiceDraft_OK(t *testing.T) {
 	assert.Empty(t, draft.DocumentKey, "un borrador no tiene CUFE todavía")
 	assert.Empty(t, draft.SignedXML, "un borrador no está firmado todavía")
 	assert.Equal(t, int64(10000), draft.Totals.LineExtensionCents, "los totales sí se calculan desde el borrador")
+}
+
+// TestCreateInvoiceDraft_DefaultsCustomerCountry confirma el fix de la sección 9.44: un rechazo
+// real (StatusCode 99, "errores en campos mandatorios") reveló que applyCustomerDefaults nunca
+// defaulteaba el país del cliente — partyFromIssuer sí lo hace para el emisor, pero nunca se
+// replicó para el cliente. Invisible mientras ningún cliente de prueba tuviera dirección.
+func TestCreateInvoiceDraft_DefaultsCustomerCountry(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+		newFakeCatalogPort(),
+		&fakeEmailPort{},
+	)
+
+	req := testRequest(iss.ID, nr.ID)
+	req.Customer.Address = domain.Address{
+		Line:      "CL 17 B 19 68",
+		CityCode:  "76520",
+		CityName:  "Palmira",
+		StateCode: "76",
+		StateName: "Valle del Cauca",
+	}
+
+	draft, err := svc.CreateInvoiceDraft(context.Background(), req)
+	require.NoError(t, err)
+
+	assert.Equal(t, "CO", draft.Customer.Address.CountryCode)
+	assert.Equal(t, "Colombia", draft.Customer.Address.CountryName)
+}
+
+// TestCreateInvoiceDraft_DefaultsItemStandard confirma el fix de la sección 9.45: un segundo
+// rechazo real (mismo StatusCode 99) reveló que lines[].item_type_code/item_type_name/
+// item_type_agency_id eran campos libres — la DIAN exige que coincidan con la tabla 13.3.5 del
+// Anexo Técnico. item_type_code vacío debe defaultear a "999" (estándar propio) y
+// item_type_name/item_type_agency_id deben derivarse del catálogo, nunca aceptarse del cliente.
+func TestCreateInvoiceDraft_DefaultsItemStandard(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+		newFakeCatalogPort(),
+		&fakeEmailPort{},
+	)
+
+	req := testRequest(iss.ID, nr.ID)
+	// ItemTypeCode se deja vacío a propósito — testRequest() ya no lo manda.
+
+	draft, err := svc.CreateInvoiceDraft(context.Background(), req)
+	require.NoError(t, err)
+
+	require.Len(t, draft.Lines, 1)
+	assert.Equal(t, "999", draft.Lines[0].ItemTypeCode)
+	assert.Equal(t, "Estándar de adopción del contribuyente", draft.Lines[0].ItemTypeName)
+	assert.Empty(t, draft.Lines[0].ItemTypeAgencyID, "la fila 999 no debe traer agencyID")
+}
+
+// TestCreateInvoiceDraft_DerivesItemStandardWithAgencyID confirma el otro lado: un código real
+// (ej. UNSPSC, "001") sí deriva un AgencyID no vacío.
+func TestCreateInvoiceDraft_DerivesItemStandardWithAgencyID(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+		newFakeCatalogPort(),
+		&fakeEmailPort{},
+	)
+
+	req := testRequest(iss.ID, nr.ID)
+	req.Lines[0].ItemTypeCode = "001"
+
+	draft, err := svc.CreateInvoiceDraft(context.Background(), req)
+	require.NoError(t, err)
+
+	require.Len(t, draft.Lines, 1)
+	assert.Equal(t, "001", draft.Lines[0].ItemTypeCode)
+	assert.Equal(t, "UNSPSC", draft.Lines[0].ItemTypeName)
+	assert.Equal(t, "10", draft.Lines[0].ItemTypeAgencyID)
+}
+
+// TestCreateInvoiceDraft_InvalidItemStandardCode confirma el rechazo cuando item_type_code no
+// existe en la tabla 13.3.5 — exactamente el bug real: un código UNSPSC puntual ("43211500")
+// puesto donde debía ir el selector ("001").
+func TestCreateInvoiceDraft_InvalidItemStandardCode(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+		newFakeCatalogPort(),
+		&fakeEmailPort{},
+	)
+
+	req := testRequest(iss.ID, nr.ID)
+	req.Lines[0].ItemTypeCode = "43211500"
+
+	_, err := svc.CreateInvoiceDraft(context.Background(), req)
+	assert.ErrorIs(t, err, documents.ErrInvalidItemStandardCode)
+}
+
+// TestCreateInvoiceDraft_DefaultsTaxToIVAZero confirma el fix de la sección 9.46: un rechazo
+// real (StatusCode 99, regla FAU04 "Base Imponible es distinto a la suma de los valores de las
+// bases imponibles de todas líneas de detalle") reveló que una línea sin tax_type_code
+// quedaba sin ningún cac:TaxTotal — la base imponible del encabezado dejaba de coincidir con
+// la suma de las líneas. Mismo patrón ya probado contra la DIAN real en
+// cofacture/soap/realsend_test.go: "sin impuesto" se modela como IVA al 0%, nunca como ausencia
+// total de impuesto.
+func TestCreateInvoiceDraft_DefaultsTaxToIVAZero(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+		newFakeCatalogPort(),
+		&fakeEmailPort{},
+	)
+
+	req := testRequest(iss.ID, nr.ID)
+	req.Lines[0].TaxTypeCode = ""
+	req.Lines[0].TaxPercent = 0
+
+	draft, err := svc.CreateInvoiceDraft(context.Background(), req)
+	require.NoError(t, err)
+
+	require.Len(t, draft.Lines, 1)
+	require.Len(t, draft.Lines[0].Taxes, 1, "una línea sin impuesto especificado debe declarar IVA al 0%, nunca 0 impuestos")
+	tax := draft.Lines[0].Taxes[0]
+	assert.Equal(t, "01", tax.TypeCode)
+	assert.Equal(t, "IVA", tax.TypeName)
+	assert.Equal(t, float64(0), tax.Percent)
+	assert.Equal(t, int64(0), tax.TaxAmountCents)
+	assert.Equal(t, draft.Lines[0].LineExtensionCents, tax.TaxableAmountCents)
+}
+
+// TestCreateInvoiceDraft_AggregatesMixedTaxRatesSeparately confirma que dos líneas con IVA a
+// tarifas distintas (19% y 0%, esta última por default) NO se fusionan en un solo
+// cac:TaxSubtotal de cabecera — eso reportaría la base de la línea al 0% como si fuera al 19%,
+// el mismo tipo de inconsistencia que dispara la regla FAU04.
+func TestCreateInvoiceDraft_AggregatesMixedTaxRatesSeparately(t *testing.T) {
+	iss := testIssuer()
+	nr := testNumberingRange(iss.ID)
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{nr: nr},
+		&fakeCustomerPort{},
+		newFakeCatalogPort(),
+		&fakeEmailPort{},
+	)
+
+	req := testRequest(iss.ID, nr.ID)
+	req.Lines[0].TaxTypeCode = "01"
+	req.Lines[0].TaxPercent = 19
+	req.Lines = append(req.Lines, documents.LineInput{
+		Description:    "Servicio sin impuesto",
+		Quantity:       1,
+		UnitCode:       "94",
+		UnitPriceCents: 5000,
+		// TaxTypeCode vacío a propósito — debe defaultear a IVA 0%, separado del 19% de arriba.
+	})
+
+	draft, err := svc.CreateInvoiceDraft(context.Background(), req)
+	require.NoError(t, err)
+
+	taxes := documents.AggregateTaxesForTest(draft.Lines)
+	require.Len(t, taxes, 2, "19%% y 0%% deben quedar en cac:TaxSubtotal separados, no fusionados")
+
+	byPercent := map[float64]int64{}
+	for _, t := range taxes {
+		byPercent[t.Percent] = t.TaxableAmountCents
+	}
+	assert.Equal(t, draft.Lines[0].LineExtensionCents, byPercent[19])
+	assert.Equal(t, draft.Lines[1].LineExtensionCents, byPercent[0])
 }
 
 func TestConfirmDocument_BuildsSignsAndPersists(t *testing.T) {
@@ -1129,4 +1335,40 @@ func TestListDocuments_LimitNormalization(t *testing.T) {
 	overMax, err := svc.ListDocuments(context.Background(), issuerID, documents.ListFilter{Limit: documents.MaxListLimit + 1000})
 	require.NoError(t, err)
 	assert.LessOrEqual(t, len(overMax), documents.MaxListLimit)
+}
+
+// ── VerifyAcquirer (ayuda opcional al capturar un NIT, sección 9.41) ───────────────────────────
+
+// TestVerifyAcquirer_IssuerNotReadyToIssue confirma el único caso seguro de probar sin red real
+// (GetAcquirer si llega a llamarse de verdad golpea la DIAN real — ver el resto de esta
+// suite, que evita esa ruta a propósito con Environment: producción). El resto del flujo
+// (certificado configurado, llamada SOAP real) se verifica manualmente contra la DIAN real,
+// igual que GetStatus/SendBillSync en su momento.
+func TestVerifyAcquirer_IssuerNotReadyToIssue(t *testing.T) {
+	iss := &issuers.Issuer{ID: uuid.New(), BusinessName: "Sin Certificado S.A.S."}
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{issuer: iss},
+		&fakeNumberingPort{},
+		&fakeCustomerPort{},
+		newFakeCatalogPort(),
+		&fakeEmailPort{},
+	)
+
+	_, err := svc.VerifyAcquirer(context.Background(), iss.ID, "31", "900373076")
+	assert.ErrorIs(t, err, documents.ErrIssuerNotReadyToIssue)
+}
+
+func TestVerifyAcquirer_IssuerNotFound(t *testing.T) {
+	svc := documents.New(
+		documents.NewMemoryRepository(),
+		&fakeIssuerPort{},
+		&fakeNumberingPort{},
+		&fakeCustomerPort{},
+		newFakeCatalogPort(),
+		&fakeEmailPort{},
+	)
+
+	_, err := svc.VerifyAcquirer(context.Background(), uuid.New(), "31", "900373076")
+	assert.ErrorIs(t, err, issuers.ErrIssuerNotFound)
 }

@@ -2056,3 +2056,272 @@ Con esto queda cerrado el ciclo completo de un solo documento: Factura Electrón
 representación gráfica en PDF → envío al cliente por correo, los tres verificados contra
 servicios reales (DIAN real, Postgres real, SMTP real). Lo que sigue, cuando el usuario lo
 decida, es repetir este mismo patrón para Nota Crédito/Nota Débito.
+
+### 9.43 Auto-curar "set de pruebas cerrado" — sin intervención manual nunca más
+
+Probando el ciclo completo en la UI real (2026-06-28), una factura salió `rejected` con
+`dian_status_code: 2`, `dian_status_description: "Set de prueba con identificador
+653bf9d9-b2b1-44ae-a66d-3b9cdc4271c3 se encuentra Aceptado."`. Causa: el rango de numeración
+real del usuario todavía tenía `test_set_id` cargado — mientras lo tenga, `finalizeAndSend`
+siempre enruta por `SendTestSetAsync` (sección 9.14), que la DIAN rechaza para siempre una vez
+ese set queda "Aceptado" de su lado. **Esto ya había pasado antes en este proyecto** (sección
+9.38) y se corrigió a mano, una vez, con un `UPDATE` directo en la base de datos — pero eso no
+escala: cualquier empresa real futura que use `apidian` va a pasar por "registrar software → la
+DIAN le da un `test_set_id` → certificar con `SendTestSetAsync` → la DIAN marca el set
+Aceptado" y se va a topar con el mismo rechazo, sin que haya nadie del lado de desarrollo para
+arreglarlo a mano en su base de datos. El usuario pidió explícitamente que el sistema se cure
+solo — alcance acotado a Habilitación (producción real sigue diferida aparte, sección 9.11, por
+las implicaciones de enviar documentos fiscales reales).
+
+**`cofacture/dian.Result.IsTestSetClosed() bool`** (nuevo, `parser.go`) — detecta esta
+respuesta específica: `StatusDescription` contiene tanto "Set de prueba" como "se encuentra
+Aceptado", **sin** `Messages` (los rechazos de contenido real llegan vía
+`ErrorMessage.Items`/`Messages`, nunca por aquí) — distingue un detalle de certificación de un
+rechazo genuino del documento, ambos con el mismo `StatusCode` genérico "2". Unit test con la
+respuesta real exacta que produjo el rechazo, más un caso negativo (rechazo de contenido normal
+con `Messages`, que no debe activar esto).
+
+**`numbering.ClearTestSetID`** (nuevo, mismo patrón en las 4 capas que `ReleaseIfCurrent`:
+`Repository`/`PostgresRepository`/`MemoryRepository`/`Service`) — vacía `test_set_id` del
+rango. `PostgresRepository`: `UPDATE ... WHERE id = $1`, sin error si no afecta ninguna fila
+(mismo criterio que `ReleaseIfCurrent` — "ya no existe" no es un caso que el llamador necesite
+distinguir de "no había nada que limpiar"). `documents.NumberingPort` gana este método.
+
+**El self-healing real** vive en `documents.Service.sendAndUpdate` (la rama de
+`SendTestSetAsync`), justo después de interpretar la respuesta de `GetStatusZip` y antes de
+decidir `StatusAccepted`/`StatusRejected`: si `interpreted.IsTestSetClosed()`, se limpia
+`test_set_id` (best-effort, mismo criterio que `ReleaseIfCurrent`) y se reintenta **el mismo
+envío, en la misma petición de confirmar**, vía `sendSyncAndUpdate` (`SendBillSync`, que sigue
+funcionando con el set cerrado, sección 9.14) — en vez de devolver `StatusRejected` por un
+detalle de certificación. El número ya reclamado no se libera en este camino (no hace falta:
+`sendSyncAndUpdate` reusa el mismo documento/número, no reclama uno nuevo). De cara al usuario,
+esto es completamente invisible: un confirm que antes habría salido `rejected` por esta causa
+ahora simplemente sale `accepted` (o lo que la DIAN responda de verdad vía `SendBillSync`), y
+ningún confirm futuro sobre ese rango vuelve a intentar `SendTestSetAsync`.
+
+**Sin test automatizado para la rama de `sendAndUpdate` en sí** — a propósito, no por omisión:
+`documents.Service` no tiene (ni este fix agrega) un punto de inyección para el cliente SOAP;
+`soap.New(soap.HabilitacionURL, ...)` está fijo. Todos los tests existentes de
+`finalizeAndSend`/confirm evitan esta rama a propósito usando `issuers.EnvironmentProduccion`
+en `testIssuer()` (ver el comentario ahí: "es el único ambiente que finalizeAndSend nunca envía
+por red"). Agregar una interfaz inyectable solo para simular esta respuesta sería un cambio de
+arquitectura mayor no justificado por un solo caso — mismo criterio ya aplicado en todo este
+proyecto con la DIAN (se verifica contra el servicio real, no se construye un doble elaborado
+para simular su SOAP). La detección en sí (`IsTestSetClosed`, la parte realmente delicada de
+acertar sin falsos positivos) sí tiene cobertura unitaria completa; el comportamiento de extremo
+a extremo se verificó contra la DIAN real: parche puntual aplicado al rango real del usuario
+(limpiar `test_set_id` manualmente esta vez, para no bloquearlo mientras se construía el fix
+genérico), y queda pendiente que el usuario confirme una factura nueva sobre ese mismo rango
+para validar que el camino normal (ya sin `test_set_id`) sigue funcionando — y, si quiere
+probar el self-healing de verdad, recargarle un `test_set_id` cerrado a mano una vez más.
+
+**El self-healing funcionó de verdad** (confirmado el mismo día): el siguiente intento del
+usuario ya no mostró "Set de prueba... se encuentra Aceptado" — `dian_track_id` quedó vacío
+(huella de `sendSyncAndUpdate`, que no usa `ZipKey`, a diferencia de `sendAndUpdate`/
+`SendTestSetAsync`), confirmando que el sistema cambió de camino solo, sin ninguna intervención
+manual. Pero salió un rechazo **real y distinto**: `StatusCode 99`, "Validación contiene
+errores en campos mandatorios" — ver sección 9.44.
+
+### 9.44 `cac:Country` faltante en la dirección del cliente — primer cliente real con dirección completa
+
+El rechazo de arriba llevó a inspeccionar el XML firmado real (`documents.SignedXML`, columna
+persistida incluso para documentos rechazados — nunca se recalcula después, ver model.go).
+Comparando `cac:AccountingCustomerParty/.../cac:RegistrationAddress` contra
+`cac:AccountingSupplierParty/.../cac:RegistrationAddress` del mismo XML: la del emisor sí
+tenía `<cac:Country><cbc:IdentificationCode>CO</cbc:IdentificationCode>...`, la del cliente
+**no tenía ningún `cac:Country`**. Confirmado contra los XMLs de ejemplo reales de la DIAN
+(`docs/reference/Caja de herramientas FE_V19_(v2026)/Ejemplificaciones/XMLs de ejemplo/*.xml`,
+ej. "Excluido de IVA.xml"/"Combustible.xml"): **todo** ejemplo oficial con dirección de
+registro incluye `cac:Country` — confirma que es mandatorio, no algo que la DIAN tolere omitir
+(a diferencia de `cac:TaxTotal` por línea, que sí se confirmó opcional contra el mismo ejemplo
+"Excluido de IVA.xml", una línea sin impuesto y sin `cac:TaxTotal`, aceptada por la DIAN — esa
+parte de `cofacture/builder/tax.go` ya estaba bien, no se tocó).
+
+**Causa real**: `cofacture/builder/party.go.appendAddressFields` solo agrega `cac:Country` si
+`Address.CountryCode != ""` — correcto, comparte la misma función para emisor y cliente. Pero
+`documents/service.go.partyFromIssuer` **hardcodea** `CountryCode: "CO"`/`CountryName:
+"Colombia"` para el emisor, mientras que `applyCustomerDefaults` (la función equivalente para
+el cliente) nunca tuvo ese default — un default que existe de un lado y nunca se replicó del
+otro, exactamente el mismo patrón de bug que `EntityTypeCode`/`LiabilityCodes` en la sección
+9.29 (issuer) y 9.38 (software provider). **Invisible hasta ahora** porque `cac:Country` solo
+se renderiza dentro de `cac:RegistrationAddress`, que a su vez solo se construye si el cliente
+trae dirección (`Address.Line != ""`) — y ningún cliente de prueba en toda la historia de este
+proyecto había tenido dirección hasta este intento real del usuario (todos los fixtures/tests
+usan `Customer: domain.Party{Identification: ..., Name: "Consumidor Final"}`, sin `Address`).
+
+**Fix**: `applyCustomerDefaults` (`documents/service.go`) ganó el mismo default condicional que
+el resto de la función (`if Address.CountryCode == "" { ... = "CO"/"Colombia" }`) — respeta un
+país explícito distinto si alguna vez se factura a un cliente extranjero, igual criterio que
+los demás defaults de esa función. Test nuevo
+(`TestCreateInvoiceDraft_DefaultsCustomerCountry`) cubre el caso que expuso el bug: cliente con
+dirección completa pero sin país explícito.
+
+### 9.45 Catálogo real de `@schemeID`/`@schemeName`/`@schemeAgencyID` (clasificación de ítems)
+
+Tercer rechazo real (mismo `StatusCode 99`) en la misma factura de prueba, ya con el bug del
+país del cliente corregido (9.44). Inspeccionando el XML firmado real otra vez:
+`cac:StandardItemIdentification/cbc:ID` traía `schemeID="43211500"` — un código UNSPSC real
+puesto en el atributo equivocado.
+
+**El hallazgo**: `@schemeID`/`@schemeName`/`@schemeAgencyID` no son campos libres — el Anexo
+Técnico 1.9 los define en la tabla 13.3.5, que vive aparte de el texto principal
+(`docs/reference/Caja de herramientas FE_V19_(v2026)/Anexo Tecnico/Tablas Referenciadas/13.3.5
+Productos @schemeID, @schemeName, @schemeAgencyID.xlsx`, extraída con
+`System.IO.Compression.ZipFile` + lectura directa del XML de la hoja, sin Python/Excel
+disponibles). Es una tripleta cerrada de exactamente 4 filas, y la DIAN **rechaza
+explícitamente** si el valor no coincide ("Rechazo si el valor informado es diferente al de la
+tabla 13.3.5"):
+
+| schemeID | schemeName | schemeAgencyID |
+|---|---|---|
+| `001` | UNSPSC | `10` |
+| `010` | GTIN | `9` |
+| `020` | Partida Arancelaria | `195` |
+| `999` | Estándar de adopción del contribuyente | *(no se usa)* |
+
+El propio comentario en `cofacture/domain/types.go` (`ItemTypeCode string // catálogo de
+estándares... (ej. "999")`) ya anticipaba esta idea — pero nunca se construyó el catálogo real
+ni se validó/derivó, así que `ProductForm.tsx` dejaba un campo "Código de estándar" de texto
+libre con placeholder "Ej. UNSPSC", y terminó guardando el código UNSPSC real del producto
+("43211500") donde debía ir el selector ("001"). Confirmado contra los ejemplos oficiales de la
+DIAN (`docs/reference/.../Ejemplificaciones/XMLs de ejemplo/`): "ExcluidosExentos.xml" usa
+exactamente `schemeID="001" schemeName="UNSPSC" schemeAgencyID="10"` con el código real en el
+texto del elemento — de paso confirmó que `cac:TaxTotal` por línea SÍ es opcional cuando no hay
+impuesto ("Excluido de IVA.xml" no lo trae), así que esa parte de `cofacture/builder/tax.go` no
+tenía ningún bug.
+
+**Decisión del usuario**: quiso el sistema completo (selector real, pensando en facturación de
+importaciones a futuro con Partida Arancelaria), no solo defaultear a 999 y listo. Aclaración
+importante: UNSPSC/GTIN/Arancel **no son catálogos que se puedan cargar completos** (UNSPSC
+tiene decenas de miles de códigos, Arancel miles, GTIN son códigos de barra externos) — lo que
+sí es un catálogo chico y real, mismo criterio que `tax_types`/`dian_document_types`, es el
+**selector de 4 filas** de la tabla de arriba. El código real dentro de cada estándar se acepta
+como texto libre, sin validar contra una tabla completa — mismo tratamiento que ya recibe CIIU
+en este proyecto.
+
+**`catalogs.ItemStandard`** (nuevo, mismo patrón en las 4 capas que el resto de catálogos) —
+migración `000010_item_standards` (de verdad nueva, no se edita una existente: hay datos reales
+del usuario en juego) + `seed/item_standards.csv`. `agency_id` es `''` (no NULL) para la fila
+999 — mismo criterio que el resto del proyecto, que modela "ausente" como string vacío en vez
+de `*string`. `ListItemStandards`/`GetItemStandardName`/`GetItemStandardAgencyID`
+(`AgencyID` separado de `Name` porque puede ser `""` con `found=true`, a diferencia del resto
+de `Get*Name` donde `found=false` ya cubre "nada que mostrar"). Endpoint nuevo de solo lectura
+`GET /api/v1/catalogs/item-standards`.
+
+**`documents`/`products` derivan, no confían en el cliente** (mismo patrón de la sección 9.37):
+`linesFromInput`/`resolveItemStandard` (nuevo en `products.Service`) defaultean
+`item_type_code` vacío a `"999"`, validan contra el catálogo (`ErrInvalidItemStandardCode` si
+no existe) y derivan `item_type_name`/`item_type_agency_id` — el cliente ya no los manda
+(quitados de `lineInputDTO`/`productRequest`). A diferencia de `tax_type_code` (opcional, "sin
+impuesto" es válido), `item_type_code` SIEMPRE tiene un valor tras el default — la DIAN exige
+que la clasificación esté presente, nunca "ninguna".
+
+**`cofacture/builder/line_items.go`**: `schemeAgencyID` ahora solo se agrega como atributo si
+`line.ItemTypeAgencyID != ""` (mismo criterio que `appendAddressFields` con `cac:Country`,
+sección 9.44) — antes se agregaba siempre, incluso vacío. Se corrigió también un golden test
+preexistente (`invoice_builder_test.go`/`testdata/invoice_golden.xml`) que ya usaba
+`schemeID="999"` correctamente pero con `ItemTypeAgencyID: "0"` — un valor inventado antes de
+conocer la tabla real; ahora vacío, sin el atributo en el XML esperado.
+
+**Frontend**: `ProductForm.tsx` reemplaza los 3 campos libres ("Código de estándar"/"Nombre del
+estándar"/"ID de agencia") por un `<Select>` real (cargado de `listItemStandards()`,
+`lib/catalogs.ts`) — "Sin clasificar (mi propio código)" (vacío → 999) o uno de los 3 estándares
+externos. El campo "Código del ítem" existente se reutiliza para el código real dentro del
+estándar elegido, con un placeholder contextual (`ITEM_CODE_PLACEHOLDERS`) — sin agregar un
+campo nuevo. `LineItemsEditor.tsx` no necesitó UI propia (ya copiaba `item_type_code` del
+producto sin inputs propios para los otros dos) — solo se le quitaron `itemTypeName`/
+`itemTypeAgencyId` del estado interno, que habían quedado muertos (nunca tuvieron input, solo
+se escribían).
+
+**Hallazgo de proceso, no de producto**: durante esta fase se descubrió que `npx tsc --noEmit`
+en `frontend/` no estaba revisando ningún archivo — `tsconfig.json` es "solution-style"
+(`files: []` + `references`), que `tsc` sin `-b`/`-p` ignora silenciosamente (confirmado con
+`--listFiles`, devolvió 0 archivos). El comando correcto es `npx tsc -b` (lo que de verdad usa
+`npm run build`) — varias verificaciones "TSC_OK" de sesiones anteriores en este proyecto
+pueden haber sido falsos positivos. Ver memoria `feedback-tsc-noemit-silently-checks-nothing`.
+
+**Datos reales corregidos**: los 2 productos de prueba del usuario ("Producto de prueba 1"/"2")
+tenían exactamente el bug descrito (`item_type_code` con códigos UNSPSC reales,
+`item_type_agency_id` inconsistente entre los dos) — corregidos directamente en Postgres a
+`item_type_code = '999'`/nombre derivado/agency_id vacío. Ningún documento ya existente se
+tocó (son snapshots, nunca se recalculan).
+
+**Pendiente para el usuario**: reintentar la factura real una vez más — ya con los bugs de país
+del cliente (9.44) y clasificación de ítems (9.45) corregidos, junto con el self-healing del
+set de pruebas (9.43), debería pasar la validación de campos mandatorios de punta a punta.
+
+### 9.46 Detalle real de la DIAN vía `ApplicationResponseXML` + dos bugs más (unidad de medida, base imponible)
+
+El cuarto rechazo (mismo `StatusCode 99` genérico) ya no cedió pistas inspeccionando solo el
+XML propio — se necesitaba el detalle que la DIAN sí manda pero `documents.Service` nunca
+persiste. `dian.Interpret` ya decodifica `ApplicationResponseXML` (`cofacture/dian/parser.go`,
+existe desde antes) a partir de `resp.XmlBytes`/`XmlBase64Bytes`, pero `finish()` solo guarda
+`StatusCode`/`StatusDescription`/`StatusMessage` — nunca ese XML. Para diagnosticar sin tocar
+producto, se reenvió el `signed_xml` ya persistido del documento rechazado directo a
+`SendBillSync` desde un script descartable dentro de `apidian/cmd/inspect` (necesita
+`cryptutil`/`cofacture` directamente, por eso vive dentro del módulo en vez del scratchpad —
+borrado al terminar, no se commiteó) — eso sí trajo el `ApplicationResponse` completo con
+`cac:LineResponse` por línea:
+
+```
+Regla: FAV05, Rechazo: La unidad de la cantidad utilizada NO existe en la lista de unidades.
+Regla: FAU04, Rechazo: Base Imponible es distinto a la suma de los valores de las bases imponibles de todas líneas de detalle.
+```
+
+**FAV05 — `M2`/`M3` no son códigos UN/ECE Rec. 20 reales**: el catálogo `unit_measures`
+(sembrado con una muestra de 11 códigos a propósito, sección 9.21) tenía dos códigos
+**inventados** (no solo "catálogo incompleto" — directamente equivocados): el real para metro
+cuadrado es `MTK`, para metro cúbico `MTQ` (confirmado contra la tabla oficial extraída de
+`docs/reference/.../Tablas Referenciadas/13.3.6 Unidades de Cantidad @unitCode.xlsx`, mismo
+método de extracción que la 13.3.5 de la sección 9.45). Corregido en `seed/unit_measures.csv`;
+las filas viejas `M2`/`M3` se borraron de la tabla real (un `UPDATE` de seed no las habría
+tocado, solo inserta las nuevas) y el producto real del usuario que usaba `M2` se corrigió a
+`MTK`.
+
+**FAU04 — una línea sin impuesto rompe la base imponible del encabezado**: ya estaba resuelto
+una vez, pero solo en `cofacture` — `cofacture/soap/realsend_test.go` documenta exactamente
+este rechazo real (mismo código FAU04) y su fix: modelar "sin impuesto" como **IVA al 0%**, no
+como ausencia total de `cac:TaxTotal`. Ese fix nunca se replicó en `apidian/internal/documents`,
+que seguía dejando `Taxes` vacío cuando `tax_type_code` no se mandaba — invisible mientras
+ningún test/factura real mezclara una línea con impuesto y una sin él (todos los fixtures de
+este proyecto, incluyendo `testRequest()`, siempre usaban `"01"`/0% explícito, nunca vacío).
+
+Fix en dos partes:
+- `documents/lines.go.linesFromInput`: `tax_type_code` vacío defaultea a `"01"` con
+  `tax_percent` forzado a `0` — siempre hay exactamente 1 impuesto por línea, nunca 0.
+- `documents/service.go.aggregateTaxes`: agrupaba el `cac:TaxTotal` de cabecera solo por
+  `TypeCode` — con el fix anterior, una factura con una línea al 19% y otra (defaulteada) al
+  0% comparten `TypeCode "01"` pero deben quedar en `cac:TaxSubtotal` **separados** (fusionarlos
+  habría reportado la base de la línea al 0% como si fuera al 19%, el mismo tipo de
+  inconsistencia que dispara FAU04). Se cambió la clave de agrupación a `(TypeCode, Percent)`.
+
+Tests nuevos: `TestCreateInvoiceDraft_DefaultsTaxToIVAZero`,
+`TestCreateInvoiceDraft_AggregatesMixedTaxRatesSeparately` (este último necesitó exponer
+`aggregateTaxes` vía `export_test.go` — no exportada en producción, solo visible para
+`service_test.go`).
+
+**Patrón a repetir si vuelve a pasar**: cuando la DIAN rechaza con un mensaje genérico
+("errores en campos mandatorios") sin texto específico, vale la pena reenviar el XML ya
+firmado directo por `SendBillSync` (fuera de la app, con un script descartable) e inspeccionar
+`dian.Interpret(...).ApplicationResponseXML` — ahí sí vienen los códigos de regla exactos
+(`cac:LineResponse` por línea), mucho más rápido que adivinar comparando contra ejemplos.
+
+**`unit_measures` completado (1.081/1.081 códigos reales)**: el usuario preguntó directamente
+si la tabla 13.3.6 completa estaba disponible — sí, en el mismo archivo de la Caja de
+Herramientas usado para confirmar `M2`/`M3`. Mismo criterio que `municipalities`/`departments`
+en la sección 9.34 (catálogo grande, cargarlo completo en vez de una muestra): se extrajo la
+tabla completa (367 filas × 3 pares código/descripción por fila en el `.xlsx` real, no 1 por
+fila) con el mismo método de `System.IO.Compression.ZipFile` + lectura directa de
+`xl/worksheets/sheet1.xml` — la diferencia esta vez es que las columnas empiezan en `B` (no
+`A`), hay que leer el atributo `r` de cada `<c>` en vez de asumir un orden fijo. Filtrado a
+`^[A-Z0-9]{1,3}$` para descartar ruido de la extracción (notas al pie con `ª`/`º`, fragmentos
+de texto en español que se filtraron por columnas vacías) — quedaron 1.081 códigos únicos de
+1.093 pares brutos. **De paso confirmó que `MON`/`ANN` (mes/año), ya en el seed desde antes de
+esta sesión, TAMPOCO existen en la tabla oficial** — los códigos reales son `LUN`/`ANA`. Mismo
+patrón que `M2`/`M3`: alguien adivinó un código "lógico" en vez de verificarlo contra la tabla.
+Seed reemplazado por completo (1.081 filas); `MON`/`ANN`/`M2`/`M3` eliminados de la tabla real
+en Postgres (un `UPDATE` del seed no los habría tocado, solo inserta los nuevos). Los productos
+reales del usuario solo usaban `94`/`MTK`, ambos confirmados correctos — no necesitaron más
+ajustes. Algunos nombres tienen artefactos de codificación menores (ej. "Ã ¥ngström") que vienen
+del archivo original de la DIAN, no de la extracción — no se intentó adivinar la corrección,
+solo afecta el texto descriptivo, nunca el código que valida la DIAN.

@@ -102,11 +102,18 @@ func (c *Client) call(action string, bodyBuilder func(body *etree.Element), out 
 	if envelope.Body.Fault != nil {
 		return &Fault{Code: envelope.Body.Fault.Code.Value, Reason: envelope.Body.Fault.Reason.Text}
 	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("soap: HTTP %d sin soap:Fault explícito:\n%s", resp.StatusCode, respBody)
-	}
 
+	// El HTTP status NO es la señal confiable de éxito/error en este servicio — confirmado
+	// contra la DIAN real: GetAcquirer responde HTTP 404 con un cuerpo SOAP perfectamente
+	// válido cuando el adquiriente no existe (StatusCode "404" DENTRO del body, Message "El
+	// adquirente No existe en la base de datos", sin soap:Fault) — ese es el resultado normal
+	// y esperado para la mayoría de identificaciones, no un error de transporte. Por eso se
+	// intenta parsear el body en out PRIMERO, sin importar el status; solo si el body no es la
+	// respuesta esperada se usa el status para dar un mensaje de error más claro.
 	if err := xml.Unmarshal(envelope.Body.Content, out); err != nil {
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("soap: HTTP %d sin soap:Fault explícito:\n%s", resp.StatusCode, respBody)
+		}
 		return fmt.Errorf("soap: parsear %sResponse: %w", action, err)
 	}
 	return nil

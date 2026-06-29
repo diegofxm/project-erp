@@ -571,6 +571,22 @@ anteriores) → en el navegador, el botón apareció solo por estar `accepted`, 
 confirmación mostró el correo correcto del cliente, y el banner de éxito apareció tras el envío
 real. 0 errores de consola. Datos de prueba eliminados al terminar.
 
+## Selector real de clasificación de ítems (2026-06-28)
+
+`ProductForm.tsx` reemplaza los 3 campos de texto libre ("Código de estándar"/"Nombre del
+estándar"/"ID de agencia" — mal diseñados, dejaban guardar cualquier valor) por un `<Select>`
+real cargado de `listItemStandards()` (`lib/catalogs.ts`, nuevo) — ver
+`apidian-architecture.md` sección 9.45 para el detalle completo del bug real que esto corrige
+(un código UNSPSC real terminó guardado donde debía ir un selector de 4 valores fijos, causando
+un rechazo real de la DIAN). El campo "Código del ítem" existente se reutiliza para el código
+real dentro del estándar elegido, con placeholder contextual. `LineItemsEditor.tsx` no
+necesitó UI propia — solo se le quitó estado muerto (`itemTypeName`/`itemTypeAgencyId` nunca
+tuvieron input propio, solo se copiaban del producto sin mostrarse).
+
+**Hallazgo de proceso**: durante esta fase se descubrió que `npx tsc --noEmit` no revisaba
+ningún archivo de este proyecto (`tsconfig.json` es de solo-referencias) — el comando correcto
+es `npx tsc -b` (o `npm run build`). Ver memoria `feedback-tsc-noemit-silently-checks-nothing`.
+
 ## Pendiente para próximas fases
 
 - Nota Crédito/Nota Débito siguen sin página propia (deshabilitadas en el Sidebar) — mismo

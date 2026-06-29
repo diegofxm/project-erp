@@ -68,6 +68,11 @@ var (
 	ErrInvalidTaxSchemeCode = errors.New("documents: tipo de régimen tributario del cliente (customer.tax_scheme_code) inválido")
 	ErrInvalidTaxTypeCode   = errors.New("documents: tipo de impuesto de línea (lines[].tax_type_code) inválido")
 
+	// ErrInvalidItemStandardCode: lines[].item_type_code ya no es un campo libre — la DIAN
+	// rechaza el documento si no coincide con la tabla 13.3.5 del Anexo Técnico (ver
+	// docs/apidian-architecture.md sección 9.45). Igual criterio que ErrInvalidTaxTypeCode.
+	ErrInvalidItemStandardCode = errors.New("documents: estándar de clasificación de línea (lines[].item_type_code) inválido")
+
 	// ErrPDFNotSupportedForDocumentType: la representación gráfica (ver
 	// docs/apidian-architecture.md sección 9.39) por ahora solo está implementada para
 	// Factura — Nota Crédito/Nota Débito se agregan cuando el ciclo de Factura esté probado

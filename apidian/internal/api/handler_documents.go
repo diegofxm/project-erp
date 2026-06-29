@@ -513,3 +513,34 @@ func (a *API) handleSendDocumentEmail(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+type verifyAcquirerResponse struct {
+	Found         bool   `json:"found"`
+	ReceiverName  string `json:"receiver_name,omitempty"`
+	ReceiverEmail string `json:"receiver_email,omitempty"`
+}
+
+// handleVerifyAcquirer es una ayuda OPCIONAL al capturar un NIT (?identification_type_code=&
+// identification_number=) — nunca bloqueante, ver documents.Service.VerifyAcquirer y
+// docs/apidian-architecture.md sección 9.41. found=false es el resultado normal y esperado
+// para la mayoría de cédulas, no un error.
+func (a *API) handleVerifyAcquirer(w http.ResponseWriter, r *http.Request) {
+	typeCode := r.URL.Query().Get("identification_type_code")
+	number := r.URL.Query().Get("identification_number")
+	if typeCode == "" || number == "" {
+		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "identification_type_code e identification_number son obligatorios"})
+		return
+	}
+
+	info, err := a.documents.VerifyAcquirer(r.Context(), middleware.GetTenantID(r.Context()), typeCode, number)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, verifyAcquirerResponse{
+		Found:         info.Found,
+		ReceiverName:  info.ReceiverName,
+		ReceiverEmail: info.ReceiverEmail,
+	})
+}

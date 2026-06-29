@@ -27,3 +27,14 @@ type Currency struct {
 	Name   string `json:"name"`
 	Symbol string `json:"symbol"`
 }
+
+// ItemStandard es la tabla 13.3.5 del Anexo Técnico (ver docs/apidian-architecture.md sección
+// 9.45) — exactamente 4 filas fijas (001/UNSPSC, 010/GTIN, 020/Partida Arancelaria,
+// 999/estándar propio). AgencyID vacío ("") en la fila 999 significa que el atributo
+// @schemeAgencyID no debe escribirse en el XML, no que falte un dato.
+type ItemStandard struct {
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	AgencyID    string `json:"agency_id,omitempty"`
+	Description string `json:"description"`
+}

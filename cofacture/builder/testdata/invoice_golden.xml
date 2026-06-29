@@ -178,7 +178,7 @@
     <cac:Item>
       <cbc:Description>Laptop Dell Inspiron 15, 8GB RAM, 256GB SSD</cbc:Description>
       <cac:StandardItemIdentification>
-        <cbc:ID schemeID="999" schemeName="Estándar de adopción del contribuyente" schemeAgencyID="0">PROD001</cbc:ID>
+        <cbc:ID schemeID="999" schemeName="Estándar de adopción del contribuyente">PROD001</cbc:ID>
       </cac:StandardItemIdentification>
     </cac:Item>
     <cac:Price>

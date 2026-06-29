@@ -111,6 +111,35 @@ func (r *PostgresRepository) ReleaseIfCurrent(ctx context.Context, id uuid.UUID,
 	return nil
 }
 
+// ClearTestSetID — ver Repository.ClearTestSetID.
+func (r *PostgresRepository) ClearTestSetID(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE numbering_ranges
+		SET test_set_id = '', updated_at = NOW()
+		WHERE id = $1`,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("clear test set id: %w", err)
+	}
+	return nil
+}
+
+// Deactivate — ver Repository.Deactivate.
+func (r *PostgresRepository) Deactivate(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE numbering_ranges SET is_active = FALSE, updated_at = NOW() WHERE id = $1`,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("deactivate numbering range: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrRangeNotFound
+	}
+	return nil
+}
+
 func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error) {
 	query := `SELECT ` + numberingColumns + ` FROM numbering_ranges WHERE issuer_id = $1`
 	args := []any{issuerID}

@@ -7,12 +7,16 @@ interface TagInputProps {
   onChange: (values: string[]) => void;
   max?: number;
   placeholder?: string;
+  // disableInput oculta el input de texto libre, dejando solo los chips + botón de quitar —
+  // para cuando agregar un valor nuevo pasa por otro control (ej. un Combobox de búsqueda
+  // arriba, ver TaxStep.tsx) y este componente solo necesita mostrar/quitar lo ya elegido.
+  disableInput?: boolean;
 }
 
 // Input de chips sin catálogo detrás (ej. códigos CIIU — DANE, no DIAN, ver
 // cofacture/domain/types.go Party.IndustryClassificationCodes). Escribir un código + Enter
 // agrega un chip; bloqueado en `max` chips.
-export function TagInput({ label, values, onChange, max, placeholder }: TagInputProps) {
+export function TagInput({ label, values, onChange, max, placeholder, disableInput }: TagInputProps) {
   const [draft, setDraft] = useState("");
   const atLimit = max !== undefined && values.length >= max;
 
@@ -49,7 +53,7 @@ export function TagInput({ label, values, onChange, max, placeholder }: TagInput
             </button>
           </span>
         ))}
-        {!atLimit && (
+        {!disableInput && !atLimit && (
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}

@@ -57,3 +57,21 @@ type NumberingRange struct {
 func (nr NumberingRange) Exhausted() bool {
 	return nr.RangeTo != nil && nr.CurrentNumber >= *nr.RangeTo
 }
+
+// Status resume en un solo valor si el rango se puede usar hoy para emitir — la misma regla la
+// necesitan tanto el panel de administración (para mostrar una insignia) como el selector de
+// la factura (para no ofrecer un rango que ya no sirve), así que vive en un solo lugar en vez
+// de reimplementarse en el frontend. Prioridad: una desactivación explícita pesa más que un
+// agotamiento o vencimiento (si el usuario ya lo borró, no importa por qué dejó de servir).
+func (nr NumberingRange) Status() string {
+	switch {
+	case !nr.IsActive:
+		return "inactive"
+	case nr.Exhausted():
+		return "exhausted"
+	case time.Now().After(nr.ValidTo):
+		return "expired"
+	default:
+		return "active"
+	}
+}

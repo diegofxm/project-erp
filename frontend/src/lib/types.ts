@@ -99,7 +99,26 @@ export interface Municipality extends CatalogEntry {
   department_code: string;
 }
 
-// Espejo de numberingRangeResponse en apidian/internal/api/handler_issuers.go.
+// Espejo de catalogs.Currency — sin description, a diferencia de CatalogEntry.
+export interface Currency {
+  code: string;
+  name: string;
+  symbol: string;
+}
+
+// Selector real de @schemeID/@schemeName/@schemeAgencyID (tabla 13.3.5 del Anexo Técnico, ver
+// docs/apidian-architecture.md sección 9.45) — exactamente 4 filas fijas, no confundir con un
+// catálogo completo de códigos UNSPSC/GTIN/Arancel (esos no se cargan).
+export interface ItemStandard extends CatalogEntry {
+  agency_id?: string;
+}
+
+// Espejo de numberingRangeResponse en apidian/internal/api/handler_issuers.go. status resume
+// is_active/agotado/vencido en un solo valor (ver numbering.NumberingRange.Status) — el select
+// de la factura solo ofrece los "active", el panel de administración los muestra todos con una
+// insignia.
+export type NumberingRangeStatus = "active" | "expired" | "exhausted" | "inactive";
+
 export interface NumberingRange {
   id: string;
   issuer_id: string;
@@ -108,8 +127,11 @@ export interface NumberingRange {
   range_from: number;
   range_to?: number;
   current_number: number;
+  valid_from: string;
+  valid_to: string;
   environment: IssuerEnvironment;
   is_active: boolean;
+  status: NumberingRangeStatus;
 }
 
 export interface ListNumberingRangesResult {
@@ -185,14 +207,16 @@ export interface ListCustomersResult {
 // Deliberadamente sin quantity/line_extension_cents/taxes (plural) — eso es dato de USO al
 // armar una línea de documento, no del catálogo (ver products.Product). tax_type_code/
 // tax_type_name/tax_percent son un único impuesto por defecto, de conveniencia.
+// item_type_code: selector de @schemeID (tabla 13.3.5, ver ItemStandard) — "001" UNSPSC/"010"
+// GTIN/"020" Partida Arancelaria/"999" propio (vacío = "999"). item_type_name/
+// item_type_agency_id ya NO se mandan: el backend los deriva del catálogo (ver
+// docs/apidian-architecture.md sección 9.45) y solo aparecen en la respuesta (Product, abajo).
 export interface ProductPayload {
   description: string;
   unit_code: string;
   unit_price_cents: number;
   item_code?: string;
   item_type_code?: string;
-  item_type_name?: string;
-  item_type_agency_id?: string;
   tax_type_code?: string;
   tax_type_name?: string;
   tax_percent?: number;
@@ -200,6 +224,8 @@ export interface ProductPayload {
 
 export interface Product extends ProductPayload {
   id: string;
+  item_type_name?: string;
+  item_type_agency_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -219,9 +245,9 @@ export interface DocumentLineInput {
   unit_code: string;
   unit_price_cents: number;
   item_code?: string;
+  // Selector de @schemeID (ver ProductPayload.item_type_code) — item_type_name/
+  // item_type_agency_id ya no se mandan, se derivan en el servidor.
   item_type_code?: string;
-  item_type_name?: string;
-  item_type_agency_id?: string;
   tax_type_code?: string;
   tax_percent?: number;
 }
@@ -240,6 +266,8 @@ export interface Tax {
 // comerciales) quedan fuera a propósito — no se construye UI para ese caso todavía.
 export interface DocumentLine extends DocumentLineInput {
   line_extension_cents: number;
+  item_type_name?: string;
+  item_type_agency_id?: string;
   taxes?: Tax[];
 }
 

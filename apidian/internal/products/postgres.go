@@ -9,6 +9,7 @@ import (
 	"github.com/diegofxm/apidian/internal/sqlutil"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -54,6 +55,9 @@ func (r *PostgresRepository) Create(ctx context.Context, p Product) (*Product, e
 	}
 	_, err := r.pool.Exec(ctx, `INSERT INTO products (`+productColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
 	if err != nil {
+		if isDuplicateItemCode(err) {
+			return nil, ErrDuplicateItemCode
+		}
 		return nil, fmt.Errorf("create product: %w", err)
 	}
 	return &p, nil
@@ -103,6 +107,9 @@ func (r *PostgresRepository) Update(ctx context.Context, issuerID, id uuid.UUID,
 		time.Now().UTC(), id, issuerID,
 	)
 	if err != nil {
+		if isDuplicateItemCode(err) {
+			return nil, ErrDuplicateItemCode
+		}
 		return nil, fmt.Errorf("update product: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
@@ -146,6 +153,14 @@ func scanProduct(row pgx.Row) (*Product, error) {
 	p.TaxTypeCode = deref(taxTypeCode)
 	p.TaxTypeName = deref(taxTypeName)
 	return &p, nil
+}
+
+// isDuplicateItemCode detecta la violación del índice único parcial (issuer_id, item_code) —
+// ver migración 000011_products_item_code_unique. Mismo patrón que issuers/postgres.go
+// (isDuplicateKey).
+func isDuplicateItemCode(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 func nullableString(s string) any {

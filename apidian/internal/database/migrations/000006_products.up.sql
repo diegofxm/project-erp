@@ -7,12 +7,13 @@
 -- son un único impuesto por defecto, de conveniencia; si una factura real necesita más de un
 -- impuesto por línea, eso se decide al construir esa línea, no aquí.
 --
--- unit_code NO es FK a unit_measures: ese catálogo solo tiene 11 códigos de muestra (94/NIU/
--- KGM/LTR...) frente al estándar real completo (UN/ECE Rec. 20, cientos de códigos) — mismo
--- hueco de datos ya conocido que departments/municipalities (ver sección 9.6 del architecture
--- doc). domain.Line.UnitCode tampoco se valida contra catálogo (vive en JSONB sin FK); esta
--- columna sigue el mismo criterio en vez de inventar un catálogo completo sin la fuente
--- oficial.
+-- unit_code NO es FK a unit_measures (aunque desde la sección 9.46 ese catálogo ya está
+-- completo — 1.081 códigos reales UN/ECE Rec. 20 — y técnicamente ya podría serlo):
+-- domain.Line.UnitCode (el snapshot real que viaja en documents.lines) vive en JSONB, donde un
+-- FK nunca es posible — agregar el FK aquí pero no ahí sería una validación a medias, más
+-- confusa que útil. Si algún día se valida unit_code en serio, debe ser en código (igual
+-- patrón que IsValidPaymentTerm/IsValidLiabilityCode), no con un FK que solo cubre la mitad
+-- del dato.
 CREATE TABLE products (
     id                   UUID         PRIMARY KEY,
     issuer_id           UUID         NOT NULL REFERENCES issuers(id),

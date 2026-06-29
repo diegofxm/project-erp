@@ -51,7 +51,8 @@ func classify(err error) (int, string) {
 	// ── 409 ──────────────────────────────────────────────────────────────────
 	case errors.Is(err, issuers.ErrNITAlreadyExists),
 		errors.Is(err, auth.ErrEmailAlreadyExists),
-		errors.Is(err, documents.ErrDocumentNotDraft):
+		errors.Is(err, documents.ErrDocumentNotDraft),
+		errors.Is(err, products.ErrDuplicateItemCode):
 		return http.StatusConflict, err.Error()
 
 	// ── 400 (validación / datos faltantes) ────────────────────────────────────
@@ -67,6 +68,7 @@ func classify(err error) (int, string) {
 		errors.Is(err, issuers.ErrInvalidTaxSchemeCode),
 		errors.Is(err, issuers.ErrEmptyLogo),
 		errors.Is(err, issuers.ErrInvalidLogoContentType),
+		errors.Is(err, issuers.ErrInvalidIdentificationNumber),
 		errors.Is(err, numbering.ErrMissingIssuer),
 		errors.Is(err, numbering.ErrMissingDocumentType),
 		errors.Is(err, numbering.ErrEmptyPrefix),
@@ -83,6 +85,7 @@ func classify(err error) (int, string) {
 		errors.Is(err, documents.ErrInvalidLiabilityCode),
 		errors.Is(err, documents.ErrInvalidTaxSchemeCode),
 		errors.Is(err, documents.ErrInvalidTaxTypeCode),
+		errors.Is(err, documents.ErrInvalidItemStandardCode),
 		errors.Is(err, documents.ErrMissingBillingReference),
 		errors.Is(err, auth.ErrEmptyEmail),
 		errors.Is(err, auth.ErrEmptyPassword),
@@ -92,10 +95,12 @@ func classify(err error) (int, string) {
 		errors.Is(err, customers.ErrEmptyIdentification),
 		errors.Is(err, customers.ErrInvalidLiabilityCode),
 		errors.Is(err, customers.ErrInvalidTaxSchemeCode),
+		errors.Is(err, customers.ErrInvalidIdentificationNumber),
 		errors.Is(err, products.ErrEmptyDescription),
 		errors.Is(err, products.ErrEmptyUnitCode),
 		errors.Is(err, products.ErrInvalidUnitPrice),
-		errors.Is(err, products.ErrInvalidTaxTypeCode):
+		errors.Is(err, products.ErrInvalidTaxTypeCode),
+		errors.Is(err, products.ErrInvalidItemStandardCode):
 		return http.StatusBadRequest, err.Error()
 
 	// ── 422 (regla de negocio: la petición está bien formada pero no se puede

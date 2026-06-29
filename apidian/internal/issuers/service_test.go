@@ -96,6 +96,40 @@ func TestRegisterIssuer_NaturalPerson_EntityTypeCode(t *testing.T) {
 	}
 }
 
+// TestRegisterIssuer_DerivesCheckDigit confirma el punto A de la sección 9.41: el dígito de
+// verificación de un NIT ("31") se deriva con el algoritmo módulo 11 (internal/nit), nunca se
+// acepta del cliente — el fixture manda "1" a propósito (un valor cualquiera, nunca validado
+// antes de este cambio) y debe quedar sobreescrito con el dígito real ("4", verificado a mano).
+func TestRegisterIssuer_DerivesCheckDigit(t *testing.T) {
+	svc := newService()
+	got, err := svc.RegisterIssuer(context.Background(), validIssuer())
+	require.NoError(t, err)
+	assert.Equal(t, "4", got.CheckDigit)
+}
+
+// TestRegisterIssuer_CheckDigitNotDerivedForNonNIT confirma que el concepto no aplica a otros
+// tipos de identificación (cédula, etc.) — lo que el cliente mande ahí se conserva tal cual.
+func TestRegisterIssuer_CheckDigitNotDerivedForNonNIT(t *testing.T) {
+	iss := validIssuer()
+	iss.IdentificationTypeCode = "13"
+	iss.NIT = "6382356"
+	iss.CheckDigit = "valor-cualquiera"
+
+	got, err := newService().RegisterIssuer(context.Background(), iss)
+	require.NoError(t, err)
+	assert.Equal(t, "valor-cualquiera", got.CheckDigit)
+}
+
+// TestRegisterIssuer_InvalidNITForCheckDigit confirma el rechazo cuando el NIT no es numérico
+// — no se puede derivar un dígito de verificación de algo que no es un número.
+func TestRegisterIssuer_InvalidNITForCheckDigit(t *testing.T) {
+	iss := validIssuer()
+	iss.NIT = "90037-ABC"
+
+	_, err := newService().RegisterIssuer(context.Background(), iss)
+	assert.ErrorIs(t, err, issuers.ErrInvalidIdentificationNumber)
+}
+
 func TestRegisterIssuer_DuplicateNIT(t *testing.T) {
 	svc := newService()
 	ctx := context.Background()
@@ -277,6 +311,37 @@ func TestUpdateIssuer_CertificateWithoutPasswordSkipsValidation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []byte("p12-de-prueba"), updated.Certificate)
 	assert.Empty(t, updated.CertificatePassword, "todavía no se completó, sigue vacía")
+}
+
+// TestDeleteLogo_OK confirma el punto #15: UpdateIssuer no puede expresar "bórralo" (Logo nil
+// ya significa "no tocar"), así que DeleteLogo es la operación dedicada que limpia ambos
+// campos.
+func TestDeleteLogo_OK(t *testing.T) {
+	svc := newService()
+	ctx := context.Background()
+
+	created, err := svc.RegisterIssuer(ctx, validIssuer())
+	require.NoError(t, err)
+
+	logo := []byte("contenido-png-de-prueba")
+	contentType := "png"
+	updated, err := svc.UpdateIssuer(ctx, created.ID, issuers.UpdateIssuerRequest{
+		Logo:            logo,
+		LogoContentType: &contentType,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, updated.Logo)
+
+	got, err := svc.DeleteLogo(ctx, created.ID)
+	require.NoError(t, err)
+	assert.Empty(t, got.Logo)
+	assert.Empty(t, got.LogoContentType)
+}
+
+func TestDeleteLogo_NotFound(t *testing.T) {
+	svc := newService()
+	_, err := svc.DeleteLogo(context.Background(), uuid.New())
+	assert.ErrorIs(t, err, issuers.ErrIssuerNotFound)
 }
 
 func TestGetIssuer_NotFound(t *testing.T) {

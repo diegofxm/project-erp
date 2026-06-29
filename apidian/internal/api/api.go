@@ -100,6 +100,8 @@ func (a *API) Handler() http.Handler {
 //
 //	POST   /api/v1/auth/register                         → crea el usuario, SIN empresa todavía (público, ver 9.32)
 //	POST   /api/v1/auth/login                             → inicia sesión, devuelve el token (público)
+//	GET    /api/v1/public/issuers/{id}                    → nombre del emisor para el formulario de autorregistro (público, ver 9.41)
+//	POST   /api/v1/public/issuers/{id}/customers          → autorregistro de cliente por QR, sin sesión (público, ver 9.41)
 //
 //	A partir de aquí, todo exige "Authorization: Bearer <token>". Un usuario puede tener cero,
 //	una, o varias empresas vinculadas (sección 9.32) — estas tres rutas NO exigen una empresa
@@ -116,9 +118,11 @@ func (a *API) Handler() http.Handler {
 //	GET    /api/v1/issuers/me                            → consultar la empresa activa
 //	PUT    /api/v1/issuers/me                            → completar software/PIN/certificado/logo de la empresa activa (ver 9.25/9.39)
 //	GET    /api/v1/issuers/me/logo                       → logo en crudo de la empresa activa (404 si no tiene, ver 9.39)
+//	DELETE /api/v1/issuers/me/logo                       → quitar el logo de la empresa activa
 //	POST   /api/v1/numbering-ranges                      → registrar rango de numeración de la empresa activa
 //	GET    /api/v1/numbering-ranges                      → listar rangos de la empresa activa (?dian_document_type_code=)
 //	GET    /api/v1/numbering-ranges/{id}                  → consultar rango (debe ser de la empresa activa)
+//	DELETE /api/v1/numbering-ranges/{id}                  → desactivar rango (no se puede volver a usar ni se ofrece al armar una factura)
 //	POST   /api/v1/invoices                               → crear borrador de Factura (sin reclamar número)
 //	PUT    /api/v1/invoices/{id}                          → reemplazar un borrador de Factura
 //	POST   /api/v1/credit-notes                           → crear borrador de Nota Crédito
@@ -131,18 +135,21 @@ func (a *API) Handler() http.Handler {
 //	GET    /api/v1/documents/{id}                         → consultar documento (debe ser de la empresa activa)
 //	GET    /api/v1/documents/{id}/pdf                      → representación gráfica en PDF, generada en memoria (ver 9.39)
 //	POST   /api/v1/documents/{id}/send-email               → envía la Factura accepted al correo del cliente, PDF+XML adjuntos (ver 9.42)
+//	GET    /api/v1/dian/verify-acquirer                    → ayuda opcional al capturar un NIT, no bloqueante (?identification_type_code=&identification_number=, ver 9.41)
 //
 //	POST/GET/PUT/DELETE /api/v1/customers[/{id}]          → catálogo de adquirientes (conveniencia, ver internal/customers)
 //	POST/GET/PUT/DELETE /api/v1/products[/{id}]           → catálogo de ítems/servicios (conveniencia, ver internal/products)
 //
 //	GET /api/v1/catalogs/{departments,municipalities,identification-types,tax-types,
 //	    payment-methods,payment-terms,unit-measures,tax-regimes,liability-codes,
-//	    dian-document-types,currencies} → catálogos de referencia DIAN/DANE, de solo lectura,
-//	    iguales para cualquier usuario autenticado (ver internal/catalogs). municipalities
+//	    dian-document-types,currencies,item-standards} → catálogos de referencia DIAN/DANE, de
+//	    solo lectura, iguales para cualquier usuario autenticado (ver internal/catalogs). municipalities
 //	    acepta ?department_code= para filtrar.
 func (a *API) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/register", a.handleRegister)
 	mux.HandleFunc("POST /api/v1/auth/login", a.handleLogin)
+	mux.HandleFunc("GET /api/v1/public/issuers/{id}", a.handleGetPublicIssuer)
+	mux.HandleFunc("POST /api/v1/public/issuers/{id}/customers", a.handleCreatePublicCustomer)
 
 	protect := middleware.Auth(a.tokens)
 	// handle exige una empresa ACTIVA (la mayoría de rutas); handleNoTenant solo exige estar
@@ -158,9 +165,11 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("GET /api/v1/issuers/me", a.handleGetMyIssuer)
 	handle("PUT /api/v1/issuers/me", a.handleUpdateMyIssuer)
 	handle("GET /api/v1/issuers/me/logo", a.handleGetMyIssuerLogo)
+	handle("DELETE /api/v1/issuers/me/logo", a.handleDeleteMyIssuerLogo)
 	handle("POST /api/v1/numbering-ranges", a.handleCreateNumberingRange)
 	handle("GET /api/v1/numbering-ranges", a.handleListNumberingRanges)
 	handle("GET /api/v1/numbering-ranges/{id}", a.handleGetNumberingRange)
+	handle("DELETE /api/v1/numbering-ranges/{id}", a.handleDeactivateNumberingRange)
 
 	handle("POST /api/v1/invoices", a.handleCreateInvoice)
 	handle("PUT /api/v1/invoices/{id}", a.handleUpdateInvoice)
@@ -174,6 +183,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("GET /api/v1/documents/{id}", a.handleGetDocument)
 	handle("GET /api/v1/documents/{id}/pdf", a.handleGetDocumentPDF)
 	handle("POST /api/v1/documents/{id}/send-email", a.handleSendDocumentEmail)
+	handle("GET /api/v1/dian/verify-acquirer", a.handleVerifyAcquirer)
 
 	handle("POST /api/v1/customers", a.handleCreateCustomer)
 	handle("GET /api/v1/customers", a.handleListCustomers)
@@ -200,6 +210,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handleNoTenant("GET /api/v1/catalogs/liability-codes", a.handleListLiabilityCodes)
 	handleNoTenant("GET /api/v1/catalogs/dian-document-types", a.handleListDianDocumentTypes)
 	handleNoTenant("GET /api/v1/catalogs/currencies", a.handleListCurrencies)
+	handleNoTenant("GET /api/v1/catalogs/item-standards", a.handleListItemStandards)
 }
 
 // ── helpers compartidos ─────────────────────────────────────────────────────────────────────

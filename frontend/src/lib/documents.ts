@@ -72,8 +72,6 @@ export function lineToInput(line: DocumentLine): DocumentLineInput {
     unit_price_cents: line.unit_price_cents,
     item_code: line.item_code,
     item_type_code: line.item_type_code,
-    item_type_name: line.item_type_name,
-    item_type_agency_id: line.item_type_agency_id,
     tax_type_code: tax?.type_code,
     tax_percent: tax?.percent,
   };

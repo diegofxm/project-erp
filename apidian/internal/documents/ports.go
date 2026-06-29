@@ -28,6 +28,13 @@ type NumberingPort interface {
 	// nunca quedó realmente ante la DIAN, así que el siguiente intento lo puede reclamar de
 	// nuevo en vez de avanzar y dejar un hueco (ver sección 9.33).
 	ReleaseIfCurrent(ctx context.Context, id uuid.UUID, number int64) error
+
+	// ClearTestSetID — ver numbering.Service.ClearTestSetID. Se llama cuando la DIAN responde
+	// que el set de pruebas de SendTestSetAsync ya quedó certificado/cerrado de su lado (ver
+	// dian.Result.IsTestSetClosed) — no es un rechazo de contenido del documento, es un
+	// detalle de certificación que el sistema resuelve solo, sin intervención manual (ver
+	// docs/apidian-architecture.md sección 9.43).
+	ClearTestSetID(ctx context.Context, id uuid.UUID) error
 }
 
 // CustomerPort define lo que documents necesita del catálogo de clientes — solo para
@@ -66,6 +73,14 @@ type CatalogPort interface {
 	GetPaymentTermName(ctx context.Context, code string) (name string, found bool, err error)
 	GetPaymentMethodName(ctx context.Context, code string) (name string, found bool, err error)
 	GetIdentificationTypeName(ctx context.Context, code string) (name string, found bool, err error)
+
+	// GetItemStandardName/GetItemStandardAgencyID resuelven lines[].item_type_name/
+	// item_type_agency_id a partir de item_type_code — el cliente ya no los manda (ver
+	// docs/apidian-architecture.md sección 9.45), así un documento nunca puede guardar un
+	// código y un nombre/agencia que no correspondan entre sí (mismo motivo que
+	// GetTaxTypeName). AgencyID separado de Name porque puede ser "" con found=true.
+	GetItemStandardName(ctx context.Context, code string) (name string, found bool, err error)
+	GetItemStandardAgencyID(ctx context.Context, code string) (agencyID string, found bool, err error)
 }
 
 // EmailPort define lo que documents necesita para enviar correo — ver

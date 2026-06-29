@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
 import { listDepartments, listIdentificationTypes, listLiabilityCodes, listMunicipalities, listTaxRegimes, listTaxTypes } from "../../lib/catalogs";
+import { ApiError } from "../../lib/apiClient";
+import { verifyAcquirer } from "../../lib/dianVerification";
 import { useCatalog } from "../../lib/useCatalog";
 import type { CustomerPayload, Municipality } from "../../lib/types";
+import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 
@@ -28,6 +32,28 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
 
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [loadingMunicipalities, setLoadingMunicipalities] = useState(false);
+
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<string | null>(null);
+
+  // Verificación opcional contra la DIAN (GetAcquirer, sección 9.41) — solo aplica a NIT, solo
+  // a pedido del usuario, nunca bloquea ni autocompleta nada.
+  async function handleVerify() {
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      const result = await verifyAcquirer(value.identification.type_code, value.identification.number);
+      setVerifyResult(
+        result.found
+          ? `Encontrado en la DIAN: ${result.receiver_name ?? "—"} (${result.receiver_email ?? "sin correo"})`
+          : "Sin registro en la DIAN — normal para la mayoría de NIT, no impide guardar.",
+      );
+    } catch (err) {
+      setVerifyResult(err instanceof ApiError ? err.message : "No se pudo verificar contra la DIAN");
+    } finally {
+      setVerifying(false);
+    }
+  }
 
   useEffect(() => {
     if (!departmentCode) {
@@ -99,6 +125,23 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
       <div className="col-span-4">
         <Input label="Nombre / Razón social" required value={value.name} onChange={(e) => onChange({ ...value, name: e.target.value })} />
       </div>
+
+      {value.identification.type_code === "31" && (
+        <div className="col-span-12 flex flex-col gap-1">
+          <Button
+            type="button"
+            variant="secondary"
+            icon={<Search className="h-3.5 w-3.5" />}
+            loading={verifying}
+            disabled={!value.identification.number}
+            onClick={handleVerify}
+            className="self-start"
+          >
+            Verificar en la DIAN
+          </Button>
+          {verifyResult && <p className="text-xs text-(--text-secondary)">{verifyResult}</p>}
+        </div>
+      )}
 
       <div className="col-span-4">
         <Select

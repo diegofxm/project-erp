@@ -81,14 +81,16 @@ type lineDTO struct {
 // SALIDA, con esos valores ya calculados por el servidor — documentResponse la usa para
 // mostrar un documento ya guardado.
 type lineInputDTO struct {
-	Description      string  `json:"description"`
-	Quantity         float64 `json:"quantity"`
-	UnitCode         string  `json:"unit_code"`
-	UnitPriceCents   int64   `json:"unit_price_cents"`
-	ItemCode         string  `json:"item_code,omitempty"`
-	ItemTypeCode     string  `json:"item_type_code,omitempty"`
-	ItemTypeName     string  `json:"item_type_name,omitempty"`
-	ItemTypeAgencyID string  `json:"item_type_agency_id,omitempty"`
+	Description    string  `json:"description"`
+	Quantity       float64 `json:"quantity"`
+	UnitCode       string  `json:"unit_code"`
+	UnitPriceCents int64   `json:"unit_price_cents"`
+	ItemCode       string  `json:"item_code,omitempty"`
+	// ItemTypeCode: selector de estándar de clasificación ("001" UNSPSC/"010" GTIN/"020"
+	// Partida Arancelaria/"999" propio, vacío = "999") — ver catalogs.ItemStandard,
+	// docs/apidian-architecture.md sección 9.45. item_type_name/item_type_agency_id ya NO se
+	// aceptan del cliente, se derivan del catálogo (mismo motivo que tax_scheme_name).
+	ItemTypeCode string `json:"item_type_code,omitempty"`
 	// TaxTypeCode vacío significa "esta línea no lleva impuesto" — 0 o 1 por línea (ver
 	// documents.LineInput).
 	TaxTypeCode string  `json:"tax_type_code,omitempty"`
@@ -234,16 +236,14 @@ func linesToInput(lines []lineInputDTO) []documents.LineInput {
 	out := make([]documents.LineInput, len(lines))
 	for i, l := range lines {
 		out[i] = documents.LineInput{
-			Description:      l.Description,
-			Quantity:         l.Quantity,
-			UnitCode:         l.UnitCode,
-			UnitPriceCents:   l.UnitPriceCents,
-			ItemCode:         l.ItemCode,
-			ItemTypeCode:     l.ItemTypeCode,
-			ItemTypeName:     l.ItemTypeName,
-			ItemTypeAgencyID: l.ItemTypeAgencyID,
-			TaxTypeCode:      l.TaxTypeCode,
-			TaxPercent:       l.TaxPercent,
+			Description:    l.Description,
+			Quantity:       l.Quantity,
+			UnitCode:       l.UnitCode,
+			UnitPriceCents: l.UnitPriceCents,
+			ItemCode:       l.ItemCode,
+			ItemTypeCode:   l.ItemTypeCode,
+			TaxTypeCode:    l.TaxTypeCode,
+			TaxPercent:     l.TaxPercent,
 		}
 	}
 	return out

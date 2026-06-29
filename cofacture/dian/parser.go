@@ -87,6 +87,18 @@ func (r Result) HasRejections() bool {
 	return false
 }
 
+// IsTestSetClosed detecta la respuesta específica de la DIAN cuando el identificador de set de
+// pruebas (usado en SendTestSetAsync) ya quedó certificado/cerrado de su lado — distinta de un
+// rechazo real del contenido del documento, que llega vía ErrorMessage.Items (Messages), no por
+// aquí. Confirmado contra una respuesta real: sin Messages, StatusCode "2", StatusDescription
+// "Set de prueba con identificador <uuid> se encuentra Aceptado." — quien llama a esto debe
+// reintentar por SendBillSync en vez de tratarlo como un rechazo genuino del documento (ver
+// docs/apidian-architecture.md sección 9.43).
+func (r Result) IsTestSetClosed() bool {
+	return strings.Contains(r.StatusDescription, "Set de prueba") &&
+		strings.Contains(r.StatusDescription, "se encuentra Aceptado")
+}
+
 // Interpret convierte un soap.DianResponse (un elemento de los que devuelve GetStatusZip, o
 // el resultado de GetStatus) en un Result.
 func Interpret(resp soap.DianResponse) (Result, error) {

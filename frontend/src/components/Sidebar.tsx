@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NavLink } from "react-router";
 import { ChevronRight, FileMinus, FilePlus, FileText, Files, Home, Menu, Package, Settings, Users } from "lucide-react";
 
@@ -55,6 +55,22 @@ function readExpandedGroups(): Set<string> {
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "true");
   const [expandedGroups, setExpandedGroups] = useState(readExpandedGroups);
+  // openFlyout solo aplica con el sidebar colapsado — un grupo con hijos no puede expandirse
+  // in-place ahí (no hay espacio para mostrar la etiqueta de los hijos), así que en vez de no
+  // hacer nada al hacer clic, se abre un menú flotante al lado del ícono.
+  const [openFlyout, setOpenFlyout] = useState<string | null>(null);
+  const asideRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!openFlyout) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (asideRef.current && !asideRef.current.contains(e.target as Node)) {
+        setOpenFlyout(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openFlyout]);
 
   function toggleCollapsed() {
     setCollapsed((current) => {
@@ -62,6 +78,7 @@ export function Sidebar() {
       localStorage.setItem(COLLAPSED_KEY, String(next));
       return next;
     });
+    setOpenFlyout(null);
   }
 
   function toggleGroup(label: string) {
@@ -74,11 +91,20 @@ export function Sidebar() {
     });
   }
 
+  function handleGroupClick(label: string) {
+    if (collapsed) {
+      setOpenFlyout((current) => (current === label ? null : label));
+    } else {
+      toggleGroup(label);
+    }
+  }
+
   return (
     <aside
-      className={`flex h-full flex-col border-r border-(--border-color) bg-(--bg-secondary) transition-all duration-300 ${collapsed ? "w-10" : "w-56"}`}
+      ref={asideRef}
+      className={`relative flex h-full flex-col border-r border-(--border-color) bg-(--bg-secondary) transition-all duration-300 ${collapsed ? "w-10" : "w-56"}`}
     >
-      <div className="flex h-10 items-center justify-end border-b border-(--border-light) px-2">
+      <div className="flex h-10 items-center justify-start border-b border-(--border-light) px-2">
         <button type="button" onClick={toggleCollapsed} className="rounded p-1.5 text-(--text-secondary) hover:bg-(--bg-hover)">
           <Menu className="h-4 w-4" />
         </button>
@@ -88,10 +114,10 @@ export function Sidebar() {
           if (isGroup(item)) {
             const expanded = expandedGroups.has(item.label);
             return (
-              <div key={item.label}>
+              <div key={item.label} className="relative">
                 <button
                   type="button"
-                  onClick={() => toggleGroup(item.label)}
+                  onClick={() => handleGroupClick(item.label)}
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs font-medium text-(--text-secondary) hover:bg-(--bg-hover)"
                 >
                   {item.icon}
@@ -109,6 +135,16 @@ export function Sidebar() {
                     ))}
                   </div>
                 )}
+                {collapsed && openFlyout === item.label && (
+                  <div className="absolute left-10 top-0 z-20 ml-1 min-w-40 rounded border border-(--border-light) bg-(--bg-secondary) p-1.5 shadow-lg">
+                    <p className="px-2 py-1 text-xs font-medium text-(--text-secondary)">{item.label}</p>
+                    <div className="flex flex-col gap-0.5">
+                      {item.children.map((child) => (
+                        <NavLeafItem key={child.to} item={child} collapsed={false} onNavigate={() => setOpenFlyout(null)} />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           }
@@ -119,7 +155,7 @@ export function Sidebar() {
   );
 }
 
-function NavLeafItem({ item, collapsed }: { item: NavLeaf; collapsed: boolean }) {
+function NavLeafItem({ item, collapsed, onNavigate }: { item: NavLeaf; collapsed: boolean; onNavigate?: () => void }) {
   if (!item.enabled) {
     return (
       <span
@@ -134,6 +170,7 @@ function NavLeafItem({ item, collapsed }: { item: NavLeaf; collapsed: boolean })
   return (
     <NavLink
       to={item.to}
+      onClick={onNavigate}
       className={({ isActive }) =>
         `flex items-center gap-2 rounded px-2 py-1.5 text-xs font-medium ${
           isActive ? "bg-(--bg-selected) text-(--accent-primary)" : "text-(--text-secondary) hover:bg-(--bg-hover)"

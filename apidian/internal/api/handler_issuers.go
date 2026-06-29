@@ -268,6 +268,18 @@ func (a *API) handleGetMyIssuerLogo(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(iss.Logo)
 }
 
+// handleDeleteMyIssuerLogo quita el logo del emisor autenticado — devuelve el issuerResponse
+// actualizado (has_logo en false), mismo cuerpo que ya devuelve PUT /issuers/me, para que el
+// frontend pueda refrescar su estado sin un GET aparte.
+func (a *API) handleDeleteMyIssuerLogo(w http.ResponseWriter, r *http.Request) {
+	iss, err := a.issuers.DeleteLogo(r.Context(), middleware.GetTenantID(r.Context()))
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	response.WriteJSON(w, http.StatusOK, issuerToResponse(iss))
+}
+
 // createNumberingRangeRequest es el payload de registro de un rango de numeración para el
 // emisor autenticado. TechnicalKey solo aplica a Invoice (CUFE); TestSetID solo aplica en
 // habilitación.
@@ -300,8 +312,15 @@ type numberingRangeResponse struct {
 	RangeFrom            int64     `json:"range_from"`
 	RangeTo              *int64    `json:"range_to,omitempty"`
 	CurrentNumber        int64     `json:"current_number"`
+	ValidFrom            string    `json:"valid_from"`
+	ValidTo              string    `json:"valid_to"`
 	Environment          string    `json:"environment"`
 	IsActive             bool      `json:"is_active"`
+	// Status resume IsActive/Exhausted/ValidTo en un solo valor ("active"/"expired"/
+	// "exhausted"/"inactive") — ver numbering.NumberingRange.Status. El frontend lo usa para
+	// mostrar una insignia y para filtrar qué rangos ofrecer al armar una factura, sin
+	// reimplementar la regla.
+	Status string `json:"status"`
 }
 
 func numberingRangeToResponse(nr *numbering.NumberingRange) numberingRangeResponse {
@@ -313,8 +332,11 @@ func numberingRangeToResponse(nr *numbering.NumberingRange) numberingRangeRespon
 		RangeFrom:            nr.RangeFrom,
 		RangeTo:              nr.RangeTo,
 		CurrentNumber:        nr.CurrentNumber,
+		ValidFrom:            nr.ValidFrom.Format("2006-01-02"),
+		ValidTo:              nr.ValidTo.Format("2006-01-02"),
 		Environment:          string(nr.Environment),
 		IsActive:             nr.IsActive,
+		Status:               nr.Status(),
 	}
 }
 
@@ -405,6 +427,32 @@ func (a *API) handleGetNumberingRange(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.WriteJSON(w, http.StatusOK, numberingRangeToResponse(nr))
+}
+
+// handleDeactivateNumberingRange — "borrar" un rango es desactivarlo (ver
+// numbering.Repository.Deactivate), nunca un DELETE real. Mismo chequeo de pertenencia al
+// emisor que handleGetNumberingRange antes de desactivar.
+func (a *API) handleDeactivateNumberingRange(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+
+	nr, err := a.numbering.GetRange(r.Context(), id)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	if nr.IssuerID != middleware.GetTenantID(r.Context()) {
+		response.WriteError(w, numbering.ErrRangeNotFound)
+		return
+	}
+
+	if err := a.numbering.DeactivateRange(r.Context(), id); err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func parseDate(s string) (time.Time, error) {

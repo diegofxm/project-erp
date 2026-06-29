@@ -7,6 +7,7 @@ import { listProducts } from "../../lib/products";
 import { useCatalog } from "../../lib/useCatalog";
 import type { DocumentLineInput, Product } from "../../lib/types";
 import { Button } from "../ui/Button";
+import { Combobox } from "../ui/Combobox";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 
@@ -22,9 +23,9 @@ interface DraftLine {
   quantity: string;
   unitPrice: string;
   itemCode: string;
+  // itemTypeCode es el selector de @schemeID que copia el producto (ver ProductPayload) — sin
+  // UI propia aquí, item_type_name/item_type_agency_id se derivan en el servidor.
   itemTypeCode: string;
-  itemTypeName: string;
-  itemTypeAgencyId: string;
   taxTypeCode: string;
   taxPercent: string;
 }
@@ -37,8 +38,6 @@ const EMPTY_DRAFT: DraftLine = {
   unitPrice: "",
   itemCode: "",
   itemTypeCode: "",
-  itemTypeName: "",
-  itemTypeAgencyId: "",
   taxTypeCode: "",
   taxPercent: "",
 };
@@ -52,8 +51,6 @@ function draftFromProduct(product: Product): DraftLine {
     unitPrice: centsToAmount(product.unit_price_cents),
     itemCode: product.item_code ?? "",
     itemTypeCode: product.item_type_code ?? "",
-    itemTypeName: product.item_type_name ?? "",
-    itemTypeAgencyId: product.item_type_agency_id ?? "",
     taxTypeCode: product.tax_type_code ?? "",
     taxPercent: product.tax_percent?.toString() ?? "",
   };
@@ -93,8 +90,6 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
       unit_price_cents: amountToCents(draft.unitPrice),
       item_code: draft.itemCode || undefined,
       item_type_code: draft.itemTypeCode || undefined,
-      item_type_name: draft.itemTypeName || undefined,
-      item_type_agency_id: draft.itemTypeAgencyId || undefined,
       tax_type_code: draft.taxTypeCode || undefined,
       tax_percent: draft.taxTypeCode ? Number(draft.taxPercent || 0) : undefined,
     };
@@ -180,26 +175,14 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
           </div>
 
           <div className="col-span-3">
-            <Select
+            <Combobox
               label="Unidad de medida"
-              required
               disabled={loadingUnitMeasures}
               value={draft.unitCode}
-              onChange={(e) => setDraft({ ...draft, unitCode: e.target.value })}
-            >
-              {loadingUnitMeasures ? (
-                <option>Cargando…</option>
-              ) : (
-                <>
-                  <option value="">Selecciona…</option>
-                  {unitMeasures.map((u) => (
-                    <option key={u.code} value={u.code}>
-                      {u.code} — {u.name}
-                    </option>
-                  ))}
-                </>
-              )}
-            </Select>
+              onChange={(unitCode) => setDraft({ ...draft, unitCode })}
+              options={unitMeasures.map((u) => ({ value: u.code, label: `${u.code} — ${u.name}` }))}
+              placeholder={loadingUnitMeasures ? "Cargando…" : "Buscar unidad…"}
+            />
           </div>
           <div className="col-span-2">
             <Input

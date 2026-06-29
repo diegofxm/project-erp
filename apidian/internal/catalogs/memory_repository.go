@@ -17,6 +17,7 @@ type MemoryRepository struct {
 	liabilityCodes      []Entry
 	dianDocumentTypes   []Entry
 	currencies          []Currency
+	itemStandards       []ItemStandard
 }
 
 // NewMemoryRepository crea un repositorio en memoria con datos de muestra — suficientes para
@@ -35,6 +36,15 @@ func NewMemoryRepository() *MemoryRepository {
 		liabilityCodes:      []Entry{{Code: "R-99-PN", Name: "No aplica (persona natural)"}},
 		dianDocumentTypes:   []Entry{{Code: "01", Name: "Factura electrónica de Venta"}},
 		currencies:          []Currency{{Code: "COP", Name: "Peso Colombiano", Symbol: "$"}},
+		// Las 4 filas son reales y completas (tabla 13.3.5 del Anexo Técnico, sección 9.45) —
+		// a diferencia de los demás catálogos de este repositorio, no hace falta recortar a
+		// una muestra porque la tabla real ya es así de chica.
+		itemStandards: []ItemStandard{
+			{Code: "001", Name: "UNSPSC", AgencyID: "10", Description: "Código Estándar de Productos y Servicios de Naciones Unidas"},
+			{Code: "010", Name: "GTIN", AgencyID: "9", Description: "Números Globales de Identificación de Productos"},
+			{Code: "020", Name: "Partida Arancelaria", AgencyID: "195", Description: "Partida arancelaria según estatuto tributario"},
+			{Code: "999", Name: "Estándar de adopción del contribuyente", AgencyID: "", Description: "Código propio del contribuyente, sin estándar externo"},
+		},
 	}
 }
 
@@ -89,6 +99,10 @@ func (r *MemoryRepository) ListCurrencies(_ context.Context) ([]Currency, error)
 	return r.currencies, nil
 }
 
+func (r *MemoryRepository) ListItemStandards(_ context.Context) ([]ItemStandard, error) {
+	return r.itemStandards, nil
+}
+
 func (r *MemoryRepository) IsValidPaymentTerm(_ context.Context, code string) (bool, error) {
 	return containsCode(r.paymentTerms, code), nil
 }
@@ -119,6 +133,26 @@ func (r *MemoryRepository) GetPaymentMethodName(_ context.Context, code string) 
 func (r *MemoryRepository) GetIdentificationTypeName(_ context.Context, code string) (string, bool, error) {
 	name := getName(r.identificationTypes, code)
 	return name, name != "", nil
+}
+
+func (r *MemoryRepository) GetItemStandardName(_ context.Context, code string) (string, bool, error) {
+	for _, s := range r.itemStandards {
+		if s.Code == code {
+			return s.Name, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+// GetItemStandardAgencyID — found=true incluso si AgencyID es "" (fila 999), distinto de
+// "no existe el código" (found=false).
+func (r *MemoryRepository) GetItemStandardAgencyID(_ context.Context, code string) (string, bool, error) {
+	for _, s := range r.itemStandards {
+		if s.Code == code {
+			return s.AgencyID, true, nil
+		}
+	}
+	return "", false, nil
 }
 
 func getName(entries []Entry, code string) string {

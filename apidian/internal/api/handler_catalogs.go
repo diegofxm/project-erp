@@ -114,3 +114,16 @@ func (a *API) handleListCurrencies(w http.ResponseWriter, r *http.Request) {
 	}
 	response.WriteJSON(w, http.StatusOK, map[string]any{"currencies": out, "count": len(out)})
 }
+
+// handleListItemStandards — selector de @schemeID/@schemeName/@schemeAgencyID para
+// cac:StandardItemIdentification (tabla 13.3.5, ver docs/apidian-architecture.md sección
+// 9.45). Exactamente 4 filas fijas, no confundir con un catálogo completo de códigos
+// UNSPSC/GTIN/Arancel (esos no se cargan, ver sección 9.45).
+func (a *API) handleListItemStandards(w http.ResponseWriter, r *http.Request) {
+	out, err := a.catalogs.ListItemStandards(r.Context())
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	response.WriteJSON(w, http.StatusOK, map[string]any{"item_standards": out, "count": len(out)})
+}

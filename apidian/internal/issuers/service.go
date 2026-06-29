@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/diegofxm/apidian/internal/nit"
 	"github.com/google/uuid"
 )
 
@@ -34,6 +35,9 @@ func (s *Service) RegisterIssuer(ctx context.Context, iss Issuer) (*Issuer, erro
 		return nil, err
 	}
 	if err := s.validateIssuer(ctx, iss); err != nil {
+		return nil, err
+	}
+	if err := deriveCheckDigit(&iss); err != nil {
 		return nil, err
 	}
 	iss.IsActive = true
@@ -135,6 +139,19 @@ func (s *Service) UpdateIssuer(ctx context.Context, id uuid.UUID, req UpdateIssu
 	return s.repo.Update(ctx, *iss)
 }
 
+// DeleteLogo quita el logo del emisor — UpdateIssuer no puede expresar "bórralo": ahí
+// Logo nil ya significa "no tocar" (ver UpdateIssuerRequest), así que hace falta esta
+// operación separada en vez de forzar un caso especial dentro de ese merge parcial.
+func (s *Service) DeleteLogo(ctx context.Context, id uuid.UUID) (*Issuer, error) {
+	iss, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	iss.Logo = nil
+	iss.LogoContentType = ""
+	return s.repo.Update(ctx, *iss)
+}
+
 // applyDefaults completa los campos del Party que la mayoría de emisores no necesita
 // personalizar — valores confirmados contra una factura real autorizada por la DIAN
 // (cofacture/soap/realsend_test.go): TaxSchemeCode "ZZ" ("No aplica").
@@ -156,6 +173,23 @@ func applyDefaults(iss *Issuer) {
 	if len(iss.LiabilityCodes) == 0 {
 		iss.LiabilityCodes = []string{"R-99-PN"}
 	}
+}
+
+// deriveCheckDigit calcula el dígito de verificación módulo 11 cuando la identificación es un
+// NIT ("31" — ver domain.Identification.VerificationCode en cofacture/domain/types.go, cuyo
+// propio comentario dice que solo aplica a ese tipo, no a "47"/"50" aunque
+// defaultEntityTypeCode los trate igual para efectos de persona jurídica). El cliente ya no
+// puede mandar un dígito que no corresponda al NIT, se deriva igual que TaxSchemeName.
+func deriveCheckDigit(iss *Issuer) error {
+	if iss.IdentificationTypeCode != "31" {
+		return nil
+	}
+	digit, err := nit.ComputeCheckDigit(iss.NIT)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidIdentificationNumber, err)
+	}
+	iss.CheckDigit = digit
+	return nil
 }
 
 // defaultEntityTypeCode deriva "1" (Persona Jurídica y asimiladas) o "2" (Persona Natural y

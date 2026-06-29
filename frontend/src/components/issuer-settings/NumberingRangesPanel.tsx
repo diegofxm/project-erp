@@ -1,14 +1,30 @@
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { listDianDocumentTypes } from "../../lib/catalogs";
-import { createNumberingRange, listNumberingRanges } from "../../lib/numberingRanges";
+import { createNumberingRange, deactivateNumberingRange, listNumberingRanges } from "../../lib/numberingRanges";
 import { ApiError } from "../../lib/apiClient";
 import { useCatalog } from "../../lib/useCatalog";
-import type { CreateNumberingRangePayload, NumberingRange } from "../../lib/types";
+import type { CreateNumberingRangePayload, NumberingRange, NumberingRangeStatus } from "../../lib/types";
 import { Button } from "../ui/Button";
 import { Banner } from "../ui/Banner";
 import { Spinner } from "../ui/Spinner";
 import { NumberingRangeForm } from "./NumberingRangeForm";
+
+// Mismos tokens pastel que StatusBadge.tsx (sección 2.3 del design system) — "exhausted" usa
+// el tono info (no es un error, una resolución agotada es esperable), "inactive" el tono
+// neutro que ya usa StatusBadge para draft/built.
+const STATUS_LABELS: Record<NumberingRangeStatus, string> = {
+  active: "Activo",
+  expired: "Vencido",
+  exhausted: "Agotado",
+  inactive: "Inactivo",
+};
+const STATUS_CLASSES: Record<NumberingRangeStatus, string> = {
+  active: "bg-(--color-success-bg) text-(--color-success-text)",
+  expired: "bg-(--color-danger-bg) text-(--color-danger-text)",
+  exhausted: "bg-(--color-info-bg) text-(--color-info-text)",
+  inactive: "bg-(--bg-tertiary) text-(--text-secondary)",
+};
 
 // Todo a todo el ancho disponible (ver docs/frontend-architecture.md, regla de ancho) —
 // NumberingRangeForm redistribuye sus propios campos en una grilla auto-fit.
@@ -47,6 +63,20 @@ export function NumberingRangesPanel() {
     }
   }
 
+  // "Eliminar" desactiva el rango (is_active=false) — nunca un borrado real, ver
+  // numbering.Repository.Deactivate en apidian: un rango ya usado tiene FK real desde
+  // documents.Document, y una resolución de numeración es un dato legal/auditable.
+  async function handleDeactivate(r: NumberingRange) {
+    if (!window.confirm(`¿Eliminar el rango "${r.prefix}"? Dejará de poder usarse para emitir facturas.`)) return;
+    setError(null);
+    try {
+      await deactivateNumberingRange(r.id);
+      refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo eliminar el rango de numeración");
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3 rounded border border-(--border-color) p-4">
       <h2 className="text-xs font-semibold text-(--text-primary)">Rangos de numeración</h2>
@@ -70,7 +100,18 @@ export function NumberingRangesPanel() {
                 {r.prefix} {r.range_from}–{r.range_to ?? "∞"}
               </span>
               <span className="text-(--text-muted)">Actual: {r.current_number}</span>
+              <span className="text-(--text-muted)">Vence: {r.valid_to}</span>
               <span className="text-(--text-muted)">{r.environment === "1" ? "Producción" : "Habilitación"}</span>
+              <span className={`rounded px-2 py-0.5 font-medium ${STATUS_CLASSES[r.status]}`}>{STATUS_LABELS[r.status]}</span>
+              <button
+                type="button"
+                title="Eliminar"
+                disabled={r.status === "inactive"}
+                onClick={() => handleDeactivate(r)}
+                className="rounded p-1 text-(--color-danger) hover:bg-(--bg-hover) disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
             </div>
           ))}
         </div>

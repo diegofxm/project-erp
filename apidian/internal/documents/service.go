@@ -703,6 +703,17 @@ func (s *Service) sendAndUpdate(
 		return s.finish(ctx, d, StatusSendError, result.ZipKey, last.StatusCode, "", fmt.Sprintf("interpretar respuesta: %v", err))
 	}
 
+	// El test_set_id de este rango ya quedó certificado/cerrado del lado de la DIAN (sección
+	// 9.43) — no es un rechazo del contenido del documento, así que no se trata como tal.
+	// Se limpia para que ningún confirm futuro vuelva a intentar este camino, y ESTE mismo
+	// envío se reintenta de inmediato por SendBillSync (que sigue funcionando con el set
+	// cerrado, ver sección 9.14) — el usuario no debería ver un rechazo por un detalle de
+	// certificación que el sistema puede resolver solo.
+	if interpreted.IsTestSetClosed() {
+		_ = s.numbering.ClearTestSetID(ctx, d.NumberingRangeID) // best-effort, mismo criterio que ReleaseIfCurrent
+		return s.sendSyncAndUpdate(ctx, d, cert, key, iss, xmlBytes, number, now, kind)
+	}
+
 	status := StatusAccepted
 	if interpreted.HasRejections() || !interpreted.IsValid {
 		status = StatusRejected
@@ -931,6 +942,15 @@ func discrepancyResponseFromInput(d *DiscrepancyResponseInput) *domain.Discrepan
 
 // applyCustomerDefaults completa lo que la mayoría de adquirientes no necesita personalizar
 // — mismo criterio que issuers.applyDefaults, valores confirmados contra la DIAN real.
+//
+// CountryCode/CountryName se agregaron tras un rechazo real (StatusCode 99, "errores en
+// campos mandatorios", ver docs/apidian-architecture.md sección 9.44): partyFromIssuer ya
+// hardcodea "CO"/"Colombia" para el emisor, pero nunca se replicó este default para el
+// cliente — invisible mientras ningún cliente de prueba tuviera dirección (cac:Country solo
+// se renderiza dentro de cac:RegistrationAddress, que a su vez solo aparece si hay dirección),
+// hasta que un cliente real con dirección completa lo expuso. builder.appendAddressFields
+// solo agrega cac:Country si CountryCode no está vacío — sin este default, la dirección del
+// cliente quedaba sin país, que la DIAN exige como mandatorio.
 func applyCustomerDefaults(p *domain.Party) {
 	if p.EntityTypeCode == "" {
 		p.EntityTypeCode = "2"
@@ -940,6 +960,10 @@ func applyCustomerDefaults(p *domain.Party) {
 	}
 	if len(p.LiabilityCodes) == 0 {
 		p.LiabilityCodes = []string{"R-99-PN"}
+	}
+	if p.Address.CountryCode == "" {
+		p.Address.CountryCode = "CO"
+		p.Address.CountryName = "Colombia"
 	}
 }
 
@@ -969,26 +993,35 @@ func computeTotals(lines []domain.Line) domain.Totals {
 	}
 }
 
-// aggregateTaxes agrupa los impuestos de todas las líneas por TypeCode para construir
-// cac:TaxTotal de cabecera — la DIAN exige que la base imponible total coincida con la suma
-// de las bases de las líneas (regla FAU04, ver comentario en realsend_test.go).
+// aggregateTaxes agrupa los impuestos de todas las líneas por (TypeCode, Percent) para
+// construir cac:TaxTotal de cabecera — la DIAN exige que la base imponible total coincida con
+// la suma de las bases de las líneas (regla FAU04, ver comentario en realsend_test.go).
+//
+// La clave incluye Percent, no solo TypeCode: desde que linesFromInput defaultea "sin
+// impuesto" a IVA al 0% (sección 9.46), una factura puede tener líneas con IVA al 19% Y líneas
+// con IVA al 0% — agrupar solo por TypeCode las fusionaría en un único cac:TaxSubtotal con un
+// Percent equivocado (la base de las líneas al 0% terminaría reportada como si fuera al 19%).
 func aggregateTaxes(lines []domain.Line) []domain.Tax {
+	type key struct {
+		typeCode string
+		percent  float64
+	}
 	type agg struct {
 		typeName           string
 		taxableAmountCents int64
 		taxAmountCents     int64
-		percent            float64
 	}
-	byCode := make(map[string]*agg)
-	var order []string
+	byKey := make(map[key]*agg)
+	var order []key
 
 	for _, l := range lines {
 		for _, t := range l.Taxes {
-			a, ok := byCode[t.TypeCode]
+			k := key{typeCode: t.TypeCode, percent: t.Percent}
+			a, ok := byKey[k]
 			if !ok {
-				a = &agg{typeName: t.TypeName, percent: t.Percent}
-				byCode[t.TypeCode] = a
-				order = append(order, t.TypeCode)
+				a = &agg{typeName: t.TypeName}
+				byKey[k] = a
+				order = append(order, k)
 			}
 			a.taxableAmountCents += t.TaxableAmountCents
 			a.taxAmountCents += t.TaxAmountCents
@@ -996,13 +1029,13 @@ func aggregateTaxes(lines []domain.Line) []domain.Tax {
 	}
 
 	taxes := make([]domain.Tax, 0, len(order))
-	for _, code := range order {
-		a := byCode[code]
+	for _, k := range order {
+		a := byKey[k]
 		taxes = append(taxes, domain.Tax{
 			TaxableAmountCents: a.taxableAmountCents,
 			TaxAmountCents:     a.taxAmountCents,
-			Percent:            a.percent,
-			TypeCode:           code,
+			Percent:            k.percent,
+			TypeCode:           k.typeCode,
 			TypeName:           a.typeName,
 		})
 	}

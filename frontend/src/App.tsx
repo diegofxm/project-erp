@@ -12,6 +12,7 @@ import { CustomersPage } from "./pages/CustomersPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { InvoicesPage } from "./pages/InvoicesPage";
 import { InvoiceEditorPage } from "./pages/InvoiceEditorPage";
+import { PublicCustomerRegisterPage } from "./pages/PublicCustomerRegisterPage";
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/r/:issuerId" element={<PublicCustomerRegisterPage />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<DashboardLayout />}>
                 <Route path="/" element={<DashboardPage />} />

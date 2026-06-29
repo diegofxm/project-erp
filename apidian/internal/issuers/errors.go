@@ -32,4 +32,8 @@ var (
 	// válida de "borrar" el logo.
 	ErrEmptyLogo              = errors.New("issuers: el logo es obligatorio si se manda este campo")
 	ErrInvalidLogoContentType = errors.New(`issuers: logo_content_type debe ser "png", "jpg" o "jpeg"`)
+	// ErrInvalidIdentificationNumber: identification_type_code "31" (NIT) exige un NIT
+	// puramente numérico — el dígito de verificación se deriva de él (ver internal/nit), nunca
+	// se acepta del cliente.
+	ErrInvalidIdentificationNumber = errors.New("issuers: NIT inválido para calcular el dígito de verificación")
 )

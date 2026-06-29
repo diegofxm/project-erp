@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { listLiabilityCodes, listTaxRegimes, listTaxTypes } from "../../lib/catalogs";
+import { listCiiuOptions } from "../../lib/ciiu";
 import { useCatalog } from "../../lib/useCatalog";
+import { Combobox } from "../ui/Combobox";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Spinner } from "../ui/Spinner";
@@ -10,8 +13,19 @@ export function TaxStep({ form, setField }: StepProps) {
   const { data: taxTypes, loading: loadingTaxTypes } = useCatalog(listTaxTypes);
   const { data: taxRegimes, loading: loadingTaxRegimes } = useCatalog(listTaxRegimes);
   const { data: liabilityCodes, loading: loadingLiabilityCodes } = useCatalog(listLiabilityCodes);
+  const { data: ciiuOptions, loading: loadingCiiu } = useCatalog(listCiiuOptions);
+  const [ciiuPicker, setCiiuPicker] = useState("");
 
   const selectedLiabilityCodes = form.liability_codes ?? [];
+  const ciiuCodes = form.industry_classification_codes ?? [];
+  const ciiuAtLimit = ciiuCodes.length >= 4;
+
+  function handlePickCiiu(code: string) {
+    if (code && !ciiuCodes.includes(code) && !ciiuAtLimit) {
+      setField("industry_classification_codes", [...ciiuCodes, code]);
+    }
+    setCiiuPicker("");
+  }
 
   function toggleLiabilityCode(code: string) {
     const next = selectedLiabilityCodes.includes(code)
@@ -87,14 +101,16 @@ export function TaxStep({ form, setField }: StepProps) {
           )}
         </div>
       </div>
-      <div className="col-span-12">
-        <TagInput
+      <div className="col-span-12 flex flex-col gap-2">
+        <Combobox
           label="Códigos CIIU (actividad económica)"
-          values={form.industry_classification_codes ?? []}
-          onChange={(values) => setField("industry_classification_codes", values)}
-          max={4}
-          placeholder="Ej. 4711"
+          value={ciiuPicker}
+          onChange={handlePickCiiu}
+          options={ciiuOptions}
+          disabled={loadingCiiu || ciiuAtLimit}
+          placeholder={ciiuAtLimit ? "Máximo 4 códigos" : "Buscar por código o palabra…"}
         />
+        <TagInput values={ciiuCodes} onChange={(values) => setField("industry_classification_codes", values)} max={4} disableInput />
       </div>
     </div>
   );

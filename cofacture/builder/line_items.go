@@ -48,7 +48,13 @@ func appendDocumentLine(parent *etree.Element, node, nodeQty string, index int, 
 		sii := item.CreateElement("cac:StandardItemIdentification").CreateElement("cbc:ID")
 		sii.CreateAttr("schemeID", line.ItemTypeCode)
 		sii.CreateAttr("schemeName", line.ItemTypeName)
-		sii.CreateAttr("schemeAgencyID", line.ItemTypeAgencyID)
+		// schemeAgencyID solo se agrega si viene informado — la fila "999" (estándar propio
+		// del contribuyente, tabla 13.3.5 del Anexo Técnico) exige explícitamente que este
+		// atributo NO se use, ni siquiera vacío (mismo criterio que cac:Country en
+		// appendAddressFields, sección 9.44/9.45).
+		if line.ItemTypeAgencyID != "" {
+			sii.CreateAttr("schemeAgencyID", line.ItemTypeAgencyID)
+		}
 		sii.SetText(line.ItemCode)
 	} else {
 		agentID := item.CreateElement("cac:InformationContentProviderParty").

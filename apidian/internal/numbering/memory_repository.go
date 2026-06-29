@@ -87,6 +87,36 @@ func (r *MemoryRepository) ReleaseIfCurrent(_ context.Context, id uuid.UUID, num
 	return nil
 }
 
+// ClearTestSetID — ver Repository.ClearTestSetID. Mismo criterio que ReleaseIfCurrent: si el
+// rango no existe, no es un error (consistente con el UPDATE de PostgresRepository, que
+// simplemente no afecta ninguna fila).
+func (r *MemoryRepository) ClearTestSetID(_ context.Context, id uuid.UUID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	nr, ok := r.ranges[id]
+	if !ok {
+		return nil
+	}
+	nr.TestSetID = ""
+	nr.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// Deactivate — ver Repository.Deactivate.
+func (r *MemoryRepository) Deactivate(_ context.Context, id uuid.UUID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	nr, ok := r.ranges[id]
+	if !ok {
+		return ErrRangeNotFound
+	}
+	nr.IsActive = false
+	nr.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
 func (r *MemoryRepository) ListByIssuer(_ context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

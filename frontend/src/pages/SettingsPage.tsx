@@ -5,6 +5,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { SoftwareCertificateForm } from "../components/issuer-settings/SoftwareCertificateForm";
 import { LogoForm } from "../components/issuer-settings/LogoForm";
 import { NumberingRangesPanel } from "../components/issuer-settings/NumberingRangesPanel";
+import { PublicRegistrationPanel } from "../components/issuer-settings/PublicRegistrationPanel";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 
@@ -68,6 +69,7 @@ export function SettingsPage() {
           <div className="flex flex-col gap-4 p-4">
             <SoftwareCertificateForm />
             <LogoForm />
+            <PublicRegistrationPanel />
             <NumberingRangesPanel />
           </div>
         )}

@@ -50,7 +50,8 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
     onChange(paymentMeans.filter((_, i) => i !== index));
   }
 
-  const canAdd = draft.code !== "" && draft.paymentMethodCode !== "";
+  const isDuplicate = paymentMeans.some((pm) => pm.code === draft.code && pm.payment_method_code === draft.paymentMethodCode);
+  const canAdd = draft.code !== "" && draft.paymentMethodCode !== "" && !isDuplicate;
 
   return (
     <div className="flex flex-col gap-3">
@@ -148,10 +149,11 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
           <div className={isCredit ? "col-span-2" : "col-span-4"}>
             <Input label="Referencia (opcional)" value={draft.reference} onChange={(e) => setDraft({ ...draft, reference: e.target.value })} />
           </div>
-          <div className="col-span-12">
+          <div className="col-span-12 flex items-center gap-2">
             <Button type="button" variant="secondary" icon={<Plus className="h-3.5 w-3.5" />} disabled={!canAdd} onClick={handleAdd}>
               Agregar forma de pago
             </Button>
+            {isDuplicate && <span className="text-xs text-(--text-muted)">Esa combinación ya está agregada.</span>}
           </div>
         </div>
       </div>

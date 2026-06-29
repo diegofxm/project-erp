@@ -44,3 +44,17 @@ type UploadDocumentResponse struct {
 	} `xml:"ErrorMessageList"`
 	ZipKey string `xml:"ZipKey"`
 }
+
+// AcquirerResponse es el resultado de GetAcquirer (namespace
+// Gosocket.Dian.Services.Utils.Common en el WSDL real) — consulta el registro de
+// intercambio/notificación de la DIAN para un tercero dado, no un RUT completo: solo trae
+// ReceiverName/ReceiverEmail si ese identificationNumber ya tiene un nombre/correo registrados
+// para recibir documentos electrónicos. StatusCode/Message vacíos (o un StatusCode de error) es
+// el resultado normal y esperado para la mayoría de cédulas — no significa que la consulta
+// falló, ver docs/apidian-architecture.md sección 9.41.
+type AcquirerResponse struct {
+	Message       string `xml:"Message"`
+	StatusCode    string `xml:"StatusCode"`
+	ReceiverName  string `xml:"ReceiverName"`
+	ReceiverEmail string `xml:"ReceiverEmail"`
+}

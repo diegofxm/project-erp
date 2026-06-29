@@ -1158,6 +1158,90 @@ func TestAPI_DeleteCustomer_OtherTenant(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rw.Code)
 }
 
+// ── Autorregistro público (patrón QR/D1, sección 9.41) ─────────────────────────────────────────
+
+func TestAPI_GetPublicIssuer_OK(t *testing.T) {
+	env := newTestEnv(t)
+	issuerID, _ := registerTestIssuer(t, env)
+
+	rw := env.do(t, "GET", "/api/v1/public/issuers/"+issuerID, nil)
+	require.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.Equal(t, "Empresa de Prueba S.A.S.", got["business_name"])
+	assert.Nil(t, got["has_software_credentials"], "el DTO público nunca debe traer estos campos")
+}
+
+func TestAPI_GetPublicIssuer_NotFound(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "GET", "/api/v1/public/issuers/"+uuid.New().String(), nil)
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+func TestAPI_CreatePublicCustomer_OK(t *testing.T) {
+	env := newTestEnv(t)
+	issuerID, token := registerTestIssuer(t, env)
+
+	rw := env.do(t, "POST", "/api/v1/public/issuers/"+issuerID+"/customers", map[string]any{
+		"identification": map[string]any{"number": "1122334455", "type_code": "13"},
+		"name":           "Cliente de Mostrador",
+		"email":          "cliente@correo.test",
+	})
+	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
+	var got map[string]any
+	decode(t, rw, &got)
+	assert.Equal(t, "Cliente de Mostrador", got["name"])
+
+	// El cliente debe quedar guardado de verdad en el catálogo del emisor — no es solo un eco.
+	listRw := env.doAuth(t, "GET", "/api/v1/customers", token, nil)
+	require.Equal(t, http.StatusOK, listRw.Code)
+	var list map[string]any
+	decode(t, listRw, &list)
+	assert.EqualValues(t, 1, list["count"])
+}
+
+func TestAPI_CreatePublicCustomer_IssuerNotFound(t *testing.T) {
+	env := newTestEnv(t)
+	rw := env.do(t, "POST", "/api/v1/public/issuers/"+uuid.New().String()+"/customers", map[string]any{
+		"identification": map[string]any{"number": "1122334455", "type_code": "13"},
+		"name":           "Cliente de Mostrador",
+	})
+	assert.Equal(t, http.StatusNotFound, rw.Code)
+}
+
+func TestAPI_CreatePublicCustomer_MissingName(t *testing.T) {
+	env := newTestEnv(t)
+	issuerID, _ := registerTestIssuer(t, env)
+
+	rw := env.do(t, "POST", "/api/v1/public/issuers/"+issuerID+"/customers", map[string]any{
+		"identification": map[string]any{"number": "1122334455", "type_code": "13"},
+	})
+	assert.Equal(t, http.StatusBadRequest, rw.Code)
+}
+
+// TestAPI_CreatePublicCustomer_DerivesNITCheckDigit confirma que el dígito de verificación se
+// deriva igual que en el flujo autenticado (ver internal/nit) — el visitante anónimo no manda
+// uno y no hace falta: 6382356 es el caso real verificado (dígito 7).
+func TestAPI_CreatePublicCustomer_DerivesNITCheckDigit(t *testing.T) {
+	env := newTestEnv(t)
+	issuerID, token := registerTestIssuer(t, env)
+
+	rw := env.do(t, "POST", "/api/v1/public/issuers/"+issuerID+"/customers", map[string]any{
+		"identification": map[string]any{"number": "6382356", "type_code": "31"},
+		"name":           "Empresa Cliente S.A.S.",
+	})
+	require.Equal(t, http.StatusCreated, rw.Code, rw.Body.String())
+
+	listRw := env.doAuth(t, "GET", "/api/v1/customers", token, nil)
+	require.Equal(t, http.StatusOK, listRw.Code)
+	var list map[string]any
+	decode(t, listRw, &list)
+	customers := list["customers"].([]any)
+	require.Len(t, customers, 1)
+	identification := customers[0].(map[string]any)["identification"].(map[string]any)
+	assert.Equal(t, "7", identification["verification_code"])
+}
+
 // ── Products ─────────────────────────────────────────────────────────────────────────────────
 
 func testProduct() map[string]any {

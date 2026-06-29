@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { listCurrencies } from "../../lib/catalogs";
 import { lineToInput } from "../../lib/documents";
 import { listNumberingRanges } from "../../lib/numberingRanges";
+import { useCatalog } from "../../lib/useCatalog";
 import type { CustomerPayload, Document, DocumentLineInput, IssueInvoicePayload, NumberingRange, PaymentMean } from "../../lib/types";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
@@ -28,6 +30,7 @@ const INVOICE_DIAN_DOCUMENT_TYPE = "01";
 
 export function InvoiceForm({ initial, onSubmit, onCancel, loading }: InvoiceFormProps) {
   const [ranges, setRanges] = useState<NumberingRange[]>([]);
+  const { data: currencies, loading: loadingCurrencies } = useCatalog(listCurrencies);
   const [numberingRangeId, setNumberingRangeId] = useState(initial?.numbering_range_id ?? "");
   const [customer, setCustomer] = useState<CustomerPayload>(initial?.customer ?? NEW_CUSTOMER);
   const [customerId, setCustomerId] = useState(initial?.customer_id ?? "");
@@ -60,6 +63,10 @@ export function InvoiceForm({ initial, onSubmit, onCancel, loading }: InvoiceFor
   }
 
   const selectedRange = ranges.find((r) => r.id === numberingRangeId);
+  // Solo se ofrecen rangos activos (ver numbering.NumberingRange.Status en apidian) — si el
+  // rango de un borrador ya en edición venció/se agotó mientras tanto, igual se mantiene
+  // visible (es el seleccionado), para no dejar el select con un valor huérfano.
+  const selectableRanges = ranges.filter((r) => r.status === "active" || r.id === numberingRangeId);
   const canSubmit =
     numberingRangeId !== "" && customer.identification.number.trim() !== "" && lines.length > 0 && paymentMeans.length > 0;
 
@@ -69,23 +76,33 @@ export function InvoiceForm({ initial, onSubmit, onCancel, loading }: InvoiceFor
         <div className="col-span-6">
           <Select label="Rango de numeración" required value={numberingRangeId} onChange={(e) => setNumberingRangeId(e.target.value)}>
             <option value="">Selecciona…</option>
-            {ranges.map((r) => (
+            {selectableRanges.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.prefix} (resolución activa)
+                {r.prefix}
               </option>
             ))}
           </Select>
           {selectedRange && (
             <p className="mt-1 text-xs text-(--text-muted)">Próximo número: {selectedRange.prefix}{selectedRange.current_number + 1}</p>
           )}
-          {ranges.length === 0 && (
+          {selectableRanges.length === 0 && (
             <p className="mt-1 text-xs text-(--text-muted)">
-              No hay un rango de numeración para Factura Electrónica todavía — créalo en Configuración → Empresa.
+              No hay un rango de numeración activo para Factura Electrónica todavía — créalo en Configuración → Empresa.
             </p>
           )}
         </div>
         <div className="col-span-3">
-          <Input label="Moneda" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)} />
+          <Select label="Moneda" disabled={loadingCurrencies} value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)}>
+            {loadingCurrencies ? (
+              <option>Cargando…</option>
+            ) : (
+              currencies.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} — {c.name}
+                </option>
+              ))
+            )}
+          </Select>
         </div>
         <div className="col-span-12">
           <Input label="Nota (opcional)" value={note} onChange={(e) => setNote(e.target.value)} />

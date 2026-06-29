@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { Bell, Building2, ChevronDown, LogOut, Server, Layers, Settings, UserCircle } from "lucide-react";
+import { Bell, Building2, ChevronDown, LogOut, Server, Settings, UserCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 function getInitials(name: string | undefined): string {
@@ -19,10 +19,10 @@ export function Navbar() {
   return (
     <header className="flex h-10 items-center justify-between bg-(--navbar-bg) px-3 text-(--navbar-text)">
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <Layers className="h-5 w-5" />
-          <span className="text-base font-semibold">apidian</span>
-        </div>
+        <Link to="/" className="flex items-center gap-2">
+          <img src="/logo.svg" alt="cofacture" className="h-5 w-5" />
+          <span className="text-base font-semibold">cofacture</span>
+        </Link>
         {activeIssuer && (
           <>
             <span className="h-4 w-px bg-(--navbar-text) opacity-30" />

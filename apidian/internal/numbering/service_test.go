@@ -165,6 +165,32 @@ func TestReleaseIfCurrent_RevertsLastClaim(t *testing.T) {
 	assert.Equal(t, int64(1), again, "el mismo número debe volver a entregarse, no saltar al 2")
 }
 
+// TestClearTestSetID confirma el mecanismo de la sección 9.43: una vez la DIAN marca un set de
+// pruebas como cerrado/Aceptado, el rango no debe seguir intentando SendTestSetAsync con él.
+func TestClearTestSetID(t *testing.T) {
+	svc := newService()
+	ctx := context.Background()
+
+	r := validRange()
+	r.TestSetID = "653bf9d9-b2b1-44ae-a66d-3b9cdc4271c3"
+	nr, err := svc.RegisterRange(ctx, r, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, nr.TestSetID)
+
+	require.NoError(t, svc.ClearTestSetID(ctx, nr.ID))
+
+	got, err := svc.GetRange(ctx, nr.ID)
+	require.NoError(t, err)
+	assert.Empty(t, got.TestSetID)
+}
+
+// TestClearTestSetID_NoOpIfRangeMissing — mismo criterio que ReleaseIfCurrent: un rango
+// inexistente no es un error, simplemente no hay nada que limpiar.
+func TestClearTestSetID_NoOpIfRangeMissing(t *testing.T) {
+	svc := newService()
+	assert.NoError(t, svc.ClearTestSetID(context.Background(), uuid.New()))
+}
+
 // TestReleaseIfCurrent_NoOpIfNotCurrent es la mitad que hace seguro el mecanismo: si YA se
 // reclamó otro número desde entonces, devolver el viejo sería arriesgar un duplicado real —
 // debe ser un no-op silencioso, no un error (el llamador no tiene por qué saber si todavía
@@ -226,6 +252,69 @@ func TestListRanges_FiltersByIssuerAndDocumentType(t *testing.T) {
 	none, err := svc.ListRanges(ctx, uuid.New(), "")
 	require.NoError(t, err)
 	assert.Empty(t, none)
+}
+
+// TestStatus_ActiveExpiredExhaustedInactive cubre las 4 ramas de NumberingRange.Status() —
+// usada tanto por el panel de administración (insignia) como por el selector de la factura
+// (qué rangos ofrecer), ver punto #2 de la ronda de UX/datos.
+func TestStatus_ActiveExpiredExhaustedInactive(t *testing.T) {
+	rangeTo := int64(10)
+
+	t.Run("activo", func(t *testing.T) {
+		nr := validRange()
+		nr.IsActive = true
+		nr.CurrentNumber = 0
+		nr.ValidTo = time.Now().AddDate(1, 0, 0)
+		assert.Equal(t, "active", nr.Status())
+	})
+
+	t.Run("vencido", func(t *testing.T) {
+		nr := validRange()
+		nr.IsActive = true
+		nr.ValidTo = time.Now().AddDate(0, 0, -1)
+		assert.Equal(t, "expired", nr.Status())
+	})
+
+	t.Run("agotado", func(t *testing.T) {
+		nr := validRange()
+		nr.IsActive = true
+		nr.RangeTo = &rangeTo
+		nr.CurrentNumber = rangeTo
+		nr.ValidTo = time.Now().AddDate(1, 0, 0)
+		assert.Equal(t, "exhausted", nr.Status())
+	})
+
+	t.Run("inactivo pesa más que vencido o agotado", func(t *testing.T) {
+		nr := validRange()
+		nr.IsActive = false
+		nr.RangeTo = &rangeTo
+		nr.CurrentNumber = rangeTo
+		nr.ValidTo = time.Now().AddDate(0, 0, -1)
+		assert.Equal(t, "inactive", nr.Status())
+	})
+}
+
+// TestDeactivateRange_OK confirma el mecanismo de "borrado" del punto #2: desactivar marca
+// is_active=false (Status() pasa a "inactive") sin eliminar la fila — un rango ya usado tiene
+// FK real desde documents.Document, no se puede borrar de verdad.
+func TestDeactivateRange_OK(t *testing.T) {
+	svc := newService()
+	ctx := context.Background()
+
+	nr, err := svc.RegisterRange(ctx, validRange(), nil)
+	require.NoError(t, err)
+	require.NoError(t, svc.DeactivateRange(ctx, nr.ID))
+
+	got, err := svc.GetRange(ctx, nr.ID)
+	require.NoError(t, err)
+	assert.False(t, got.IsActive)
+	assert.Equal(t, "inactive", got.Status())
+}
+
+func TestDeactivateRange_NotFound(t *testing.T) {
+	svc := newService()
+	err := svc.DeactivateRange(context.Background(), uuid.New())
+	assert.ErrorIs(t, err, numbering.ErrRangeNotFound)
 }
 
 func TestClaimNext_NotFound(t *testing.T) {

@@ -19,6 +19,7 @@ type Repository interface {
 	ListLiabilityCodes(ctx context.Context) ([]Entry, error)
 	ListDianDocumentTypes(ctx context.Context) ([]Entry, error)
 	ListCurrencies(ctx context.Context) ([]Currency, error)
+	ListItemStandards(ctx context.Context) ([]ItemStandard, error)
 
 	IsValidPaymentTerm(ctx context.Context, code string) (bool, error)
 	IsValidPaymentMethod(ctx context.Context, code string) (bool, error)
@@ -41,4 +42,10 @@ type Repository interface {
 	GetPaymentTermName(ctx context.Context, code string) (name string, found bool, err error)
 	GetPaymentMethodName(ctx context.Context, code string) (name string, found bool, err error)
 	GetIdentificationTypeName(ctx context.Context, code string) (name string, found bool, err error)
+
+	// GetItemStandardName/GetItemStandardAgencyID — ver ItemStandard (sección 9.45). Separados
+	// porque AgencyID puede ser "" con found=true (fila 999), a diferencia del resto de
+	// Get*Name donde found=false ya cubre "no hay nada que mostrar".
+	GetItemStandardName(ctx context.Context, code string) (name string, found bool, err error)
+	GetItemStandardAgencyID(ctx context.Context, code string) (agencyID string, found bool, err error)
 }

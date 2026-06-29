@@ -85,6 +85,36 @@ func TestCreateCustomer_InvalidLiabilityCode(t *testing.T) {
 	assert.ErrorIs(t, err, customers.ErrInvalidLiabilityCode)
 }
 
+// TestCreateCustomer_DerivesVerificationCodeForNIT confirma el punto A de la sección 9.41: un
+// NIT ("31") deriva su dígito de verificación con el algoritmo módulo 11 (internal/nit) — el
+// número 6382356 es un caso real verificado (dígito 7), no inventado.
+func TestCreateCustomer_DerivesVerificationCodeForNIT(t *testing.T) {
+	p := validParty()
+	p.Identification = domain.Identification{Number: "6382356", TypeCode: "31", VerificationCode: "9"} // "9" a propósito, debe sobreescribirse
+
+	got, err := newService().CreateCustomer(context.Background(), uuid.New(), p)
+	require.NoError(t, err)
+	assert.Equal(t, "7", got.Party.Identification.VerificationCode)
+}
+
+// TestCreateCustomer_VerificationCodeNotDerivedForNonNIT confirma que el concepto no aplica a
+// otros tipos de identificación — lo que el cliente mande ahí (o nada) se conserva tal cual.
+func TestCreateCustomer_VerificationCodeNotDerivedForNonNIT(t *testing.T) {
+	got, err := newService().CreateCustomer(context.Background(), uuid.New(), validParty())
+	require.NoError(t, err)
+	assert.Empty(t, got.Party.Identification.VerificationCode)
+}
+
+// TestCreateCustomer_InvalidNITForVerificationCode confirma el rechazo cuando el número no es
+// numérico — no se puede derivar un dígito de verificación de algo que no es un NIT real.
+func TestCreateCustomer_InvalidNITForVerificationCode(t *testing.T) {
+	p := validParty()
+	p.Identification = domain.Identification{Number: "ABC123", TypeCode: "31"}
+
+	_, err := newService().CreateCustomer(context.Background(), uuid.New(), p)
+	assert.ErrorIs(t, err, customers.ErrInvalidIdentificationNumber)
+}
+
 func TestGetCustomer_NotFound(t *testing.T) {
 	svc := newService()
 	_, err := svc.GetCustomer(context.Background(), uuid.New())

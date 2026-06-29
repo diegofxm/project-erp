@@ -99,7 +99,9 @@ func sampleInvoice() domain.Invoice {
 				ItemCode:           "PROD001",
 				ItemTypeCode:       "999",
 				ItemTypeName:       "Estándar de adopción del contribuyente",
-				ItemTypeAgencyID:   "0",
+				// ItemTypeAgencyID vacío a propósito — la fila "999" de la tabla 13.3.5 del
+				// Anexo Técnico exige que @schemeAgencyID no se use en absoluto (ver sección
+				// 9.45), no que se mande con un valor "0".
 				Taxes: []domain.Tax{
 					{TaxableAmountCents: 126050420, TaxAmountCents: 23949580, Percent: 19, TypeCode: "01", TypeName: "IVA"},
 				},

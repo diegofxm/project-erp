@@ -64,6 +64,16 @@ func (s *Service) ReleaseIfCurrent(ctx context.Context, id uuid.UUID, number int
 	return s.repo.ReleaseIfCurrent(ctx, id, number)
 }
 
+// ClearTestSetID — ver Repository.ClearTestSetID.
+func (s *Service) ClearTestSetID(ctx context.Context, id uuid.UUID) error {
+	return s.repo.ClearTestSetID(ctx, id)
+}
+
+// DeactivateRange — ver Repository.Deactivate.
+func (s *Service) DeactivateRange(ctx context.Context, id uuid.UUID) error {
+	return s.repo.Deactivate(ctx, id)
+}
+
 // ListRanges devuelve los rangos de numeración de un emisor, opcionalmente filtrados por tipo
 // de documento DIAN ("" = todos).
 func (s *Service) ListRanges(ctx context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error) {

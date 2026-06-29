@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Image as ImageIcon } from "lucide-react";
+import { Image as ImageIcon, Trash2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { apiClient, ApiError } from "../../lib/apiClient";
 import { fileToBase64 } from "../../lib/fileToBase64";
@@ -19,12 +19,13 @@ const CONTENT_TYPE_BY_MIME: Record<string, string> = {
 // SoftwareCertificateForm). Se sirve aparte (GET /issuers/me/logo) para no inflar
 // issuerResponse con bytes de imagen en cada GET/PUT.
 export function LogoForm() {
-  const { activeIssuer, updateIssuer } = useAuth();
+  const { activeIssuer, updateIssuer, deleteIssuerLogo } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!activeIssuer?.has_logo) {
@@ -76,6 +77,21 @@ export function LogoForm() {
     }
   }
 
+  async function handleDelete() {
+    if (!window.confirm("¿Eliminar el logo de la empresa?")) return;
+    setError(null);
+    setSuccess(null);
+    setDeleting(true);
+    try {
+      await deleteIssuerLogo();
+      setSuccess("Logo eliminado.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo eliminar el logo");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3 rounded border border-(--border-color) p-4">
       <div className="flex items-center justify-between">
@@ -101,6 +117,11 @@ export function LogoForm() {
         <Button type="submit" loading={loading} icon={<ImageIcon className="h-3.5 w-3.5" />}>
           Guardar
         </Button>
+        {activeIssuer?.has_logo && (
+          <Button type="button" variant="danger" loading={deleting} icon={<Trash2 className="h-3.5 w-3.5" />} onClick={handleDelete}>
+            Eliminar logo
+          </Button>
+        )}
       </form>
     </div>
   );

@@ -31,6 +31,7 @@ interface AuthContextValue {
   createIssuer: (payload: CreateIssuerPayload) => Promise<void>;
   selectIssuer: (id: string) => Promise<void>;
   updateIssuer: (payload: UpdateIssuerPayload) => Promise<Issuer>;
+  deleteIssuerLogo: () => Promise<Issuer>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -127,6 +128,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return updated;
   }, []);
 
+  // Misma forma que updateIssuer — DELETE /issuers/me/logo tampoco reemite el token, solo
+  // limpia has_logo en la empresa activa.
+  const deleteIssuerLogo = useCallback(async () => {
+    const updated = await apiClient.del<Issuer>("/issuers/me/logo");
+    setActiveIssuer(updated);
+    const stored = readStoredSession();
+    if (stored) writeStoredSession({ ...stored, issuer: updated });
+    return updated;
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -140,8 +151,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       createIssuer,
       selectIssuer,
       updateIssuer,
+      deleteIssuerLogo,
     }),
-    [user, activeIssuer, isReady, login, register, logout, listIssuers, createIssuer, selectIssuer, updateIssuer],
+    [user, activeIssuer, isReady, login, register, logout, listIssuers, createIssuer, selectIssuer, updateIssuer, deleteIssuerLogo],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

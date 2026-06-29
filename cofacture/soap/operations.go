@@ -97,3 +97,21 @@ func (c *Client) GetStatus(trackID string) (*DianResponse, error) {
 	}
 	return &result.Result, nil
 }
+
+// GetAcquirer consulta el registro de intercambio/notificación de la DIAN para un tercero —
+// ver AcquirerResponse. Ayuda opcional al capturar un NIT, nunca bloqueante: un resultado vacío
+// (sin ReceiverName/ReceiverEmail) es normal y esperado para la mayoría de identificaciones.
+func (c *Client) GetAcquirer(identificationType, identificationNumber string) (*AcquirerResponse, error) {
+	var result struct {
+		Result AcquirerResponse `xml:"GetAcquirerResult"`
+	}
+	err := c.call("GetAcquirer", func(body *etree.Element) {
+		el := body.CreateElement("wcf:GetAcquirer")
+		el.CreateElement("wcf:identificationType").SetText(identificationType)
+		el.CreateElement("wcf:identificationNumber").SetText(identificationNumber)
+	}, &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Result, nil
+}

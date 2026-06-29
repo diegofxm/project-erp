@@ -24,6 +24,10 @@ func (r *MemoryRepository) Create(_ context.Context, p Product) (*Product, error
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if err := r.checkDuplicateItemCode(p.IssuerID, p.ItemCode, uuid.Nil); err != nil {
+		return nil, err
+	}
+
 	if p.ID == uuid.Nil {
 		p.ID = uuid.New()
 	}
@@ -34,6 +38,21 @@ func (r *MemoryRepository) Create(_ context.Context, p Product) (*Product, error
 	cp := p
 	r.products[p.ID] = &cp
 	return &cp, nil
+}
+
+// checkDuplicateItemCode replica en memoria el índice único parcial (issuer_id, item_code) de
+// la migración 000011 — excludeID se pasa en Update para no chocar contra el propio producto
+// que se está actualizando.
+func (r *MemoryRepository) checkDuplicateItemCode(issuerID uuid.UUID, itemCode string, excludeID uuid.UUID) error {
+	if itemCode == "" {
+		return nil
+	}
+	for _, p := range r.products {
+		if p.ID != excludeID && p.IssuerID == issuerID && p.ItemCode == itemCode {
+			return ErrDuplicateItemCode
+		}
+	}
+	return nil
 }
 
 func (r *MemoryRepository) GetByID(_ context.Context, id uuid.UUID) (*Product, error) {
@@ -70,6 +89,9 @@ func (r *MemoryRepository) Update(_ context.Context, issuerID, id uuid.UUID, p P
 	existing, ok := r.products[id]
 	if !ok || existing.IssuerID != issuerID {
 		return nil, ErrProductNotFound
+	}
+	if err := r.checkDuplicateItemCode(issuerID, p.ItemCode, id); err != nil {
+		return nil, err
 	}
 
 	p.ID = existing.ID

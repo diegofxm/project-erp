@@ -1,10 +1,21 @@
 import { useState, type FormEvent } from "react";
-import { listTaxTypes, listUnitMeasures } from "../../lib/catalogs";
+import { listItemStandards, listTaxTypes, listUnitMeasures } from "../../lib/catalogs";
 import { useCatalog } from "../../lib/useCatalog";
 import type { Product, ProductPayload } from "../../lib/types";
+import { Combobox } from "../ui/Combobox";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Button } from "../ui/Button";
+
+// Placeholder del código real dentro del estándar elegido — "999" (estándar propio,
+// predeterminado) usa el propio código del contribuyente; el resto son estándares externos
+// reales con códigos que apidian no valida contra un catálogo completo (ver ItemStandard,
+// docs/apidian-architecture.md sección 9.45).
+const ITEM_CODE_PLACEHOLDERS: Record<string, string> = {
+  "001": "Código UNSPSC real, ej. 43211500",
+  "010": "Código GTIN/EAN real",
+  "020": "Partida arancelaria real",
+};
 
 interface ProductFormProps {
   initial: Product | null;
@@ -25,14 +36,13 @@ function centsToAmount(cents: number | undefined): string {
 export function ProductForm({ initial, onSubmit, onCancel, loading }: ProductFormProps) {
   const { data: unitMeasures, loading: loadingUnitMeasures } = useCatalog(listUnitMeasures);
   const { data: taxTypes, loading: loadingTaxTypes } = useCatalog(listTaxTypes);
+  const { data: itemStandards, loading: loadingItemStandards } = useCatalog(listItemStandards);
 
   const [description, setDescription] = useState(initial?.description ?? "");
   const [unitCode, setUnitCode] = useState(initial?.unit_code ?? "");
   const [unitPrice, setUnitPrice] = useState(centsToAmount(initial?.unit_price_cents));
   const [itemCode, setItemCode] = useState(initial?.item_code ?? "");
   const [itemTypeCode, setItemTypeCode] = useState(initial?.item_type_code ?? "");
-  const [itemTypeName, setItemTypeName] = useState(initial?.item_type_name ?? "");
-  const [itemTypeAgencyId, setItemTypeAgencyId] = useState(initial?.item_type_agency_id ?? "");
   const [taxTypeCode, setTaxTypeCode] = useState(initial?.tax_type_code ?? "");
   const [taxPercent, setTaxPercent] = useState(initial?.tax_percent?.toString() ?? "");
 
@@ -44,8 +54,6 @@ export function ProductForm({ initial, onSubmit, onCancel, loading }: ProductFor
       unit_price_cents: Math.round(Number(unitPrice || 0) * 100),
       item_code: itemCode || undefined,
       item_type_code: itemTypeCode || undefined,
-      item_type_name: itemTypeName || undefined,
-      item_type_agency_id: itemTypeAgencyId || undefined,
       tax_type_code: taxTypeCode || undefined,
       tax_percent: taxPercent ? Number(taxPercent) : undefined,
     });
@@ -58,24 +66,23 @@ export function ProductForm({ initial, onSubmit, onCancel, loading }: ProductFor
           <Input label="Descripción" required value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
         <div className="col-span-4">
-          <Input label="Código del ítem (opcional)" value={itemCode} onChange={(e) => setItemCode(e.target.value)} />
+          <Input
+            label="Código del ítem (opcional)"
+            value={itemCode}
+            onChange={(e) => setItemCode(e.target.value)}
+            placeholder={ITEM_CODE_PLACEHOLDERS[itemTypeCode] ?? "Tu código interno"}
+          />
         </div>
 
         <div className="col-span-4">
-          <Select label="Unidad de medida" required disabled={loadingUnitMeasures} value={unitCode} onChange={(e) => setUnitCode(e.target.value)}>
-            {loadingUnitMeasures ? (
-              <option>Cargando…</option>
-            ) : (
-              <>
-                <option value="">Selecciona…</option>
-                {unitMeasures.map((u) => (
-                  <option key={u.code} value={u.code}>
-                    {u.code} — {u.name}
-                  </option>
-                ))}
-              </>
-            )}
-          </Select>
+          <Combobox
+            label="Unidad de medida"
+            disabled={loadingUnitMeasures}
+            value={unitCode}
+            onChange={setUnitCode}
+            options={unitMeasures.map((u) => ({ value: u.code, label: `${u.code} — ${u.name}` }))}
+            placeholder={loadingUnitMeasures ? "Cargando…" : "Buscar unidad…"}
+          />
         </div>
         <div className="col-span-4">
           <Input
@@ -105,17 +112,29 @@ export function ProductForm({ initial, onSubmit, onCancel, loading }: ProductFor
           </Select>
         </div>
 
-        <div className="col-span-3">
+        <div className="col-span-4">
           <Input label="Porcentaje de impuesto (%)" type="number" step="0.01" min="0" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} />
         </div>
-        <div className="col-span-3">
-          <Input label="Código de estándar (opcional)" value={itemTypeCode} onChange={(e) => setItemTypeCode(e.target.value)} placeholder="Ej. UNSPSC" />
-        </div>
-        <div className="col-span-3">
-          <Input label="Nombre del estándar (opcional)" value={itemTypeName} onChange={(e) => setItemTypeName(e.target.value)} />
-        </div>
-        <div className="col-span-3">
-          <Input label="ID de agencia (opcional)" value={itemTypeAgencyId} onChange={(e) => setItemTypeAgencyId(e.target.value)} />
+        <div className="col-span-8">
+          <Select
+            label="Estándar de clasificación del ítem"
+            disabled={loadingItemStandards}
+            value={itemTypeCode}
+            onChange={(e) => setItemTypeCode(e.target.value)}
+          >
+            {loadingItemStandards ? (
+              <option>Cargando…</option>
+            ) : (
+              <>
+                <option value="">Sin clasificar (mi propio código)</option>
+                {itemStandards.filter((s) => s.code !== "999").map((s) => (
+                  <option key={s.code} value={s.code}>
+                    {s.name}
+                  </option>
+                ))}
+              </>
+            )}
+          </Select>
         </div>
       </div>
 

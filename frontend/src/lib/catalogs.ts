@@ -2,7 +2,7 @@
 // estáticos dentro de una sesión, por eso cada función memoiza su resultado a nivel de módulo
 // en vez de volver a pedirlo cada vez que el usuario cambia de pestaña en un formulario.
 import { apiClient } from "./apiClient";
-import type { CatalogEntry, Municipality } from "./types";
+import type { CatalogEntry, Currency, ItemStandard, Municipality } from "./types";
 
 function memoized<T>(fetcher: () => Promise<T>): () => Promise<T> {
   let cache: T | null = null;
@@ -55,12 +55,24 @@ export const listPaymentMethods = memoized(async () => {
   return res.payment_methods;
 });
 
-// Catálogo incompleto a propósito (11 de los cientos de códigos reales UN/ECE Rec. 20) — se
-// usa igual aquí porque un select con 11 opciones reales es mejor que un input de texto libre,
-// y no se valida del lado del servidor por la misma razón (ver documents.Service).
+// 1.081/1.081 códigos reales UN/ECE Rec. 20 (tabla 13.3.6, ver
+// docs/apidian-architecture.md sección 9.46) — por el volumen, los selects que lo usan
+// (LineItemsEditor, ProductForm) lo consumen vía components/ui/Combobox, no un <select> plano.
 export const listUnitMeasures = memoized(async () => {
   const res = await apiClient.get<{ unit_measures: CatalogEntry[] }>("/catalogs/unit-measures");
   return res.unit_measures;
+});
+
+export const listCurrencies = memoized(async () => {
+  const res = await apiClient.get<{ currencies: Currency[] }>("/catalogs/currencies");
+  return res.currencies;
+});
+
+// Selector de clasificación de ítems (UNSPSC/GTIN/Partida Arancelaria/propio) — ver
+// ItemStandard en lib/types.ts.
+export const listItemStandards = memoized(async () => {
+  const res = await apiClient.get<{ item_standards: ItemStandard[] }>("/catalogs/item-standards");
+  return res.item_standards;
 });
 
 const municipalitiesCache = new Map<string, Municipality[]>();

@@ -26,6 +26,12 @@ var seedFS embed.FS
 // payment_methods. payment_terms/tax_regimes/liability_codes son catálogos nuevos que esa
 // misma fuente permitió agregar (antes no existían ni como tabla, ver
 // migrations/000002_catalogs.up.sql).
+//
+// 2026-06-28: unit_measures completado igual (1.081/1.081 códigos reales UN/ECE Rec. 20, tabla
+// 13.3.6 — ver docs/apidian-architecture.md sección 9.46). La muestra anterior de 11 códigos
+// tenía 4 inventados/equivocados (M2/M3/MON/ANN no existen en la tabla oficial — los reales
+// son MTK/MTQ/LUN/ANA), confirmados rechazados de verdad por la DIAN (regla FAV05) antes de
+// corregirse.
 func (d *DB) Seed(ctx context.Context) error {
 	tables := []struct {
 		name string
@@ -42,6 +48,7 @@ func (d *DB) Seed(ctx context.Context) error {
 		{"payment_terms", []string{"code", "name", "description"}},
 		{"tax_regimes", []string{"code", "name", "description"}},
 		{"liability_codes", []string{"code", "name", "description"}},
+		{"item_standards", []string{"code", "name", "agency_id", "description"}},
 	}
 
 	for _, t := range tables {
