@@ -27,37 +27,39 @@ import (
 )
 
 var (
-	colorTextPrimary   = &props.Color{Red: 60, Green: 60, Blue: 60}
-	colorTextSecondary = &props.Color{Red: 110, Green: 110, Blue: 110}
-	colorBorder        = &props.Color{Red: 200, Green: 200, Blue: 200}
+	colorWhite         = &props.Color{Red: 255, Green: 255, Blue: 255}
+	colorTextPrimary   = &props.Color{Red: 25, Green: 25, Blue: 25}
+	colorTextSecondary = &props.Color{Red: 100, Green: 100, Blue: 100}
+	colorBorder        = &props.Color{Red: 210, Green: 210, Blue: 210}
+	colorAccent        = &props.Color{Red: 17, Green: 53, Blue: 93}
+	colorAccentLight   = &props.Color{Red: 235, Green: 240, Blue: 248}
+	colorTableHeader   = &props.Color{Red: 243, Green: 244, Blue: 246}
 	colorDraft         = &props.Color{Red: 180, Green: 90, Blue: 0}
-	colorAccent        = &props.Color{Red: 30, Green: 70, Blue: 130}
+	colorDraftBg       = &props.Color{Red: 255, Green: 248, Blue: 240}
 )
 
 // InvoiceLine es una línea ya calculada (precio×cantidad, impuesto ya resuelto) — el cálculo
 // real vive en documents.Service.linesFromInput, este paquete solo la muestra. Implementa
-// list.Listable para que la tabla de items escale sola a varias páginas si hace falta (algo
-// que la versión a mano con gofpdf no tenía).
+// list.Listable para que la tabla de items escale sola a varias páginas si hace falta.
 type InvoiceLine struct {
 	ItemCode       string
 	Description    string
 	UnitCode       string
 	Quantity       float64
 	UnitPriceCents int64
-	TaxPercent     float64 // 0 si la línea no lleva impuesto
-	TotalCents     int64   // línea + su impuesto, ya sumado
+	TaxPercent     float64
+	TotalCents     int64
 }
 
 func (InvoiceLine) GetHeader() core.Row {
 	return row.New(7).Add(
 		text.NewCol(1, "No.", headerCellProps(align.Center)),
-		text.NewCol(2, "Código", headerCellProps(align.Left)),
-		text.NewCol(4, "Descripción", headerCellProps(align.Left)),
-		text.NewCol(1, "U/M", headerCellProps(align.Center)),
+		text.NewCol(5, "Descripción", headerCellProps(align.Left)),
 		text.NewCol(1, "Cant.", headerCellProps(align.Right)),
 		text.NewCol(2, "Precio Unit.", headerCellProps(align.Right)),
 		text.NewCol(1, "IVA", headerCellProps(align.Right)),
-	).WithStyle(&props.Cell{BackgroundColor: &props.Color{Red: 240, Green: 240, Blue: 240}})
+		text.NewCol(2, "Total", headerCellProps(align.Right)),
+	).WithStyle(&props.Cell{BackgroundColor: colorTableHeader})
 }
 
 func (l InvoiceLine) GetContent(i int) core.Row {
@@ -67,17 +69,15 @@ func (l InvoiceLine) GetContent(i int) core.Row {
 	}
 	return row.New(8).Add(
 		text.NewCol(1, fmt.Sprintf("%d", i+1), bodyCellProps(align.Center)),
-		text.NewCol(2, l.ItemCode, bodyCellProps(align.Left)),
-		text.NewCol(4, l.Description, bodyCellProps(align.Left)),
-		text.NewCol(1, l.UnitCode, bodyCellProps(align.Center)),
+		text.NewCol(5, l.Description, bodyCellProps(align.Left)),
 		text.NewCol(1, formatQuantity(l.Quantity), bodyCellProps(align.Right)),
 		text.NewCol(2, formatCOP(l.UnitPriceCents), bodyCellProps(align.Right)),
 		text.NewCol(1, tax, bodyCellProps(align.Right)),
+		text.NewCol(2, formatCOP(l.TotalCents), bodyCellProps(align.Right)),
 	).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder})
 }
 
-// InvoiceTax es el desglose de impuestos por tipo (mismo agregado que
-// documents.aggregateTaxes calcula para el XML) — se recibe ya calculado, no se recalcula acá.
+// InvoiceTax es el desglose de impuestos por tipo — recibido ya calculado.
 type InvoiceTax struct {
 	TypeName           string
 	Percent            float64
@@ -85,10 +85,8 @@ type InvoiceTax struct {
 	TaxAmountCents     int64
 }
 
-// InvoiceInput es todo lo que BuildInvoicePDF necesita — ningún tipo de internal/documents,
-// internal/issuers ni cofacture/domain aquí, ver el comentario del paquete.
+// InvoiceInput es todo lo que BuildInvoicePDF necesita.
 type InvoiceInput struct {
-	// Emisor.
 	IssuerBusinessName string
 	IssuerNIT          string
 	IssuerCheckDigit   string
@@ -97,32 +95,28 @@ type InvoiceInput struct {
 	IssuerStateName    string
 	IssuerPhone        string
 	IssuerEmail        string
-	IssuerLogo         []byte         // nil = sin logo
-	IssuerLogoExt      extension.Type // vacío si IssuerLogo es nil
+	IssuerLogo         []byte
+	IssuerLogoExt      extension.Type
 
-	// Estado del documento — IsDraft oculta CUFE/QR/número real y los reemplaza por avisos de
-	// "borrador" (ver docs/apidian-architecture.md sección 9.39).
 	IsDraft   bool
 	Prefix    string
 	Number    int64
 	CUFE      string
 	QRURL     string
-	IssueDate string // ya formateada ("2026-06-26 15:30:00"), vacío si IsDraft
+	IssueDate string
 
 	CurrencyCode string
 
-	// Cliente.
 	CustomerName               string
-	CustomerIdentificationType string // "Cédula de Ciudadanía"/"NIT"/... ya resuelto del catálogo
+	CustomerIdentificationType string
 	CustomerIdentification     string
 	CustomerAddressLine        string
 	CustomerPhone              string
 	CustomerEmail              string
 
-	// Forma/medio de pago, ya resueltos a texto legible.
 	PaymentTermName   string
 	PaymentMethodName string
-	PaymentDueDate    string // vacío si no es a crédito
+	PaymentDueDate    string
 
 	Lines []InvoiceLine
 	Taxes []InvoiceTax
@@ -133,10 +127,6 @@ type InvoiceInput struct {
 
 	Note string
 
-	// Pie de página — rango de numeración autorizado. RangeTo es *int64 (no int64) porque nil
-	// es un valor real y distinto de "hasta el número 0" — numbering.NumberingRange.RangeTo ya
-	// es nil cuando el tipo de documento no tiene un tope impuesto por la DIAN (ver
-	// internal/numbering/model.go); mostrar "hasta {prefix}0" ahí sería un dato inventado.
 	ResolutionNumber string
 	RangePrefix      string
 	RangeFrom        int64
@@ -145,8 +135,7 @@ type InvoiceInput struct {
 	ValidTo          string
 }
 
-// BuildInvoicePDF construye la representación gráfica en memoria — nunca escribe a disco,
-// devuelve los bytes vía document.GetBytes() (ver docs/apidian-architecture.md sección 9.39).
+// BuildInvoicePDF construye la representación gráfica en memoria.
 func BuildInvoicePDF(in InvoiceInput) ([]byte, error) {
 	cfg := config.NewBuilder().
 		WithPageSize(pagesize.A4).
@@ -161,9 +150,7 @@ func BuildInvoicePDF(in InvoiceInput) ([]byte, error) {
 	buildStatusBar(m, in)
 	buildPartiesSection(m, in)
 	buildItemsTable(m, in)
-	buildTotals(m, in)
-	buildTaxBreakdown(m, in)
-	buildAmountInWords(m, in)
+	buildFinancials(m, in)
 	buildFooter(m, in)
 
 	document, err := m.Generate()
@@ -173,145 +160,256 @@ func BuildInvoicePDF(in InvoiceInput) ([]byte, error) {
 	return document.GetBytes(), nil
 }
 
+// buildHeader genera la cabecera: banda azul con tipo de documento, luego logo | datos del
+// emisor | número y fecha de la factura.
 func buildHeader(m core.Maroto, in InvoiceInput) {
+	// Banda de título.
+	m.AddRows(row.New(8).Add(
+		col.New(12).Add(
+			text.New("FACTURA ELECTRÓNICA DE VENTA", props.Text{
+				Top: 2, Size: 9, Align: align.Center,
+				Style: fontstyle.Bold, Color: colorWhite,
+			}),
+		).WithStyle(&props.Cell{BackgroundColor: colorAccent}),
+	))
+
+	// Logo del emisor.
 	logoCol := col.New(2)
 	if len(in.IssuerLogo) > 0 {
-		logoCol = image.NewFromBytesCol(2, in.IssuerLogo, in.IssuerLogoExt, props.Rect{Center: true, Percent: 90})
+		logoCol = image.NewFromBytesCol(2, in.IssuerLogo, in.IssuerLogoExt,
+			props.Rect{Center: true, Percent: 85})
 	}
 
-	infoCol := col.New(7).Add(
-		text.New(in.IssuerBusinessName, infoLineProps(0, fontstyle.Bold, 10, colorTextPrimary)),
-		text.New(fmt.Sprintf("NIT: %s-%s", in.IssuerNIT, in.IssuerCheckDigit), infoLineProps(4, fontstyle.Bold, 9.5, colorTextPrimary)),
-		text.New(in.IssuerAddressLine, infoLineProps(8, fontstyle.Normal, 8.5, colorTextSecondary)),
-		text.New(fmt.Sprintf("%s, %s", in.IssuerCityName, in.IssuerStateName), infoLineProps(11.5, fontstyle.Normal, 8.5, colorTextSecondary)),
-		text.New(fmt.Sprintf("Tel: %s   %s", in.IssuerPhone, in.IssuerEmail), infoLineProps(15, fontstyle.Normal, 8.5, colorTextSecondary)),
+	// Datos del emisor.
+	issuerCol := col.New(7).Add(
+		text.New(in.IssuerBusinessName, infoLineProps(1.5, fontstyle.Bold, 10, colorTextPrimary)),
+		text.New(fmt.Sprintf("NIT: %s-%s", in.IssuerNIT, in.IssuerCheckDigit),
+			infoLineProps(6, fontstyle.Bold, 8.5, colorAccent)),
+		text.New(in.IssuerAddressLine,
+			infoLineProps(10.5, fontstyle.Normal, 7.5, colorTextSecondary)),
+		text.New(fmt.Sprintf("%s, %s", in.IssuerCityName, in.IssuerStateName),
+			infoLineProps(14, fontstyle.Normal, 7.5, colorTextSecondary)),
+		text.New(fmt.Sprintf("Tel: %s   %s", in.IssuerPhone, in.IssuerEmail),
+			infoLineProps(17.5, fontstyle.Normal, 7.5, colorTextSecondary)),
 	)
 
-	qrCol := col.New(3).WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder})
-	if !in.IsDraft && in.QRURL != "" {
-		qrCol = qrCol.Add(code.NewQr(in.QRURL, props.Rect{Center: true, Percent: 90}))
-	} else {
-		qrCol = qrCol.Add(text.New("QR disponible al confirmar", props.Text{
-			Top: 10, Size: 7.5, Align: align.Center, Color: colorTextSecondary,
-		}))
-	}
-
-	m.AddRows(row.New(28).Add(logoCol, infoCol, qrCol))
-}
-
-func buildStatusBar(m core.Maroto, in InvoiceInput) {
-	if in.IsDraft {
-		m.AddRows(row.New(6).Add(
-			col.New(12).Add(text.New("BORRADOR — PENDIENTE DE CONFIRMACIÓN ANTE LA DIAN", props.Text{
-				Top: 1.5, Size: 8, Align: align.Center, Style: fontstyle.Bold, Color: colorDraft,
-			})).WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorDraft}),
-		))
-		return
-	}
-	m.AddRows(row.New(6).Add(
-		col.New(12).Add(text.New("CUFE: "+in.CUFE, props.Text{
-			Top: 1.5, Size: 6.5, Align: align.Left, Color: colorTextSecondary,
-		})).WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder}),
-	))
-}
-
-func buildPartiesSection(m core.Maroto, in InvoiceInput) {
-	clientCol := col.New(6).Add(
-		text.New("Cliente: "+in.CustomerName, infoLineProps(1, fontstyle.Bold, 9, colorTextPrimary)),
-		text.New(fmt.Sprintf("%s: %s", in.CustomerIdentificationType, in.CustomerIdentification), infoLineProps(5, fontstyle.Normal, 8.5, colorTextSecondary)),
-		text.New("Dirección: "+in.CustomerAddressLine, infoLineProps(9, fontstyle.Normal, 8.5, colorTextSecondary)),
-		text.New(fmt.Sprintf("Tel: %s   %s", in.CustomerPhone, in.CustomerEmail), infoLineProps(13, fontstyle.Normal, 8.5, colorTextSecondary)),
-	).WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder})
-
+	// Número de factura (prominente) y fecha.
 	invoiceNumber := "BORRADOR"
 	numberColor := colorDraft
 	if !in.IsDraft {
 		invoiceNumber = fmt.Sprintf("%s%d", in.Prefix, in.Number)
 		numberColor = colorAccent
 	}
-
-	invoiceCol := col.New(6).Add(
-		text.New("Factura Electrónica de Venta No.", infoLineProps(1, fontstyle.Bold, 9, colorTextPrimary)),
-		text.New(invoiceNumber, infoLineProps(5, fontstyle.Bold, 11, numberColor)),
-		text.New("Fecha de emisión: "+orDash(in.IssueDate), infoLineProps(10, fontstyle.Normal, 8.5, colorTextSecondary)),
-		text.New("Forma de pago: "+orDash(in.PaymentTermName)+"   Medio: "+orDash(in.PaymentMethodName), infoLineProps(14, fontstyle.Normal, 8.5, colorTextSecondary)),
-		text.New("Moneda: "+in.CurrencyCode, infoLineProps(18, fontstyle.Normal, 8.5, colorTextSecondary)),
+	invoiceDetailCol := col.New(3).Add(
+		text.New("No.", props.Text{
+			Top: 2, Size: 7.5, Align: align.Right, Color: colorTextSecondary,
+		}),
+		text.New(invoiceNumber, props.Text{
+			Top: 6, Size: 12, Align: align.Right,
+			Style: fontstyle.Bold, Color: numberColor,
+		}),
+		text.New(orDash(in.IssueDate), props.Text{
+			Top: 17, Size: 7.5, Align: align.Right, Color: colorTextSecondary,
+		}),
 	).WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder})
 
-	m.AddRows(row.New(23).Add(clientCol, invoiceCol))
+	m.AddRows(row.New(26).Add(logoCol, issuerCol, invoiceDetailCol))
+}
+
+// buildStatusBar muestra el CUFE (factura confirmada) o un aviso de borrador.
+func buildStatusBar(m core.Maroto, in InvoiceInput) {
+	if in.IsDraft {
+		m.AddRows(row.New(7).Add(
+			col.New(12).Add(text.New("BORRADOR — PENDIENTE DE CONFIRMACIÓN ANTE LA DIAN", props.Text{
+				Top: 2, Size: 8, Align: align.Center,
+				Style: fontstyle.Bold, Color: colorDraft,
+			})).WithStyle(&props.Cell{
+				BackgroundColor: colorDraftBg,
+				BorderType:      border.Full,
+				BorderColor:     colorDraft,
+			}),
+		))
+		return
+	}
+	m.AddRows(row.New(6).Add(
+		col.New(12).Add(text.New("CUFE: "+in.CUFE, props.Text{
+			Top: 1.5, Size: 6.5, Align: align.Left, Color: colorTextSecondary,
+		})).WithStyle(&props.Cell{
+			BackgroundColor: colorAccentLight,
+			BorderType:      border.Full,
+			BorderColor:     colorBorder,
+		}),
+	))
+}
+
+// buildPartiesSection muestra datos del adquiriente y condiciones de pago en dos columnas.
+func buildPartiesSection(m core.Maroto, in InvoiceInput) {
+	m.AddRows(row.New(2))
+
+	customerItems := []core.Component{
+		text.New("CLIENTE", props.Text{
+			Top: 1.5, Size: 6.5, Style: fontstyle.Bold, Color: colorAccent,
+		}),
+		text.New(in.CustomerName, infoLineProps(5.5, fontstyle.Bold, 8.5, colorTextPrimary)),
+		text.New(fmt.Sprintf("%s: %s", in.CustomerIdentificationType, in.CustomerIdentification),
+			infoLineProps(10, fontstyle.Normal, 7.5, colorTextSecondary)),
+		text.New("Dir: "+orDash(in.CustomerAddressLine),
+			infoLineProps(13.5, fontstyle.Normal, 7.5, colorTextSecondary)),
+		text.New(fmt.Sprintf("Tel: %s   %s", orDash(in.CustomerPhone), orDash(in.CustomerEmail)),
+			infoLineProps(17, fontstyle.Normal, 7.5, colorTextSecondary)),
+	}
+	customerCol := col.New(6).Add(customerItems...).
+		WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder})
+
+	paymentItems := []core.Component{
+		text.New("CONDICIONES DE PAGO", props.Text{
+			Top: 1.5, Size: 6.5, Style: fontstyle.Bold, Color: colorAccent,
+		}),
+		text.New("Forma: "+orDash(in.PaymentTermName),
+			infoLineProps(5.5, fontstyle.Normal, 7.5, colorTextSecondary)),
+		text.New("Medio: "+orDash(in.PaymentMethodName),
+			infoLineProps(9, fontstyle.Normal, 7.5, colorTextSecondary)),
+		text.New("Moneda: "+in.CurrencyCode,
+			infoLineProps(12.5, fontstyle.Normal, 7.5, colorTextSecondary)),
+	}
+	if in.PaymentDueDate != "" {
+		paymentItems = append(paymentItems,
+			text.New("Vencimiento: "+in.PaymentDueDate,
+				infoLineProps(16, fontstyle.Normal, 7.5, colorTextSecondary)))
+	}
+	paymentCol := col.New(6).Add(paymentItems...).
+		WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder})
+
+	m.AddRows(row.New(23).Add(customerCol, paymentCol))
 	m.AddRows(row.New(2))
 }
 
 func buildItemsTable(m core.Maroto, in InvoiceInput) {
 	rows, err := list.Build[InvoiceLine](in.Lines)
 	if err != nil {
-		// list.Build solo falla si Lines está vacío de una forma que rompe el cálculo de
-		// cabecera — documents.Service ya garantiza al menos una línea antes de llegar aquí,
-		// así que esto es defensivo, no se espera que ocurra en producción.
-		m.AddRows(row.New(6).Add(text.NewCol(12, "No fue posible construir la tabla de ítems", props.Text{Color: colorDraft})))
+		m.AddRows(row.New(6).Add(
+			text.NewCol(12, "No fue posible construir la tabla de ítems",
+				props.Text{Color: colorDraft})))
 		return
 	}
 	m.AddRows(rows...)
 	m.AddRows(row.New(3))
 }
 
-func buildTotals(m core.Maroto, in InvoiceInput) {
-	cell := func(label, value string) core.Col {
-		return col.New(4).Add(
-			text.New(label, props.Text{Top: 1.5, Size: 7.5, Align: align.Center, Color: colorTextSecondary}),
-			text.New(value, props.Text{Top: 6, Size: 9.5, Align: align.Center, Style: fontstyle.Bold, Color: colorTextPrimary}),
-		).WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder})
-	}
-	m.AddRows(row.New(13).Add(
-		cell("Subtotal", formatCOP(in.LineExtensionCents)),
-		cell("Impuestos", formatCOP(in.TaxAmountCents)),
-		cell("Total a pagar", formatCOP(in.PayableCents)),
-	))
-	m.AddRows(row.New(2))
-}
-
-func buildTaxBreakdown(m core.Maroto, in InvoiceInput) {
-	if len(in.Taxes) == 0 {
-		return
-	}
-	m.AddRows(row.New(6).Add(
-		text.NewCol(4, "Impuesto", headerCellProps(align.Left)),
-		text.NewCol(2, "Tarifa", headerCellProps(align.Right)),
-		text.NewCol(3, "Base", headerCellProps(align.Right)),
-		text.NewCol(3, "Valor", headerCellProps(align.Right)),
-	).WithStyle(&props.Cell{BackgroundColor: &props.Color{Red: 240, Green: 240, Blue: 240}}))
-	for _, t := range in.Taxes {
+// buildFinancials muestra el desglose de impuestos y los totales con Total a Pagar destacado.
+func buildFinancials(m core.Maroto, in InvoiceInput) {
+	// Tabla de impuestos (si hay).
+	if len(in.Taxes) > 0 {
 		m.AddRows(row.New(6).Add(
-			text.NewCol(4, t.TypeName, bodyCellProps(align.Left)),
-			text.NewCol(2, fmt.Sprintf("%.0f%%", t.Percent), bodyCellProps(align.Right)),
-			text.NewCol(3, formatCOP(t.TaxableAmountCents), bodyCellProps(align.Right)),
-			text.NewCol(3, formatCOP(t.TaxAmountCents), bodyCellProps(align.Right)),
-		).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}))
+			text.NewCol(3, "Impuesto", headerCellProps(align.Left)),
+			text.NewCol(2, "Tarifa", headerCellProps(align.Right)),
+			text.NewCol(4, "Base Gravable", headerCellProps(align.Right)),
+			text.NewCol(3, "Valor Impuesto", headerCellProps(align.Right)),
+		).WithStyle(&props.Cell{BackgroundColor: colorTableHeader}))
+		for _, t := range in.Taxes {
+			m.AddRows(row.New(6).Add(
+				text.NewCol(3, t.TypeName, bodyCellProps(align.Left)),
+				text.NewCol(2, fmt.Sprintf("%.0f%%", t.Percent), bodyCellProps(align.Right)),
+				text.NewCol(4, formatCOP(t.TaxableAmountCents), bodyCellProps(align.Right)),
+				text.NewCol(3, formatCOP(t.TaxAmountCents), bodyCellProps(align.Right)),
+			).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}))
+		}
+		m.AddRows(row.New(3))
 	}
-	m.AddRows(row.New(2))
+
+	// Subtotal.
+	m.AddRows(row.New(7).Add(
+		col.New(8),
+		text.NewCol(2, "Subtotal", props.Text{
+			Top: 1.5, Size: 8, Align: align.Right, Color: colorTextSecondary,
+		}).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
+		text.NewCol(2, formatCOP(in.LineExtensionCents), props.Text{
+			Top: 1.5, Size: 8, Align: align.Right, Color: colorTextPrimary,
+		}).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
+	))
+
+	// Impuestos.
+	m.AddRows(row.New(7).Add(
+		col.New(8),
+		text.NewCol(2, "Impuestos", props.Text{
+			Top: 1.5, Size: 8, Align: align.Right, Color: colorTextSecondary,
+		}).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
+		text.NewCol(2, formatCOP(in.TaxAmountCents), props.Text{
+			Top: 1.5, Size: 8, Align: align.Right, Color: colorTextPrimary,
+		}).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
+	))
+
+	// Total a Pagar — fila destacada con fondo accent.
+	m.AddRows(row.New(10).Add(
+		col.New(8),
+		text.NewCol(2, "TOTAL A PAGAR", props.Text{
+			Top: 2.5, Size: 8.5, Align: align.Right,
+			Style: fontstyle.Bold, Color: colorWhite,
+		}).WithStyle(&props.Cell{BackgroundColor: colorAccent}),
+		text.NewCol(2, formatCOP(in.PayableCents), props.Text{
+			Top: 2.5, Size: 8.5, Align: align.Right,
+			Style: fontstyle.Bold, Color: colorWhite,
+		}).WithStyle(&props.Cell{BackgroundColor: colorAccent}),
+	))
 }
 
-func buildAmountInWords(m core.Maroto, in InvoiceInput) {
-	words := AmountInWords(in.PayableCents / 100)
-	m.AddRows(text.NewRow(6, "Son: "+words, props.Text{Size: 8, Style: fontstyle.Bold, Color: colorTextPrimary}))
-	if in.Note != "" {
-		m.AddRows(text.NewRow(6, "Nota: "+in.Note, props.Text{Size: 8, Color: colorTextSecondary}))
-	}
-	m.AddRows(row.New(3))
-}
-
+// buildFooter muestra la cantidad en letras, nota opcional, y al pie el QR junto al texto de
+// autorización de numeración DIAN — el QR va aquí (no en la cabecera) para que quede a mano
+// al escanear el documento físico impreso.
 func buildFooter(m core.Maroto, in InvoiceInput) {
-	m.AddRows(text.NewRow(5, "Representación gráfica de Factura Electrónica de Venta.", props.Text{
-		Size: 7, Color: colorTextSecondary,
-	}))
-	if in.ResolutionNumber != "" {
-		m.AddRows(text.NewRow(8, resolutionDisclaimer(in), props.Text{Size: 7, Color: colorTextSecondary}))
+	m.AddRows(row.New(3))
+
+	// Valor en letras con fondo suave.
+	words := AmountInWords(in.PayableCents / 100)
+	m.AddRows(row.New(6).Add(
+		col.New(12).Add(
+			text.New("Son: "+words, props.Text{
+				Top: 1.5, Size: 7.5, Style: fontstyle.Bold, Color: colorTextPrimary,
+			}),
+		).WithStyle(&props.Cell{
+			BackgroundColor: colorAccentLight,
+			BorderType:      border.Full,
+			BorderColor:     colorBorder,
+		}),
+	))
+
+	if in.Note != "" {
+		m.AddRows(row.New(2))
+		m.AddRows(row.New(6).Add(
+			text.NewCol(12, "Nota: "+in.Note, props.Text{
+				Top: 1.5, Size: 7.5, Color: colorTextSecondary,
+			}),
+		))
 	}
+
+	m.AddRows(row.New(5))
+
+	// QR + texto legal.
+	qrCol := col.New(3)
+	if !in.IsDraft && in.QRURL != "" {
+		qrCol = qrCol.Add(code.NewQr(in.QRURL, props.Rect{Center: true, Percent: 95}))
+	}
+
+	legalItems := []core.Component{
+		text.New("Representación gráfica de Factura Electrónica de Venta.", props.Text{
+			Top: 1, Size: 7, Color: colorTextSecondary,
+		}),
+	}
+	if in.ResolutionNumber != "" {
+		legalItems = append(legalItems,
+			text.New(resolutionDisclaimer(in), props.Text{
+				Top: 6, Size: 7, Color: colorTextSecondary,
+			}))
+	}
+
+	m.AddRows(row.New(25).Add(
+		qrCol,
+		col.New(9).Add(legalItems...),
+	))
 }
 
-// resolutionDisclaimer es el texto de autorización del pie — separado de buildFooter para
-// poder probarlo sin inspeccionar bytes de PDF. RangeTo nil (rango sin tope, ver el comentario
-// en InvoiceInput) omite la cláusula "hasta ..." en vez de inventar un "0".
+// resolutionDisclaimer construye el texto de autorización. RangeTo nil omite la cláusula
+// "hasta ..." (rango sin tope, ver InvoiceInput.RangeTo).
 func resolutionDisclaimer(in InvoiceInput) string {
 	rangeClause := fmt.Sprintf("desde %s%d", in.RangePrefix, in.RangeFrom)
 	if in.RangeTo != nil {
@@ -340,8 +438,6 @@ func infoLineProps(top float64, style fontstyle.Type, size float64, color *props
 func formatCOP(cents int64) string {
 	pesos := cents / 100
 	s := fmt.Sprintf("%d", pesos)
-	// Separador de miles "." (convención colombiana) — sin librería de formato de moneda
-	// aparte, el monto siempre es un entero de pesos (sin centavos, ver model de Totals).
 	neg := false
 	if pesos < 0 {
 		neg = true
