@@ -53,6 +53,7 @@ export function CreditNoteEditorPage() {
   const sourceInvoiceId = searchParams.get("from");
 
   const [doc, setDoc] = useState<Document | null>(null);
+  const [sourceDoc, setSourceDoc] = useState<Document | null>(null); // factura de origen (solo cuando isNew)
   const [billingRef, setBillingRef] = useState<BillingReference | null>(null);
   const [loadingDocument, setLoadingDocument] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +74,7 @@ export function CreditNoteEditorPage() {
             return;
           }
           setBillingRef(billingRefFromDoc(src));
+          setSourceDoc(src); // pre-llena cliente e ítems en el formulario
         })
         .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la factura de referencia"))
         .finally(() => setLoadingDocument(false));
@@ -203,6 +205,7 @@ export function CreditNoteEditorPage() {
         <Card className="mt-3">
           <CreditNoteForm
             initial={isNew ? null : doc}
+            prefill={isNew ? sourceDoc : null}
             billingReference={billingRef}
             onSubmit={handleSubmit}
             onCancel={() => navigate("/documents/credit-notes")}

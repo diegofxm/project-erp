@@ -41,27 +41,59 @@ const NEW_CUSTOMER: CustomerPayload = {
 
 interface CreditNoteFormProps {
   initial: Document | null;
+  // prefill: datos de la factura de origen — solo se usa cuando initial es null (borrador nuevo).
+  // Cuando initial existe (edición de borrador ya guardado), initial tiene prioridad.
+  prefill?: Document | null;
   billingReference: BillingReference;
   onSubmit: (payload: IssueCreditNotePayload) => void;
   onCancel: () => void;
   loading: boolean;
 }
 
-export function CreditNoteForm({ initial, billingReference, onSubmit, onCancel, loading }: CreditNoteFormProps) {
+export function CreditNoteForm({ initial, prefill, billingReference, onSubmit, onCancel, loading }: CreditNoteFormProps) {
   const [ranges, setRanges] = useState<NumberingRange[]>([]);
   const { data: currencies, loading: loadingCurrencies } = useCatalog(listCurrencies);
   const [numberingRangeId, setNumberingRangeId] = useState(initial?.numbering_range_id ?? "");
-  const [customer, setCustomer] = useState<CustomerPayload>(initial?.customer ?? NEW_CUSTOMER);
-  const [customerId, setCustomerId] = useState(initial?.customer_id ?? "");
-  const [lines, setLines] = useState<DocumentLineInput[]>(initial?.lines.map(lineToInput) ?? []);
-  const [paymentMeans, setPaymentMeans] = useState<PaymentMean[]>(initial?.payment_means ?? []);
-  const [note, setNote] = useState(initial?.note ?? "");
-  const [currencyCode, setCurrencyCode] = useState(initial?.currency_code ?? "COP");
-  const [creditNoteTypeCode, setCreditNoteTypeCode] = useState(initial?.note_type_code ?? "");
-  const [hasDiscrepancy, setHasDiscrepancy] = useState(!!initial?.discrepancy_response);
-  const [discrepancy, setDiscrepancy] = useState<DiscrepancyResponse>(
-    initial?.discrepancy_response ?? { reference_id: "", response_code: "", description: "" }
+  // Cuando es un borrador nuevo (initial null), pre-llena desde la factura origen (prefill) para
+  // que el usuario no tenga que re-capturar cliente e ítems desde cero — puede modificarlos si
+  // la nota es parcial.
+  const [customer, setCustomer] = useState<CustomerPayload>(
+    initial?.customer ?? prefill?.customer ?? NEW_CUSTOMER
   );
+  const [customerId, setCustomerId] = useState(initial?.customer_id ?? prefill?.customer_id ?? "");
+  const [lines, setLines] = useState<DocumentLineInput[]>(
+    initial?.lines.map(lineToInput) ?? prefill?.lines.map(lineToInput) ?? []
+  );
+  const [paymentMeans, setPaymentMeans] = useState<PaymentMean[]>(
+    initial?.payment_means ?? prefill?.payment_means ?? []
+  );
+  const [note, setNote] = useState(initial?.note ?? "");
+  const [currencyCode, setCurrencyCode] = useState(
+    initial?.currency_code ?? prefill?.currency_code ?? "COP"
+  );
+  const [creditNoteTypeCode, setCreditNoteTypeCode] = useState(initial?.note_type_code ?? "");
+  // DiscrepancyResponse se auto-popula cuando el usuario elige el concepto — siempre se incluye
+  // porque el test real de habilitación la trae y la DIAN la espera aunque sea opcional en el
+  // esquema UBL (ver cofacture/builder/notes.go y realsend_creditnote_test.go).
+  const [discrepancy, setDiscrepancy] = useState<DiscrepancyResponse>(
+    initial?.discrepancy_response ?? {
+      reference_id: billingReference.prefix + billingReference.number,
+      response_code: "",
+      description: "",
+    }
+  );
+
+  // Al cambiar el concepto de la NC, sincroniza automáticamente la DiscrepancyResponse para
+  // que el usuario no tenga que seleccionar el mismo código dos veces ni escribir la descripción
+  // a mano — ReferenceID viene del billingReference (prefijo+número de la factura), ResponseCode
+  // es el mismo código de la Lista 22.
+  function handleTypeCodeChange(code: string) {
+    setCreditNoteTypeCode(code);
+    if (!initial?.discrepancy_response) {
+      const label = CREDIT_NOTE_TYPES.find((t) => t.code === code)?.label ?? "";
+      setDiscrepancy((d) => ({ ...d, response_code: code, description: label }));
+    }
+  }
 
   useEffect(() => {
     listNumberingRanges(CREDIT_NOTE_DIAN_TYPE)
@@ -85,7 +117,9 @@ export function CreditNoteForm({ initial, billingReference, onSubmit, onCancel, 
       customer_id: customerId || undefined,
       billing_reference: billingReference,
       credit_note_type_code: creditNoteTypeCode,
-      discrepancy_response: hasDiscrepancy ? discrepancy : undefined,
+      // DiscrepancyResponse siempre se incluye — el test real de habilitación la exige aunque
+      // el esquema UBL la declare opcional.
+      discrepancy_response: discrepancy,
     });
   }
 
@@ -122,7 +156,7 @@ export function CreditNoteForm({ initial, billingReference, onSubmit, onCancel, 
             label="Concepto de Nota Crédito"
             required
             value={creditNoteTypeCode}
-            onChange={(e) => setCreditNoteTypeCode(e.target.value)}
+            onChange={(e) => handleTypeCodeChange(e.target.value)}
           >
             <option value="">Selecciona…</option>
             {CREDIT_NOTE_TYPES.map((t) => (
@@ -191,49 +225,44 @@ export function CreditNoteForm({ initial, billingReference, onSubmit, onCancel, 
         </div>
       </section>
 
-      {/* DiscrepancyResponse — opcional según el anexo técnico */}
+      {/* DiscrepancyResponse — siempre incluida (auto-poblada al elegir el concepto). El test
+          real de habilitación la trae; aunque el esquema UBL la declare opcional, la DIAN la
+          espera. El usuario puede ajustar los campos si necesita un texto distinto. */}
       <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
-        <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-(--text-secondary)">
-          <input
-            type="checkbox"
-            checked={hasDiscrepancy}
-            onChange={(e) => setHasDiscrepancy(e.target.checked)}
-            className="rounded"
-          />
-          Incluir respuesta de discrepancia (opcional)
-        </label>
-        {hasDiscrepancy && (
-          <div className="grid grid-cols-12 gap-3 pl-4">
-            <div className="col-span-4">
-              <Input
-                label="ID de referencia"
-                value={discrepancy.reference_id}
-                onChange={(e) => setDiscrepancy((d) => ({ ...d, reference_id: e.target.value }))}
-              />
-            </div>
-            <div className="col-span-4">
-              <Select
-                label="Código de respuesta"
-                value={discrepancy.response_code}
-                onChange={(e) => setDiscrepancy((d) => ({ ...d, response_code: e.target.value }))}
-              >
-                <option value="">Selecciona…</option>
-                {CREDIT_NOTE_TYPES.map((t) => (
-                  <option key={t.code} value={t.code}>
-                    {t.code} — {t.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="col-span-12">
-              <Input
-                label="Descripción"
-                value={discrepancy.description}
-                onChange={(e) => setDiscrepancy((d) => ({ ...d, description: e.target.value }))}
-              />
-            </div>
+        <p className="text-xs font-semibold text-(--text-primary)">Respuesta de discrepancia</p>
+        <p className="text-xs text-(--text-secondary)">
+          Se envía junto con la nota — se llena automáticamente al seleccionar el concepto.
+        </p>
+        <div className="grid grid-cols-12 gap-3">
+          <div className="col-span-4">
+            <Input
+              label="ID de referencia (número de la factura)"
+              value={discrepancy.reference_id}
+              onChange={(e) => setDiscrepancy((d) => ({ ...d, reference_id: e.target.value }))}
+            />
           </div>
-        )}
+          <div className="col-span-4">
+            <Select
+              label="Código de respuesta"
+              value={discrepancy.response_code}
+              onChange={(e) => setDiscrepancy((d) => ({ ...d, response_code: e.target.value }))}
+            >
+              <option value="">Selecciona…</option>
+              {CREDIT_NOTE_TYPES.map((t) => (
+                <option key={t.code} value={t.code}>
+                  {t.code} — {t.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="col-span-12">
+            <Input
+              label="Descripción"
+              value={discrepancy.description}
+              onChange={(e) => setDiscrepancy((d) => ({ ...d, description: e.target.value }))}
+            />
+          </div>
+        </div>
       </section>
 
       <div className="flex gap-2">
