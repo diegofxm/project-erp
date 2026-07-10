@@ -8,6 +8,8 @@ package pdf
 
 import (
 	"fmt"
+	"strings"
+	"unicode"
 
 	"github.com/johnfercher/maroto/v2"
 	"github.com/johnfercher/maroto/v2/pkg/components/code"
@@ -127,6 +129,14 @@ type InvoiceInput struct {
 
 	Note string
 
+	// DocumentTitle es el título de la banda superior (ej. "FACTURA ELECTRÓNICA DE VENTA").
+	// Vacío → se usa ese valor por defecto, lo que mantiene compatibilidad con constructores
+	// existentes que no lo seteaban (el PDF siempre fue Invoice hasta la sección 9.49).
+	DocumentTitle string
+	// HashLabel es la etiqueta del código de unicidad: "CUFE" para Factura, "CUDE" para NC/ND.
+	// Vacío → "CUFE".
+	HashLabel string
+
 	ResolutionNumber string
 	RangePrefix      string
 	RangeFrom        int64
@@ -163,10 +173,14 @@ func BuildInvoicePDF(in InvoiceInput) ([]byte, error) {
 // buildHeader genera la cabecera: banda azul con tipo de documento, luego logo | datos del
 // emisor | número y fecha de la factura.
 func buildHeader(m core.Maroto, in InvoiceInput) {
+	docTitle := in.DocumentTitle
+	if docTitle == "" {
+		docTitle = "FACTURA ELECTRÓNICA DE VENTA"
+	}
 	// Banda de título.
 	m.AddRows(row.New(8).Add(
 		col.New(12).Add(
-			text.New("FACTURA ELECTRÓNICA DE VENTA", props.Text{
+			text.New(docTitle, props.Text{
 				Top: 2, Size: 9, Align: align.Center,
 				Style: fontstyle.Bold, Color: colorWhite,
 			}),
@@ -216,8 +230,12 @@ func buildHeader(m core.Maroto, in InvoiceInput) {
 	m.AddRows(row.New(26).Add(logoCol, issuerCol, invoiceDetailCol))
 }
 
-// buildStatusBar muestra el CUFE (factura confirmada) o un aviso de borrador.
+// buildStatusBar muestra el CUFE/CUDE (documento confirmado) o un aviso de borrador.
 func buildStatusBar(m core.Maroto, in InvoiceInput) {
+	hashLabel := in.HashLabel
+	if hashLabel == "" {
+		hashLabel = "CUFE"
+	}
 	if in.IsDraft {
 		m.AddRows(row.New(7).Add(
 			col.New(12).Add(text.New("BORRADOR — PENDIENTE DE CONFIRMACIÓN ANTE LA DIAN", props.Text{
@@ -232,7 +250,7 @@ func buildStatusBar(m core.Maroto, in InvoiceInput) {
 		return
 	}
 	m.AddRows(row.New(6).Add(
-		col.New(12).Add(text.New("CUFE: "+in.CUFE, props.Text{
+		col.New(12).Add(text.New(hashLabel+": "+in.CUFE, props.Text{
 			Top: 1.5, Size: 6.5, Align: align.Left, Color: colorTextSecondary,
 		})).WithStyle(&props.Cell{
 			BackgroundColor: colorAccentLight,
@@ -390,8 +408,18 @@ func buildFooter(m core.Maroto, in InvoiceInput) {
 		qrCol = qrCol.Add(code.NewQr(in.QRURL, props.Rect{Center: true, Percent: 95}))
 	}
 
+	// Deriva la descripción para el pie a partir del título: "NOTA CRÉDITO DE VENTA" →
+	// "Nota crédito de venta".
+	docTitle := in.DocumentTitle
+	if docTitle == "" {
+		docTitle = "FACTURA ELECTRÓNICA DE VENTA"
+	}
+	runes := []rune(strings.ToLower(docTitle))
+	if len(runes) > 0 {
+		runes[0] = unicode.ToUpper(runes[0])
+	}
 	legalItems := []core.Component{
-		text.New("Representación gráfica de Factura Electrónica de Venta.", props.Text{
+		text.New("Representación gráfica de "+string(runes)+".", props.Text{
 			Top: 1, Size: 7, Color: colorTextSecondary,
 		}),
 	}

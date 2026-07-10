@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/diegofxm/apidian/internal/api/middleware"
+	"github.com/diegofxm/apidian/internal/api/response"
 	"github.com/diegofxm/apidian/internal/auth"
 	"github.com/google/uuid"
-
-	"github.com/diegofxm/apidian/internal/api/response"
 )
 
 // registerRequest son los datos del usuario nuevo — desde la Fase 9.32 ya NO incluye una
@@ -80,6 +80,29 @@ func (a *API) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeAuthResponse(w, http.StatusOK, result)
+}
+
+type updateMeRequest struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+func (a *API) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+
+	var req updateMeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
+		return
+	}
+
+	u, err := a.auth.UpdateProfile(r.Context(), userID, req.Name, req.Email)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, userToResponse(u))
 }
 
 // writeAuthResponse arma la respuesta a partir de un auth.AuthResult ya resuelto — no vuelve a

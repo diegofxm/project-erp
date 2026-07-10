@@ -58,6 +58,22 @@ func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (*Use
 	return scanUser(row)
 }
 
+func (r *PostgresRepository) Update(ctx context.Context, u User) (*User, error) {
+	u.UpdatedAt = time.Now().UTC()
+	row := r.pool.QueryRow(ctx,
+		`UPDATE users SET name=$1, email=$2, updated_at=$3 WHERE id=$4 RETURNING `+userColumns,
+		u.Name, u.Email, u.UpdatedAt, u.ID,
+	)
+	updated, err := scanUser(row)
+	if err != nil {
+		if isDuplicateKey(err) {
+			return nil, ErrEmailAlreadyExists
+		}
+		return nil, err
+	}
+	return updated, nil
+}
+
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
 	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Role, &u.IsActive, &u.CreatedAt, &u.UpdatedAt)

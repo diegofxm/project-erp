@@ -11,6 +11,7 @@ type Repository interface {
 	Create(ctx context.Context, u User) (*User, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
+	Update(ctx context.Context, u User) (*User, error)
 
 	// LinkIssuer vincula a userID con issuerID (user_issuers) — el camino para que un usuario
 	// gane acceso a una empresa, sea porque la crea (rol "owner") o porque se le da acceso a

@@ -90,6 +90,28 @@ func (r *MemoryRepository) ListIssuerIDs(_ context.Context, userID uuid.UUID) ([
 	return ids, nil
 }
 
+func (r *MemoryRepository) Update(_ context.Context, u User) (*User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	existing, ok := r.byID[u.ID]
+	if !ok {
+		return nil, ErrUserNotFound
+	}
+	if u.Email != existing.Email {
+		if _, exists := r.byEmail[u.Email]; exists {
+			return nil, ErrEmailAlreadyExists
+		}
+		delete(r.byEmail, existing.Email)
+	}
+	u.UpdatedAt = time.Now().UTC()
+	u.CreatedAt = existing.CreatedAt
+	cp := u
+	r.byID[u.ID] = &cp
+	r.byEmail[u.Email] = &cp
+	return &cp, nil
+}
+
 func (r *MemoryRepository) HasAccess(_ context.Context, userID, issuerID uuid.UUID) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

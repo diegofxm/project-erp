@@ -177,6 +177,25 @@ func (s *Service) SelectIssuer(ctx context.Context, userID, issuerID uuid.UUID) 
 	return s.issueResult(u, iss)
 }
 
+// UpdateProfile actualiza el nombre y/o correo del usuario autenticado. No toca contraseña ni rol.
+func (s *Service) UpdateProfile(ctx context.Context, userID uuid.UUID, name, email string) (*User, error) {
+	name = strings.TrimSpace(name)
+	email = normalizeEmail(email)
+	if name == "" {
+		return nil, ErrEmptyName
+	}
+	if email == "" {
+		return nil, ErrEmptyEmail
+	}
+	u, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	u.Name = name
+	u.Email = email
+	return s.repo.Update(ctx, *u)
+}
+
 func (s *Service) issueResult(u *User, activeIssuer *issuers.Issuer) (*AuthResult, error) {
 	tenantID := uuid.Nil
 	if activeIssuer != nil {

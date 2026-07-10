@@ -35,6 +35,7 @@ interface AuthContextValue {
   listIssuers: () => Promise<Issuer[]>;
   createIssuer: (payload: CreateIssuerPayload) => Promise<void>;
   selectIssuer: (id: string) => Promise<void>;
+  updateProfile: (name: string, email: string) => Promise<User>;
   updateIssuer: (payload: UpdateIssuerPayload) => Promise<Issuer>;
   deleteIssuerLogo: () => Promise<Issuer>;
 }
@@ -152,6 +153,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applyAuthResult],
   );
 
+  // PUT /auth/me tampoco reemite el token — solo actualiza nombre/correo del usuario activo.
+  const updateProfile = useCallback(async (name: string, email: string) => {
+    const updated = await apiClient.put<User>("/auth/me", { name, email });
+    setUser(updated);
+    const stored = readStoredSession();
+    if (stored) writeStoredSession({ ...stored, user: updated });
+    return updated;
+  }, []);
+
   // A diferencia de login/register/createIssuer/selectIssuer, PUT /issuers/me NO reemite el
   // token (sigue siendo la misma empresa activa, solo cambian sus datos) — se actualiza
   // activeIssuer y la sesión persistida directamente, sin pasar por applyAuthResult.
@@ -187,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       listIssuers,
       createIssuer,
       selectIssuer,
+      updateProfile,
       updateIssuer,
       deleteIssuerLogo,
     }),
@@ -202,6 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       listIssuers,
       createIssuer,
       selectIssuer,
+      updateProfile,
       updateIssuer,
       deleteIssuerLogo,
     ],

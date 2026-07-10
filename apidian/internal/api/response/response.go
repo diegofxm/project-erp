@@ -40,6 +40,7 @@ func classify(err error) (int, string) {
 		errors.Is(err, documents.ErrDocumentNotFound),
 		errors.Is(err, customers.ErrCustomerNotFound),
 		errors.Is(err, products.ErrProductNotFound),
+		errors.Is(err, auth.ErrUserNotFound),
 		errors.Is(err, auth.ErrIssuerAccessDenied):
 		return http.StatusNotFound, err.Error()
 

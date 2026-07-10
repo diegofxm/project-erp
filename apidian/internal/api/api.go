@@ -160,6 +160,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle := func(pattern string, h http.HandlerFunc) { mux.Handle(pattern, protect(middleware.RequireTenant(h))) }
 	handleNoTenant := func(pattern string, h http.HandlerFunc) { mux.Handle(pattern, protect(h)) }
 
+	handleNoTenant("PUT /api/v1/auth/me", a.handleUpdateMe)
 	handleNoTenant("POST /api/v1/issuers", a.handleCreateIssuer)
 	handleNoTenant("GET /api/v1/issuers", a.handleListMyIssuers)
 	handleNoTenant("POST /api/v1/issuers/{id}/select", a.handleSelectIssuer)

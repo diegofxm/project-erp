@@ -10,16 +10,11 @@ import (
 	"github.com/johnfercher/maroto/v2/pkg/consts/extension"
 )
 
-// RenderInvoicePDF construye la representación gráfica en PDF de una Factura — borrador o ya
-// confirmada — siempre en memoria, nunca a disco (ver docs/apidian-architecture.md sección
-// 9.39). Mismo rol orquestador que ya cumple este Service para el XML (vía cofacture): junta
-// lo que internal/pdf necesita y le delega la construcción real, sin que ese paquete conozca
-// Document/Issuer/NumberingRange.
-//
-// Solo Invoice por ahora (ErrPDFNotSupportedForDocumentType en cualquier otro caso) — Nota
-// Crédito/Nota Débito se agregan cuando el ciclo de Factura esté probado de punta a punta.
-func (s *Service) RenderInvoicePDF(ctx context.Context, issuerID, id uuid.UUID) ([]byte, error) {
-	d, iss, err := s.loadInvoiceAndIssuer(ctx, issuerID, id, ErrPDFNotSupportedForDocumentType)
+// RenderDocumentPDF construye la representación gráfica en PDF de cualquier documento DIAN
+// (Factura, Nota Crédito o Nota Débito) — borrador o ya confirmado — siempre en memoria, nunca
+// a disco (ver docs/apidian-architecture.md sección 9.39/9.49).
+func (s *Service) RenderDocumentPDF(ctx context.Context, issuerID, id uuid.UUID) ([]byte, error) {
+	d, iss, err := s.loadDocumentAndIssuer(ctx, issuerID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +22,6 @@ func (s *Service) RenderInvoicePDF(ctx context.Context, issuerID, id uuid.UUID) 
 	if err != nil {
 		return nil, err
 	}
-
 	input, err := s.invoicePDFInput(ctx, d, iss, nr)
 	if err != nil {
 		return nil, err
@@ -35,11 +29,9 @@ func (s *Service) RenderInvoicePDF(ctx context.Context, issuerID, id uuid.UUID) 
 	return pdf.BuildInvoicePDF(input)
 }
 
-// loadInvoiceAndIssuer carga un documento, valida que pertenezca al emisor y que sea Factura
-// (única restricción que comparten PDF y correo, ver secciones 9.39/9.42), y carga el emisor.
-// notSupportedErr es el error específico del llamador para "este tipo de documento no soporta
-// esto todavía" — PDF y correo tienen su propio mensaje aunque el chequeo sea idéntico.
-func (s *Service) loadInvoiceAndIssuer(ctx context.Context, issuerID, id uuid.UUID, notSupportedErr error) (*Document, *issuers.Issuer, error) {
+// loadDocumentAndIssuer carga un documento, valida que pertenezca al emisor y carga el emisor.
+// Acepta los tres tipos de documento DIAN (01, 91, 92).
+func (s *Service) loadDocumentAndIssuer(ctx context.Context, issuerID, id uuid.UUID) (*Document, *issuers.Issuer, error) {
 	d, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, nil, err
@@ -47,10 +39,6 @@ func (s *Service) loadInvoiceAndIssuer(ctx context.Context, issuerID, id uuid.UU
 	if d.IssuerID != issuerID {
 		return nil, nil, ErrDocumentNotFound
 	}
-	if d.DianDocumentTypeCode != invoiceDianDocumentType {
-		return nil, nil, notSupportedErr
-	}
-
 	iss, err := s.issuers.GetIssuer(ctx, issuerID)
 	if err != nil {
 		return nil, nil, err
@@ -111,6 +99,20 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		issueDate = d.IssueDate.Format("2006-01-02") + " " + d.IssueTime
 	}
 
+	// Título y etiqueta de hash varían según el tipo de documento.
+	var documentTitle, hashLabel string
+	switch d.DianDocumentTypeCode {
+	case creditNoteDianDocumentType:
+		documentTitle = "NOTA CRÉDITO DE VENTA"
+		hashLabel = "CUDE"
+	case debitNoteDianDocumentType:
+		documentTitle = "NOTA DÉBITO DE VENTA"
+		hashLabel = "CUDE"
+	default:
+		documentTitle = "FACTURA ELECTRÓNICA DE VENTA"
+		hashLabel = "CUFE"
+	}
+
 	return pdf.InvoiceInput{
 		IssuerBusinessName: iss.BusinessName,
 		IssuerNIT:          iss.NIT,
@@ -150,6 +152,9 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		PayableCents:       d.Totals.PayableCents,
 
 		Note: d.Note,
+
+		DocumentTitle: documentTitle,
+		HashLabel:     hashLabel,
 
 		ResolutionNumber: nr.ResolutionNumber,
 		RangePrefix:      nr.Prefix,
