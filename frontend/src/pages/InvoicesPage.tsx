@@ -37,6 +37,8 @@ export function InvoicesPage() {
 
   const hasPrevious = offset > 0;
   const hasNext = (documents?.length ?? 0) === PAGE_SIZE;
+  // Columna "Referencias" aparece solo si alguna factura en la página actual tiene NC o ND.
+  const hasRefs = documents?.some((d) => (d.nc_count ?? 0) > 0 || (d.nd_count ?? 0) > 0) ?? false;
 
   return (
     <div className="p-4">
@@ -64,6 +66,7 @@ export function InvoicesPage() {
                 <th className="px-3 py-2 font-medium">Cliente</th>
                 <th className="px-3 py-2 font-medium">Total</th>
                 <th className="px-3 py-2 font-medium">Estado</th>
+                {hasRefs && <th className="px-3 py-2 font-medium">Referencias</th>}
                 <th className="px-3 py-2 font-medium">Fecha</th>
               </tr>
             </thead>
@@ -80,20 +83,24 @@ export function InvoicesPage() {
                   <td className="px-3 py-2 text-(--text-secondary)">{d.customer.name}</td>
                   <td className="px-3 py-2 font-mono text-(--text-secondary)">{formatCOP.format(d.totals.payable_cents / 100)}</td>
                   <td className="px-3 py-2">
-                    <div className="flex items-center gap-1">
-                      <StatusBadge status={d.status} />
-                      {(d.nc_count ?? 0) > 0 && (
-                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-(--color-warning-bg) text-(--color-warning-text)">
-                          NC
-                        </span>
-                      )}
-                      {(d.nd_count ?? 0) > 0 && (
-                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-(--color-info-bg) text-(--color-info-text)">
-                          ND
-                        </span>
-                      )}
-                    </div>
+                    <StatusBadge status={d.status} />
                   </td>
+                  {hasRefs && (
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        {(d.nc_count ?? 0) > 0 && (
+                          <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-(--color-warning-bg) text-(--color-warning-text)">
+                            NC
+                          </span>
+                        )}
+                        {(d.nd_count ?? 0) > 0 && (
+                          <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-(--color-info-bg) text-(--color-info-text)">
+                            ND
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-(--text-secondary)">{new Date(d.created_at).toLocaleDateString("es-CO")}</td>
                 </tr>
               ))}
