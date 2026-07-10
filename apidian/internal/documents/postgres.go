@@ -237,6 +237,15 @@ func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUI
 		args = append(args, string(filter.Status))
 		query += fmt.Sprintf(" AND status = $%d", len(args))
 	}
+	if filter.SourceDocumentID != nil {
+		// Filtra NC/ND cuya billing_reference apunta a la factura con ese ID. El
+		// subquery garantiza que la factura de origen pertenezca al mismo emisor ($1).
+		args = append(args, *filter.SourceDocumentID)
+		query += fmt.Sprintf(`
+			AND (billing_reference->>'prefix', billing_reference->>'number') = (
+				SELECT prefix, number::text FROM documents WHERE id = $%d AND issuer_id = $1
+			)`, len(args))
+	}
 	if !filter.From.IsZero() {
 		args = append(args, filter.From)
 		query += fmt.Sprintf(" AND issue_date >= $%d", len(args))

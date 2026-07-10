@@ -2325,3 +2325,56 @@ reales del usuario solo usaban `94`/`MTK`, ambos confirmados correctos — no ne
 ajustes. Algunos nombres tienen artefactos de codificación menores (ej. "Ã ¥ngström") que vienen
 del archivo original de la DIAN, no de la extracción — no se intentó adivinar la corrección,
 solo afecta el texto descriptivo, nunca el código que valida la DIAN.
+
+### 9.47 Nota Crédito (NC) — frontend completo + bug `CreditNoteTypeCode` corregido
+
+**Frontend NC**: `CreditNotesPage` (listado con columna "Factura referenciada"), `CreditNoteEditorPage`
+(nuevo borrador desde factura aceptada vía `?from=<uuid>`, edición, confirmación), `CreditNoteForm`
+(pre-llena cliente/líneas desde la factura origen, concepto de Lista 22, `DiscrepancyResponse`
+auto-poblada al elegir el concepto). Entrada al flujo: botón "Emitir Nota Crédito" visible solo
+en facturas `accepted` (`InvoiceEditorPage`). Sidebar habilitado.
+
+**Bug CAD12a — `cbc:CreditNoteTypeCode` incorrecto**: al confirmar la primera NC real, la DIAN
+rechazó con regla `CAD12a` ("Código de tipo de nota crédito inválido"). El bug: el campo
+`CreditNoteTypeCode` de `domain.CreditNote` se estaba llenando con el código de **concepto** de
+la Lista 22 (1–5, ej. "2 = Anulación"), que es correcto para `DiscrepancyResponse.ResponseCode`
+pero no para `cbc:CreditNoteTypeCode`. Los XMLs de ejemplo oficiales de la DIAN (Caja de
+Herramientas FE v1.9, `CreditNote.xml`) muestran `<cbc:CreditNoteTypeCode>91</cbc:CreditNoteTypeCode>`
+— el **tipo de documento DIAN** (91 = NC), no el concepto. Mismo patrón que
+`cbc:InvoiceTypeCode = "01"` en facturas. Fix en `service.go`: `CreditNoteTypeCode: creditNoteDianDocumentType`
+(constante "91") en vez de `d.NoteTypeCode`. Corregido también en `realsend_creditnote_test.go`,
+`credit_note_test.go` y `credit_note_golden.xml`. NC confirmada y aceptada por la DIAN después
+del fix.
+
+**Rango de numeración para NC en habilitación**: la DIAN no restringe la resolución por tipo de
+documento — se registra un rango en apidian con `dian_document_type_code: "91"` usando los mismos
+datos de la resolución real (prefijo, rango, test_set_id) que la factura de habilitación.
+
+### 9.48 `GET /documents?source_document_id=<uuid>` — trazabilidad de NC/ND sobre una factura
+
+**Motivación**: cualquier frontend (o desarrollador externo) que quiera saber si una factura tiene
+NC/ND asociadas no debe conocer el detalle interno de `billing_reference` — la relación debe ser
+descubrible desde el contrato público de la API.
+
+**Implementación sin migración**: la tabla `documents` ya tiene `billing_reference JSONB` con el
+`prefix`/`number` de la factura de origen. Se agregó `SourceDocumentID *uuid.UUID` a
+`documents.ListFilter` y se filtra con un subquery de PostgreSQL:
+
+```sql
+AND (billing_reference->>'prefix', billing_reference->>'number') = (
+    SELECT prefix, number::text FROM documents WHERE id = $N AND issuer_id = $1
+)
+```
+
+El `issuer_id = $1` en el subquery garantiza que el usuario solo puede consultar notas sobre
+facturas propias — nunca de otro emisor. No hay nueva columna, ni índice adicional, ni migración.
+
+**En el handler**: `?source_document_id=<uuid>` se parsea con `parseUUID` (mismo helper que el
+resto de UUIDs de la API) y se pasa a `filter.SourceDocumentID`.
+
+**En el frontend**: `listDocuments({ source_document_id: id })` (param nuevo en
+`ListDocumentsFilter`/`documents.ts`). `InvoiceEditorPage` carga las notas relacionadas en un
+`useEffect` separado cuando `doc.status === "accepted"` y las muestra en una sección "Notas
+emitidas sobre esta factura" con el tipo (NC/ND), el motivo (descripción del concepto), el status
+con badge y un enlace directo al detalle de la nota. La lista de facturas (`InvoicesPage`) no
+muestra esta señal — requeriría N+1 queries; el detalle es el lugar natural para verlo.

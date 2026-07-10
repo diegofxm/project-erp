@@ -12,11 +12,17 @@ import (
 // (nunca cero/negativos, nunca por encima del máximo permitido) porque Service.ListDocuments
 // los normaliza antes de llamar al repositorio — ningún Repository debe confiar en que el
 // llamador ya los validó.
+//
+// SourceDocumentID filtra solo los documentos cuya billing_reference apunta a la factura con
+// ese ID — devuelve las NC/ND emitidas sobre una factura dada. El repositorio garantiza que
+// la factura de origen también pertenezca al mismo emisor, así que un usuario nunca puede
+// enumerar notas sobre facturas ajenas.
 type ListFilter struct {
 	DianDocumentTypeCode string
 	Status               Status
 	From, To             time.Time
 	Limit, Offset        int
+	SourceDocumentID     *uuid.UUID
 }
 
 // Repository define las operaciones de persistencia de documentos.

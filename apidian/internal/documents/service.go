@@ -406,7 +406,7 @@ func (s *Service) confirmCreditNote(ctx context.Context, d *Document) (*Document
 	base := s.noteBaseFromDraft(d, p, creditNoteProfileID, creditNoteOperationTypeCode, creditNoteHashType, creditNoteDianDocumentType)
 	cn := domain.CreditNote{
 		Invoice:             base,
-		CreditNoteTypeCode:  d.NoteTypeCode,
+		CreditNoteTypeCode:  creditNoteDianDocumentType, // "91" — tipo DIAN de NC (fijo); el concepto de List 22 va en DiscrepancyResponse.ResponseCode
 		BillingReference:    billingReferenceFromInput(*d.BillingReference),
 		DiscrepancyResponse: discrepancyResponseFromInput(d.DiscrepancyResponse),
 	}

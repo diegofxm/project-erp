@@ -17,7 +17,7 @@ func sampleCreditNote() domain.CreditNote {
 
 	return domain.CreditNote{
 		Invoice:            inv,
-		CreditNoteTypeCode: "1", // catálogo de tipo de Nota Crédito (ej. "1" = devolución parcial)
+		CreditNoteTypeCode: "91", // código fijo DIAN para NC (tipo de documento); el concepto List 22 va en DiscrepancyResponse
 		BillingReference: domain.BillingReference{
 			Prefix:    "SETP",
 			Number:    "1",

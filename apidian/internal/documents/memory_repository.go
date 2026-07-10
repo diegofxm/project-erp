@@ -2,6 +2,7 @@ package documents
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -143,6 +144,15 @@ func (r *MemoryRepository) ListByIssuer(_ context.Context, issuerID uuid.UUID, f
 		}
 		if !filter.To.IsZero() && d.IssueDate.After(filter.To) {
 			continue
+		}
+		if filter.SourceDocumentID != nil {
+			src, ok := r.docs[*filter.SourceDocumentID]
+			if !ok || src.IssuerID != issuerID || d.BillingReference == nil {
+				continue
+			}
+			if d.BillingReference.Prefix != src.Prefix || d.BillingReference.Number != fmt.Sprintf("%d", src.Number) {
+				continue
+			}
 		}
 		cp := *d
 		matched = append(matched, &cp)

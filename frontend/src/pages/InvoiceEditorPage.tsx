@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileMinus, FileText, Mail, Send, Trash2 } from "lucide-react";
+import { ExternalLink, FileMinus, FileText, Mail, Send, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import {
   confirmDocument,
@@ -7,6 +7,7 @@ import {
   deleteDraft,
   getDocument,
   getInvoicePdfBlobUrl,
+  listDocuments,
   sendInvoiceEmail,
   updateInvoiceDraft,
 } from "../lib/documents";
@@ -24,6 +25,11 @@ import { Spinner } from "../components/ui/Spinner";
 import { InvoiceForm } from "../components/invoice-form/InvoiceForm";
 import { StatusBadge } from "../components/invoice-form/StatusBadge";
 
+const NOTE_TYPE_LABEL: Record<string, string> = {
+  "91": "Nota Crédito",
+  "92": "Nota Débito",
+};
+
 // :id es "new" (crear) o un UUID real (editar mientras siga en draft, ver solo lectura en
 // cualquier otro estado). Primer uso de un parámetro de ruta dinámico en este frontend.
 export function InvoiceEditorPage() {
@@ -35,6 +41,7 @@ export function InvoiceEditorPage() {
   const isNew = id === "new";
 
   const [doc, setDoc] = useState<Document | null>(null);
+  const [relatedNotes, setRelatedNotes] = useState<Document[]>([]);
   const [loadingDocument, setLoadingDocument] = useState(!isNew);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -50,6 +57,14 @@ export function InvoiceEditorPage() {
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la factura"))
       .finally(() => setLoadingDocument(false));
   }, [id, isNew]);
+
+  // Carga las NC/ND emitidas sobre esta factura cuando ya está aceptada.
+  useEffect(() => {
+    if (!id || !doc || doc.status !== "accepted") return;
+    listDocuments({ source_document_id: id })
+      .then(setRelatedNotes)
+      .catch(() => setRelatedNotes([]));
+  }, [id, doc?.status]);
 
   async function handleSubmit(payload: IssueInvoicePayload) {
     if (!id) return;
@@ -246,6 +261,45 @@ export function InvoiceEditorPage() {
               <p className="font-medium text-(--text-primary)">Estado DIAN: {dianStatusLabel(doc.dian_status_code)}</p>
               {doc.dian_status_description && <p className="mt-1 text-(--text-secondary)">{doc.dian_status_description}</p>}
               {doc.dian_status_message && <p className="mt-1 text-(--text-secondary)">{doc.dian_status_message}</p>}
+            </div>
+          )}
+
+          {relatedNotes.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-semibold text-(--text-primary)">
+                Notas emitidas sobre esta factura ({relatedNotes.length})
+              </p>
+              {relatedNotes.map((note) => {
+                const noteRoute = note.dian_document_type_code === "91"
+                  ? `/documents/credit-notes/${note.id}`
+                  : `/documents/debit-notes/${note.id}`;
+                const typeLabel = NOTE_TYPE_LABEL[note.dian_document_type_code] ?? "Nota";
+                const motivo = note.discrepancy_response?.description ?? note.note_type_code ?? "—";
+                return (
+                  <div
+                    key={note.id}
+                    className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-secondary) px-3 py-2 text-xs"
+                  >
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium text-(--text-primary)">
+                        {typeLabel} {note.prefix}{note.number}
+                      </span>
+                      <span className="text-(--text-secondary)">{motivo}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={note.status} />
+                      <button
+                        type="button"
+                        onClick={() => navigate(noteRoute)}
+                        className="flex items-center gap-1 text-(--accent-primary) hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Ver
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 

@@ -398,13 +398,22 @@ func (a *API) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 
 // handleListDocuments devuelve los documentos del emisor autenticado, opcionalmente
 // filtrados por ?dian_document_type_code=&status=&from=&to= (fechas YYYY-MM-DD, sobre
-// issue_date) y paginados con ?limit=&offset= (normalizados en documents.Service.ListDocuments
-// si se omiten o exceden el máximo).
+// issue_date), ?source_document_id=<uuid> (NC/ND que referencian esa factura), y paginados
+// con ?limit=&offset= (normalizados en documents.Service.ListDocuments si se omiten o
+// exceden el máximo).
 func (a *API) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	filter := documents.ListFilter{
 		DianDocumentTypeCode: q.Get("dian_document_type_code"),
 		Status:               documents.Status(q.Get("status")),
+	}
+
+	if s := q.Get("source_document_id"); s != "" {
+		id, ok := parseUUID(w, s)
+		if !ok {
+			return
+		}
+		filter.SourceDocumentID = &id
 	}
 
 	if s := q.Get("from"); s != "" {

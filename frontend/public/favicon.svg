@@ -2,45 +2,53 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="207.56975"
-   height="255.71593"
-   viewBox="0 0 54.919512 67.658171"
+   width="255.716"
+   height="255.716"
+   viewBox="0 0 67.658213 67.658191"
    version="1.1"
    id="svg1"
+   sodipodi:docname="favicon.svg"
+   xml:space="preserve"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg">
-  <defs
-     id="defs1" />
-  <g
-     id="layer1"
-     transform="translate(-6.406918,-0.0375785)">
-    <path
-       d="M 13.360778,0.0375785 H 40.954683 L 61.326424,20.559295 v 40.182641 c 0,3.824541 -3.129311,6.953828 -6.95395,6.953828 H 13.360778 c -3.8246304,0 -6.95386,-3.129221 -6.95386,-6.953828 V 6.9914465 c 0,-3.8246389 3.1292296,-6.953868 6.95386,-6.953868 z"
-       style="fill:#00247b;fill-rule:evenodd;stroke-width:0.287906"
-       id="path89" />
-    <path
-       d="M 57.213461,23.07003 38.4339,23.07323 38.4258,4.1507511 H 13.360542 c -1.554205,0 -2.84066,1.2864548 -2.84066,2.8406598 V 60.741964 c 0,1.554207 1.286455,2.840627 2.84066,2.840627 h 41.011697 c 1.554204,0 2.840717,-1.28642 2.840717,-2.840627 z"
-       style="fill:#0087d1;fill-rule:evenodd;stroke-width:0.287906"
-       id="path90" />
-    <g
-       id="g5"
-       transform="translate(6.303515,1.3227714)">
-      <path
-         d="m 36.218224,8.3302581 0.01526,10.6950669 10.653552,0.02358 z"
-         style="fill:#0087d1;fill-rule:evenodd;stroke-width:0.287906"
-         id="path91" />
-      <text
-         xml:space="preserve"
-         style="font-weight:bold;font-size:49.3008px;font-family:Rajdhani;-inkscape-font-specification:'Rajdhani Bold';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#00247b;fill-opacity:1;stroke-width:3.88243"
-         x="4.8848333"
-         y="56.757542"
-         id="text1"><tspan
-           id="tspan1"
-           style="fill:#00247b;fill-opacity:1;stroke-width:3.88243"
-           x="4.8848333"
-           y="56.757542"><tspan
-             style="fill:#ffffff;fill-opacity:1;stroke-width:3.88243"
-             id="tspan2">co</tspan></tspan></text>
-    </g>
-  </g>
-</svg>
+   xmlns:svg="http://www.w3.org/2000/svg"><sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.8225807"
+     inkscape:cx="198.34512"
+     inkscape:cy="195.05309"
+     inkscape:window-width="1920"
+     inkscape:window-height="974"
+     inkscape:window-x="-11"
+     inkscape:window-y="-11"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg1" /><defs
+     id="defs1" /><path
+     d="m 13.32321,8e-6 h 27.593905 l 20.371737,20.521716 v 40.18264 c 0,3.82454 -3.12931,6.95383 -6.95395,6.95383 H 13.32321 c -3.82463,0 -6.95386,-3.12922 -6.95386,-6.95383 V 6.953876 C 6.36935,3.129238 9.49858,8e-6 13.32321,8e-6 Z"
+     style="fill:#00247b;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.287906"
+     id="path89-4" /><path
+     d="m 57.175892,23.032464 -18.77956,0.003 -0.0081,-18.922483 H 13.322974 c -1.554205,0 -2.84066,1.286455 -2.84066,2.84066 v 53.750553 c 0,1.55421 1.286455,2.84063 2.84066,2.84063 h 41.011698 c 1.5542,0 2.84072,-1.28642 2.84072,-2.84063 z"
+     style="fill:#0087d1;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.287906"
+     id="path90-2" /><path
+     d="m 42.484171,8.027959 0.01526,10.695065 10.653551,0.0236 z"
+     style="fill:#0087d1;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.287906"
+     id="path91-3" /><text
+     xml:space="preserve"
+     style="font-weight:bold;font-size:42.0523px;font-family:Rajdhani;-inkscape-font-specification:'Rajdhani Bold';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:3.31162"
+     x="14.398266"
+     y="55.463654"
+     id="text1-2"><tspan
+       id="tspan1-2"
+       style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:3.31162"
+       x="14.398266"
+       y="55.463654"><tspan
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:3.31162"
+         id="tspan2-1">co</tspan></tspan></text></svg>

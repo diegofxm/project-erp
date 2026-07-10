@@ -133,7 +133,7 @@ func TestSendTestSetAsync_CreditNote_Real(t *testing.T) {
 
 	cn := domain.CreditNote{
 		Invoice:            base,
-		CreditNoteTypeCode: "2", // catálogo: anulación de factura electrónica
+		CreditNoteTypeCode: "91", // código fijo DIAN para NC; el concepto (2 = anulación) va en DiscrepancyResponse.ResponseCode
 		BillingReference: domain.BillingReference{
 			Prefix:    env["DIAN_PREFIX"],
 			Number:    "990068706", // la factura real autorizada en TestSendTestSetAsync_Real

@@ -380,4 +380,5 @@ export interface ListDocumentsFilter {
   to?: string; // YYYY-MM-DD
   limit?: number;
   offset?: number;
+  source_document_id?: string; // NC/ND que referencian la factura con este ID
 }
