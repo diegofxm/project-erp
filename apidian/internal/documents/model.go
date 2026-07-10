@@ -89,6 +89,11 @@ type Document struct {
 	QRURL     string
 	SignedXML string // texto del XML firmado — retención legal, no se recalcula después
 
+	// NCCount/NDCount: cuántas NC/ND referencian este documento como fuente.
+	// Solo se llenan en ListByIssuer, no en GetByID — cero en cualquier otro path.
+	NCCount int
+	NDCount int
+
 	Status                Status
 	DianTrackID           string // ZipKey de SendTestSetAsync / identificador de seguimiento
 	DianStatusCode        string

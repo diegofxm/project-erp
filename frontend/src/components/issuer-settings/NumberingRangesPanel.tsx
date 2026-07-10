@@ -93,31 +93,53 @@ export function NumberingRangesPanel() {
       )}
 
       {ranges && ranges.length > 0 && (
-        <div className="flex flex-col gap-1">
-          {ranges.map((r) => (
-            <div
-              key={r.id}
-              className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-xs"
-            >
-              <span className="font-medium text-(--text-primary)">{docTypeName(r.dian_document_type_code)}</span>
-              <span className="font-mono text-(--text-secondary)">
-                {r.prefix} {r.range_from}–{r.range_to ?? "∞"}
-              </span>
-              <span className="text-(--text-muted)">Actual: {r.current_number}</span>
-              <span className="text-(--text-muted)">Vence: {r.valid_to}</span>
-              <span className="text-(--text-muted)">{r.environment === "1" ? "Producción" : "Habilitación"}</span>
-              <span className={`rounded px-2 py-0.5 font-medium ${STATUS_CLASSES[r.status]}`}>{STATUS_LABELS[r.status]}</span>
-              <button
-                type="button"
-                title="Eliminar"
-                disabled={r.status === "inactive"}
-                onClick={() => handleDeactivate(r)}
-                className="rounded p-1 text-(--color-danger) hover:bg-(--bg-hover) disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
+        <div className="overflow-hidden rounded border border-(--border-color)">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
+              <tr>
+                <th className="px-3 py-2 font-medium">Tipo</th>
+                <th className="px-3 py-2 font-medium">Resolución</th>
+                <th className="px-3 py-2 font-medium">Actual</th>
+                <th className="px-3 py-2 font-medium">Vence</th>
+                <th className="px-3 py-2 font-medium">Ambiente</th>
+                <th className="px-3 py-2 font-medium">Estado</th>
+                <th className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {ranges.map((r, i) => (
+                <tr key={r.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
+                  <td className="px-3 py-2 font-medium text-(--text-primary) whitespace-nowrap">
+                    {docTypeName(r.dian_document_type_code)}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-(--text-secondary) whitespace-nowrap">
+                    {r.prefix} {r.range_from}–{r.range_to ?? "∞"}
+                  </td>
+                  <td className="px-3 py-2 text-(--text-muted) whitespace-nowrap">{r.current_number}</td>
+                  <td className="px-3 py-2 text-(--text-muted) whitespace-nowrap">{r.valid_to}</td>
+                  <td className="px-3 py-2 text-(--text-muted) whitespace-nowrap">
+                    {r.environment === "1" ? "Producción" : "Habilitación"}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <span className={`rounded px-2 py-0.5 font-medium ${STATUS_CLASSES[r.status]}`}>
+                      {STATUS_LABELS[r.status]}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <button
+                      type="button"
+                      title="Eliminar"
+                      disabled={r.status === "inactive"}
+                      onClick={() => handleDeactivate(r)}
+                      className="rounded p-1 text-(--color-danger) hover:bg-(--bg-hover) disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
       {ranges && ranges.length === 0 && !showForm && (

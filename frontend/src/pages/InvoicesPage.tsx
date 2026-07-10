@@ -80,7 +80,19 @@ export function InvoicesPage() {
                   <td className="px-3 py-2 text-(--text-secondary)">{d.customer.name}</td>
                   <td className="px-3 py-2 font-mono text-(--text-secondary)">{formatCOP.format(d.totals.payable_cents / 100)}</td>
                   <td className="px-3 py-2">
-                    <StatusBadge status={d.status} />
+                    <div className="flex items-center gap-1">
+                      <StatusBadge status={d.status} />
+                      {(d.nc_count ?? 0) > 0 && (
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-(--color-warning-bg) text-(--color-warning-text)">
+                          NC
+                        </span>
+                      )}
+                      {(d.nd_count ?? 0) > 0 && (
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-(--color-info-bg) text-(--color-info-text)">
+                          ND
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-(--text-secondary)">{new Date(d.created_at).toLocaleDateString("es-CO")}</td>
                 </tr>

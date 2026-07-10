@@ -40,6 +40,8 @@
   --color-danger-text: #c0392b;
 
   --color-warning: #f39c12;
+  --color-warning-bg: #fef3cd;
+  --color-warning-text: #7a5200;
 
   --color-info: #3498db;
   --color-info-bg: #d1ecf1;
@@ -72,6 +74,9 @@
 
   --color-danger-bg: #3a1f1d;
   --color-danger-text: #f87171;
+
+  --color-warning-bg: #3d2e00;
+  --color-warning-text: #fbbf24;
 
   --color-info-bg: #1c333d;
   --color-info-text: #7dd3fc;

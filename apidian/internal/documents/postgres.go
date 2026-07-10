@@ -272,7 +272,47 @@ func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUI
 		}
 		out = append(out, d)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Cuenta NC/ND que referencian cada documento confirmado en este resultado.
+	// Una sola query sobre billing_reference — nunca N+1 independiente del tamaño de la página.
+	if len(out) > 0 {
+		type noteCounts struct{ nc, nd int }
+		counts := make(map[string]noteCounts)
+
+		noteRows, err := r.pool.Query(ctx, `
+			SELECT
+				billing_reference->>'prefix'  AS ref_prefix,
+				billing_reference->>'number'  AS ref_number,
+				SUM(CASE WHEN dian_document_type_code = '91' THEN 1 ELSE 0 END)::int AS nc_count,
+				SUM(CASE WHEN dian_document_type_code = '92' THEN 1 ELSE 0 END)::int AS nd_count
+			FROM documents
+			WHERE issuer_id = $1 AND billing_reference IS NOT NULL
+			GROUP BY ref_prefix, ref_number`, issuerID)
+		if err == nil {
+			for noteRows.Next() {
+				var prefix, number string
+				var nc, nd int
+				if noteRows.Scan(&prefix, &number, &nc, &nd) == nil {
+					counts[prefix+"|"+number] = noteCounts{nc: nc, nd: nd}
+				}
+			}
+			_ = noteRows.Err()
+			noteRows.Close()
+			for _, d := range out {
+				if d.Prefix != "" && d.Number != 0 {
+					if c, ok := counts[d.Prefix+"|"+fmt.Sprintf("%d", d.Number)]; ok {
+						d.NCCount = c.nc
+						d.NDCount = c.nd
+					}
+				}
+			}
+		}
+	}
+
+	return out, nil
 }
 
 func scanDocument(row pgx.Row) (*Document, error) {

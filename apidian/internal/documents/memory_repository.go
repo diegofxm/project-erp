@@ -170,5 +170,29 @@ func (r *MemoryRepository) ListByIssuer(_ context.Context, issuerID uuid.UUID, f
 	if end > len(matched) {
 		end = len(matched)
 	}
-	return matched[start:end], nil
+	result := matched[start:end]
+
+	// Anota NCCount/NDCount para cada documento confirmado en el resultado.
+	for _, d := range result {
+		if d.Prefix == "" || d.Number == 0 {
+			continue
+		}
+		numStr := fmt.Sprintf("%d", d.Number)
+		for _, other := range r.docs {
+			if other.IssuerID != issuerID || other.BillingReference == nil {
+				continue
+			}
+			if other.BillingReference.Prefix != d.Prefix || other.BillingReference.Number != numStr {
+				continue
+			}
+			switch other.DianDocumentTypeCode {
+			case "91":
+				d.NCCount++
+			case "92":
+				d.NDCount++
+			}
+		}
+	}
+
+	return result, nil
 }

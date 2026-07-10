@@ -111,6 +111,11 @@ type documentResponse struct {
 	// documento no referenció un cliente guardado.
 	CustomerID *uuid.UUID `json:"customer_id,omitempty"`
 
+	// NCCount/NDCount: cuántas NC/ND referencian esta factura. Solo presentes (>0) en el
+	// listado de facturas; siempre 0 (omitido) en GET /documents/{id} individual.
+	NCCount int `json:"nc_count,omitempty"`
+	NDCount int `json:"nd_count,omitempty"`
+
 	// CreatedAt/UpdatedAt — mismo criterio que customerResponse/productResponse. Un borrador
 	// no tiene IssueDate todavía, así que es lo único con lo que un listado puede ordenar u
 	// ofrecer "creado hace X" antes de confirmar.
@@ -142,6 +147,8 @@ func documentToResponse(d *documents.Document) documentResponse {
 		DianStatusCode:        d.DianStatusCode,
 		DianStatusDescription: d.DianStatusDescription,
 		DianStatusMessage:     d.DianStatusMessage,
+		NCCount:               d.NCCount,
+		NDCount:               d.NDCount,
 		CreatedAt:             d.CreatedAt,
 		UpdatedAt:             d.UpdatedAt,
 	}

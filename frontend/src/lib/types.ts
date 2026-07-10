@@ -364,6 +364,8 @@ export interface Document {
   dian_status_description?: string;
   dian_status_message?: string;
   customer_id?: string;
+  nc_count?: number; // cuántas NC referencian esta factura — solo en el listado
+  nd_count?: number; // cuántas ND referencian esta factura — solo en el listado
   created_at: string;
   updated_at: string;
 }
