@@ -6,9 +6,9 @@ import {
   createInvoiceDraft,
   deleteDraft,
   getDocument,
-  getInvoicePdfBlobUrl,
+  getDocumentPdfBlobUrl,
   listDocuments,
-  sendInvoiceEmail,
+  sendDocumentEmail,
   updateInvoiceDraft,
 } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
@@ -125,7 +125,7 @@ export function InvoiceEditorPage() {
     if (!id || isNew) return;
     setLoadingPdf(true);
     try {
-      const url = await getInvoicePdfBlobUrl(id);
+      const url = await getDocumentPdfBlobUrl(id);
       window.open(url, "_blank");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo generar el PDF");
@@ -142,7 +142,7 @@ export function InvoiceEditorPage() {
     if (!(await confirmDialog(`¿Enviar esta factura por correo a ${doc.customer.email || "el cliente"}?`))) return;
     setSendingEmail(true);
     try {
-      await sendInvoiceEmail(id);
+      await sendDocumentEmail(id);
       toast.success(`Factura enviada a ${doc.customer.email}`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo enviar la factura por correo");

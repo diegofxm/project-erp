@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { FileMinus, Send, Trash2 } from "lucide-react";
+import { FileMinus, FileText, Mail, Send, Trash2 } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   confirmDocument,
   createCreditNoteDraft,
   deleteDraft,
   getDocument,
+  getDocumentPdfBlobUrl,
+  sendDocumentEmail,
   updateCreditNoteDraft,
 } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
@@ -59,6 +61,8 @@ export function CreditNoteEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   useEffect(() => {
     if (isNew) {
@@ -142,6 +146,33 @@ export function CreditNoteEditorPage() {
     }
   }
 
+  async function handleViewPdf() {
+    if (!id || isNew) return;
+    setLoadingPdf(true);
+    try {
+      const url = await getDocumentPdfBlobUrl(id);
+      window.open(url, "_blank");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo generar el PDF");
+    } finally {
+      setLoadingPdf(false);
+    }
+  }
+
+  async function handleSendEmail() {
+    if (!id || isNew || !doc) return;
+    if (!(await confirmDialog(`¿Enviar esta nota crédito por correo a ${doc.customer.email || "el cliente"}?`))) return;
+    setSendingEmail(true);
+    try {
+      await sendDocumentEmail(id);
+      toast.success(`Nota Crédito enviada a ${doc.customer.email}`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo enviar la nota crédito por correo");
+    } finally {
+      setSendingEmail(false);
+    }
+  }
+
   const issuerNotReady = !activeIssuer?.has_software_credentials || !activeIssuer?.has_certificate;
 
   if (loadingDocument) {
@@ -169,6 +200,16 @@ export function CreditNoteEditorPage() {
           </h1>
         <div className="flex items-center gap-2">
           {doc && <StatusBadge status={doc.status} />}
+          {!isNew && doc && (
+            <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
+              Ver PDF
+            </Button>
+          )}
+          {!isNew && doc?.status === "accepted" && (
+            <Button type="button" variant="secondary" icon={<Mail className="h-3.5 w-3.5" />} loading={sendingEmail} onClick={handleSendEmail}>
+              Enviar al cliente
+            </Button>
+          )}
           {!isNew && doc?.status === "draft" && (
             <>
               <Button

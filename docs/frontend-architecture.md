@@ -819,9 +819,20 @@ se reemplazó en `TaxStep.tsx` por un render condicional propio:
 El componente `TagInput` sigue existiendo para otros usos futuros, pero en este caso concreto
 no aplica porque necesitamos mostrar más información que el código solo.
 
+## PDF y correo para NC/ND (2026-07-10)
+
+Las funciones `getInvoicePdfBlobUrl` y `sendInvoiceEmail` de `lib/documents.ts` se renombraron
+a `getDocumentPdfBlobUrl` y `sendDocumentEmail` — los endpoints `/documents/{id}/pdf` y
+`/documents/{id}/send-email` son genéricos y funcionan para cualquier tipo de documento.
+
+`CreditNoteEditorPage` y `DebitNoteEditorPage` reciben los mismos botones que `InvoiceEditorPage`:
+- **"Ver PDF"** — visible siempre que el documento exista (borrador o confirmado).
+- **"Enviar al cliente"** — visible solo cuando `status === "accepted"`.
+
+El ciclo completo (borrador → confirmar → PDF → correo) queda parejo entre Factura, NC y ND.
+
 ## Pendiente para próximas fases
 
 - Endpoint para editar perfil de usuario (nombre/correo) — `SettingsAccountPage` sigue siendo
   solo lectura porque no existe endpoint en el backend.
-- PDF y correo para NC/ND — el ciclo de Factura ya lo tiene; las notas aún no.
 - Filtros en la lista de facturas (por estado, fecha, cliente).
