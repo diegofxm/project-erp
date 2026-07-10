@@ -29,17 +29,17 @@ const (
 // emisión, no el tipo de cofacture directamente (evita que un cambio interno de cofacture
 // obligue a romper la firma pública de IssueCreditNote/IssueDebitNote).
 type BillingReferenceInput struct {
-	Prefix    string
-	Number    string
-	CUFE      string
-	IssueDate string
+	Prefix    string `json:"prefix"`
+	Number    string `json:"number"`
+	CUFE      string `json:"cufe"`
+	IssueDate string `json:"issue_date"`
 }
 
 // DiscrepancyResponseInput es el motivo de la nota — espejo de domain.DiscrepancyResponse.
 type DiscrepancyResponseInput struct {
-	ReferenceID  string
-	ResponseCode string
-	Description  string
+	ReferenceID  string `json:"reference_id"`
+	ResponseCode string `json:"response_code"`
+	Description  string `json:"description"`
 }
 
 // Document es un documento electrónico DIAN ya construido — Invoice, CreditNote o DebitNote,
