@@ -336,6 +336,22 @@ export interface IssueCreditNotePayload {
   discrepancy_response?: DiscrepancyResponse;
 }
 
+// Espejo de issueNoteRequest para Nota Débito — igual que IssueCreditNotePayload pero SIN
+// credit_note_type_code (ND no tiene un código de concepto equivalente en el esquema DIAN).
+// DiscrepancyResponse usa códigos de la misma List 22 pero específicos de ND:
+// 1=Intereses, 2=Gastos por cobrar, 3=Cambio del valor.
+export interface IssueDebitNotePayload {
+  numbering_range_id: string;
+  customer: CustomerPayload;
+  lines: DocumentLineInput[];
+  payment_means?: PaymentMean[];
+  note?: string;
+  currency_code?: string;
+  customer_id?: string;
+  billing_reference: BillingReference;
+  discrepancy_response?: DiscrepancyResponse;
+}
+
 // Espejo de documentResponse — cubre Factura, Nota Crédito y Nota Débito. billing_reference/
 // discrepancy_response/note_type_code son null en Factura y presentes en las notas.
 export interface Document {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, FileMinus, FileText, Mail, Send, Trash2 } from "lucide-react";
+import { ExternalLink, FileMinus, FilePlus, FileText, Mail, Send, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import {
   confirmDocument,
@@ -187,6 +187,16 @@ export function InvoiceEditorPage() {
               onClick={() => navigate(`/documents/credit-notes/new?from=${id}`)}
             >
               Emitir Nota Crédito
+            </Button>
+          )}
+          {!isNew && doc?.status === "accepted" && (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<FilePlus className="h-3.5 w-3.5" />}
+              onClick={() => navigate(`/documents/debit-notes/new?from=${id}`)}
+            >
+              Emitir Nota Débito
             </Button>
           )}
           {!isNew && doc?.status === "draft" && (

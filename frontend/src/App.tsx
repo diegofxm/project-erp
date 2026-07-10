@@ -17,6 +17,8 @@ import { InvoicesPage } from "./pages/InvoicesPage";
 import { InvoiceEditorPage } from "./pages/InvoiceEditorPage";
 import { CreditNotesPage } from "./pages/CreditNotesPage";
 import { CreditNoteEditorPage } from "./pages/CreditNoteEditorPage";
+import { DebitNotesPage } from "./pages/DebitNotesPage";
+import { DebitNoteEditorPage } from "./pages/DebitNoteEditorPage";
 import { PublicCustomerRegisterPage } from "./pages/PublicCustomerRegisterPage";
 
 function App() {
@@ -42,6 +44,8 @@ function App() {
                     <Route path="/documents/invoices/:id" element={<InvoiceEditorPage />} />
                     <Route path="/documents/credit-notes" element={<CreditNotesPage />} />
                     <Route path="/documents/credit-notes/:id" element={<CreditNoteEditorPage />} />
+                    <Route path="/documents/debit-notes" element={<DebitNotesPage />} />
+                    <Route path="/documents/debit-notes/:id" element={<DebitNoteEditorPage />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />

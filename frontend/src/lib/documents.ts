@@ -1,9 +1,5 @@
-// Cliente de documentos (Factura/Nota Crédito/Nota Débito, un único endpoint de listado/
-// consulta) — datos propios del tenant, sin memoización. Por ahora solo Factura tiene
-// creación/edición propia (createInvoiceDraft/updateInvoiceDraft); Nota Crédito/Nota Débito se
-// agregan cuando tengan su propia UI.
 import { apiClient } from "./apiClient";
-import type { Document, DocumentLine, DocumentLineInput, IssueCreditNotePayload, IssueInvoicePayload, ListDocumentsFilter, ListDocumentsResult } from "./types";
+import type { Document, DocumentLine, DocumentLineInput, IssueCreditNotePayload, IssueDebitNotePayload, IssueInvoicePayload, ListDocumentsFilter, ListDocumentsResult } from "./types";
 
 export async function listDocuments(filter?: ListDocumentsFilter): Promise<Document[]> {
   const params = new URLSearchParams();
@@ -46,6 +42,14 @@ export function createCreditNoteDraft(payload: IssueCreditNotePayload): Promise<
 
 export function updateCreditNoteDraft(id: string, payload: IssueCreditNotePayload): Promise<Document> {
   return apiClient.put<Document>(`/credit-notes/${id}`, payload);
+}
+
+export function createDebitNoteDraft(payload: IssueDebitNotePayload): Promise<Document> {
+  return apiClient.post<Document>("/debit-notes", payload);
+}
+
+export function updateDebitNoteDraft(id: string, payload: IssueDebitNotePayload): Promise<Document> {
+  return apiClient.put<Document>(`/debit-notes/${id}`, payload);
 }
 
 export function deleteDraft(id: string): Promise<void> {
