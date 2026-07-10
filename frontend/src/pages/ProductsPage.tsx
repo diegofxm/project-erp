@@ -68,7 +68,7 @@ export function ProductsPage() {
     <div className="p-4">
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
-            <Package className="h-4 w-4 shrink-0 text-(--text-secondary)" />
+            <Package className="h-4 w-4 shrink-0 text-(--accent-primary)" />
             Productos
           </h1>
         {!editing && (

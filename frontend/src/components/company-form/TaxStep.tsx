@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { X } from "lucide-react";
 import { listLiabilityCodes, listTaxRegimes, listTaxTypes } from "../../lib/catalogs";
 import { listCiiuOptions } from "../../lib/ciiu";
 import { useCatalog } from "../../lib/useCatalog";
@@ -6,7 +7,6 @@ import { Combobox } from "../ui/Combobox";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Spinner } from "../ui/Spinner";
-import { TagInput } from "../ui/TagInput";
 import type { StepProps } from "./IdentificationStep";
 
 export function TaxStep({ form, setField }: StepProps) {
@@ -110,7 +110,29 @@ export function TaxStep({ form, setField }: StepProps) {
           disabled={loadingCiiu || ciiuAtLimit}
           placeholder={ciiuAtLimit ? "Máximo 4 códigos" : "Buscar por código o palabra…"}
         />
-        <TagInput values={ciiuCodes} onChange={(values) => setField("industry_classification_codes", values)} max={4} disableInput />
+        {ciiuCodes.length > 0 && (
+          <div className="flex flex-col gap-1">
+            {ciiuCodes.map((code) => {
+              const label = ciiuOptions.find((o) => o.value === code)?.label ?? code;
+              const desc = label.includes(" — ") ? label.slice(label.indexOf(" — ") + 3) : "";
+              return (
+                <div key={code} className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-secondary) px-2 py-1.5 text-xs">
+                  <span>
+                    <span className="font-mono font-medium text-(--text-primary)">{code}</span>
+                    {desc && <span className="ml-2 text-(--text-secondary)">{desc}</span>}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setField("industry_classification_codes", ciiuCodes.filter((c) => c !== code))}
+                    className="ml-2 shrink-0 text-(--text-muted) hover:text-(--color-danger)"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

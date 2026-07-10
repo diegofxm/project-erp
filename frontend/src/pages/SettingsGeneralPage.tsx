@@ -9,7 +9,7 @@ export function SettingsGeneralPage() {
   return (
     <div className="p-4">
       <h1 className="mb-3 flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
-        <SlidersHorizontal className="h-4 w-4 shrink-0 text-(--text-secondary)" />
+        <SlidersHorizontal className="h-4 w-4 shrink-0 text-(--accent-primary)" />
         General
       </h1>
       <div className="flex flex-wrap gap-3">

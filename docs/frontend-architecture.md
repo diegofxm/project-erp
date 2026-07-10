@@ -787,6 +787,38 @@ es el único separador.
 - **Striping de tablas**: `i % 2 === 0 → bg-(--bg-primary)`, `i % 2 === 1 → bg-(--bg-secondary)`.
   Patrón intocable, igual en toda la app.
 
+## Estándar de color de icono en títulos de página (2026-07-10)
+
+El icono en los `<h1>` de las páginas del dashboard debe usar `text-(--accent-primary)` (azul),
+no `text-(--text-secondary)` (gris). La referencia correcta siempre fue `OnboardingPage`, que
+ya usaba el azul desde el principio — los 12 archivos de páginas se corrigieron en bloque.
+
+**Patrón canónico de título de página**:
+```tsx
+<h1 className="... flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
+  <Icon className="h-4 w-4 shrink-0 text-(--accent-primary)" />
+  Título visible
+</h1>
+```
+
+Regla: icono `h-4 w-4 shrink-0 text-(--accent-primary)` siempre. Los iconos de nav del
+sidebar son `h-3.5 w-3.5 text-(--text-secondary)` (más pequeños, más apagados — nunca
+confundir los dos contextos).
+
+## CIIU: selector con lista descriptiva, oculto cuando vacío (2026-07-10)
+
+El `TagInput` que mostraba los códigos CIIU seleccionados como chips de código solo (`"A0111"`)
+se reemplazó en `TaxStep.tsx` por un render condicional propio:
+
+- **Vacío** → no se renderiza nada (el contenedor con borde ya no aparece).
+- **Con selecciones** → lista vertical, una fila por código: `código` (monospace) + descripción
+  (texto secundario) + botón × para quitar. La descripción viene de buscar el `label` del
+  catálogo `ciiuOptions` — formato `"código — descripción"`. **Solo el código va a la base de
+  datos** (`industry_classification_codes: string[]`), la descripción es puramente visual.
+
+El componente `TagInput` sigue existiendo para otros usos futuros, pero en este caso concreto
+no aplica porque necesitamos mostrar más información que el código solo.
+
 ## Pendiente para próximas fases
 
 - Endpoint para editar perfil de usuario (nombre/correo) — `SettingsAccountPage` sigue siendo
