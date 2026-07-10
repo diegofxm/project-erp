@@ -9,6 +9,7 @@ import { useToast } from "../../context/ToastContext";
 import type { CreateNumberingRangePayload, NumberingRange, NumberingRangeStatus } from "../../lib/types";
 import { Button } from "../ui/Button";
 import { Banner } from "../ui/Banner";
+import { Card } from "../ui/Card";
 import { Spinner } from "../ui/Spinner";
 import { NumberingRangeForm } from "./NumberingRangeForm";
 
@@ -82,7 +83,7 @@ export function NumberingRangesPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded border border-(--border-color) p-4">
+    <Card className="flex flex-col gap-3 p-4">
       <h2 className="text-xs font-semibold text-(--text-primary)">Rangos de numeración</h2>
       {loadError && <Banner tone="danger">{loadError}</Banner>}
 
@@ -160,6 +161,6 @@ export function NumberingRangesPanel() {
             Nuevo rango de numeración
           </Button>
         ))}
-    </div>
+    </Card>
   );
 }

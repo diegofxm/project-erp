@@ -753,6 +753,40 @@ El icono es `text-(--text-secondary)` (muted) para no competir con el texto. Map
 | Configuración › Empresa | `Building2` |
 | Mis empresas | `Building2` |
 
+## Estandarización de Card en paneles de configuración (2026-07-10)
+
+Los paneles de Configuración › Empresa usaban `<div>` con `border-color` (borde más oscuro, sin
+sombra, `rounded` pequeño, fondo heredado) — visualmente distintos a las cards de Clientes/
+Productos (que usan el componente `Card`, `rounded-lg`, `shadow-xl`, `bg-secondary`). Unificado:
+`SoftwareCertificateForm`, `LogoForm`, `PublicRegistrationPanel`, `NumberingRangesPanel` y las
+dos páginas nuevas `SettingsGeneralPage`/`SettingsAccountPage` ahora usan `<Card className="...">`.
+
+**Componente `Card`**: `rounded-lg border border-(--border-light) bg-(--bg-secondary) shadow-xl` —
+este es el contenedor estándar para cualquier panel de contenido o sección de formulario del
+dashboard. No sustituir por `<div>` con borde manual.
+
+## Jerarquía visual de formularios (2026-07-10)
+
+Dentro de `InvoiceForm`, `CreditNoteForm` y `DebitNoteForm`, las secciones "Cliente", "Líneas"
+y "Forma de pago" (y "Respuesta de discrepancia" en NC/ND) estaban separadas solo por `gap-4` —
+sin ninguna marca visual, todo fluía como un único bloque blanco.
+
+**Solución adoptada**: línea divisoria entre secciones con `border-t border-(--border-color) pt-3`
+en el `<section>`. Fondo blanco en todo el formulario, sin cajas ni headers grises — la línea
+es el único separador.
+
+**Estándar para fondos de contenedores internos**:
+- **Paneles interactivos** (el usuario llena campos aquí — `LineItemsEditor` add-form,
+  `PaymentMeansEditor` add-form): `bg-(--bg-secondary)` (blanco). El borde propio
+  (`border border-(--border-color)`) los delimita sin el gris de fondo que confundía con
+  los inputs y botones.
+- **Paneles de solo lectura / resumen** (`TotalsSummary`, `CustomerSection` modo summary,
+  bloque de estado DIAN en `InvoiceEditorPage`/`CreditNoteEditorPage`/`DebitNoteEditorPage`):
+  `bg-(--bg-primary)` (#f5f5f5). El gris los distingue intencionalmente como información,
+  no como áreas editables.
+- **Striping de tablas**: `i % 2 === 0 → bg-(--bg-primary)`, `i % 2 === 1 → bg-(--bg-secondary)`.
+  Patrón intocable, igual en toda la app.
+
 ## Pendiente para próximas fases
 
 - Endpoint para editar perfil de usuario (nombre/correo) — `SettingsAccountPage` sigue siendo

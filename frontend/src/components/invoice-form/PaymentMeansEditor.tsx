@@ -95,7 +95,7 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
         </div>
       )}
 
-      <div className="rounded border border-(--border-color) bg-(--bg-primary) p-3">
+      <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3">
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-4">
             <Select

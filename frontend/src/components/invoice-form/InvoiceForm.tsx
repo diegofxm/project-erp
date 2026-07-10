@@ -109,22 +109,22 @@ export function InvoiceForm({ initial, onSubmit, onCancel, loading }: InvoiceFor
         </div>
       </div>
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
         <h2 className="text-xs font-semibold text-(--text-primary)">Cliente</h2>
         <CustomerSection value={customer} customerId={customerId} onChange={handleCustomerChange} />
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
         <h2 className="text-xs font-semibold text-(--text-primary)">Líneas</h2>
         <LineItemsEditor lines={lines} onChange={setLines} />
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
         <h2 className="text-xs font-semibold text-(--text-primary)">Forma de pago</h2>
         <PaymentMeansEditor paymentMeans={paymentMeans} onChange={setPaymentMeans} />
       </section>
 
-      <section className="grid grid-cols-12 gap-3">
+      <section className="grid grid-cols-12 gap-3 border-t border-(--border-color) pt-3">
         <div className="col-span-4 col-start-9">
           <TotalsSummary lines={lines} />
         </div>

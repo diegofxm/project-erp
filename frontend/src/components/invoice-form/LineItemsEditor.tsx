@@ -153,7 +153,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
         </div>
       )}
 
-      <div className="rounded border border-(--border-color) bg-(--bg-primary) p-3">
+      <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3">
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-5">
             <Select label="Producto guardado (opcional)" value={draft.productId} onChange={(e) => handleProductSelect(e.target.value)}>

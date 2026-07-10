@@ -5,6 +5,7 @@ import { useToast } from "../../context/ToastContext";
 import { ApiError } from "../../lib/apiClient";
 import { fileToBase64 } from "../../lib/fileToBase64";
 import type { UpdateIssuerPayload } from "../../lib/types";
+import { Card } from "../ui/Card";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 
@@ -66,7 +67,7 @@ export function SoftwareCertificateForm() {
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded border border-(--border-color) p-4">
+    <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-semibold text-(--text-primary)">Software y certificado</h2>
         <div className="flex gap-3">
@@ -117,6 +118,6 @@ export function SoftwareCertificateForm() {
           Guardar
         </Button>
       </form>
-    </div>
+    </Card>
   );
 }

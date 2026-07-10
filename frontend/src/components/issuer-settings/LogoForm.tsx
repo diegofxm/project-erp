@@ -8,6 +8,7 @@ import { fileToBase64 } from "../../lib/fileToBase64";
 import type { UpdateIssuerPayload } from "../../lib/types";
 import { AsyncImage } from "../ui/AsyncImage";
 import { Button } from "../ui/Button";
+import { Card } from "../ui/Card";
 import { StatusBadge } from "./SoftwareCertificateForm";
 
 // apidian solo acepta estos dos formatos (mismos que internal/pdf necesita para incrustar la
@@ -94,7 +95,7 @@ export function LogoForm() {
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded border border-(--border-color) p-4">
+    <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-semibold text-(--text-primary)">Logo de la empresa</h2>
         <StatusBadge label="Logo" ok={activeIssuer?.has_logo ?? false} />
@@ -122,6 +123,6 @@ export function LogoForm() {
           </Button>
         )}
       </form>
-    </div>
+    </Card>
   );
 }

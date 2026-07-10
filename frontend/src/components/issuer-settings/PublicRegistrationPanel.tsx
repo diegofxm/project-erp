@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { Check, Copy, Download } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../ui/Button";
+import { Card } from "../ui/Card";
 
 // Panel de autorregistro de clientes por QR (patrón D1 y similares, ver
 // docs/apidian-architecture.md sección 9.41) — el emisor imprime este QR/link en su mostrador;
@@ -38,7 +39,7 @@ export function PublicRegistrationPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded border border-(--border-color) p-4">
+    <Card className="flex flex-col gap-3 p-4">
       <h2 className="text-xs font-semibold text-(--text-primary)">Autorregistro de clientes</h2>
       <p className="text-xs text-(--text-secondary)">
         Comparte este código QR o enlace en tu mostrador — quien lo escanee podrá registrarse como cliente sin que tengas que
@@ -60,6 +61,6 @@ export function PublicRegistrationPanel() {
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

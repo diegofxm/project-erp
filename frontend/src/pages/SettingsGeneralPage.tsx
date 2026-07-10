@@ -1,5 +1,6 @@
 import { SlidersHorizontal } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { Card } from "../components/ui/Card";
 import { useTheme } from "../context/ThemeContext";
 
 export function SettingsGeneralPage() {
@@ -12,13 +13,13 @@ export function SettingsGeneralPage() {
         General
       </h1>
       <div className="flex flex-wrap gap-3">
-        <div className="flex items-center gap-6 rounded border border-(--border-color) bg-(--bg-secondary) p-3">
+        <Card className="flex items-center gap-6 p-3">
           <div>
             <p className="text-xs font-medium text-(--text-primary)">Tema de la interfaz</p>
             <p className="text-xs text-(--text-secondary)">{theme === "light" ? "Claro" : "Oscuro"}</p>
           </div>
           <ThemeToggle />
-        </div>
+        </Card>
       </div>
     </div>
   );

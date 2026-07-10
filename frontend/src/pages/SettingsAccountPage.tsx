@@ -1,4 +1,5 @@
 import { User } from "lucide-react";
+import { Card } from "../components/ui/Card";
 import { useAuth } from "../context/AuthContext";
 
 export function SettingsAccountPage() {
@@ -11,14 +12,14 @@ export function SettingsAccountPage() {
         Mi cuenta
       </h1>
       <div className="flex flex-wrap gap-3">
-        <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3 text-xs">
+        <Card className="p-3 text-xs">
           <p className="text-(--text-secondary)">Nombre</p>
           <p className="text-(--text-primary)">{user?.name}</p>
-        </div>
-        <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3 text-xs">
+        </Card>
+        <Card className="p-3 text-xs">
           <p className="text-(--text-secondary)">Correo</p>
           <p className="text-(--text-primary)">{user?.email}</p>
-        </div>
+        </Card>
       </div>
     </div>
   );
