@@ -3,7 +3,7 @@
 // creación/edición propia (createInvoiceDraft/updateInvoiceDraft); Nota Crédito/Nota Débito se
 // agregan cuando tengan su propia UI.
 import { apiClient } from "./apiClient";
-import type { Document, DocumentLine, DocumentLineInput, IssueInvoicePayload, ListDocumentsFilter, ListDocumentsResult } from "./types";
+import type { Document, DocumentLine, DocumentLineInput, IssueCreditNotePayload, IssueInvoicePayload, ListDocumentsFilter, ListDocumentsResult } from "./types";
 
 export async function listDocuments(filter?: ListDocumentsFilter): Promise<Document[]> {
   const params = new URLSearchParams();
@@ -37,6 +37,14 @@ export function createInvoiceDraft(payload: IssueInvoicePayload): Promise<Docume
 
 export function updateInvoiceDraft(id: string, payload: IssueInvoicePayload): Promise<Document> {
   return apiClient.put<Document>(`/invoices/${id}`, payload);
+}
+
+export function createCreditNoteDraft(payload: IssueCreditNotePayload): Promise<Document> {
+  return apiClient.post<Document>("/credit-notes", payload);
+}
+
+export function updateCreditNoteDraft(id: string, payload: IssueCreditNotePayload): Promise<Document> {
+  return apiClient.put<Document>(`/credit-notes/${id}`, payload);
 }
 
 export function deleteDraft(id: string): Promise<void> {

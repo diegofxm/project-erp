@@ -34,7 +34,7 @@ const NAV_ITEMS: (NavLeaf | NavGroup)[] = [
     icon: <Files className="h-3.5 w-3.5" />,
     children: [
       { to: "/documents/invoices", label: "Factura Electrónica", icon: <FileText className="h-3.5 w-3.5" />, enabled: true },
-      { to: "/documents/credit-notes", label: "Nota Crédito", icon: <FileMinus className="h-3.5 w-3.5" />, enabled: false },
+      { to: "/documents/credit-notes", label: "Nota Crédito", icon: <FileMinus className="h-3.5 w-3.5" />, enabled: true },
       { to: "/documents/debit-notes", label: "Nota Débito", icon: <FilePlus className="h-3.5 w-3.5" />, enabled: false },
     ],
   },

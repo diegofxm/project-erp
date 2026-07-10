@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileText, Mail, Send, Trash2 } from "lucide-react";
+import { FileMinus, FileText, Mail, Send, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import {
   confirmDocument,
@@ -162,6 +162,16 @@ export function InvoiceEditorPage() {
           {!isNew && doc?.status === "accepted" && (
             <Button type="button" variant="secondary" icon={<Mail className="h-3.5 w-3.5" />} loading={sendingEmail} onClick={handleSendEmail}>
               Enviar al cliente
+            </Button>
+          )}
+          {!isNew && doc?.status === "accepted" && (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<FileMinus className="h-3.5 w-3.5" />}
+              onClick={() => navigate(`/documents/credit-notes/new?from=${id}`)}
+            >
+              Emitir Nota Crédito
             </Button>
           )}
           {!isNew && doc?.status === "draft" && (

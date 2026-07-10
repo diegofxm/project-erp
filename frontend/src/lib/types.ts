@@ -304,9 +304,40 @@ export interface IssueInvoicePayload {
   customer_id?: string;
 }
 
-// Espejo de documentResponse — solo los campos que aplican a Factura (Invoice). Nota Crédito/
-// Nota Débito agregan billing_reference/discrepancy_response/note_type_code, que se quedan
-// fuera de este tipo hasta que esos documentos tengan su propia UI.
+// Espejo de billingReferenceDTO — referencia a la factura que origina una Nota Crédito/Débito.
+// Number es string (no number) porque el DTO lo serializa así aunque el documento fuente lo
+// tenga como int64.
+export interface BillingReference {
+  prefix: string;
+  number: string;
+  cufe: string;
+  issue_date: string;
+}
+
+// Espejo de discrepancyResponseDTO — opcional en Nota Crédito/Débito.
+export interface DiscrepancyResponse {
+  reference_id: string;
+  response_code: string;
+  description: string;
+}
+
+// Espejo de issueCreditNoteRequest — extiende issueNoteRequest con credit_note_type_code
+// (DIAN List 22: 1=Devolución parcial, 2=Anulación, 3=Descuento, 4=Ajuste de precio, 5=Otros).
+export interface IssueCreditNotePayload {
+  numbering_range_id: string;
+  customer: CustomerPayload;
+  lines: DocumentLineInput[];
+  payment_means?: PaymentMean[];
+  note?: string;
+  currency_code?: string;
+  customer_id?: string;
+  billing_reference: BillingReference;
+  credit_note_type_code: string;
+  discrepancy_response?: DiscrepancyResponse;
+}
+
+// Espejo de documentResponse — cubre Factura, Nota Crédito y Nota Débito. billing_reference/
+// discrepancy_response/note_type_code son null en Factura y presentes en las notas.
 export interface Document {
   id: string;
   issuer_id: string;
@@ -319,6 +350,9 @@ export interface Document {
   totals: Totals;
   note?: string;
   currency_code?: string;
+  billing_reference?: BillingReference;
+  discrepancy_response?: DiscrepancyResponse;
+  note_type_code?: string;
   prefix?: string;
   number?: number;
   document_key?: string;
