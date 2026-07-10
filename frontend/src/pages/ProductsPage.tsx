@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Package, Pencil, Plus, Trash2 } from "lucide-react";
 import { createProduct, deleteProduct, listProducts, updateProduct } from "../lib/products";
 import { ApiError } from "../lib/apiClient";
 import { useConfirm } from "../context/ConfirmContext";
@@ -67,7 +67,10 @@ export function ProductsPage() {
   return (
     <div className="p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-(--text-primary)">Productos</h1>
+        <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
+            <Package className="h-4 w-4 shrink-0 text-(--text-secondary)" />
+            Productos
+          </h1>
         {!editing && (
           <Button type="button" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setEditing("new")}>
             Nuevo producto

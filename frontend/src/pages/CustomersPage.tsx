@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, Users } from "lucide-react";
 import { createCustomer, deleteCustomer, listCustomers, updateCustomer } from "../lib/customers";
 import { ApiError } from "../lib/apiClient";
 import { useConfirm } from "../context/ConfirmContext";
@@ -66,7 +66,10 @@ export function CustomersPage() {
   return (
     <div className="p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-(--text-primary)">Clientes</h1>
+        <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
+            <Users className="h-4 w-4 shrink-0 text-(--text-secondary)" />
+            Clientes
+          </h1>
         {!editing && (
           <Button type="button" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setEditing("new")}>
             Nuevo cliente

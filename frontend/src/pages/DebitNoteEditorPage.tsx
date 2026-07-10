@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Send, Trash2 } from "lucide-react";
+import { FilePlus, Send, Trash2 } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   confirmDocument,
@@ -160,7 +160,10 @@ export function DebitNoteEditorPage() {
   return (
     <div className="p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-(--text-primary)">{title}</h1>
+        <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
+            <FilePlus className="h-4 w-4 shrink-0 text-(--text-secondary)" />
+            {title}
+          </h1>
         <div className="flex items-center gap-2">
           {doc && <StatusBadge status={doc.status} />}
           {!isNew && doc?.status === "draft" && (

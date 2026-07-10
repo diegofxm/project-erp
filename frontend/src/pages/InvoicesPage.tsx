@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, Plus } from "lucide-react";
 import { useNavigate } from "react-router";
 import { listDocuments } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
@@ -43,7 +43,10 @@ export function InvoicesPage() {
   return (
     <div className="p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-(--text-primary)">Factura Electrónica</h1>
+        <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
+            <FileText className="h-4 w-4 shrink-0 text-(--text-secondary)" />
+            Factura Electrónica
+          </h1>
         <Button type="button" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => navigate("/documents/invoices/new")}>
           Nueva factura
         </Button>

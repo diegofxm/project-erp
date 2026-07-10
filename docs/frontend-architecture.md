@@ -587,16 +587,175 @@ tuvieron input propio, solo se copiaban del producto sin mostrarse).
 ningún archivo de este proyecto (`tsconfig.json` es de solo-referencias) — el comando correcto
 es `npx tsc -b` (o `npm run build`). Ver memoria `feedback-tsc-noemit-silently-checks-nothing`.
 
+## Alertas/confirmaciones propias + sesión resiliente (2026-07-01)
+
+Tres mejoras de confianza en la UI pedidas por el usuario tras el primer recorrido completo
+del dashboard con datos reales:
+
+1. **`context/ConfirmContext.tsx`** (nuevo): reemplaza los 7 `window.confirm` nativos.
+   `useConfirm()` devuelve una función `confirm(message, options?) → Promise<boolean>` — mismo
+   contrato que el nativo, migración mecánica en cada sitio. Internamente renderiza un modal
+   centrado con `Card`/`Button` del design system; el tono `"danger"` colorea el botón de
+   confirmar en rojo. Montado una vez en `App.tsx`.
+
+2. **`context/ToastContext.tsx`** + **`components/ui/Toast.tsx`** (nuevos): reemplaza los
+   `<Banner>` de resultado de acción que quedaban fijos hasta que otra cosa los pisara.
+   `useToast()` devuelve `{ success, error }` — cada llamada agrega un toast con auto-dismiss
+   (éxito 4 s, error 6 s) y botón × para cerrar antes. Contenedor `fixed top-3 right-3 z-50`.
+
+3. **Sesión resiliente**: `AuthContext` ahora valida el JWT contra `GET /issuers` al arrancar.
+   Si el servidor responde 401 → cierra sesión (token inválido/expirado). Si no hay respuesta
+   de red → marca `connectionError = true` sin cerrar la sesión (las credenciales no tienen la
+   culpa si el backend está apagado). `ConnectionBanner.tsx` (nuevo) muestra la alerta de "sin
+   conexión" + botón Reintentar, montado globalmente en `App.tsx`. `isReady` solo pasa a
+   `true` después de que ese chequeo termine — evita que el dashboard parpadee con datos
+   obsoletos.
+
+Migración completada: `window.confirm` → `useConfirm()` en `LogoForm`, `NumberingRangesPanel`,
+`CustomersPage`, `ProductsPage`, `InvoiceEditorPage`. Resultados de acción → `useToast()` en
+los mismos sitios + `SoftwareCertificateForm`, `CustomerSection`.
+
+Verificado de punta a punta con navegador real: apagar el backend → el dashboard sigue visible
+con aviso de sin-conexión en vez de mandar a login → encender y Reintentar → aviso desaparece
+sin recargar. Confirmar/eliminar/enviar correo → modal propio + toast de éxito/error que
+desaparece solo.
+
+## Nota Crédito y Nota Débito — ciclo completo (2026-07-01 / 2026-07-07)
+
+Mismo ciclo completo que Factura Electrónica — lista, editor/visor, formulario, rutas, sidebar,
+botón de emisión desde la factura fuente.
+
+### Nota Crédito (NC)
+
+- **`components/invoice-form/CreditNoteForm.tsx`** (nuevo): formulario de borrador NC — igual
+  que `InvoiceForm` pero sin selector de rango de numeración general (filtra automáticamente a
+  tipo `"91"`), agrega selector de `CreditNoteTypeCode` (motivo de anulación/corrección), y
+  prellenado automático de `BillingReference` desde la factura fuente vía `?from=<id>`.
+- **`pages/CreditNotesPage.tsx`** + **`pages/CreditNoteEditorPage.tsx`** — mismos patrones que
+  `InvoicesPage`/`InvoiceEditorPage`. El visor en solo lectura muestra el concepto del motivo
+  (`note_type_code`) y el bloque de estado DIAN.
+- **`InvoiceEditorPage`**: botón "Emitir Nota Crédito" (icono `FileMinus`) visible solo cuando
+  `status === "accepted"` — navega a `/documents/credit-notes/new?from=<id>`.
+- Rutas: `/documents/credit-notes` y `/documents/credit-notes/:id`.
+- **Verificado contra la DIAN real**: NC enviada y aceptada (`StatusCode "00"`) referenciando
+  la factura de habilitación. Bug encontrado y corregido en el camino: `CreditNoteTypeCode`
+  estaba hardcodeado a `"91"` en el backend (mismo valor que `dian_document_type_code`) — debía
+  ser el código del motivo de corrección (ej. `"1"`). Ver `apidian-architecture.md` sección
+  9.48.
+
+### Nota Débito (ND)
+
+- **`components/invoice-form/DebitNoteForm.tsx`** (nuevo): igual que `CreditNoteForm` pero sin
+  `CreditNoteTypeCode`; los códigos de concepto son de la Lista 22 del Anexo Técnico
+  (1=Intereses, 2=Gastos por cobrar, 3=Cambio del valor), distintos a los de NC.
+- **`pages/DebitNotesPage.tsx`** + **`pages/DebitNoteEditorPage.tsx`**.
+- **`InvoiceEditorPage`**: botón "Emitir Nota Débito" (icono `FilePlus`) — mismo criterio de
+  visibilidad que NC.
+- Rutas: `/documents/debit-notes` y `/documents/debit-notes/:id`.
+- **Verificado contra la DIAN real**: ND enviada y aceptada sin problemas.
+
+### Bug crítico encontrado: JSON tags en structs de backend
+
+`BillingReferenceInput` y `DiscrepancyResponseInput` (Go) carecían de tags `json:"..."` —
+sin ellos, `json.Marshal` produce claves PascalCase (`Prefix`, `Number`...) pero PostgreSQL
+`->>'prefix'` (JSONB) es case-sensitive y devuelve NULL. Esto hacía que:
+- El filtro `source_document_id` en `GET /documents` no funcionaba.
+- Las queries de conteo NC/ND nunca encontraban coincidencias.
+
+Fix: se agregaron tags a ambos structs y se ejecutó un script one-time (`cmd/fixjsonb`) para
+corregir los 5 documentos ya existentes en la base. Ver `apidian-architecture.md` sección 9.48.
+
+## Columna "Referencias" condicional en tabla de facturas (2026-07-07)
+
+La tabla de `InvoicesPage` tiene una columna "Referencias" que **solo aparece cuando al menos
+una factura de la página actual tiene NC o ND asociadas**. Si ninguna las tiene, la columna
+no existe (ni el `<th>` ni los `<td>`).
+
+Implementación:
+- Backend: una sola query adicional por llamada a `ListByIssuer` (nunca N+1) — cuenta NC/ND
+  agrupadas por `(ref_prefix, ref_number)` para todos los documentos del emisor, y las anota en
+  los resultados del listado como `NCCount`/`NDCount` (campos con `omitempty`, ausentes cuando
+  son cero).
+- Frontend: `const hasRefs = documents?.some((d) => (d.nc_count ?? 0) > 0 || (d.nd_count ?? 0) > 0)` —
+  `<th>` y `<td>` condicionados a `{hasRefs && ...}`. Los badges usan `--color-warning-bg/text`
+  (NC, naranja) e `--color-info-bg/text` (ND, azul) definidos como tokens CSS en `index.css`.
+- `InvoiceEditorPage` muestra además una sección "Notas emitidas sobre esta factura" con links
+  a cada NC/ND cuando el documento ya está aceptado.
+
+## Rediseño de navegación: sidebar plano + SubNav de pestañas (2026-07-09)
+
+El usuario pidió reemplazar el sidebar con grupos expandibles/flyouts (confuso al colapsar) por
+un patrón más limpio y escalable:
+
+**Sidebar plano** (`components/Sidebar.tsx`): solo 5 ítems de primer nivel — Inicio, Documentos,
+Clientes, Productos, Configuración. Sin grupos, sin flyouts, sin chevrons, sin `expandedGroups`
+en localStorage. "Documentos" apunta a `/documents/invoices` pero queda activo para cualquier
+ruta `/documents/*` (campo `activePrefix` en la definición del ítem, leído desde `useLocation()`
+en el render — no depende del `isActive` de NavLink). El toggle de colapso se mantiene igual.
+
+**`components/SubNav.tsx`** (nuevo): barra de pestañas contextual, `h-10`, justo debajo del
+navbar. Lee `useLocation().pathname`, busca el primer prefijo en un array de configuración, y si
+hay match renderiza sus pestañas; si no, no renderiza nada. Tab activa: `border-b-2
+border-(--accent-primary) text-(--accent-primary)` con `-mb-px` para que la línea de color
+tape el borde inferior del contenedor. Tab inactiva: `border-transparent text-(--text-secondary)`.
+
+Configuración de sub-navegación actual en `SUB_NAVS`:
+```ts
+{ prefix: "/documents", items: [Factura Electrónica, Nota Crédito, Nota Débito] }
+{ prefix: "/settings",  items: [General, Mi cuenta, Empresa] }
+```
+Para agregar sub-páginas a una sección futura, solo se agrega una entrada a `SUB_NAVS` sin
+tocar el Sidebar.
+
+**`DashboardLayout.tsx`**: el espacio a la derecha del Sidebar ahora es `flex flex-col
+overflow-hidden` → `<SubNav />` (altura fija) → `<main class="flex-1 overflow-auto">` (scrollea
+independientemente). SubNav tiene la misma altura `h-10` que el header del sidebar (donde vive
+el hamburger), formando una línea horizontal visual continua.
+
+## Configuración con rutas reales (2026-07-10)
+
+La pestaña anterior de `SettingsPage` usaba `useState` para recordar qué pestaña activa
+estaba — al recargar siempre volvía a "General". Reemplazado por rutas propias:
+
+| Ruta | Componente | Contenido |
+|---|---|---|
+| `/settings` | `<Navigate to="/settings/general" replace />` | Redirige |
+| `/settings/general` | `SettingsGeneralPage` | Toggle de tema |
+| `/settings/account` | `SettingsAccountPage` | Nombre y correo (solo lectura) |
+| `/settings/company` | `SettingsCompanyPage` | Software, certificado, logo, rangos |
+
+El SubNav maneja la navegación entre sub-páginas (mismo patrón que `/documents/*`). Recargar la
+página en `/settings/company` mantiene la sub-página correcta. `SettingsPage.tsx` original queda
+como archivo muerto (no importado); los 3 componentes nuevos viven en `pages/Settings*.tsx`.
+
+## Estándar de títulos de página con icono (2026-07-10)
+
+Todas las páginas del dashboard tienen `<h1>` con un icono de Lucide React a la izquierda:
+
+```tsx
+<h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
+  <Icon className="h-4 w-4 shrink-0 text-(--text-secondary)" />
+  Título
+</h1>
+```
+
+El icono es `text-(--text-secondary)` (muted) para no competir con el texto. Mapa completo:
+
+| Página | Icono |
+|---|---|
+| Factura Electrónica (lista y editor) | `FileText` |
+| Nota Crédito (lista y editor) | `FileMinus` |
+| Nota Débito (lista y editor) | `FilePlus` |
+| Clientes | `Users` |
+| Productos | `Package` |
+| Configuración › General | `SlidersHorizontal` |
+| Configuración › Mi cuenta | `User` |
+| Configuración › Empresa | `Building2` |
+| Mis empresas | `Building2` |
+
 ## Pendiente para próximas fases
 
-- Nota Crédito/Nota Débito siguen sin página propia (deshabilitadas en el Sidebar) — mismo
-  patrón que Factura Electrónica, reusando `IssueNoteRequest`/`BillingReference`/
-  `DiscrepancyResponse`, ya soportados en el backend.
-- Endpoint para editar perfil de usuario (nombre/correo) — hoy Configuración → Mi cuenta es de
-  solo lectura porque no existe.
-- Componente de diálogo de confirmación reutilizable — `CustomersPage`/`ProductsPage`/
-  `InvoiceEditorPage` usan `window.confirm` nativo para eliminar/confirmar; vale la
-  pena un componente propio en vez de seguir repitiendo el nativo del navegador.
-- ~~Los 3 hallazgos ya logueados arriba (snapshot de cliente incompleto, payment_means en el
-  formulario de factura, claridad del consecutivo actual)~~ — resueltos al construir Factura
-  Electrónica (ver sección de arriba).
+- Endpoint para editar perfil de usuario (nombre/correo) — `SettingsAccountPage` sigue siendo
+  solo lectura porque no existe endpoint en el backend.
+- PDF y correo para NC/ND — el ciclo de Factura ya lo tiene; las notas aún no.
+- Filtros en la lista de facturas (por estado, fecha, cliente).

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, FilePlus } from "lucide-react";
 import { useNavigate } from "react-router";
 import { listDocuments } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
@@ -34,7 +34,10 @@ export function DebitNotesPage() {
   return (
     <div className="p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-sm font-semibold text-(--text-primary)">Nota Débito</h1>
+        <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
+            <FilePlus className="h-4 w-4 shrink-0 text-(--text-secondary)" />
+            Nota Débito
+          </h1>
       </div>
 
       {error && <Banner tone="danger">{error}</Banner>}

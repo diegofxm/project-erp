@@ -9,7 +9,9 @@ import { ConnectionBanner } from "./components/ConnectionBanner";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { SettingsPage } from "./pages/SettingsPage";
+import { SettingsGeneralPage } from "./pages/SettingsGeneralPage";
+import { SettingsAccountPage } from "./pages/SettingsAccountPage";
+import { SettingsCompanyPage } from "./pages/SettingsCompanyPage";
 import { IssuersPage } from "./pages/IssuersPage";
 import { CustomersPage } from "./pages/CustomersPage";
 import { ProductsPage } from "./pages/ProductsPage";
@@ -36,7 +38,10 @@ function App() {
                 <Route element={<ProtectedRoute />}>
                   <Route element={<DashboardLayout />}>
                     <Route path="/" element={<DashboardPage />} />
-                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
+                    <Route path="/settings/general" element={<SettingsGeneralPage />} />
+                    <Route path="/settings/account" element={<SettingsAccountPage />} />
+                    <Route path="/settings/company" element={<SettingsCompanyPage />} />
                     <Route path="/issuers" element={<IssuersPage />} />
                     <Route path="/customers" element={<CustomersPage />} />
                     <Route path="/products" element={<ProductsPage />} />

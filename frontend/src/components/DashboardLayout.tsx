@@ -2,6 +2,7 @@ import { Outlet } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { Navbar } from "./Navbar";
 import { Sidebar } from "./Sidebar";
+import { SubNav } from "./SubNav";
 import { OnboardingPage } from "../pages/OnboardingPage";
 
 // Gate de empresa activa: sin ella, casi toda la API responde 409 (middleware.RequireTenant en
@@ -17,9 +18,12 @@ export function DashboardLayout() {
       <Navbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-auto bg-(--bg-primary)">
-          <Outlet />
-        </main>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <SubNav />
+          <main className="flex-1 overflow-auto bg-(--bg-primary)">
+            <Outlet />
+          </main>
+        </div>
       </div>
     </div>
   );
