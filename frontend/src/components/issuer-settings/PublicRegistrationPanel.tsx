@@ -4,6 +4,7 @@ import { Check, Copy, Download } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
+import { Spinner } from "../ui/Spinner";
 
 // Panel de autorregistro de clientes por QR (patrón D1 y similares, ver
 // docs/apidian-architecture.md sección 9.41) — el emisor imprime este QR/link en su mostrador;
@@ -13,15 +14,21 @@ import { Card } from "../ui/Card";
 export function PublicRegistrationPanel() {
   const { activeIssuer } = useAuth();
   const [qrDataURL, setQrDataURL] = useState<string | null>(null);
+  const [loadingQR, setLoadingQR] = useState(true);
   const [copied, setCopied] = useState(false);
 
   const link = activeIssuer ? `${window.location.origin}/r/${activeIssuer.id}` : "";
 
   useEffect(() => {
-    if (!link) return;
+    if (!link) {
+      setLoadingQR(false);
+      return;
+    }
+    setLoadingQR(true);
     QRCode.toDataURL(link, { width: 240, margin: 1 })
       .then(setQrDataURL)
-      .catch(() => setQrDataURL(null));
+      .catch(() => setQrDataURL(null))
+      .finally(() => setLoadingQR(false));
   }, [link]);
 
   async function handleCopy() {
@@ -46,7 +53,13 @@ export function PublicRegistrationPanel() {
         digitar sus datos.
       </p>
       <div className="flex items-center gap-4">
-        {qrDataURL && <img src={qrDataURL} alt="QR de autorregistro" className="h-32 w-32 rounded border border-(--border-color)" />}
+        {loadingQR ? (
+          <div className="flex h-32 w-32 items-center justify-center rounded border border-(--border-color)">
+            <Spinner className="h-5 w-5 text-(--text-muted)" />
+          </div>
+        ) : (
+          qrDataURL && <img src={qrDataURL} alt="QR de autorregistro" className="h-32 w-32 rounded border border-(--border-color)" />
+        )}
         <div className="flex flex-1 flex-col gap-2">
           <p className="break-all rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1.5 font-mono text-xs text-(--text-secondary)">
             {link}

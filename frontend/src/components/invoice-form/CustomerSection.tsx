@@ -36,6 +36,7 @@ function hasData(value: CustomerPayload): boolean {
 // directamente, y solo se confirma al guardar.
 export function CustomerSection({ value, customerId, onChange }: CustomerSectionProps) {
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(true);
   // Un borrador viejo con datos de cliente ya capturados pero sin customerId (snapshot suelto,
   // de antes de este cambio) arranca directo en el formulario, precargado, en vez de mostrar
   // una búsqueda vacía que esconde lo que ya había.
@@ -52,7 +53,8 @@ export function CustomerSection({ value, customerId, onChange }: CustomerSection
   function refreshCustomers() {
     return listCustomers()
       .then(setCustomers)
-      .catch(() => setCustomers([]));
+      .catch(() => setCustomers([]))
+      .finally(() => setLoadingCustomers(false));
   }
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
@@ -111,7 +113,8 @@ export function CustomerSection({ value, customerId, onChange }: CustomerSection
                 value={picker}
                 onChange={handlePick}
                 options={searchOptions}
-                placeholder="Nombre o número de identificación…"
+                placeholder={loadingCustomers ? "Cargando clientes…" : "Nombre o número de identificación…"}
+                disabled={loadingCustomers}
               />
             </div>
           </div>

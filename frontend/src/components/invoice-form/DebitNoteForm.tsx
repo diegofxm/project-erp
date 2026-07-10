@@ -48,6 +48,7 @@ interface DebitNoteFormProps {
 
 export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, onCancel, loading }: DebitNoteFormProps) {
   const [ranges, setRanges] = useState<NumberingRange[]>([]);
+  const [loadingRanges, setLoadingRanges] = useState(true);
   const { data: currencies, loading: loadingCurrencies } = useCatalog(listCurrencies);
   const [numberingRangeId, setNumberingRangeId] = useState(initial?.numbering_range_id ?? "");
   const [customer, setCustomer] = useState<CustomerPayload>(
@@ -82,7 +83,8 @@ export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, on
   useEffect(() => {
     listNumberingRanges(DEBIT_NOTE_DIAN_TYPE)
       .then(setRanges)
-      .catch(() => setRanges([]));
+      .catch(() => setRanges([]))
+      .finally(() => setLoadingRanges(false));
   }, []);
 
   function handleCustomerChange(next: CustomerPayload, nextCustomerId: string) {
@@ -137,13 +139,20 @@ export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, on
             required
             value={numberingRangeId}
             onChange={(e) => setNumberingRangeId(e.target.value)}
+            disabled={loadingRanges}
           >
-            <option value="">Selecciona…</option>
-            {selectableRanges.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.prefix}
-              </option>
-            ))}
+            {loadingRanges ? (
+              <option>Cargando…</option>
+            ) : (
+              <>
+                <option value="">Selecciona…</option>
+                {selectableRanges.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.prefix}
+                  </option>
+                ))}
+              </>
+            )}
           </Select>
           {selectedRange && (
             <p className="mt-1 text-xs text-(--text-muted)">

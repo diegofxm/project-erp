@@ -63,6 +63,7 @@ function draftFromProduct(product: Product): DraftLine {
 // docs/apidian-architecture.md sección 9.37: el servidor es la fuente de verdad).
 export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
   const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const { data: unitMeasures, loading: loadingUnitMeasures } = useCatalog(listUnitMeasures);
   const { data: taxTypes, loading: loadingTaxTypes } = useCatalog(listTaxTypes);
   const [draft, setDraft] = useState<DraftLine>(EMPTY_DRAFT);
@@ -70,7 +71,8 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
   useEffect(() => {
     listProducts()
       .then(setProducts)
-      .catch(() => setProducts([]));
+      .catch(() => setProducts([]))
+      .finally(() => setLoadingProducts(false));
   }, []);
 
   function handleProductSelect(id: string) {
@@ -156,13 +158,19 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
       <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3">
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-5">
-            <Select label="Producto guardado (opcional)" value={draft.productId} onChange={(e) => handleProductSelect(e.target.value)}>
-              <option value="">Entrada manual</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.description}
-                </option>
-              ))}
+            <Select label="Producto guardado (opcional)" value={draft.productId} onChange={(e) => handleProductSelect(e.target.value)} disabled={loadingProducts}>
+              {loadingProducts ? (
+                <option>Cargando…</option>
+              ) : (
+                <>
+                  <option value="">Entrada manual</option>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.description}
+                    </option>
+                  ))}
+                </>
+              )}
             </Select>
           </div>
           <div className="col-span-7">

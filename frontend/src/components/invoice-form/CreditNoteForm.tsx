@@ -52,6 +52,7 @@ interface CreditNoteFormProps {
 
 export function CreditNoteForm({ initial, prefill, billingReference, onSubmit, onCancel, loading }: CreditNoteFormProps) {
   const [ranges, setRanges] = useState<NumberingRange[]>([]);
+  const [loadingRanges, setLoadingRanges] = useState(true);
   const { data: currencies, loading: loadingCurrencies } = useCatalog(listCurrencies);
   const [numberingRangeId, setNumberingRangeId] = useState(initial?.numbering_range_id ?? "");
   // Cuando es un borrador nuevo (initial null), pre-llena desde la factura origen (prefill) para
@@ -98,7 +99,8 @@ export function CreditNoteForm({ initial, prefill, billingReference, onSubmit, o
   useEffect(() => {
     listNumberingRanges(CREDIT_NOTE_DIAN_TYPE)
       .then(setRanges)
-      .catch(() => setRanges([]));
+      .catch(() => setRanges([]))
+      .finally(() => setLoadingRanges(false));
   }, []);
 
   function handleCustomerChange(next: CustomerPayload, nextCustomerId: string) {
@@ -167,13 +169,19 @@ export function CreditNoteForm({ initial, prefill, billingReference, onSubmit, o
           </Select>
         </div>
         <div className="col-span-6">
-          <Select label="Rango de numeración" required value={numberingRangeId} onChange={(e) => setNumberingRangeId(e.target.value)}>
-            <option value="">Selecciona…</option>
-            {selectableRanges.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.prefix}
-              </option>
-            ))}
+          <Select label="Rango de numeración" required value={numberingRangeId} onChange={(e) => setNumberingRangeId(e.target.value)} disabled={loadingRanges}>
+            {loadingRanges ? (
+              <option>Cargando…</option>
+            ) : (
+              <>
+                <option value="">Selecciona…</option>
+                {selectableRanges.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.prefix}
+                  </option>
+                ))}
+              </>
+            )}
           </Select>
           {selectedRange && (
             <p className="mt-1 text-xs text-(--text-muted)">
