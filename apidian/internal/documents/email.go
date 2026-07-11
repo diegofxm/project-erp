@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"html"
-	"strings"
 
 	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
@@ -45,10 +44,16 @@ func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID)
 	}
 
 	typeName := documentTypeName(d.DianDocumentTypeCode)
-	typeNameTitle := strings.ToUpper(typeName[:1]) + typeName[1:]
+	// Asunto según Anexo Técnico 1.9 sección 9.1:
+	// NIT; Nombre del facturador; Número del documento; Código tipo; Nombre comercial
+	tradeName := iss.TradeName
+	if tradeName == "" {
+		tradeName = iss.BusinessName
+	}
+	subject := fmt.Sprintf("%s;%s;%s;%s;%s", iss.NIT, iss.BusinessName, filename, d.DianDocumentTypeCode, tradeName)
 	msg := email.Message{
-		To:       d.Customer.Email,
-		Subject:  fmt.Sprintf("%s %s - %s", typeNameTitle, filename, iss.BusinessName),
+		To:      d.Customer.Email,
+		Subject: subject,
 		BodyText: documentEmailText(d, iss, typeName),
 		BodyHTML: documentEmailHTML(d, iss, typeName),
 		Attachments: []email.Attachment{

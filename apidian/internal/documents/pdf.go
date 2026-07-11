@@ -95,7 +95,13 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 
 	var issueDate string
 	if !d.IssueDate.IsZero() {
-		issueDate = d.IssueDate.Format("2006-01-02") + " " + d.IssueTime
+		// IssueTime se almacena como "HH:MM:SS-07:00" — para el PDF se muestra solo la hora
+		// sin el offset de zona horaria, que el usuario final no necesita ver.
+		t := d.IssueTime
+		if len(t) > 8 {
+			t = t[:8]
+		}
+		issueDate = d.IssueDate.Format("2006-01-02") + " " + t
 	}
 
 	// Título y etiqueta de hash varían según el tipo de documento.

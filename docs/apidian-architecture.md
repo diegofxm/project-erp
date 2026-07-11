@@ -343,7 +343,7 @@ Decisión consciente, no descuido — si se necesitan, se integran como servicio
 |---|---|---|---|---|
 | Factura electrónica de venta (01) | ✅ | ✅ | ✅ | ✅ Autorizada (`SETP-990068706`, StatusCode 00) |
 | Nota Crédito (91) | ✅ | ✅ | ✅ | ✅ Procesada (referenciando la factura real anterior) |
-| Nota Débito (92) | ✅ | ✅ | ✅ | ⚠️ Construido y con golden test; no se ha enviado real todavía |
+| Nota Débito (92) | ✅ | ✅ | ✅ | ✅ Aceptada en habilitación real (2026-07-11) |
 | AttachedDocument (contenedor para el adquiriente) | ✅ solo Invoice | ✅ (placeholder genérico) | — | ✅ Probado con el `ApplicationResponse` real de la factura autorizada |
 
 El pipeline completo (build → CUFE/CUDE → `SoftwareSecurityCode` → QR → firma XAdES → ZIP → envío SOAP con WS-Security → lectura de respuesta) está probado de punta a punta, no solo contra los ejemplos del anexo.
@@ -352,7 +352,7 @@ El pipeline completo (build → CUFE/CUDE → `SoftwareSecurityCode` → QR → 
 
 | Pendiente | Por qué importa | Prioridad sugerida |
 |---|---|---|
-| `BuildCreditNoteAttachedDocument` / `BuildDebitNoteAttachedDocument` | Hoy solo Invoice tiene contenedor para entregarle al adquiriente | Alta — hueco pequeño, mismo patrón ya existente |
+| `AttachmentDocument` completo (UBL con `ApplicationResponse` embebido) para los tres tipos | Sección 9.1 del Anexo exige un ZIP con este contenedor firmado, no XML crudo. Requiere persistir el XML del `ApplicationResponse` devuelto por la DIAN y extender `BuildInvoiceAttachedDocument` a NC/ND (ver 9.49) | Alta — conformidad real con el estándar |
 | Documento Soporte (05, CUDS) | Compras a no obligados a facturar — caso de uso frecuente | Media-alta, según necesidad real |
 | Eventos RADIAN (Acuse de recibo, Reclamo) | Solo si la factura se negocia como título valor | Baja, opcional |
 | Factura exportación (02) / importación (04) / contingencia (03) | Comercio exterior / caída de los sistemas DIAN | Baja, según necesidad |
@@ -2389,3 +2389,32 @@ resto de UUIDs de la API) y se pasa a `filter.SourceDocumentID`.
 emitidas sobre esta factura" con el tipo (NC/ND), el motivo (descripción del concepto), el status
 con badge y un enlace directo al detalle de la nota. La lista de facturas (`InvoicesPage`) no
 muestra esta señal — requeriría N+1 queries; el detalle es el lugar natural para verlo.
+
+### 9.49 Nota Débito (ND) validada en habilitación real DIAN — ciclo completo cerrado (2026-07-11)
+
+La Nota Débito (tipo 92) fue construida, firmada, enviada a la DIAN sandbox y **aceptada**
+(StatusCode 00) en julio 2026, referenciando una factura real previa. Con esto el ciclo completo
+de los tres tipos de documentos del Anexo 1.9 queda validado en habilitación real:
+
+| Documento DIAN | Estado |
+|---|---|
+| Factura electrónica (01) | ✅ Autorizada en habilitación real |
+| Nota Crédito (91) | ✅ Procesada y aceptada en habilitación real |
+| Nota Débito (92) | ✅ Aceptada en habilitación real (2026-07-11) |
+
+La tabla en 9.1 fue actualizada para reflejar esto.
+
+**Hallazgo de conformidad — correo al adquiriente**: el Anexo Técnico 1.9 sección 9.1 especifica
+que el adjunto del correo al cliente debe ser un único `.zip` que contenga un `AttachmentDocument`
+UBL (no el XML de la factura crudo): un sobre firmado que embebe el XML firmado de la factura
+**y** el `ApplicationResponse` de la DIAN en CDATA. Actualmente enviamos un ZIP con el XML
+firmado + el PDF, lo que en la práctica es legible y útil para el cliente, pero no es el formato
+oficial del estándar. Implementar el `AttachmentDocument` requeriría:
+
+1. Persistir el XML del `ApplicationResponse` devuelto por la DIAN (hoy solo guardamos el
+   `dian_status_code`/`dian_status_description`/`dian_status_message`).
+2. Construir el `<AttachedDocument>` UBL (ya existe `BuildInvoiceAttachedDocument` en `cofacture`
+   solo para Invoice — hay que extenderlo a NC/ND).
+3. Firmarlo con el certificado del emisor.
+
+Queda como ítem pendiente documentado (ver sección 9.2).

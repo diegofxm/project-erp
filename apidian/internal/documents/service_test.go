@@ -1124,7 +1124,7 @@ func TestSendDocumentEmail_CreditNote(t *testing.T) {
 	msg := emailPort.sent[0]
 	assert.Equal(t, "cliente@example.test", msg.To)
 	assert.Contains(t, msg.Subject, "SETPNC1")
-	assert.Contains(t, msg.Subject, "Nota crédito")
+	assert.Contains(t, msg.Subject, "91")
 	require.Len(t, msg.Attachments, 1)
 	assert.Equal(t, "SETPNC1.zip", msg.Attachments[0].Filename)
 	assert.Equal(t, "application/zip", msg.Attachments[0].ContentType)
