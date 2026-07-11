@@ -72,6 +72,7 @@ CREATE TABLE documents (
     dian_status_code              TEXT,
     dian_status_description         TEXT, -- texto humano de dian.Result, ej. "Set de prueba ... Aceptado"
     dian_status_message              TEXT, -- distinto de dian_status_description: la DIAN los usa para cosas distintas
+    application_response_xml         TEXT, -- XML del ApplicationResponse de la DIAN; se persiste para construir el AttachedDocument UBL al enviar por correo (ver email.go y sección 9.49 del architecture doc)
 
     created_at                       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at                         TIMESTAMPTZ NOT NULL DEFAULT NOW()
