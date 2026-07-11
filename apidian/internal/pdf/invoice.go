@@ -30,12 +30,13 @@ import (
 
 var (
 	colorWhite         = &props.Color{Red: 255, Green: 255, Blue: 255}
-	colorTextPrimary   = &props.Color{Red: 25, Green: 25, Blue: 25}
-	colorTextSecondary = &props.Color{Red: 100, Green: 100, Blue: 100}
-	colorBorder        = &props.Color{Red: 210, Green: 210, Blue: 210}
+	colorTextPrimary   = &props.Color{Red: 20, Green: 20, Blue: 20}
+	colorTextSecondary = &props.Color{Red: 90, Green: 90, Blue: 90}
+	colorBorder        = &props.Color{Red: 160, Green: 160, Blue: 160}
+	colorSectionBand   = &props.Color{Red: 40, Green: 40, Blue: 40}
+	colorTableHeader   = &props.Color{Red: 215, Green: 215, Blue: 215}
+	colorStripe        = &props.Color{Red: 248, Green: 248, Blue: 248}
 	colorAccent        = &props.Color{Red: 17, Green: 53, Blue: 93}
-	colorAccentLight   = &props.Color{Red: 235, Green: 240, Blue: 248}
-	colorTableHeader   = &props.Color{Red: 243, Green: 244, Blue: 246}
 	colorDraft         = &props.Color{Red: 180, Green: 90, Blue: 0}
 	colorDraftBg       = &props.Color{Red: 255, Green: 248, Blue: 240}
 )
@@ -54,14 +55,14 @@ type InvoiceLine struct {
 }
 
 func (InvoiceLine) GetHeader() core.Row {
-	return row.New(7).Add(
+	return row.New(5).Add(
 		text.NewCol(1, "No.", headerCellProps(align.Center)),
 		text.NewCol(5, "Descripción", headerCellProps(align.Left)),
 		text.NewCol(1, "Cant.", headerCellProps(align.Right)),
 		text.NewCol(2, "Precio Unit.", headerCellProps(align.Right)),
 		text.NewCol(1, "IVA", headerCellProps(align.Right)),
 		text.NewCol(2, "Total", headerCellProps(align.Right)),
-	).WithStyle(&props.Cell{BackgroundColor: colorTableHeader})
+	).WithStyle(&props.Cell{BackgroundColor: colorTableHeader, BorderType: border.Full, BorderColor: colorBorder})
 }
 
 func (l InvoiceLine) GetContent(i int) core.Row {
@@ -69,14 +70,20 @@ func (l InvoiceLine) GetContent(i int) core.Row {
 	if l.TaxPercent > 0 {
 		tax = fmt.Sprintf("%.0f%%", l.TaxPercent)
 	}
-	return row.New(8).Add(
+	bg := colorWhite
+	if i%2 == 1 {
+		bg = colorStripe
+	}
+	return row.New(5).Add(
 		text.NewCol(1, fmt.Sprintf("%d", i+1), bodyCellProps(align.Center)),
 		text.NewCol(5, l.Description, bodyCellProps(align.Left)),
 		text.NewCol(1, formatQuantity(l.Quantity), bodyCellProps(align.Right)),
 		text.NewCol(2, formatCOP(l.UnitPriceCents), bodyCellProps(align.Right)),
 		text.NewCol(1, tax, bodyCellProps(align.Right)),
-		text.NewCol(2, formatCOP(l.TotalCents), bodyCellProps(align.Right)),
-	).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder})
+		text.NewCol(2, formatCOP(l.TotalCents), props.Text{
+			Top: 1, Size: 7, Align: align.Right, Style: fontstyle.Bold, Color: colorTextPrimary,
+		}),
+	).WithStyle(&props.Cell{BackgroundColor: bg, BorderType: border.Full, BorderColor: colorBorder})
 }
 
 // InvoiceTax es el desglose de impuestos por tipo — recibido ya calculado.
@@ -130,8 +137,7 @@ type InvoiceInput struct {
 	Note string
 
 	// DocumentTitle es el título de la banda superior (ej. "FACTURA ELECTRÓNICA DE VENTA").
-	// Vacío → se usa ese valor por defecto, lo que mantiene compatibilidad con constructores
-	// existentes que no lo seteaban (el PDF siempre fue Invoice hasta la sección 9.49).
+	// Vacío → se usa ese valor por defecto.
 	DocumentTitle string
 	// HashLabel es la etiqueta del código de unicidad: "CUFE" para Factura, "CUDE" para NC/ND.
 	// Vacío → "CUFE".
@@ -150,14 +156,14 @@ func BuildInvoicePDF(in InvoiceInput) ([]byte, error) {
 	cfg := config.NewBuilder().
 		WithPageSize(pagesize.A4).
 		WithLeftMargin(10).
-		WithTopMargin(10).
+		WithTopMargin(8).
 		WithRightMargin(10).
-		WithBottomMargin(10).
+		WithBottomMargin(8).
 		Build()
 	m := maroto.New(cfg)
 
 	buildHeader(m, in)
-	buildStatusBar(m, in)
+	buildTitleBand(m, in)
 	buildPartiesSection(m, in)
 	buildItemsTable(m, in)
 	buildFinancials(m, in)
@@ -170,139 +176,163 @@ func BuildInvoicePDF(in InvoiceInput) ([]byte, error) {
 	return document.GetBytes(), nil
 }
 
-// buildHeader genera la cabecera: banda azul con tipo de documento, luego logo | datos del
-// emisor | número y fecha de la factura.
+// buildHeader: logo enmarcado (izquierda) | datos del emisor (centro) | número prominente + QR (derecha).
+// El QR se ubica en la esquina superior derecha, junto al número, para que sea fácil de escanear
+// en el documento impreso — inspirado en el Bill of Lading donde el código de barras aparece
+// inmediatamente debajo del número de referencia (sección 9.39/9.49).
 func buildHeader(m core.Maroto, in InvoiceInput) {
-	docTitle := in.DocumentTitle
-	if docTitle == "" {
-		docTitle = "FACTURA ELECTRÓNICA DE VENTA"
-	}
-	// Banda de título.
-	m.AddRows(row.New(8).Add(
-		col.New(12).Add(
-			text.New(docTitle, props.Text{
-				Top: 2, Size: 9, Align: align.Center,
-				Style: fontstyle.Bold, Color: colorWhite,
-			}),
-		).WithStyle(&props.Cell{BackgroundColor: colorAccent}),
-	))
-
-	// Logo del emisor.
-	logoCol := col.New(2)
+	// Logo — siempre enmarcado en un recuadro, con imagen si la hay.
+	var logoCol core.Col
 	if len(in.IssuerLogo) > 0 {
 		logoCol = image.NewFromBytesCol(2, in.IssuerLogo, in.IssuerLogoExt,
 			props.Rect{Center: true, Percent: 85})
+	} else {
+		logoCol = col.New(2)
 	}
+	logoCol = logoCol.WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder})
 
 	// Datos del emisor.
 	issuerCol := col.New(7).Add(
-		text.New(in.IssuerBusinessName, infoLineProps(1.5, fontstyle.Bold, 10, colorTextPrimary)),
-		text.New(fmt.Sprintf("NIT: %s-%s", in.IssuerNIT, in.IssuerCheckDigit),
-			infoLineProps(6, fontstyle.Bold, 8.5, colorAccent)),
-		text.New(in.IssuerAddressLine,
-			infoLineProps(10.5, fontstyle.Normal, 7.5, colorTextSecondary)),
-		text.New(fmt.Sprintf("%s, %s", in.IssuerCityName, in.IssuerStateName),
-			infoLineProps(14, fontstyle.Normal, 7.5, colorTextSecondary)),
-		text.New(fmt.Sprintf("Tel: %s   %s", in.IssuerPhone, in.IssuerEmail),
-			infoLineProps(17.5, fontstyle.Normal, 7.5, colorTextSecondary)),
+		text.New(in.IssuerBusinessName, props.Text{
+			Top: 1.5, Size: 9, Style: fontstyle.Bold, Color: colorTextPrimary,
+		}),
+		text.New(fmt.Sprintf("NIT: %s-%s", in.IssuerNIT, in.IssuerCheckDigit), props.Text{
+			Top: 7, Size: 8, Style: fontstyle.Bold, Color: colorAccent,
+		}),
+		text.New(in.IssuerAddressLine, props.Text{
+			Top: 11.5, Size: 7, Color: colorTextSecondary,
+		}),
+		text.New(fmt.Sprintf("%s, %s", in.IssuerCityName, in.IssuerStateName), props.Text{
+			Top: 15.5, Size: 7, Color: colorTextSecondary,
+		}),
+		text.New(fmt.Sprintf("Tel: %s   %s", in.IssuerPhone, in.IssuerEmail), props.Text{
+			Top: 19.5, Size: 7, Color: colorTextSecondary,
+		}),
 	)
 
-	// Número de factura (prominente) y fecha.
+	// Número prominente arriba a la derecha + QR abajo (como el número + código de barras del BOL).
 	invoiceNumber := "BORRADOR"
 	numberColor := colorDraft
 	if !in.IsDraft {
 		invoiceNumber = fmt.Sprintf("%s%d", in.Prefix, in.Number)
 		numberColor = colorAccent
 	}
-	invoiceDetailCol := col.New(3).Add(
+
+	numberItems := []core.Component{
 		text.New("No.", props.Text{
-			Top: 2, Size: 7.5, Align: align.Right, Color: colorTextSecondary,
+			Top: 1, Size: 6.5, Align: align.Right, Color: colorTextSecondary,
 		}),
 		text.New(invoiceNumber, props.Text{
-			Top: 6, Size: 12, Align: align.Right,
-			Style: fontstyle.Bold, Color: numberColor,
+			Top: 4.5, Size: 12, Align: align.Right, Style: fontstyle.Bold, Color: numberColor,
 		}),
 		text.New(orDash(in.IssueDate), props.Text{
-			Top: 17, Size: 7.5, Align: align.Right, Color: colorTextSecondary,
+			Top: 15, Size: 7, Align: align.Right, Color: colorTextSecondary,
 		}),
-	).WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder})
+	}
+	if !in.IsDraft && in.QRURL != "" {
+		numberItems = append(numberItems,
+			code.NewQr(in.QRURL, props.Rect{Top: 19, Center: true, Percent: 85}))
+	} else if in.IsDraft {
+		numberItems = append(numberItems, text.New("BORRADOR", props.Text{
+			Top: 21, Size: 7.5, Align: align.Center, Style: fontstyle.Bold, Color: colorDraft,
+		}))
+	}
+	numberCol := col.New(3).Add(numberItems...).
+		WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder})
 
-	m.AddRows(row.New(26).Add(logoCol, issuerCol, invoiceDetailCol))
+	m.AddRows(row.New(38).Add(logoCol, issuerCol, numberCol))
 }
 
-// buildStatusBar muestra el CUFE/CUDE (documento confirmado) o un aviso de borrador.
-func buildStatusBar(m core.Maroto, in InvoiceInput) {
-	hashLabel := in.HashLabel
-	if hashLabel == "" {
-		hashLabel = "CUFE"
+// buildTitleBand: banda oscura con el tipo de documento + barra de CUFE (o aviso de borrador).
+func buildTitleBand(m core.Maroto, in InvoiceInput) {
+	docTitle := in.DocumentTitle
+	if docTitle == "" {
+		docTitle = "FACTURA ELECTRÓNICA DE VENTA"
 	}
+
+	m.AddRows(row.New(5).Add(
+		col.New(12).Add(text.New(docTitle, props.Text{
+			Top: 0.8, Size: 8, Align: align.Center, Style: fontstyle.Bold, Color: colorWhite,
+		})).WithStyle(&props.Cell{BackgroundColor: colorSectionBand}),
+	))
+
 	if in.IsDraft {
-		m.AddRows(row.New(7).Add(
+		m.AddRows(row.New(5).Add(
 			col.New(12).Add(text.New("BORRADOR — PENDIENTE DE CONFIRMACIÓN ANTE LA DIAN", props.Text{
-				Top: 2, Size: 8, Align: align.Center,
-				Style: fontstyle.Bold, Color: colorDraft,
+				Top: 1, Size: 7.5, Align: align.Center, Style: fontstyle.Bold, Color: colorDraft,
 			})).WithStyle(&props.Cell{
-				BackgroundColor: colorDraftBg,
-				BorderType:      border.Full,
-				BorderColor:     colorDraft,
+				BackgroundColor: colorDraftBg, BorderType: border.Full, BorderColor: colorDraft,
 			}),
 		))
 		return
 	}
-	m.AddRows(row.New(6).Add(
+
+	hashLabel := in.HashLabel
+	if hashLabel == "" {
+		hashLabel = "CUFE"
+	}
+	m.AddRows(row.New(5).Add(
 		col.New(12).Add(text.New(hashLabel+": "+in.CUFE, props.Text{
-			Top: 1.5, Size: 6.5, Align: align.Left, Color: colorTextSecondary,
-		})).WithStyle(&props.Cell{
-			BackgroundColor: colorAccentLight,
-			BorderType:      border.Full,
-			BorderColor:     colorBorder,
-		}),
+			Top: 1, Size: 6, Align: align.Left, Color: colorTextSecondary,
+		})).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
 	))
 }
 
-// buildPartiesSection muestra datos del adquiriente y condiciones de pago en dos columnas.
+// buildPartiesSection: bandas oscuras de sección + datos del cliente y condiciones de pago.
 func buildPartiesSection(m core.Maroto, in InvoiceInput) {
-	m.AddRows(row.New(2))
+	m.AddRows(row.New(4).Add(
+		col.New(6).Add(text.New("DATOS DEL CLIENTE", props.Text{
+			Top: 0.8, Size: 7, Style: fontstyle.Bold, Color: colorWhite,
+		})).WithStyle(&props.Cell{BackgroundColor: colorSectionBand}),
+		col.New(6).Add(text.New("CONDICIONES DE PAGO", props.Text{
+			Top: 0.8, Size: 7, Style: fontstyle.Bold, Color: colorWhite,
+		})).WithStyle(&props.Cell{BackgroundColor: colorSectionBand}),
+	))
 
-	customerItems := []core.Component{
-		text.New("CLIENTE", props.Text{
-			Top: 1.5, Size: 6.5, Style: fontstyle.Bold, Color: colorAccent,
+	customerCol := col.New(6).Add(
+		text.New(in.CustomerName, props.Text{
+			Top: 1.5, Size: 8, Style: fontstyle.Bold, Color: colorTextPrimary,
 		}),
-		text.New(in.CustomerName, infoLineProps(5.5, fontstyle.Bold, 8.5, colorTextPrimary)),
-		text.New(fmt.Sprintf("%s: %s", in.CustomerIdentificationType, in.CustomerIdentification),
-			infoLineProps(10, fontstyle.Normal, 7.5, colorTextSecondary)),
-		text.New("Dir: "+orDash(in.CustomerAddressLine),
-			infoLineProps(13.5, fontstyle.Normal, 7.5, colorTextSecondary)),
-		text.New(fmt.Sprintf("Tel: %s   %s", orDash(in.CustomerPhone), orDash(in.CustomerEmail)),
-			infoLineProps(17, fontstyle.Normal, 7.5, colorTextSecondary)),
-	}
-	customerCol := col.New(6).Add(customerItems...).
-		WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder})
+		text.New(fmt.Sprintf("%s: %s", in.CustomerIdentificationType, in.CustomerIdentification), props.Text{
+			Top: 6, Size: 7, Color: colorTextSecondary,
+		}),
+		text.New(orDash(in.CustomerAddressLine), props.Text{
+			Top: 9.5, Size: 7, Color: colorTextSecondary,
+		}),
+		text.New(fmt.Sprintf("Tel: %s   %s", orDash(in.CustomerPhone), orDash(in.CustomerEmail)), props.Text{
+			Top: 13, Size: 7, Color: colorTextSecondary,
+		}),
+	).WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder})
 
 	paymentItems := []core.Component{
-		text.New("CONDICIONES DE PAGO", props.Text{
-			Top: 1.5, Size: 6.5, Style: fontstyle.Bold, Color: colorAccent,
+		text.New("Forma: "+orDash(in.PaymentTermName), props.Text{
+			Top: 1.5, Size: 7, Color: colorTextSecondary,
 		}),
-		text.New("Forma: "+orDash(in.PaymentTermName),
-			infoLineProps(5.5, fontstyle.Normal, 7.5, colorTextSecondary)),
-		text.New("Medio: "+orDash(in.PaymentMethodName),
-			infoLineProps(9, fontstyle.Normal, 7.5, colorTextSecondary)),
-		text.New("Moneda: "+in.CurrencyCode,
-			infoLineProps(12.5, fontstyle.Normal, 7.5, colorTextSecondary)),
+		text.New("Medio: "+orDash(in.PaymentMethodName), props.Text{
+			Top: 5, Size: 7, Color: colorTextSecondary,
+		}),
+		text.New("Moneda: "+in.CurrencyCode, props.Text{
+			Top: 8.5, Size: 7, Color: colorTextSecondary,
+		}),
 	}
 	if in.PaymentDueDate != "" {
-		paymentItems = append(paymentItems,
-			text.New("Vencimiento: "+in.PaymentDueDate,
-				infoLineProps(16, fontstyle.Normal, 7.5, colorTextSecondary)))
+		paymentItems = append(paymentItems, text.New("Vencimiento: "+in.PaymentDueDate, props.Text{
+			Top: 12, Size: 7, Color: colorTextSecondary,
+		}))
 	}
 	paymentCol := col.New(6).Add(paymentItems...).
 		WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder})
 
-	m.AddRows(row.New(23).Add(customerCol, paymentCol))
-	m.AddRows(row.New(2))
+	m.AddRows(row.New(18).Add(customerCol, paymentCol))
 }
 
 func buildItemsTable(m core.Maroto, in InvoiceInput) {
+	m.AddRows(row.New(4).Add(
+		col.New(12).Add(text.New("DETALLE DE PRODUCTOS / SERVICIOS", props.Text{
+			Top: 0.8, Size: 7, Style: fontstyle.Bold, Color: colorWhite,
+		})).WithStyle(&props.Cell{BackgroundColor: colorSectionBand}),
+	))
+
 	rows, err := list.Build[InvoiceLine](in.Lines)
 	if err != nil {
 		m.AddRows(row.New(6).Add(
@@ -311,105 +341,78 @@ func buildItemsTable(m core.Maroto, in InvoiceInput) {
 		return
 	}
 	m.AddRows(rows...)
-	m.AddRows(row.New(3))
 }
 
-// buildFinancials muestra el desglose de impuestos y los totales con Total a Pagar destacado.
+// buildFinancials: tabla de impuestos (si hay) + subtotal + impuestos + total con banda oscura.
 func buildFinancials(m core.Maroto, in InvoiceInput) {
-	// Tabla de impuestos (si hay).
 	if len(in.Taxes) > 0 {
-		m.AddRows(row.New(6).Add(
+		m.AddRows(row.New(4).Add(
 			text.NewCol(3, "Impuesto", headerCellProps(align.Left)),
 			text.NewCol(2, "Tarifa", headerCellProps(align.Right)),
 			text.NewCol(4, "Base Gravable", headerCellProps(align.Right)),
 			text.NewCol(3, "Valor Impuesto", headerCellProps(align.Right)),
-		).WithStyle(&props.Cell{BackgroundColor: colorTableHeader}))
+		).WithStyle(&props.Cell{BackgroundColor: colorTableHeader, BorderType: border.Full, BorderColor: colorBorder}))
 		for _, t := range in.Taxes {
-			m.AddRows(row.New(6).Add(
+			m.AddRows(row.New(5).Add(
 				text.NewCol(3, t.TypeName, bodyCellProps(align.Left)),
 				text.NewCol(2, fmt.Sprintf("%.0f%%", t.Percent), bodyCellProps(align.Right)),
 				text.NewCol(4, formatCOP(t.TaxableAmountCents), bodyCellProps(align.Right)),
 				text.NewCol(3, formatCOP(t.TaxAmountCents), bodyCellProps(align.Right)),
-			).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}))
+			).WithStyle(&props.Cell{BorderType: border.Full, BorderColor: colorBorder}))
 		}
-		m.AddRows(row.New(3))
 	}
 
-	// Subtotal.
-	m.AddRows(row.New(7).Add(
+	m.AddRows(row.New(5).Add(
 		col.New(8),
-		text.NewCol(2, "Subtotal", props.Text{
-			Top: 1.5, Size: 8, Align: align.Right, Color: colorTextSecondary,
-		}).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
-		text.NewCol(2, formatCOP(in.LineExtensionCents), props.Text{
-			Top: 1.5, Size: 8, Align: align.Right, Color: colorTextPrimary,
-		}).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
+		text.NewCol(2, "Subtotal:", props.Text{Top: 1, Size: 7.5, Align: align.Right, Color: colorTextSecondary}).
+			WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
+		text.NewCol(2, formatCOP(in.LineExtensionCents), props.Text{Top: 1, Size: 7.5, Align: align.Right, Color: colorTextPrimary}).
+			WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
 	))
 
-	// Impuestos.
-	m.AddRows(row.New(7).Add(
+	m.AddRows(row.New(5).Add(
 		col.New(8),
-		text.NewCol(2, "Impuestos", props.Text{
-			Top: 1.5, Size: 8, Align: align.Right, Color: colorTextSecondary,
-		}).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
-		text.NewCol(2, formatCOP(in.TaxAmountCents), props.Text{
-			Top: 1.5, Size: 8, Align: align.Right, Color: colorTextPrimary,
-		}).WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
+		text.NewCol(2, "Impuestos:", props.Text{Top: 1, Size: 7.5, Align: align.Right, Color: colorTextSecondary}).
+			WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
+		text.NewCol(2, formatCOP(in.TaxAmountCents), props.Text{Top: 1, Size: 7.5, Align: align.Right, Color: colorTextPrimary}).
+			WithStyle(&props.Cell{BorderType: border.Bottom, BorderColor: colorBorder}),
 	))
 
-	// Total a Pagar — fila destacada con fondo accent.
-	m.AddRows(row.New(10).Add(
+	m.AddRows(row.New(7).Add(
 		col.New(8),
-		text.NewCol(2, "TOTAL A PAGAR", props.Text{
-			Top: 2.5, Size: 8.5, Align: align.Right,
-			Style: fontstyle.Bold, Color: colorWhite,
-		}).WithStyle(&props.Cell{BackgroundColor: colorAccent}),
+		text.NewCol(2, "TOTAL A PAGAR:", props.Text{
+			Top: 1.5, Size: 8, Align: align.Right, Style: fontstyle.Bold, Color: colorWhite,
+		}).WithStyle(&props.Cell{BackgroundColor: colorSectionBand}),
 		text.NewCol(2, formatCOP(in.PayableCents), props.Text{
-			Top: 2.5, Size: 8.5, Align: align.Right,
-			Style: fontstyle.Bold, Color: colorWhite,
-		}).WithStyle(&props.Cell{BackgroundColor: colorAccent}),
+			Top: 1.5, Size: 8, Align: align.Right, Style: fontstyle.Bold, Color: colorWhite,
+		}).WithStyle(&props.Cell{BackgroundColor: colorSectionBand}),
 	))
 }
 
-// buildFooter muestra la cantidad en letras, nota opcional, y al pie el QR junto al texto de
-// autorización de numeración DIAN — el QR va aquí (no en la cabecera) para que quede a mano
-// al escanear el documento físico impreso.
+// buildFooter: valor en letras, nota opcional, texto de autorización de numeración DIAN.
+// El QR va en la cabecera (junto al número), no aquí — ver buildHeader.
 func buildFooter(m core.Maroto, in InvoiceInput) {
-	m.AddRows(row.New(3))
-
-	// Valor en letras con fondo suave.
 	words := AmountInWords(in.PayableCents / 100)
-	m.AddRows(row.New(6).Add(
-		col.New(12).Add(
-			text.New("Son: "+words, props.Text{
-				Top: 1.5, Size: 7.5, Style: fontstyle.Bold, Color: colorTextPrimary,
-			}),
-		).WithStyle(&props.Cell{
-			BackgroundColor: colorAccentLight,
+	m.AddRows(row.New(5).Add(
+		col.New(12).Add(text.New("Son: "+words, props.Text{
+			Top: 1, Size: 7, Style: fontstyle.Bold, Color: colorTextPrimary,
+		})).WithStyle(&props.Cell{
+			BackgroundColor: colorTableHeader,
 			BorderType:      border.Full,
 			BorderColor:     colorBorder,
 		}),
 	))
 
 	if in.Note != "" {
-		m.AddRows(row.New(2))
-		m.AddRows(row.New(6).Add(
+		m.AddRows(row.New(5).Add(
 			text.NewCol(12, "Nota: "+in.Note, props.Text{
-				Top: 1.5, Size: 7.5, Color: colorTextSecondary,
+				Top: 1, Size: 7, Color: colorTextSecondary,
 			}),
 		))
 	}
 
-	m.AddRows(row.New(5))
+	m.AddRows(row.New(3))
 
-	// QR + texto legal.
-	qrCol := col.New(3)
-	if !in.IsDraft && in.QRURL != "" {
-		qrCol = qrCol.Add(code.NewQr(in.QRURL, props.Rect{Center: true, Percent: 95}))
-	}
-
-	// Deriva la descripción para el pie a partir del título: "NOTA CRÉDITO DE VENTA" →
-	// "Nota crédito de venta".
 	docTitle := in.DocumentTitle
 	if docTitle == "" {
 		docTitle = "FACTURA ELECTRÓNICA DE VENTA"
@@ -420,24 +423,19 @@ func buildFooter(m core.Maroto, in InvoiceInput) {
 	}
 	legalItems := []core.Component{
 		text.New("Representación gráfica de "+string(runes)+".", props.Text{
-			Top: 1, Size: 7, Color: colorTextSecondary,
+			Top: 1, Size: 6.5, Color: colorTextSecondary,
 		}),
 	}
 	if in.ResolutionNumber != "" {
-		legalItems = append(legalItems,
-			text.New(resolutionDisclaimer(in), props.Text{
-				Top: 6, Size: 7, Color: colorTextSecondary,
-			}))
+		legalItems = append(legalItems, text.New(resolutionDisclaimer(in), props.Text{
+			Top: 6, Size: 6.5, Color: colorTextSecondary,
+		}))
 	}
-
-	m.AddRows(row.New(25).Add(
-		qrCol,
-		col.New(9).Add(legalItems...),
-	))
+	m.AddRows(row.New(12).Add(col.New(12).Add(legalItems...)))
 }
 
-// resolutionDisclaimer construye el texto de autorización. RangeTo nil omite la cláusula
-// "hasta ..." (rango sin tope, ver InvoiceInput.RangeTo).
+// resolutionDisclaimer construye el texto de autorización DIAN. RangeTo nil omite "hasta ..."
+// (rango sin tope).
 func resolutionDisclaimer(in InvoiceInput) string {
 	rangeClause := fmt.Sprintf("desde %s%d", in.RangePrefix, in.RangeFrom)
 	if in.RangeTo != nil {
@@ -452,15 +450,11 @@ func resolutionDisclaimer(in InvoiceInput) string {
 // ── helpers de formato ──────────────────────────────────────────────────────────────────────
 
 func headerCellProps(a align.Type) props.Text {
-	return props.Text{Top: 2, Size: 7.5, Align: a, Style: fontstyle.Bold, Color: colorTextPrimary}
+	return props.Text{Top: 1, Size: 7, Align: a, Style: fontstyle.Bold, Color: colorTextPrimary}
 }
 
 func bodyCellProps(a align.Type) props.Text {
-	return props.Text{Top: 2, Size: 7.5, Align: a, Color: colorTextPrimary}
-}
-
-func infoLineProps(top float64, style fontstyle.Type, size float64, color *props.Color) props.Text {
-	return props.Text{Top: top, Size: size, Style: style, Align: align.Left, Color: color}
+	return props.Text{Top: 1, Size: 7, Align: a, Color: colorTextPrimary}
 }
 
 func formatCOP(cents int64) string {
