@@ -86,6 +86,10 @@ type CatalogPort interface {
 	// régimen tributario y las responsabilidades fiscales del emisor (Resolución DIAN 042).
 	GetTaxRegimeName(ctx context.Context, code string) (name string, found bool, err error)
 	GetLiabilityCodeName(ctx context.Context, code string) (name string, found bool, err error)
+
+	// GetCiiuDescription — descripción de un código CIIU para el pie del PDF (actividad
+	// económica del emisor con nombre legible en vez del código crudo).
+	GetCiiuDescription(ctx context.Context, code string) (description string, found bool, err error)
 }
 
 // EmailPort define lo que documents necesita para enviar correo — ver

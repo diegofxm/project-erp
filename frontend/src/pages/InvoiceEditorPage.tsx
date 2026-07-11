@@ -118,9 +118,6 @@ export function InvoiceEditorPage() {
     }
   }
 
-  // handleViewPdf abre la representación gráfica en una pestaña nueva — sirve igual en
-  // borrador (muestra "BORRADOR" donde irían CUFE/QR/número) que ya confirmada. Se trae como
-  // blob (no <a href> plano) porque el endpoint exige Authorization: Bearer.
   async function handleViewPdf() {
     if (!id || isNew) return;
     setLoadingPdf(true);

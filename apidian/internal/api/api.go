@@ -143,9 +143,9 @@ func (a *API) Handler() http.Handler {
 //
 //	GET /api/v1/catalogs/{departments,municipalities,identification-types,tax-types,
 //	    payment-methods,payment-terms,unit-measures,tax-regimes,liability-codes,
-//	    dian-document-types,currencies,item-standards} → catálogos de referencia DIAN/DANE, de
-//	    solo lectura, iguales para cualquier usuario autenticado (ver internal/catalogs). municipalities
-//	    acepta ?department_code= para filtrar.
+//	    dian-document-types,currencies,item-standards,ciiu-codes} → catálogos de referencia
+//	    DIAN/DANE, de solo lectura, iguales para cualquier usuario autenticado (ver
+//	    internal/catalogs). municipalities acepta ?department_code= para filtrar.
 func (a *API) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/register", a.handleRegister)
 	mux.HandleFunc("POST /api/v1/auth/login", a.handleLogin)
@@ -214,6 +214,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handleNoTenant("GET /api/v1/catalogs/dian-document-types", a.handleListDianDocumentTypes)
 	handleNoTenant("GET /api/v1/catalogs/currencies", a.handleListCurrencies)
 	handleNoTenant("GET /api/v1/catalogs/item-standards", a.handleListItemStandards)
+	handleNoTenant("GET /api/v1/catalogs/ciiu-codes", a.handleListCiiuCodes)
 }
 
 // ── helpers compartidos ─────────────────────────────────────────────────────────────────────

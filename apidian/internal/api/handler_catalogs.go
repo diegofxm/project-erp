@@ -127,3 +127,12 @@ func (a *API) handleListItemStandards(w http.ResponseWriter, r *http.Request) {
 	}
 	response.WriteJSON(w, http.StatusOK, map[string]any{"item_standards": out, "count": len(out)})
 }
+
+func (a *API) handleListCiiuCodes(w http.ResponseWriter, r *http.Request) {
+	out, err := a.catalogs.ListCiiuCodes(r.Context())
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	response.WriteJSON(w, http.StatusOK, map[string]any{"ciiu_codes": out, "count": len(out)})
+}

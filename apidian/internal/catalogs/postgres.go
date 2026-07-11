@@ -227,6 +227,36 @@ func (r *PostgresRepository) getName(ctx context.Context, table, code string) (s
 	return name, true, nil
 }
 
+func (r *PostgresRepository) ListCiiuCodes(ctx context.Context) ([]CiiuCode, error) {
+	rows, err := r.pool.Query(ctx, "SELECT code, description FROM ciiu_codes ORDER BY code")
+	if err != nil {
+		return nil, fmt.Errorf("listar ciiu_codes: %w", err)
+	}
+	defer rows.Close()
+
+	var out []CiiuCode
+	for rows.Next() {
+		var c CiiuCode
+		if err := rows.Scan(&c.Code, &c.Description); err != nil {
+			return nil, fmt.Errorf("leer ciiu_codes: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func (r *PostgresRepository) GetCiiuDescription(ctx context.Context, code string) (string, bool, error) {
+	var desc string
+	err := r.pool.QueryRow(ctx, "SELECT description FROM ciiu_codes WHERE code = $1", code).Scan(&desc)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("buscar descripción en ciiu_codes: %w", err)
+	}
+	return desc, true, nil
+}
+
 func (r *PostgresRepository) exists(ctx context.Context, table, code string) (bool, error) {
 	var exists bool
 	query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE code = $1)", table)

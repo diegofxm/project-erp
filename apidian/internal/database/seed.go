@@ -49,6 +49,7 @@ func (d *DB) Seed(ctx context.Context) error {
 		{"tax_regimes", []string{"code", "name", "description"}},
 		{"liability_codes", []string{"code", "name", "description"}},
 		{"item_standards", []string{"code", "name", "agency_id", "description"}},
+		{"ciiu_codes", []string{"code", "description"}},
 	}
 
 	for _, t := range tables {

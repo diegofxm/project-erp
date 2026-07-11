@@ -53,4 +53,9 @@ type Repository interface {
 	// régimen tributario y responsabilidades fiscales del emisor).
 	GetTaxRegimeName(ctx context.Context, code string) (name string, found bool, err error)
 	GetLiabilityCodeName(ctx context.Context, code string) (name string, found bool, err error)
+
+	// ListCiiuCodes/GetCiiuDescription — catálogo CIIU (DANE): listado completo para el
+	// selector del emisor, y búsqueda puntual para mostrar la descripción en el pie del PDF.
+	ListCiiuCodes(ctx context.Context) ([]CiiuCode, error)
+	GetCiiuDescription(ctx context.Context, code string) (description string, found bool, err error)
 }

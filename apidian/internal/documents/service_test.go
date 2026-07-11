@@ -175,6 +175,15 @@ func (f *fakeCatalogPort) GetLiabilityCodeName(_ context.Context, code string) (
 	return name, ok, nil
 }
 
+func (f *fakeCatalogPort) GetCiiuDescription(_ context.Context, code string) (string, bool, error) {
+	descs := map[string]string{
+		"6201": "Desarrollo de sistemas informáticos",
+		"6202": "Consultoría informática y gerencia de instalaciones informáticas",
+	}
+	desc, ok := descs[code]
+	return desc, ok, nil
+}
+
 func testIssuer() *issuers.Issuer {
 	cert, pwd := selfSignedTestP12()
 	return &issuers.Issuer{

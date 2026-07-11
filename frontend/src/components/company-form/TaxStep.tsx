@@ -114,12 +114,12 @@ export function TaxStep({ form, setField }: StepProps) {
           <div className="flex flex-col gap-1">
             {ciiuCodes.map((code) => {
               const label = ciiuOptions.find((o) => o.value === code)?.label ?? code;
-              const desc = label.includes(" — ") ? label.slice(label.indexOf(" — ") + 3) : "";
+              const desc = label.includes(" - ") ? label.slice(label.indexOf(" - ") + 3) : "";
               return (
                 <div key={code} className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-secondary) px-2 py-1.5 text-xs">
                   <span>
                     <span className="font-mono font-medium text-(--text-primary)">{code}</span>
-                    {desc && <span className="ml-2 text-(--text-secondary)">{desc}</span>}
+                    {desc && <span className="text-(--text-secondary)"> - {desc}</span>}
                   </span>
                   <button
                     type="button"

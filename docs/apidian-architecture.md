@@ -1491,11 +1491,9 @@ nuevo campo `IndustryClassificationCodes []string` en `cofacture/domain.Party` (
 máximo 4 códigos (`ErrTooManyIndustryClassificationCodes`), límite basado en la estructura
 real del RUT del usuario (1 actividad principal + 1 secundaria + 2 "otras actividades" = 4),
 no en una regla documentada de la DIAN. Solo aplica al emisor (nunca al receptor). El usuario
-aportó además un catálogo CIIU completo y real propio
-(`https://diegofxm.github.io/ciiu-classification/ciiu.json`, 21 secciones, 88 divisiones, 110
-grupos, **419 códigos hoja**) — queda anotado como candidato natural para una futura tabla
-`ciiu_codes` en `internal/catalogs` (convertiría el campo de "array libre" a "array validado
-contra catálogo real"), no construido todavía.
+El catálogo CIIU (21 secciones, 88 divisiones, 110 grupos, **419 códigos hoja**) vive en la
+tabla `ciiu_codes` de `internal/catalogs` — array validado contra catálogo real, expuesto en
+`GET /api/v1/catalogs/ciiu-codes` y poblado via `internal/database/seed/ciiu_codes.csv`.
 
 **`internal/catalogs`** (paquete nuevo, solo lectura, sin `Service` — el `Repository` es el
 contrato completo): expone los 11 catálogos vía

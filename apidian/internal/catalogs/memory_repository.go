@@ -18,6 +18,7 @@ type MemoryRepository struct {
 	dianDocumentTypes   []Entry
 	currencies          []Currency
 	itemStandards       []ItemStandard
+	ciiuCodes           []CiiuCode
 }
 
 // NewMemoryRepository crea un repositorio en memoria con datos de muestra — suficientes para
@@ -44,6 +45,11 @@ func NewMemoryRepository() *MemoryRepository {
 			{Code: "010", Name: "GTIN", AgencyID: "9", Description: "Números Globales de Identificación de Productos"},
 			{Code: "020", Name: "Partida Arancelaria", AgencyID: "195", Description: "Partida arancelaria según estatuto tributario"},
 			{Code: "999", Name: "Estándar de adopción del contribuyente", AgencyID: "", Description: "Código propio del contribuyente, sin estándar externo"},
+		},
+		ciiuCodes: []CiiuCode{
+			{Code: "6201", Description: "Desarrollo de sistemas informáticos (planificación, análisis, diseño, programación, pruebas)"},
+			{Code: "6202", Description: "Consultoría informática y gerencia de instalaciones informáticas"},
+			{Code: "9900", Description: "Actividades de organizaciones y órganos extraterritoriales"},
 		},
 	}
 }
@@ -160,6 +166,19 @@ func (r *MemoryRepository) GetItemStandardAgencyID(_ context.Context, code strin
 	for _, s := range r.itemStandards {
 		if s.Code == code {
 			return s.AgencyID, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+func (r *MemoryRepository) ListCiiuCodes(_ context.Context) ([]CiiuCode, error) {
+	return r.ciiuCodes, nil
+}
+
+func (r *MemoryRepository) GetCiiuDescription(_ context.Context, code string) (string, bool, error) {
+	for _, c := range r.ciiuCodes {
+		if c.Code == code {
+			return c.Description, true, nil
 		}
 	}
 	return "", false, nil

@@ -132,7 +132,19 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 			liabilityParts = append(liabilityParts, code)
 		}
 	}
-	econActivity := strings.Join(iss.IndustryClassificationCodes, ", ")
+	var econParts []string
+	for _, code := range iss.IndustryClassificationCodes {
+		desc, _, derr := s.catalogs.GetCiiuDescription(ctx, code)
+		if derr != nil {
+			return pdf.InvoiceInput{}, derr
+		}
+		if desc != "" {
+			econParts = append(econParts, code+" – "+desc)
+		} else {
+			econParts = append(econParts, code)
+		}
+	}
+	econActivity := strings.Join(econParts, ", ")
 
 	return pdf.InvoiceInput{
 		IssuerBusinessName: iss.BusinessName,

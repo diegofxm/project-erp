@@ -38,3 +38,10 @@ type ItemStandard struct {
 	AgencyID    string `json:"agency_id,omitempty"`
 	Description string `json:"description"`
 }
+
+// CiiuCode es una actividad económica del catálogo CIIU (Clasificación Industrial Internacional
+// Uniforme) según la revisión del DANE — usado en el pie del PDF y en el formulario de emisor.
+type CiiuCode struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+}
