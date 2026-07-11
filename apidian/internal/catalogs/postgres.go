@@ -184,6 +184,14 @@ func (r *PostgresRepository) GetIdentificationTypeName(ctx context.Context, code
 	return r.getName(ctx, "identification_types", code)
 }
 
+func (r *PostgresRepository) GetTaxRegimeName(ctx context.Context, code string) (string, bool, error) {
+	return r.getName(ctx, "tax_regimes", code)
+}
+
+func (r *PostgresRepository) GetLiabilityCodeName(ctx context.Context, code string) (string, bool, error) {
+	return r.getName(ctx, "liability_codes", code)
+}
+
 // GetItemStandardName implementa documents.CatalogPort/products.CatalogPort — ver el
 // comentario en Repository (sección 9.45).
 func (r *PostgresRepository) GetItemStandardName(ctx context.Context, code string) (string, bool, error) {

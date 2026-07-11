@@ -471,6 +471,7 @@ table.taxes th.r, table.taxes td.r { text-align: right; }
   <!-- PIE ───────────────────────────────────── -->
   <div class="footer">
     <b>Representación gráfica de {{.DocTitleLower}}.</b><br>
+    {{if .TaxRegime}}{{.TaxRegime}}{{if .Liabilities}} &middot; {{.Liabilities}}{{end}}{{if .EconomicActivity}} &middot; Actividad Económica: {{.EconomicActivity}}{{end}}<br>{{end}}
     {{if .ResolutionText}}{{.ResolutionText}}<br>{{end}}
     La validez jurídica y fiscal de este documento está determinada por el archivo XML
     firmado electrónicamente y validado por la DIAN. Este PDF es solo su representación

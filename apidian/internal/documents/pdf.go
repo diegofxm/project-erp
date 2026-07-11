@@ -2,6 +2,7 @@ package documents
 
 import (
 	"context"
+	"strings"
 
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
@@ -111,6 +112,28 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		hashLabel = "CUFE"
 	}
 
+	// Información fiscal del emisor para el pie del PDF (Resolución DIAN 042).
+	var taxRegimeName string
+	if iss.TaxRegimeCode != nil {
+		taxRegimeName, err = s.resolveCatalogName(ctx, s.catalogs.GetTaxRegimeName, *iss.TaxRegimeCode)
+		if err != nil {
+			return pdf.InvoiceInput{}, err
+		}
+	}
+	var liabilityParts []string
+	for _, code := range iss.LiabilityCodes {
+		name, _, lerr := s.catalogs.GetLiabilityCodeName(ctx, code)
+		if lerr != nil {
+			return pdf.InvoiceInput{}, lerr
+		}
+		if name != "" {
+			liabilityParts = append(liabilityParts, code+" – "+name)
+		} else {
+			liabilityParts = append(liabilityParts, code)
+		}
+	}
+	econActivity := strings.Join(iss.IndustryClassificationCodes, ", ")
+
 	return pdf.InvoiceInput{
 		IssuerBusinessName: iss.BusinessName,
 		IssuerNIT:          iss.NIT,
@@ -153,6 +176,10 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 
 		DocumentTitle: documentTitle,
 		HashLabel:     hashLabel,
+
+		IssuerTaxRegime:        taxRegimeName,
+		IssuerLiabilities:      strings.Join(liabilityParts, " · "),
+		IssuerEconomicActivity: econActivity,
 
 		ResolutionNumber: nr.ResolutionNumber,
 		RangePrefix:      nr.Prefix,

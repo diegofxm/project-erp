@@ -81,6 +81,11 @@ type CatalogPort interface {
 	// GetTaxTypeName). AgencyID separado de Name porque puede ser "" con found=true.
 	GetItemStandardName(ctx context.Context, code string) (name string, found bool, err error)
 	GetItemStandardAgencyID(ctx context.Context, code string) (agencyID string, found bool, err error)
+
+	// GetTaxRegimeName/GetLiabilityCodeName — para el pie del PDF: por norma debe aparecer el
+	// régimen tributario y las responsabilidades fiscales del emisor (Resolución DIAN 042).
+	GetTaxRegimeName(ctx context.Context, code string) (name string, found bool, err error)
+	GetLiabilityCodeName(ctx context.Context, code string) (name string, found bool, err error)
 }
 
 // EmailPort define lo que documents necesita para enviar correo — ver

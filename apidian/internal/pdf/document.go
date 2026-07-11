@@ -94,6 +94,11 @@ type InvoiceInput struct {
 	// Vacío → "CUFE".
 	HashLabel string
 
+	// Información fiscal del emisor para el pie del documento (por norma — Resolución DIAN 042).
+	IssuerTaxRegime        string // ej. "Responsable de IVA"
+	IssuerLiabilities      string // ej. "O-13 – Gran Contribuyente · O-15 – Autorretenedor"
+	IssuerEconomicActivity string // ej. "6201, 9901" (códigos CIIU sin descripción)
+
 	ResolutionNumber string
 	RangePrefix      string
 	RangeFrom        int64
@@ -160,6 +165,10 @@ type docTemplateData struct {
 
 	Note           string
 	ResolutionText string
+
+	TaxRegime        string
+	Liabilities      string
+	EconomicActivity string
 }
 
 type docLineData struct {
@@ -308,6 +317,10 @@ func buildTemplateData(in InvoiceInput) (docTemplateData, error) {
 
 		Note:           in.Note,
 		ResolutionText: resolutionText,
+
+		TaxRegime:        in.IssuerTaxRegime,
+		Liabilities:      in.IssuerLiabilities,
+		EconomicActivity: in.IssuerEconomicActivity,
 	}, nil
 }
 

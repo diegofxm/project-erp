@@ -135,6 +135,16 @@ func (r *MemoryRepository) GetIdentificationTypeName(_ context.Context, code str
 	return name, name != "", nil
 }
 
+func (r *MemoryRepository) GetTaxRegimeName(_ context.Context, code string) (string, bool, error) {
+	name := getName(r.taxRegimes, code)
+	return name, name != "", nil
+}
+
+func (r *MemoryRepository) GetLiabilityCodeName(_ context.Context, code string) (string, bool, error) {
+	name := getName(r.liabilityCodes, code)
+	return name, name != "", nil
+}
+
 func (r *MemoryRepository) GetItemStandardName(_ context.Context, code string) (string, bool, error) {
 	for _, s := range r.itemStandards {
 		if s.Code == code {

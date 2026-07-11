@@ -48,4 +48,9 @@ type Repository interface {
 	// Get*Name donde found=false ya cubre "no hay nada que mostrar".
 	GetItemStandardName(ctx context.Context, code string) (name string, found bool, err error)
 	GetItemStandardAgencyID(ctx context.Context, code string) (agencyID string, found bool, err error)
+
+	// GetTaxRegimeName/GetLiabilityCodeName — para el pie del PDF (por norma se debe mostrar
+	// régimen tributario y responsabilidades fiscales del emisor).
+	GetTaxRegimeName(ctx context.Context, code string) (name string, found bool, err error)
+	GetLiabilityCodeName(ctx context.Context, code string) (name string, found bool, err error)
 }

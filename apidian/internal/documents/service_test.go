@@ -163,6 +163,18 @@ func (f *fakeCatalogPort) GetItemStandardAgencyID(_ context.Context, code string
 	return agencyID, ok, nil
 }
 
+func (f *fakeCatalogPort) GetTaxRegimeName(_ context.Context, code string) (string, bool, error) {
+	names := map[string]string{"48": "Responsable de IVA", "00": "No aplica"}
+	name, ok := names[code]
+	return name, ok, nil
+}
+
+func (f *fakeCatalogPort) GetLiabilityCodeName(_ context.Context, code string) (string, bool, error) {
+	names := map[string]string{"O-13": "Gran Contribuyente", "O-15": "Autorretenedor", "R-99-PN": "No aplica (persona natural)", "R-99-PJ": "No aplica (persona jurídica)"}
+	name, ok := names[code]
+	return name, ok, nil
+}
+
 func testIssuer() *issuers.Issuer {
 	cert, pwd := selfSignedTestP12()
 	return &issuers.Issuer{
