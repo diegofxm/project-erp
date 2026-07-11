@@ -46,12 +46,8 @@ func (s *Service) loadDocumentAndIssuer(ctx context.Context, issuerID, id uuid.U
 }
 
 func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers.Issuer, nr *numbering.NumberingRange) (pdf.InvoiceInput, error) {
-	identificationTypeName, err := s.resolveCatalogName(ctx, s.catalogs.GetIdentificationTypeName, d.Customer.Identification.TypeCode)
-	if err != nil {
-		return pdf.InvoiceInput{}, err
-	}
-
 	var paymentTermName, paymentMethodName, dueDate string
+	var err error
 	if len(d.PaymentMeans) > 0 {
 		pm := d.PaymentMeans[0]
 		if paymentTermName, err = s.resolveCatalogName(ctx, s.catalogs.GetPaymentTermName, pm.Code); err != nil {
@@ -83,14 +79,17 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 	}
 
 	aggregated := aggregateTaxes(d.Lines)
-	taxes := make([]pdf.InvoiceTax, len(aggregated))
-	for i, t := range aggregated {
-		taxes[i] = pdf.InvoiceTax{
+	var taxes []pdf.InvoiceTax
+	for _, t := range aggregated {
+		if t.TaxAmountCents == 0 {
+			continue // IVA 0% requerido en el XML (FAU04) pero no tiene valor visual en el PDF
+		}
+		taxes = append(taxes, pdf.InvoiceTax{
 			TypeName:           t.TypeName,
 			Percent:            t.Percent,
 			TaxableAmountCents: t.TaxableAmountCents,
 			TaxAmountCents:     t.TaxAmountCents,
-		}
+		})
 	}
 
 	var issueDate string
@@ -133,7 +132,7 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		CurrencyCode: d.CurrencyCode,
 
 		CustomerName:               d.Customer.Name,
-		CustomerIdentificationType: identificationTypeName,
+		CustomerIdentificationType: identTypeAbbrev(d.Customer.Identification.TypeCode),
 		CustomerIdentification:     d.Customer.Identification.Number,
 		CustomerAddressLine:        d.Customer.Address.Line,
 		CustomerPhone:              d.Customer.Phone,
@@ -168,6 +167,37 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 // existe, ver Repository en internal/catalogs) — para el PDF no tiene sentido fallar si un
 // código quedó huérfano del catálogo, simplemente se muestra el código tal cual en vez del
 // nombre legible.
+// identTypeAbbrev convierte el código DIAN de tipo de identificación a la sigla usada en el PDF.
+// Fuente: seed/identification_types.csv. Código desconocido → se devuelve tal cual.
+func identTypeAbbrev(code string) string {
+	switch code {
+	case "11":
+		return "RC"
+	case "12":
+		return "TI"
+	case "13":
+		return "CC"
+	case "21":
+		return "TE"
+	case "22":
+		return "CE"
+	case "31":
+		return "NIT"
+	case "41":
+		return "PA"
+	case "42":
+		return "DIE"
+	case "47":
+		return "NIT Ext."
+	case "50":
+		return "NIT DIAN"
+	case "91":
+		return "NUIP"
+	default:
+		return code
+	}
+}
+
 func (s *Service) resolveCatalogName(ctx context.Context, get func(context.Context, string) (string, bool, error), code string) (string, error) {
 	if code == "" {
 		return "", nil
