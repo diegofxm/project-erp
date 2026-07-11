@@ -1073,11 +1073,10 @@ func TestSendDocumentEmail_OK(t *testing.T) {
 	msg := emailPort.sent[0]
 	assert.Equal(t, "cliente@example.test", msg.To)
 	assert.Contains(t, msg.Subject, "SETP1")
-	require.Len(t, msg.Attachments, 2)
-	assert.Equal(t, "SETP1.pdf", msg.Attachments[0].Filename)
-	assert.Equal(t, "application/pdf", msg.Attachments[0].ContentType)
-	assert.Equal(t, "SETP1.xml", msg.Attachments[1].Filename)
-	assert.Equal(t, "<xml>factura firmada de prueba</xml>", string(msg.Attachments[1].Content))
+	require.Len(t, msg.Attachments, 1)
+	assert.Equal(t, "SETP1.zip", msg.Attachments[0].Filename)
+	assert.Equal(t, "application/zip", msg.Attachments[0].ContentType)
+	assert.NotEmpty(t, msg.Attachments[0].Content)
 }
 
 func TestSendDocumentEmail_NotAccepted(t *testing.T) {
@@ -1126,9 +1125,9 @@ func TestSendDocumentEmail_CreditNote(t *testing.T) {
 	assert.Equal(t, "cliente@example.test", msg.To)
 	assert.Contains(t, msg.Subject, "SETPNC1")
 	assert.Contains(t, msg.Subject, "Nota crédito")
-	require.Len(t, msg.Attachments, 2)
-	assert.Equal(t, "SETPNC1.pdf", msg.Attachments[0].Filename)
-	assert.Equal(t, "SETPNC1.xml", msg.Attachments[1].Filename)
+	require.Len(t, msg.Attachments, 1)
+	assert.Equal(t, "SETPNC1.zip", msg.Attachments[0].Filename)
+	assert.Equal(t, "application/zip", msg.Attachments[0].ContentType)
 }
 
 func TestSendDocumentEmail_SendFailurePropagates(t *testing.T) {

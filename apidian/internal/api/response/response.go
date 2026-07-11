@@ -111,8 +111,6 @@ func classify(err error) (int, string) {
 		errors.Is(err, documents.ErrNumberingRangeIssuerMismatch),
 		errors.Is(err, documents.ErrCustomerIssuerMismatch),
 		errors.Is(err, documents.ErrIssuerNotReadyToIssue),
-		errors.Is(err, documents.ErrPDFNotSupportedForDocumentType),
-		errors.Is(err, documents.ErrEmailNotSupportedForDocumentType),
 		errors.Is(err, documents.ErrDocumentNotAccepted),
 		errors.Is(err, documents.ErrCustomerEmailMissing):
 		return http.StatusUnprocessableEntity, err.Error()

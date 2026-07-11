@@ -8,12 +8,13 @@ import (
 
 	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
+	cofzip "github.com/diegofxm/cofacture/zip"
 	"github.com/google/uuid"
 )
 
 // SendDocumentEmail envía el documento ya aceptado por la DIAN al correo del cliente, con el
-// PDF (representación gráfica, ver RenderDocumentPDF) y el XML firmado adjuntos — ver
-// docs/apidian-architecture.md sección 9.42/9.49.
+// PDF y el XML firmado empacados en un único archivo ZIP — práctica estándar en Colombia para
+// entrega de documentos electrónicos al adquiriente.
 //
 // Válido para Factura (01), Nota Crédito (91) y Nota Débito (92). Solo StatusAccepted: nunca
 // un borrador, nunca uno rechazado/con error de envío, nunca StatusSent.
@@ -34,17 +35,24 @@ func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID)
 		return err
 	}
 
+	filename := fmt.Sprintf("%s%d", d.Prefix, d.Number)
+	zipBytes, err := cofzip.Build([]cofzip.File{
+		{Name: filename + ".xml", Content: []byte(d.SignedXML)},
+		{Name: filename + ".pdf", Content: pdfBytes},
+	})
+	if err != nil {
+		return fmt.Errorf("empacar adjuntos: %w", err)
+	}
+
 	typeName := documentTypeName(d.DianDocumentTypeCode)
 	typeNameTitle := strings.ToUpper(typeName[:1]) + typeName[1:]
-	filename := fmt.Sprintf("%s%d", d.Prefix, d.Number)
 	msg := email.Message{
 		To:       d.Customer.Email,
 		Subject:  fmt.Sprintf("%s %s - %s", typeNameTitle, filename, iss.BusinessName),
 		BodyText: documentEmailText(d, iss, typeName),
 		BodyHTML: documentEmailHTML(d, iss, typeName),
 		Attachments: []email.Attachment{
-			{Filename: filename + ".pdf", ContentType: "application/pdf", Content: pdfBytes},
-			{Filename: filename + ".xml", ContentType: "application/xml", Content: []byte(d.SignedXML)},
+			{Filename: filename + ".zip", ContentType: "application/zip", Content: zipBytes},
 		},
 	}
 	return s.email.Send(ctx, msg)
@@ -66,9 +74,9 @@ func documentEmailText(d *Document, iss *issuers.Issuer, typeName string) string
 	return fmt.Sprintf(
 		"Hola %s,\n\n"+
 			"Adjuntamos tu %s No. %s%d, emitida por %s.\n\n"+
-			"En este correo encontrarás:\n"+
-			"- El PDF: representación gráfica del documento.\n"+
-			"- El XML: el documento electrónico firmado, válido ante la DIAN.\n\n"+
+			"El archivo adjunto (ZIP) contiene:\n"+
+			"- El XML: el documento electrónico firmado, válido ante la DIAN.\n"+
+			"- El PDF: representación gráfica del documento.\n\n"+
 			"Este es un mensaje automático, por favor no respondas a esta dirección.\n",
 		d.Customer.Name, typeName, d.Prefix, d.Number, iss.BusinessName,
 	)
@@ -80,9 +88,9 @@ func documentEmailHTML(d *Document, iss *issuers.Issuer, typeName string) string
 	return fmt.Sprintf(
 		"<p>Hola %s,</p>"+
 			"<p>Adjuntamos tu %s No. %s%d, emitida por %s.</p>"+
-			"<p>En este correo encontrarás:</p>"+
-			"<ul><li>El PDF: representación gráfica del documento.</li>"+
-			"<li>El XML: el documento electrónico firmado, válido ante la DIAN.</li></ul>"+
+			"<p>El archivo adjunto (ZIP) contiene:</p>"+
+			"<ul><li>El XML: el documento electrónico firmado, válido ante la DIAN.</li>"+
+			"<li>El PDF: representación gráfica del documento.</li></ul>"+
 			"<p>Este es un mensaje automático, por favor no respondas a esta dirección.</p>",
 		html.EscapeString(d.Customer.Name), typeName, html.EscapeString(d.Prefix), d.Number, html.EscapeString(iss.BusinessName),
 	)

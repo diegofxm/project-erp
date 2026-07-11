@@ -73,17 +73,6 @@ var (
 	// docs/apidian-architecture.md sección 9.45). Igual criterio que ErrInvalidTaxTypeCode.
 	ErrInvalidItemStandardCode = errors.New("documents: estándar de clasificación de línea (lines[].item_type_code) inválido")
 
-	// ErrPDFNotSupportedForDocumentType: la representación gráfica (ver
-	// docs/apidian-architecture.md sección 9.39) por ahora solo está implementada para
-	// Factura — Nota Crédito/Nota Débito se agregan cuando el ciclo de Factura esté probado
-	// de punta a punta (PDF + correo).
-	ErrPDFNotSupportedForDocumentType = errors.New("documents: la representación gráfica todavía no está disponible para este tipo de documento")
-
-	// ErrEmailNotSupportedForDocumentType: mismo criterio que ErrPDFNotSupportedForDocumentType
-	// — el envío por correo (ver docs/apidian-architecture.md sección 9.42) por ahora solo
-	// está implementado para Factura.
-	ErrEmailNotSupportedForDocumentType = errors.New("documents: el envío por correo todavía no está disponible para este tipo de documento")
-
 	// ErrDocumentNotAccepted: solo se envía al cliente un documento que la DIAN ya aceptó
 	// (StatusAccepted) — nunca un borrador, uno rechazado/con error de envío, ni uno en
 	// StatusSent (resultado todavía desconocido, podría acabar rechazado).

@@ -1924,10 +1924,11 @@ sin wiring a `cmd/server`/HTTP, sin CC/BCC/múltiples destinatarios, sin plantil
 de correo (eso se diseña junto con el flujo real de "enviar al cliente"). Eso es la fase
 siguiente.
 
-### 9.41 Pendiente (no implementado): verificación de adquiriente vía DIAN + autorregistro de clientes por QR
+### 9.41 Verificación de adquiriente vía DIAN + autorregistro de clientes por QR — implementado (2026-06-29)
 
 Dos preguntas del usuario (2026-06-27) sobre el flujo de captura de clientes, registradas aquí
-para no perderlas — **nada de esto se implementó todavía**.
+como notas de diseño. **Todo esto se implementó el 2026-06-29** — ver la sección de implementación
+al final de esta sección.
 
 **1. `GetAcquirer` — confirmado real en el WSDL** (`docs/reference/wsdl/xsd0.xsd`/`xsd10.xsd`),
 parte de la misma interfaz `IWcfDianCustomerServices` de la que `cofacture/soap` ya implementa
@@ -1945,9 +1946,7 @@ dirección) sugieren que esto consulta el **registro de intercambio/notificació
 (si ese NIT/cédula ya tiene un nombre y correo registrados para recibir documentos
 electrónicos) — no es una consulta de RUT completa. Es información parcial: útil para validar
 que el dato coincide con lo que la DIAN tiene registrado para ese adquiriente, no para traer
-régimen tributario/responsabilidades/dirección completos. Implementarlo sería una extensión
-pequeña y bien fundamentada de `cofacture/soap/operations.go` (mismo patrón que `GetStatus`) si
-se decide construir el punto 2.
+régimen tributario/responsabilidades/dirección completos.
 
 **2. Autorregistro de clientes por QR (patrón D1 y similares) — sí es un flujo real y normal**
 en retail colombiano de alto volumen/bajo valor: pedir al cajero que digite los datos de cada
@@ -1958,9 +1957,8 @@ sigue siendo del emisor, pero la mitigación estándar es validación automátic
 manual:
 
 - Validación de formato (longitud/patrón por tipo de identificación; dígito de verificación
-  módulo 11 para NIT) — **no existe todavía en este proyecto**: `issuers.CheckDigit`/
-  `customers`/`documents.Customer.Identification` guardan lo que se les manda, sin calcular ni
-  validar el dígito de verificación en ningún punto.
+  módulo 11 para NIT) — derivado en `customers.Service`/`issuers.Service` via `internal/nit.ComputeCheckDigit`
+  cuando `identification_type_code == "31"`. Nunca se acepta del cliente.
 - Cruce opcional contra `GetAcquirer` cuando el tipo de identificación sugiere una empresa
   (NIT) — útil para detectar un NIT mal escrito antes de que quede en un documento legal difícil
   de corregir (una factura aceptada solo se "deshace" con nota crédito). **No es universal**:
@@ -1969,11 +1967,26 @@ manual:
   resultado normal y esperado, no un error — el flujo debe poder continuar igual, usando el
   nombre que la persona escribió.
 
-**Conclusión por ahora**: el patrón de autorregistro por QR es legítimo y no requiere revisión
-de RUT; si se construye, la mejora de calidad de datos razonable es validación de formato +
-dígito de verificación (nuevo) + `GetAcquirer` como ayuda opcional para NIT (no bloqueante).
-Esto queda pendiente de priorizar — no es parte del ciclo actual (PDF + email + envío al
-cliente con un solo documento).
+**Implementación (2026-06-29)**:
+
+- **Dígito de verificación (módulo 11)**: nuevo paquete `apidian/internal/nit`. Se verificó
+  contra NIT real del usuario (`6382356` → `7`) antes de implementar. Se deriva en
+  `customers.Service`/`issuers.Service` cuando `identification_type_code == "31"`.
+
+- **Autorregistro por QR**: rutas sin `middleware.Auth` — `GET /public/issuers/{id}` (solo
+  nombre del emisor) y `POST /public/issuers/{id}/customers` (nombre + identificación + correo/
+  teléfono opcionales; dígito de verificación calculado server-side). Frontend: página pública
+  `/r/:issuerId` sin Navbar/Sidebar + panel QR en Configuración → Empresa (genera el QR en el
+  navegador sin backend adicional).
+
+- **GetAcquirer**: agregado a `cofacture/soap/operations.go` (mismo patrón que `GetStatus`).
+  `documents.Service.VerifyAcquirer` expuesto como `GET /api/v1/dian/verify-acquirer`. Solo
+  visible en frontend para NIT; nunca bloqueante; no conectado al flujo público del QR
+  (requeriría el certificado real del emisor, que puede no estar configurado en ese momento).
+  **Bug real encontrado contra la DIAN**: HTTP 404 con body SOAP válido cuando el adquiriente
+  no existe — el cliente SOAP rechazaba cualquier non-200 antes de parsear. Fix en
+  `cofacture/soap/client.go`: intenta parsear el body PRIMERO, usa el HTTP status solo si
+  la unmarshal falla. Fix general para cualquier operación futura en el mismo escenario.
 
 ### 9.42 Enviar la Factura al cliente por correo — cierre del ciclo
 
