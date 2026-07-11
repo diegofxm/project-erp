@@ -13,6 +13,10 @@ const (
 	attachedDocumentCustomizationID = "Documentos adjuntos"
 	invoiceContainerProfileID       = "Factura Electrónica de Venta"
 	invoiceContainerDocumentType    = "Contenedor de Factura Electrónica"
+	creditNoteContainerProfileID    = "Nota de Crédito de Venta"
+	creditNoteContainerDocumentType = "Contenedor de Nota de Crédito"
+	debitNoteContainerProfileID     = "Nota de Débito de Venta"
+	debitNoteContainerDocumentType  = "Contenedor de Nota de Débito"
 )
 
 // BuildInvoiceAttachedDocument construye el AttachedDocument (contenedor electrónico) que
@@ -25,12 +29,23 @@ const (
 // siempre se entrega con la validación ya embebida, nunca antes — el AttachedDocument no es
 // lo que se envía a la DIAN (eso es el Invoice firmado, dentro de un ZIP, vía
 // SendBillSync/SendBillAsync), es lo que se entrega al adquiriente después.
-//
-// Solo sirve para Invoice por ahora (invoiceContainerProfileID/invoiceContainerDocumentType
-// están fijos al literal de factura) — todavía no existe un BuildCreditNoteAttachedDocument/
-// BuildDebitNoteAttachedDocument equivalente. Es un hueco conocido, no un olvido: se agrega
-// cuando haga falta entregarle el contenedor de una nota al adquiriente.
 func BuildInvoiceAttachedDocument(ad domain.AttachedDocument) (*etree.Document, error) {
+	return buildAttachedDocument(ad, invoiceContainerProfileID, invoiceContainerDocumentType)
+}
+
+// BuildCreditNoteAttachedDocument construye el AttachedDocument para una Nota de Crédito de
+// Venta ya firmada y aceptada por la DIAN. Mismo contrato que BuildInvoiceAttachedDocument.
+func BuildCreditNoteAttachedDocument(ad domain.AttachedDocument) (*etree.Document, error) {
+	return buildAttachedDocument(ad, creditNoteContainerProfileID, creditNoteContainerDocumentType)
+}
+
+// BuildDebitNoteAttachedDocument construye el AttachedDocument para una Nota de Débito de
+// Venta ya firmada y aceptada por la DIAN. Mismo contrato que BuildInvoiceAttachedDocument.
+func BuildDebitNoteAttachedDocument(ad domain.AttachedDocument) (*etree.Document, error) {
+	return buildAttachedDocument(ad, debitNoteContainerProfileID, debitNoteContainerDocumentType)
+}
+
+func buildAttachedDocument(ad domain.AttachedDocument, profileID, docType string) (*etree.Document, error) {
 	doc := etree.NewDocument()
 	doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8" standalone="no"`)
 
@@ -48,12 +63,12 @@ func BuildInvoiceAttachedDocument(ad domain.AttachedDocument) (*etree.Document, 
 
 	root.CreateElement("cbc:UBLVersionID").SetText("UBL 2.1")
 	root.CreateElement("cbc:CustomizationID").SetText(attachedDocumentCustomizationID)
-	root.CreateElement("cbc:ProfileID").SetText(invoiceContainerProfileID)
+	root.CreateElement("cbc:ProfileID").SetText(profileID)
 	root.CreateElement("cbc:ProfileExecutionID").SetText(ad.EnvironmentCode)
 	root.CreateElement("cbc:ID").SetText(ad.ID)
 	root.CreateElement("cbc:IssueDate").SetText(ad.IssueDate)
 	root.CreateElement("cbc:IssueTime").SetText(ad.IssueTime)
-	root.CreateElement("cbc:DocumentType").SetText(invoiceContainerDocumentType)
+	root.CreateElement("cbc:DocumentType").SetText(docType)
 	root.CreateElement("cbc:ParentDocumentID").SetText(ad.ParentDocumentID)
 
 	appendAttachedParty(root, "SenderParty", ad.Sender)

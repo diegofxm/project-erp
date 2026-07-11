@@ -32,7 +32,7 @@ type Repository interface {
 	// prefix/number/document_key/issue_date/issue_time/qr_url/signed_xml todavía.
 	Create(ctx context.Context, d Document) (*Document, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*Document, error)
-	UpdateDianStatus(ctx context.Context, id uuid.UUID, status Status, trackID, statusCode, statusDescription, statusMessage string) error
+	UpdateDianStatus(ctx context.Context, id uuid.UUID, status Status, trackID, statusCode, statusDescription, statusMessage, applicationResponseXML string) error
 
 	// UpdateDraft reemplaza los campos editables de un borrador (todo lo que no depende de
 	// reclamar un número) — solo aplica mientras Status == StatusDraft, devuelve

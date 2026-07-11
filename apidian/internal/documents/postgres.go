@@ -59,6 +59,7 @@ const documentColumns = `
 	dian_status_code,
 	dian_status_description,
 	dian_status_message,
+	application_response_xml,
 	created_at,
 	updated_at`
 
@@ -109,6 +110,7 @@ func (r *PostgresRepository) Create(ctx context.Context, d Document) (*Document,
 		d.DianStatusCode,
 		d.DianStatusDescription,
 		d.DianStatusMessage,
+		nullableString(d.ApplicationResponseXML),
 		d.CreatedAt,
 		d.UpdatedAt,
 	}
@@ -125,13 +127,14 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Docume
 	return scanDocument(row)
 }
 
-func (r *PostgresRepository) UpdateDianStatus(ctx context.Context, id uuid.UUID, status Status, trackID, statusCode, statusDescription, statusMessage string) error {
+func (r *PostgresRepository) UpdateDianStatus(ctx context.Context, id uuid.UUID, status Status, trackID, statusCode, statusDescription, statusMessage, applicationResponseXML string) error {
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE documents
 		SET status = $1, dian_track_id = $2, dian_status_code = $3, dian_status_description = $4,
-		    dian_status_message = $5, updated_at = NOW()
-		WHERE id = $6`,
-		string(status), trackID, statusCode, statusDescription, statusMessage, id,
+		    dian_status_message = $5, application_response_xml = $6, updated_at = NOW()
+		WHERE id = $7`,
+		string(status), trackID, statusCode, statusDescription, statusMessage,
+		nullableString(applicationResponseXML), id,
 	)
 	if err != nil {
 		return fmt.Errorf("update dian status: %w", err)
@@ -320,6 +323,7 @@ func scanDocument(row pgx.Row) (*Document, error) {
 	var status string
 	var customerJSON, linesJSON, paymentMeansJSON, billingRefJSON, discrepancyJSON []byte
 	var dianTrackID, dianStatusCode, dianStatusDescription, dianStatusMessage, noteTypeCode, note *string
+	var applicationResponseXML *string
 	var prefix, documentKey, issueTime, qrURL, signedXML *string
 	var number *int64
 	var issueDate *time.Time
@@ -355,6 +359,7 @@ func scanDocument(row pgx.Row) (*Document, error) {
 		&dianStatusCode,
 		&dianStatusDescription,
 		&dianStatusMessage,
+		&applicationResponseXML,
 		&d.CreatedAt,
 		&d.UpdatedAt,
 	)
@@ -390,6 +395,7 @@ func scanDocument(row pgx.Row) (*Document, error) {
 	if dianStatusMessage != nil {
 		d.DianStatusMessage = *dianStatusMessage
 	}
+	d.ApplicationResponseXML = deref(applicationResponseXML)
 
 	if err := json.Unmarshal(customerJSON, &d.Customer); err != nil {
 		return nil, fmt.Errorf("deserializar customer: %w", err)

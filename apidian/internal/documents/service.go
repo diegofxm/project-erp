@@ -695,12 +695,12 @@ func (s *Service) sendAndUpdate(
 	}
 
 	if last == nil {
-		return s.finish(ctx, d, StatusSent, result.ZipKey, "", "", "respuesta de la DIAN no disponible todavía (sondeo agotado)")
+		return s.finish(ctx, d, StatusSent, result.ZipKey, "", "", "respuesta de la DIAN no disponible todavía (sondeo agotado)", "")
 	}
 
 	interpreted, err := dian.Interpret(*last)
 	if err != nil {
-		return s.finish(ctx, d, StatusSendError, result.ZipKey, last.StatusCode, "", fmt.Sprintf("interpretar respuesta: %v", err))
+		return s.finish(ctx, d, StatusSendError, result.ZipKey, last.StatusCode, "", fmt.Sprintf("interpretar respuesta: %v", err), "")
 	}
 
 	// El test_set_id de este rango ya quedó certificado/cerrado del lado de la DIAN (sección
@@ -718,7 +718,7 @@ func (s *Service) sendAndUpdate(
 	if interpreted.HasRejections() || !interpreted.IsValid {
 		status = StatusRejected
 	}
-	return s.finish(ctx, d, status, result.ZipKey, interpreted.StatusCode, interpreted.StatusDescription, interpreted.StatusMessage)
+	return s.finish(ctx, d, status, result.ZipKey, interpreted.StatusCode, interpreted.StatusDescription, interpreted.StatusMessage, string(interpreted.ApplicationResponseXML))
 }
 
 // sendSyncAndUpdate envía el documento por SendBillSync — un solo documento, síncrono, sin
@@ -751,22 +751,22 @@ func (s *Service) sendSyncAndUpdate(
 
 	interpreted, err := dian.Interpret(*resp)
 	if err != nil {
-		return s.finish(ctx, d, StatusSendError, "", resp.StatusCode, "", fmt.Sprintf("interpretar respuesta: %v", err))
+		return s.finish(ctx, d, StatusSendError, "", resp.StatusCode, "", fmt.Sprintf("interpretar respuesta: %v", err), "")
 	}
 
 	status := StatusAccepted
 	if interpreted.HasRejections() || !interpreted.IsValid {
 		status = StatusRejected
 	}
-	return s.finish(ctx, d, status, "", interpreted.StatusCode, interpreted.StatusDescription, interpreted.StatusMessage)
+	return s.finish(ctx, d, status, "", interpreted.StatusCode, interpreted.StatusDescription, interpreted.StatusMessage, string(interpreted.ApplicationResponseXML))
 }
 
 func (s *Service) markSendError(ctx context.Context, d *Document, sendErr error) (*Document, error) {
-	return s.finish(ctx, d, StatusSendError, "", "", "", sendErr.Error())
+	return s.finish(ctx, d, StatusSendError, "", "", "", sendErr.Error(), "")
 }
 
-func (s *Service) finish(ctx context.Context, d *Document, status Status, trackID, statusCode, statusDescription, statusMessage string) (*Document, error) {
-	if err := s.repo.UpdateDianStatus(ctx, d.ID, status, trackID, statusCode, statusDescription, statusMessage); err != nil {
+func (s *Service) finish(ctx context.Context, d *Document, status Status, trackID, statusCode, statusDescription, statusMessage, applicationResponseXML string) (*Document, error) {
+	if err := s.repo.UpdateDianStatus(ctx, d.ID, status, trackID, statusCode, statusDescription, statusMessage, applicationResponseXML); err != nil {
 		return nil, err
 	}
 	d.Status = status
@@ -774,6 +774,7 @@ func (s *Service) finish(ctx context.Context, d *Document, status Status, trackI
 	d.DianStatusCode = statusCode
 	d.DianStatusDescription = statusDescription
 	d.DianStatusMessage = statusMessage
+	d.ApplicationResponseXML = applicationResponseXML
 
 	// El número nunca quedó realmente registrado ante la DIAN (rechazado) ni siquiera se logró
 	// transmitir (send_error) — se intenta devolver para que el siguiente intento lo reclame de

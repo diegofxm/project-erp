@@ -99,6 +99,11 @@ type Document struct {
 	DianStatusCode        string
 	DianStatusDescription string // texto humano de dian.Result — ej. "Set de prueba ... Aceptado"
 	DianStatusMessage     string // distinto de StatusDescription: la DIAN los usa para cosas distintas
+	// ApplicationResponseXML es el XML del ApplicationResponse que devolvió la DIAN al
+	// validar el documento. Se persiste para poder construir el AttachedDocument UBL (el
+	// contenedor que se entrega al adquiriente por correo según la sección 9.1 del Anexo
+	// Técnico 1.9). Vacío en documentos aceptados antes de la migración 000013.
+	ApplicationResponseXML string
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

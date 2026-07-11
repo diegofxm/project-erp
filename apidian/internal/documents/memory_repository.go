@@ -48,7 +48,7 @@ func (r *MemoryRepository) GetByID(_ context.Context, id uuid.UUID) (*Document, 
 	return &cp, nil
 }
 
-func (r *MemoryRepository) UpdateDianStatus(_ context.Context, id uuid.UUID, status Status, trackID, statusCode, statusDescription, statusMessage string) error {
+func (r *MemoryRepository) UpdateDianStatus(_ context.Context, id uuid.UUID, status Status, trackID, statusCode, statusDescription, statusMessage, applicationResponseXML string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	d, ok := r.docs[id]
@@ -60,6 +60,7 @@ func (r *MemoryRepository) UpdateDianStatus(_ context.Context, id uuid.UUID, sta
 	d.DianStatusCode = statusCode
 	d.DianStatusDescription = statusDescription
 	d.DianStatusMessage = statusMessage
+	d.ApplicationResponseXML = applicationResponseXML
 	d.UpdatedAt = time.Now().UTC()
 	return nil
 }
