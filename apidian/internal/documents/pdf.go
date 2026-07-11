@@ -7,7 +7,6 @@ import (
 	"github.com/diegofxm/apidian/internal/numbering"
 	"github.com/diegofxm/apidian/internal/pdf"
 	"github.com/google/uuid"
-	"github.com/johnfercher/maroto/v2/pkg/consts/extension"
 )
 
 // RenderDocumentPDF construye la representación gráfica en PDF de cualquier documento DIAN
@@ -123,7 +122,7 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		IssuerPhone:        iss.Phone,
 		IssuerEmail:        iss.Email,
 		IssuerLogo:         iss.Logo,
-		IssuerLogoExt:      extension.Type(iss.LogoContentType),
+		IssuerLogoExt:      iss.LogoContentType,
 
 		IsDraft:      d.Status == StatusDraft,
 		Prefix:       d.Prefix,

@@ -7,8 +7,6 @@ import (
 	"image/png"
 	"os"
 	"testing"
-
-	"github.com/johnfercher/maroto/v2/pkg/consts/extension"
 )
 
 func sampleInput() InvoiceInput {
@@ -90,7 +88,7 @@ func TestBuildInvoicePDF_WithLogo(t *testing.T) {
 	in := sampleInput()
 	in.IsDraft = true
 	in.IssuerLogo = onePixelPNG()
-	in.IssuerLogoExt = extension.Png
+	in.IssuerLogoExt = "png"
 
 	got, err := BuildInvoicePDF(in)
 	if err != nil {
@@ -136,13 +134,6 @@ func assertLooksLikePDF(t *testing.T, b []byte) {
 	if !bytes.HasPrefix(b, []byte("%PDF")) {
 		t.Fatalf("BuildInvoicePDF() no empieza con %%PDF, primeros bytes: %q", b[:min(20, len(b))])
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // onePixelPNG genera un PNG 1x1 válido en memoria (vía image/png, no bytes a mano) —
