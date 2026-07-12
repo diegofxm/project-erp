@@ -1,3 +1,4 @@
+import { AlertCircle, CheckCircle2, Info } from "lucide-react";
 import type { ReactNode } from "react";
 
 type Tone = "success" | "danger" | "info";
@@ -8,8 +9,19 @@ const TONE_CLASSES: Record<Tone, string> = {
   info: "bg-(--color-info-bg) border-(--color-info-border) text-(--color-info-text)",
 };
 
+const TONE_ICONS: Record<Tone, ReactNode> = {
+  success: <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />,
+  danger: <AlertCircle className="h-3.5 w-3.5 shrink-0" />,
+  info: <Info className="h-3.5 w-3.5 shrink-0" />,
+};
+
 // Banner pastel fijo por tipo (sección 2.3 del design system) — para errores de login/register
 // y mensajes de estado del onboarding.
 export function Banner({ tone, children }: { tone: Tone; children: ReactNode }) {
-  return <div className={`rounded border px-3 py-2 text-xs ${TONE_CLASSES[tone]}`}>{children}</div>;
+  return (
+    <div className={`flex items-start gap-2 rounded border px-3 py-2 text-xs ${TONE_CLASSES[tone]}`}>
+      {TONE_ICONS[tone]}
+      <span>{children}</span>
+    </div>
+  );
 }

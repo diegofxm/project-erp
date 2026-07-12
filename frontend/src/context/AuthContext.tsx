@@ -101,8 +101,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // porque el backend está apagado) NO toca la sesión, solo prende connectionError — no es
   // culpa de las credenciales que el servidor esté caído.
   const verifySession = useCallback(async () => {
+    const stored = readStoredSession();
     try {
-      await apiClient.get("/issuers");
+      // Si hay una empresa activa guardada, re-seleccionarla refresca activeIssuer desde el
+      // servidor (el nombre u otros datos pueden haber cambiado fuera del frontend). Si no hay
+      // empresa activa, GET /issuers basta para confirmar el token.
+      if (stored?.issuer?.id) {
+        const result = await apiClient.post<AuthResult>(`/issuers/${stored.issuer.id}/select`, undefined);
+        applyAuthResult(result);
+      } else {
+        await apiClient.get("/issuers");
+      }
       setConnectionError(false);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -112,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setConnectionError(true);
       }
     }
-  }, [logout]);
+  }, [logout, applyAuthResult]);
 
   useEffect(() => {
     const stored = readStoredSession();
