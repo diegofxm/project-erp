@@ -10,16 +10,16 @@ const TONE_CLASSES: Record<Tone, string> = {
 };
 
 const TONE_ICONS: Record<Tone, ReactNode> = {
-  success: <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />,
-  danger: <AlertCircle className="h-3.5 w-3.5 shrink-0" />,
-  info: <Info className="h-3.5 w-3.5 shrink-0" />,
+  success: <CheckCircle2 className="h-4 w-4 shrink-0" />,
+  danger: <AlertCircle className="h-4 w-4 shrink-0" />,
+  info: <Info className="h-4 w-4 shrink-0" />,
 };
 
 // Banner pastel fijo por tipo (sección 2.3 del design system) — para errores de login/register
 // y mensajes de estado del onboarding.
 export function Banner({ tone, children }: { tone: Tone; children: ReactNode }) {
   return (
-    <div className={`flex items-start gap-2 rounded border px-3 py-2 text-xs ${TONE_CLASSES[tone]}`}>
+    <div className={`flex flex-col items-center gap-1.5 rounded border px-3 py-3 text-center text-xs ${TONE_CLASSES[tone]}`}>
       {TONE_ICONS[tone]}
       <span>{children}</span>
     </div>
