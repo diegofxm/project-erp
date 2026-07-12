@@ -13,12 +13,12 @@ import {
 } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
-import { dianStatusLabel } from "../lib/dianStatus";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import type { Document, IssueInvoicePayload } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
+import { DianStatusBlock } from "../components/DianStatusBlock";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Spinner } from "../components/ui/Spinner";
@@ -264,13 +264,7 @@ export function InvoiceEditorPage() {
             </p>
           )}
 
-          {(doc.dian_status_code || doc.dian_status_description) && (
-            <div className="rounded border border-(--border-color) bg-(--bg-primary) p-3 text-xs">
-              <p className="font-medium text-(--text-primary)">Estado DIAN: {dianStatusLabel(doc.dian_status_code)}</p>
-              {doc.dian_status_description && <p className="mt-1 text-(--text-secondary)">{doc.dian_status_description}</p>}
-              {doc.dian_status_message && <p className="mt-1 text-(--text-secondary)">{doc.dian_status_message}</p>}
-            </div>
-          )}
+          <DianStatusBlock statusCode={doc.dian_status_code} description={doc.dian_status_description} message={doc.dian_status_message} />
 
           {relatedNotes.length > 0 && (
             <div className="flex flex-col gap-1">
