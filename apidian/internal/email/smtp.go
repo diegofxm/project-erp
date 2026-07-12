@@ -9,9 +9,9 @@ import (
 	gomail "github.com/wneessen/go-mail"
 )
 
-// Config son las credenciales/parámetros del servidor SMTP. En producción se apunta al relay
-// SMTP de Resend (smtp.resend.com:587, password = API key) con dominio propio verificado; en
-// desarrollo se usa Mailtrap sandbox. Sin cambios de código entre entornos — solo config.
+// Config son las credenciales/parámetros del servidor SMTP. Se usa SMTP (no API de correo)
+// porque la facturación electrónica requiere adjuntar archivos binarios (ZIP con XML + PDF);
+// solo cambia la config entre entornos, no el código.
 type Config struct {
 	Host        string
 	Port        int
