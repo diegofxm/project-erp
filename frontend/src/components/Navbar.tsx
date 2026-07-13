@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Building2, ChevronDown, LogOut, Server, Settings, UserCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -16,6 +16,16 @@ function getInitials(name: string | undefined): string {
 export function Navbar() {
   const { user, activeIssuer, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onMouseDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [menuOpen]);
 
   return (
     <header className="flex h-10 items-center justify-between bg-(--navbar-bg) px-3 text-(--navbar-text)">
@@ -45,7 +55,7 @@ export function Navbar() {
           <Building2 className="h-4 w-4" />
         </Link>
         <NotificationBell />
-        <div className="relative">
+        <div ref={menuRef} className="relative">
           <button
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
