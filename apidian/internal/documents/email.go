@@ -9,6 +9,7 @@ import (
 	"github.com/beevik/etree"
 	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
+	"github.com/diegofxm/apidian/internal/pdf"
 	"github.com/diegofxm/cofacture/builder"
 	"github.com/diegofxm/cofacture/domain"
 	"github.com/diegofxm/cofacture/signer"
@@ -25,7 +26,7 @@ import (
 // el ZIP contiene el XML firmado crudo + el PDF (comportamiento anterior).
 //
 // Válido para Factura (01), Nota Crédito (91) y Nota Débito (92). Solo StatusAccepted.
-func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID) error {
+func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID, format pdf.Format) error {
 	d, iss, err := s.loadDocumentAndIssuer(ctx, issuerID, id)
 	if err != nil {
 		return err
@@ -37,7 +38,7 @@ func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID)
 		return ErrCustomerEmailMissing
 	}
 
-	pdfBytes, err := s.RenderDocumentPDF(ctx, issuerID, id)
+	pdfBytes, err := s.RenderDocumentPDF(ctx, issuerID, id, format)
 	if err != nil {
 		return err
 	}

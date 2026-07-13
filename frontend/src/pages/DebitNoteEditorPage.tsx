@@ -9,6 +9,7 @@ import {
   getDocumentPdfBlobUrl,
   sendDocumentEmail,
   updateDebitNoteDraft,
+  type PDFFormat,
 } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
@@ -60,6 +61,7 @@ export function DebitNoteEditorPage() {
   const [confirming, setConfirming] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [pdfFormat, setPdfFormat] = useState<PDFFormat>("full_a4");
 
   useEffect(() => {
     if (isNew) {
@@ -147,7 +149,7 @@ export function DebitNoteEditorPage() {
     if (!id || isNew) return;
     setLoadingPdf(true);
     try {
-      const url = await getDocumentPdfBlobUrl(id);
+      const url = await getDocumentPdfBlobUrl(id, pdfFormat);
       window.open(url, "_blank");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo generar el PDF");
@@ -161,7 +163,7 @@ export function DebitNoteEditorPage() {
     if (!(await confirmDialog(`¿Enviar esta nota débito por correo a ${doc.customer.email || "el cliente"}?`))) return;
     setSendingEmail(true);
     try {
-      await sendDocumentEmail(id);
+      await sendDocumentEmail(id, pdfFormat);
       toast.success(`Nota Débito enviada a ${doc.customer.email}`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo enviar la nota débito por correo");
@@ -197,6 +199,16 @@ export function DebitNoteEditorPage() {
           </h1>
         <div className="flex items-center gap-2">
           {doc && <StatusBadge status={doc.status} />}
+          {!isNew && doc && (
+            <select
+              value={pdfFormat}
+              onChange={(e) => setPdfFormat(e.target.value as PDFFormat)}
+              className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
+            >
+              <option value="full_a4">PDF A4 completo</option>
+              <option value="half_a4">PDF media página (2 copias)</option>
+            </select>
+          )}
           {!isNew && doc && (
             <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
               Ver PDF

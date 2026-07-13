@@ -11,6 +11,7 @@ import (
 	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
+	"github.com/diegofxm/apidian/internal/pdf"
 	"github.com/diegofxm/cofacture/domain"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -904,7 +905,7 @@ func TestRenderDocumentPDF_Draft(t *testing.T) {
 	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
 	require.NoError(t, err)
 
-	got, err := svc.RenderDocumentPDF(context.Background(), iss.ID, draft.ID)
+	got, err := svc.RenderDocumentPDF(context.Background(), iss.ID, draft.ID, pdf.FormatFullA4)
 	require.NoError(t, err)
 	assert.True(t, len(got) > 0 && string(got[:4]) == "%PDF", "debe ser un PDF válido")
 }
@@ -923,7 +924,7 @@ func TestRenderDocumentPDF_Confirmed(t *testing.T) {
 
 	doc := issueInvoice(t, svc, testRequest(iss.ID, nr.ID))
 
-	got, err := svc.RenderDocumentPDF(context.Background(), iss.ID, doc.ID)
+	got, err := svc.RenderDocumentPDF(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4)
 	require.NoError(t, err)
 	assert.True(t, len(got) > 0 && string(got[:4]) == "%PDF", "debe ser un PDF válido")
 }
@@ -943,7 +944,7 @@ func TestRenderDocumentPDF_OtherIssuer(t *testing.T) {
 	draft, err := svc.CreateInvoiceDraft(context.Background(), testRequest(iss.ID, nr.ID))
 	require.NoError(t, err)
 
-	_, err = svc.RenderDocumentPDF(context.Background(), uuid.New(), draft.ID)
+	_, err = svc.RenderDocumentPDF(context.Background(), uuid.New(), draft.ID, pdf.FormatFullA4)
 	assert.ErrorIs(t, err, documents.ErrDocumentNotFound)
 }
 
@@ -966,7 +967,7 @@ func TestRenderDocumentPDF_CreditNote(t *testing.T) {
 	draft, err := svc.CreateCreditNoteDraft(context.Background(), req)
 	require.NoError(t, err)
 
-	got, err := svc.RenderDocumentPDF(context.Background(), iss.ID, draft.ID)
+	got, err := svc.RenderDocumentPDF(context.Background(), iss.ID, draft.ID, pdf.FormatFullA4)
 	require.NoError(t, err)
 	assert.True(t, len(got) > 0 && string(got[:4]) == "%PDF", "debe ser un PDF válido")
 }
@@ -986,7 +987,7 @@ func TestRenderDocumentPDF_DebitNote(t *testing.T) {
 	draft, err := svc.CreateDebitNoteDraft(context.Background(), testNoteRequest(iss.ID, nr.ID))
 	require.NoError(t, err)
 
-	got, err := svc.RenderDocumentPDF(context.Background(), iss.ID, draft.ID)
+	got, err := svc.RenderDocumentPDF(context.Background(), iss.ID, draft.ID, pdf.FormatFullA4)
 	require.NoError(t, err)
 	assert.True(t, len(got) > 0 && string(got[:4]) == "%PDF", "debe ser un PDF válido")
 }
@@ -1066,7 +1067,7 @@ func TestSendDocumentEmail_OK(t *testing.T) {
 	svc := documents.New(repo, &fakeIssuerPort{issuer: iss}, &fakeNumberingPort{nr: testNumberingRange(iss.ID)}, &fakeCustomerPort{}, newFakeCatalogPort(), emailPort)
 	doc := seedInvoice(t, repo, iss.ID, documents.StatusAccepted, "cliente@example.test")
 
-	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID)
+	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4)
 	require.NoError(t, err)
 
 	require.Len(t, emailPort.sent, 1)
@@ -1085,7 +1086,7 @@ func TestSendDocumentEmail_NotAccepted(t *testing.T) {
 	svc := documents.New(repo, &fakeIssuerPort{issuer: iss}, &fakeNumberingPort{}, &fakeCustomerPort{}, newFakeCatalogPort(), &fakeEmailPort{})
 	doc := seedInvoice(t, repo, iss.ID, documents.StatusBuilt, "cliente@example.test")
 
-	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID)
+	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4)
 	assert.ErrorIs(t, err, documents.ErrDocumentNotAccepted)
 }
 
@@ -1095,7 +1096,7 @@ func TestSendDocumentEmail_MissingCustomerEmail(t *testing.T) {
 	svc := documents.New(repo, &fakeIssuerPort{issuer: iss}, &fakeNumberingPort{}, &fakeCustomerPort{}, newFakeCatalogPort(), &fakeEmailPort{})
 	doc := seedInvoice(t, repo, iss.ID, documents.StatusAccepted, "")
 
-	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID)
+	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4)
 	assert.ErrorIs(t, err, documents.ErrCustomerEmailMissing)
 }
 
@@ -1105,7 +1106,7 @@ func TestSendDocumentEmail_OtherIssuer(t *testing.T) {
 	svc := documents.New(repo, &fakeIssuerPort{issuer: iss}, &fakeNumberingPort{}, &fakeCustomerPort{}, newFakeCatalogPort(), &fakeEmailPort{})
 	doc := seedInvoice(t, repo, iss.ID, documents.StatusAccepted, "cliente@example.test")
 
-	err := svc.SendDocumentEmail(context.Background(), uuid.New(), doc.ID)
+	err := svc.SendDocumentEmail(context.Background(), uuid.New(), doc.ID, pdf.FormatFullA4)
 	assert.ErrorIs(t, err, documents.ErrDocumentNotFound)
 }
 
@@ -1117,7 +1118,7 @@ func TestSendDocumentEmail_CreditNote(t *testing.T) {
 	svc := documents.New(repo, &fakeIssuerPort{issuer: iss}, &fakeNumberingPort{nr: nr}, &fakeCustomerPort{}, newFakeCatalogPort(), emailPort)
 	doc := seedCreditNote(t, repo, iss.ID, documents.StatusAccepted, "cliente@example.test")
 
-	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID)
+	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4)
 	require.NoError(t, err)
 
 	require.Len(t, emailPort.sent, 1)
@@ -1137,7 +1138,7 @@ func TestSendDocumentEmail_SendFailurePropagates(t *testing.T) {
 	svc := documents.New(repo, &fakeIssuerPort{issuer: iss}, &fakeNumberingPort{nr: testNumberingRange(iss.ID)}, &fakeCustomerPort{}, newFakeCatalogPort(), &fakeEmailPort{err: sendErr})
 	doc := seedInvoice(t, repo, iss.ID, documents.StatusAccepted, "cliente@example.test")
 
-	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID)
+	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4)
 	assert.ErrorIs(t, err, sendErr)
 }
 

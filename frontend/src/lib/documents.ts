@@ -19,12 +19,16 @@ export function getDocument(id: string): Promise<Document> {
   return apiClient.get<Document>(`/documents/${id}`);
 }
 
+export type PDFFormat = "full_a4" | "half_a4";
+
 // getDocumentPdfBlobUrl trae la representación gráfica (generada en memoria en el servidor,
 // nunca guardada a disco, ver docs/apidian-architecture.md sección 9.39) y devuelve un
 // Object URL para abrirla en una pestaña nueva — necesario porque el endpoint exige
 // Authorization: Bearer, que un <a href> plano no puede mandar. Funciona para Factura, NC y ND.
-export async function getDocumentPdfBlobUrl(id: string): Promise<string> {
-  const blob = await apiClient.getBlob(`/documents/${id}/pdf`);
+// format: "full_a4" (defecto) = A4 completo; "half_a4" = dos copias por hoja con línea de corte.
+export async function getDocumentPdfBlobUrl(id: string, format: PDFFormat = "full_a4"): Promise<string> {
+  const query = format !== "full_a4" ? `?format=${format}` : "";
+  const blob = await apiClient.getBlob(`/documents/${id}/pdf${query}`);
   return URL.createObjectURL(blob);
 }
 
@@ -65,9 +69,10 @@ export function confirmDocument(id: string): Promise<Document> {
 
 // sendDocumentEmail envía el documento (debe estar accepted) al correo del cliente con el PDF y
 // el XML firmado adjuntos (ver docs/apidian-architecture.md sección 9.42). Funciona para
-// Factura, NC y ND — sin body de petición ni de respuesta.
-export function sendDocumentEmail(id: string): Promise<void> {
-  return apiClient.post<void>(`/documents/${id}/send-email`);
+// Factura, NC y ND. El PDF adjunto usa el formato indicado (defecto: full_a4).
+export function sendDocumentEmail(id: string, format: PDFFormat = "full_a4"): Promise<void> {
+  const body = format !== "full_a4" ? { pdf_format: format } : undefined;
+  return apiClient.post<void>(`/documents/${id}/send-email`, body);
 }
 
 // lineToInput es el inverso de lo que calcula el servidor — para editar un borrador ya

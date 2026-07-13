@@ -9,6 +9,7 @@ import (
 	"github.com/diegofxm/apidian/internal/api/middleware"
 	"github.com/diegofxm/apidian/internal/api/response"
 	"github.com/diegofxm/apidian/internal/documents"
+	"github.com/diegofxm/apidian/internal/pdf"
 	"github.com/google/uuid"
 )
 
@@ -494,13 +495,15 @@ func (a *API) handleGetDocument(w http.ResponseWriter, r *http.Request) {
 // handleGetDocumentPDF sirve la representación gráfica en PDF — generada en memoria en cada
 // petición, nunca se guarda a disco (ver docs/apidian-architecture.md sección 9.39/9.49). Sirve
 // igual para Factura, NC y ND, ya sea borrador o confirmado.
+// Acepta ?format=full_a4 (defecto) o ?format=half_a4 (dos copias por hoja con línea de corte).
 func (a *API) handleGetDocumentPDF(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseUUID(w, r.PathValue("id"))
 	if !ok {
 		return
 	}
 
-	pdfBytes, err := a.documents.RenderDocumentPDF(r.Context(), middleware.GetTenantID(r.Context()), id)
+	format := pdf.ParseFormat(r.URL.Query().Get("format"))
+	pdfBytes, err := a.documents.RenderDocumentPDF(r.Context(), middleware.GetTenantID(r.Context()), id, format)
 	if err != nil {
 		response.WriteError(w, err)
 		return
@@ -511,16 +514,29 @@ func (a *API) handleGetDocumentPDF(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(pdfBytes)
 }
 
+type sendEmailRequest struct {
+	PDFFormat string `json:"pdf_format,omitempty"`
+}
+
 // handleSendDocumentEmail envía el documento accepted al correo del cliente con el PDF y el XML
 // firmado adjuntos (ver docs/apidian-architecture.md sección 9.42/9.49). Válido para Factura,
-// NC y ND. Sin body de respuesta — el documento no cambia como resultado de esto.
+// NC y ND. Body opcional: {"pdf_format":"half_a4"} — sin body usa full_a4.
 func (a *API) handleSendDocumentEmail(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseUUID(w, r.PathValue("id"))
 	if !ok {
 		return
 	}
 
-	if err := a.documents.SendDocumentEmail(r.Context(), middleware.GetTenantID(r.Context()), id); err != nil {
+	var req sendEmailRequest
+	if r.ContentLength > 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
+			return
+		}
+	}
+
+	format := pdf.ParseFormat(req.PDFFormat)
+	if err := a.documents.SendDocumentEmail(r.Context(), middleware.GetTenantID(r.Context()), id, format); err != nil {
 		response.WriteError(w, err)
 		return
 	}

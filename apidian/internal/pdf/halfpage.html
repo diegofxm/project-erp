@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>{{.Copy1.DocumentTitle}} · {{.Copy1.DocNumber}}</title>
+<style>
+
+/* ── Reset ───────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+@page { size: A4; margin: 0; }
+
+:root {
+  --ink:         #111111;
+  --muted:       #555555;
+  --accent:      #14345C;
+  --shade:       #EDEDED;
+  --accent-tint: #EAF0F8;
+  --num-red:     #C0392B;
+  --rule:        0.6pt;
+  --hair:        0.4pt;
+  --rule-strong: 1pt;
+}
+
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 7.5pt;
+  line-height: 1.2;
+  color: var(--ink);
+  background: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ── Página ──────────────────────────────────── */
+.page {
+  height: 297mm;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Cada slip ocupa la mitad disponible de la hoja */
+.slip {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 5mm 8mm 4mm 8mm;
+}
+
+/* ── Línea de corte ──────────────────────────── */
+.cut {
+  height: 7mm;
+  flex-shrink: 0;
+  border-top: 1pt dashed var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 6pt;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+}
+
+/* ── Cabecera del slip ───────────────────────── */
+.s-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 4mm;
+  margin-bottom: 2.5mm;
+  flex-shrink: 0;
+}
+
+.s-co {
+  display: flex;
+  gap: 2mm;
+  align-items: flex-start;
+  flex: 1;
+}
+
+.s-logo {
+  width: 14mm;
+  height: 14mm;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.s-logo img { width: 100%; height: 100%; object-fit: contain; }
+
+.s-coname {
+  font-size: 9pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1.15;
+  color: var(--accent);
+}
+
+.s-nit {
+  font-size: 7pt;
+  font-weight: 700;
+  margin-top: 0.5mm;
+}
+
+.s-coinfo {
+  font-size: 6.5pt;
+  color: var(--muted);
+  line-height: 1.3;
+  margin-top: 0.5mm;
+}
+
+/* Bloque derecho: tipo + número + copia + QR */
+.s-docbox {
+  text-align: right;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5mm;
+}
+
+.s-doctype {
+  font-size: 7.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+
+.s-docnum {
+  font-size: 12pt;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: var(--num-red);
+}
+
+.s-date {
+  font-size: 6.5pt;
+  color: var(--muted);
+}
+
+.s-copy-label {
+  font-size: 6pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border: 0.4pt solid var(--muted);
+  padding: 0.4mm 1.2mm;
+  border-radius: 0.5mm;
+  margin-top: 0.5mm;
+}
+
+.s-qr {
+  width: 16mm;
+  height: 16mm;
+  margin-top: 1mm;
+}
+
+.s-qr img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+.s-qr-ph {
+  width: 16mm;
+  height: 16mm;
+  margin-top: 1mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 5.5pt;
+  color: #bbb;
+  text-align: center;
+  border: 0.4pt dashed #ccc;
+}
+
+/* ── Borrador ────────────────────────────────── */
+.s-draft-bar {
+  background: var(--shade);
+  border: var(--rule-strong) solid var(--accent);
+  text-align: center;
+  font-size: 7pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.8mm 2mm;
+  margin-bottom: 2mm;
+  flex-shrink: 0;
+}
+
+/* ── Adquiriente ─────────────────────────────── */
+.s-customer {
+  border: var(--rule) solid var(--accent);
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 2mm;
+  flex-shrink: 0;
+}
+
+.s-bar {
+  background: var(--accent);
+  color: #fff;
+  font-size: 6pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.6mm 2mm;
+}
+
+.s-customer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2mm;
+  padding: 1.2mm 2mm;
+  font-size: 7pt;
+}
+
+.s-kv { display: flex; gap: 1mm; }
+.s-kv .k { font-weight: 700; flex-shrink: 0; }
+.s-kv .v { color: var(--ink); }
+
+/* ── Tabla de ítems ──────────────────────────── */
+.s-items-frame {
+  border: var(--rule) solid var(--accent);
+  margin-bottom: 2mm;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+table.s-items {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table.s-items thead th {
+  background: var(--accent-tint);
+  color: var(--accent);
+  border-bottom: var(--hair) solid var(--accent);
+  font-size: 6pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 0.8mm 1.5mm;
+  text-align: left;
+}
+
+table.s-items thead th.r { text-align: right; }
+table.s-items thead th.c { text-align: center; }
+table.s-items thead th:not(:last-child) { border-right: var(--hair) solid var(--accent); }
+
+table.s-items tbody td {
+  padding: 1mm 1.5mm;
+  font-size: 7pt;
+  border-bottom: var(--hair) solid var(--accent);
+  vertical-align: top;
+}
+
+table.s-items tbody td:not(:last-child) { border-right: var(--hair) solid var(--accent); }
+table.s-items tbody td.r { text-align: right; }
+table.s-items tbody td.c { text-align: center; color: var(--muted); }
+
+/* ── Totales ─────────────────────────────────── */
+.s-totals {
+  border: var(--rule) solid var(--accent);
+  margin-bottom: 2mm;
+  flex-shrink: 0;
+}
+
+.s-t-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.8mm 2mm;
+  font-size: 7pt;
+  border-bottom: 0.3pt solid #ddd;
+}
+
+.s-t-row.grand {
+  border-top: var(--rule-strong) solid var(--accent);
+  border-bottom: none;
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 8.5pt;
+  padding: 1.2mm 2mm;
+}
+
+/* ── Pie del slip ────────────────────────────── */
+.s-footer {
+  border: var(--rule) solid var(--accent);
+  padding: 1.2mm 2mm;
+  font-size: 6pt;
+  color: var(--muted);
+  line-height: 1.35;
+  flex-shrink: 0;
+}
+
+.s-cufe-row {
+  display: flex;
+  gap: 1.5mm;
+  align-items: baseline;
+  margin-top: 0.5mm;
+}
+
+.s-cufe-row .k {
+  font-size: 6pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+
+.s-cufe-row .v {
+  font-size: 6pt;
+  color: var(--ink);
+  word-break: break-all;
+}
+
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  {{template "slip" .Copy1}}
+
+  <div class="cut">✂&ensp;— — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —</div>
+
+  {{template "slip" .Copy2}}
+
+</div>
+
+{{define "slip"}}
+<div class="slip">
+
+  <div class="s-header">
+    <div class="s-co">
+      {{if .LogoDataURL}}
+      <div class="s-logo"><img src="{{.LogoDataURL}}" alt=""></div>
+      {{end}}
+      <div>
+        <div class="s-coname">{{.BusinessName}}</div>
+        <div class="s-nit">NIT {{.NIT}}-{{.CheckDigit}}</div>
+        {{if .City}}<div class="s-coinfo">{{.City}}</div>{{end}}
+      </div>
+    </div>
+
+    <div class="s-docbox">
+      <div class="s-doctype">{{.DocumentTitle}}</div>
+      <div class="s-docnum">{{.DocNumber}}</div>
+      {{if .IssueDate}}<div class="s-date">{{.IssueDate}}</div>{{end}}
+      <div class="s-copy-label">{{.CopyLabel}}</div>
+      {{if .QR}}
+      <div class="s-qr"><img src="{{.QR}}" alt="QR DIAN"></div>
+      {{else}}
+      <div class="s-qr-ph">QR al confirmar</div>
+      {{end}}
+    </div>
+  </div>
+
+  {{if .IsDraft}}
+  <div class="s-draft-bar">Borrador — Pendiente de confirmación ante la DIAN</div>
+  {{end}}
+
+  <div class="s-customer">
+    <div class="s-bar">Adquiriente</div>
+    <div class="s-customer-row">
+      <div class="s-kv"><span class="k">Nombre:</span><span class="v">{{.CustomerName}}</span></div>
+      <div class="s-kv"><span class="k">{{.CustomerIDType}}:</span><span class="v">{{.CustomerID}}</span></div>
+      {{if .CustomerEmail}}<div class="s-kv"><span class="k">Email:</span><span class="v">{{.CustomerEmail}}</span></div>{{end}}
+    </div>
+  </div>
+
+  <div class="s-items-frame">
+    <table class="s-items">
+      <thead>
+        <tr>
+          <th style="width:6mm">#</th>
+          <th>Descripción</th>
+          <th class="r" style="width:12mm">Cant.</th>
+          <th class="r" style="width:22mm">P. Unit.</th>
+          <th class="c" style="width:10mm">IVA</th>
+          <th class="r" style="width:22mm">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Lines}}
+        <tr>
+          <td class="c">{{.Num}}</td>
+          <td>{{.Description}}</td>
+          <td class="r">{{.Qty}}</td>
+          <td class="r">{{.UnitPrice}}</td>
+          <td class="c">{{.TaxRate}}</td>
+          <td class="r">{{.LineTotal}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="s-totals">
+    <div class="s-t-row"><span>Subtotal</span><span>{{.Subtotal}}</span></div>
+    <div class="s-t-row"><span>Impuestos</span><span>{{.TaxTotal}}</span></div>
+    <div class="s-t-row grand"><span>Total {{.Currency}}</span><span>{{.GrandTotal}}</span></div>
+  </div>
+
+  <div class="s-footer">
+    {{if .ResolutionText}}{{.ResolutionText}}<br>{{end}}
+    Representación gráfica de {{.DocTitleLower}}. Válida solo con archivo XML firmado ante la DIAN.
+    {{if not .IsDraft}}
+    <div class="s-cufe-row"><span class="k">{{.HashLabel}}</span><span class="v">{{.CUFE}}</span></div>
+    {{end}}
+  </div>
+
+</div>
+{{end}}
+
+</body>
+</html>

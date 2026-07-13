@@ -13,7 +13,7 @@ import (
 // RenderDocumentPDF construye la representación gráfica en PDF de cualquier documento DIAN
 // (Factura, Nota Crédito o Nota Débito) — borrador o ya confirmado — siempre en memoria, nunca
 // a disco (ver docs/apidian-architecture.md sección 9.39/9.49).
-func (s *Service) RenderDocumentPDF(ctx context.Context, issuerID, id uuid.UUID) ([]byte, error) {
+func (s *Service) RenderDocumentPDF(ctx context.Context, issuerID, id uuid.UUID, format pdf.Format) ([]byte, error) {
 	d, iss, err := s.loadDocumentAndIssuer(ctx, issuerID, id)
 	if err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func (s *Service) RenderDocumentPDF(ctx context.Context, issuerID, id uuid.UUID)
 	if err != nil {
 		return nil, err
 	}
-	return pdf.BuildInvoicePDF(input)
+	return pdf.BuildPDF(format, input)
 }
 
 // loadDocumentAndIssuer carga un documento, valida que pertenezca al emisor y carga el emisor.
