@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { Bell, Building2, ChevronDown, LogOut, Server, Settings, UserCircle } from "lucide-react";
+import { Building2, ChevronDown, LogOut, Server, Settings, UserCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { NotificationBell } from "./NotificationBell";
 
 function getInitials(name: string | undefined): string {
   if (!name) return "?";
@@ -43,14 +44,7 @@ export function Navbar() {
         >
           <Building2 className="h-4 w-4" />
         </Link>
-        <button
-          type="button"
-          disabled
-          title="Notificaciones (próximamente)"
-          className="cursor-not-allowed rounded p-1.5 text-(--navbar-text) opacity-40"
-        >
-          <Bell className="h-4 w-4" />
-        </button>
+        <NotificationBell />
         <div className="relative">
           <button
             type="button"

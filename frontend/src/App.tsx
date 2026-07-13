@@ -3,6 +3,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { ToastProvider } from "./context/ToastContext";
 import { ConfirmProvider } from "./context/ConfirmContext";
+import { NotificationProvider } from "./context/NotificationContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { DashboardLayout } from "./components/DashboardLayout";
 import { ConnectionBanner } from "./components/ConnectionBanner";
@@ -27,6 +28,7 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <NotificationProvider>
         <ToastProvider>
           <ConfirmProvider>
             <BrowserRouter>
@@ -58,6 +60,7 @@ function App() {
             </BrowserRouter>
           </ConfirmProvider>
         </ToastProvider>
+        </NotificationProvider>
       </AuthProvider>
     </ThemeProvider>
   );
