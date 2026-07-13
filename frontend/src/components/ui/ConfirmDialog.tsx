@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { AlertTriangle, HelpCircle } from "lucide-react";
 import { Button } from "./Button";
 import { Card } from "./Card";
@@ -23,9 +24,21 @@ const TONE_ICON = {
 // sin estilo propio) en toda acción destructiva. Mismo Card/Button que el resto del dashboard,
 // nada nuevo que aprender visualmente.
 export function ConfirmDialog({ message, title, tone = "default", confirmLabel, onConfirm, onCancel }: ConfirmDialogProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onCancel}>
-      <Card className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200 ${mounted ? "bg-black/50" : "bg-black/0"}`}
+      onClick={onCancel}
+    >
+      <Card
+        className={`w-full max-w-sm transition-all duration-200 ${mounted ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex flex-col items-center gap-3 p-5 text-center">
           {TONE_ICON[tone]}
           <div className="flex flex-col gap-1">

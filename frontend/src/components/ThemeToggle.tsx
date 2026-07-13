@@ -11,7 +11,7 @@ export function ThemeToggle() {
       type="button"
       onClick={toggleTheme}
       title={theme === "light" ? "Cambiar a tema oscuro" : "Cambiar a tema claro"}
-      className="rounded border border-(--border-color) p-1.5 text-(--text-secondary) hover:bg-(--bg-hover)"
+      className="rounded border border-(--border-color) p-1.5 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)"
     >
       {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
     </button>

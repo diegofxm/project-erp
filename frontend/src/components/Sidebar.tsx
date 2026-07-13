@@ -34,7 +34,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`flex h-full flex-col border-r border-(--border-color) bg-(--bg-secondary) transition-all duration-200 ${
+      className={`flex h-full flex-col overflow-hidden border-r border-(--border-color) bg-(--bg-secondary) transition-all duration-200 ${
         collapsed ? "w-10" : "w-48"
       }`}
     >
@@ -42,7 +42,7 @@ export function Sidebar() {
         <button
           type="button"
           onClick={toggleCollapsed}
-          className="rounded p-1.5 text-(--text-secondary) hover:bg-(--bg-hover)"
+          className="rounded p-1.5 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)"
           title={collapsed ? "Expandir menú" : "Colapsar menú"}
         >
           <Menu className="h-4 w-4" />
@@ -60,14 +60,16 @@ export function Sidebar() {
               key={item.to}
               to={item.to}
               title={collapsed ? item.label : undefined}
-              className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs font-medium transition-colors ${
+              className={`flex items-center rounded py-1.5 text-xs font-medium transition-colors ${
+                collapsed ? "justify-center" : "gap-2 px-2"
+              } ${
                 active
                   ? "bg-(--bg-selected) text-(--accent-primary)"
                   : "text-(--text-secondary) hover:bg-(--bg-hover)"
               }`}
             >
               {item.icon}
-              {!collapsed && <span>{item.label}</span>}
+              {!collapsed && <span className="whitespace-nowrap">{item.label}</span>}
             </NavLink>
           );
         })}

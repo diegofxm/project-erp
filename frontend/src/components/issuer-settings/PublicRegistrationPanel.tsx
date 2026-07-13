@@ -61,13 +61,22 @@ export function PublicRegistrationPanel() {
           qrDataURL && <img src={qrDataURL} alt="QR de autorregistro" className="h-32 w-32 rounded border border-(--border-color)" />
         )}
         <div className="flex flex-1 flex-col gap-2">
-          <p className="break-all rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1.5 font-mono text-xs text-(--text-secondary)">
-            {link}
-          </p>
+          <div className="relative">
+            <p className="break-all rounded border border-(--border-color) bg-(--bg-primary) py-1.5 pl-2 pr-8 font-mono text-xs text-(--text-secondary)">
+              {link}
+            </p>
+            <button
+              type="button"
+              onClick={handleCopy}
+              title={copied ? "Copiado" : "Copiar enlace"}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 transition-colors text-(--text-muted) hover:text-(--text-primary)"
+            >
+              {copied
+                ? <Check className="h-3.5 w-3.5 text-(--color-success-text)" />
+                : <Copy className="h-3.5 w-3.5" />}
+            </button>
+          </div>
           <div className="flex gap-2">
-            <Button type="button" variant="secondary" icon={copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} onClick={handleCopy}>
-              {copied ? "Copiado" : "Copiar enlace"}
-            </Button>
             <Button type="button" variant="secondary" icon={<Download className="h-3.5 w-3.5" />} onClick={handleDownload} disabled={!qrDataURL}>
               Descargar QR
             </Button>

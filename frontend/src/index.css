@@ -101,6 +101,11 @@ a:focus-visible,
   outline-offset: 2px;
 }
 
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* Scrollbars finas, en tono con la paleta (sugerencia #8 del design system). */
 ::-webkit-scrollbar {
   width: 10px;

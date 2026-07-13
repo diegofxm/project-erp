@@ -35,8 +35,7 @@ export function NotificationBell() {
         )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-80 rounded border border-(--border-light) bg-(--bg-secondary) shadow-lg">
+      <div className={`absolute right-0 top-full z-50 mt-1 w-80 rounded border border-(--border-light) bg-(--bg-secondary) shadow-lg origin-top-right transition-all duration-150 ease-out ${open ? "opacity-100 scale-100" : "pointer-events-none opacity-0 scale-95"}`}>
           {/* Cabecera */}
           <div className="flex items-center justify-between border-b border-(--border-light) px-3 py-2">
             <span className="text-xs font-semibold text-(--text-primary)">Notificaciones</span>
@@ -92,7 +91,6 @@ export function NotificationBell() {
             </ul>
           )}
         </div>
-      )}
     </div>
   );
 }

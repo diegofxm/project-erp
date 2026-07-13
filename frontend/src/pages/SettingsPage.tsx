@@ -38,10 +38,7 @@ export function SettingsPage() {
         <Tabs tabs={TABS} activeId={activeTab} onChange={(id) => setActiveTab(id as SettingsTab)} />
 
         {activeTab === "general" && (
-          // flex-wrap + tarjetas sin ancho forzado: a diferencia de un formulario con varios
-          // campos, aquí hay un solo control — meterlo en una grilla a todo el ancho solo deja
-          // un hueco enorme entre la etiqueta y el switch. La tarjeta se ajusta a su contenido.
-          <div className="flex flex-wrap gap-3 p-4">
+          <div className="flex flex-wrap gap-3 p-4 animate-[fade-in_150ms_ease-out]">
             <div className="flex items-center gap-6 rounded border border-(--border-color) p-3">
               <div>
                 <p className="text-xs font-medium text-(--text-primary)">Tema de la interfaz</p>
@@ -53,7 +50,7 @@ export function SettingsPage() {
         )}
 
         {activeTab === "account" && (
-          <div className="flex flex-wrap gap-3 p-4">
+          <div className="flex flex-wrap gap-3 p-4 animate-[fade-in_150ms_ease-out]">
             <div className="rounded border border-(--border-color) p-3 text-xs">
               <p className="text-(--text-secondary)">Nombre</p>
               <p className="text-(--text-primary)">{user?.name}</p>
@@ -66,7 +63,7 @@ export function SettingsPage() {
         )}
 
         {activeTab === "company" && (
-          <div className="flex flex-col gap-4 p-4">
+          <div className="flex flex-col gap-4 p-4 animate-[fade-in_150ms_ease-out]">
             <SoftwareCertificateForm />
             <LogoForm />
             <PublicRegistrationPanel />

@@ -50,7 +50,7 @@ export function Navbar() {
         <Link
           to="/issuers"
           title="Mis empresas"
-          className="rounded p-1.5 text-(--navbar-text) opacity-80 hover:bg-white/10 hover:opacity-100"
+          className="rounded p-1.5 text-(--navbar-text) opacity-80 transition-colors hover:bg-white/10 hover:opacity-100"
         >
           <Building2 className="h-4 w-4" />
         </Link>
@@ -67,8 +67,7 @@ export function Navbar() {
             </span>
             <ChevronDown className="h-3 w-3" />
           </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-full z-10 mt-1 w-48 rounded border border-(--border-light) bg-(--bg-secondary) text-(--text-primary) shadow-lg">
+          <div className={`absolute right-0 top-full z-10 mt-1 w-48 rounded border border-(--border-light) bg-(--bg-secondary) text-(--text-primary) shadow-lg origin-top-right transition-all duration-150 ease-out ${menuOpen ? "opacity-100 scale-100" : "pointer-events-none opacity-0 scale-95"}`}>
               <div className="border-b border-(--border-light) px-3 py-2">
                 <p className="text-xs font-medium">{user?.name}</p>
                 <p className="text-xs text-(--text-muted)">{user?.email}</p>
@@ -98,7 +97,6 @@ export function Navbar() {
                 Cerrar sesión
               </button>
             </div>
-          )}
         </div>
       </div>
     </header>

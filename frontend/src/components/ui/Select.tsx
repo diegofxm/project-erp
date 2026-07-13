@@ -13,7 +13,7 @@ export function Select({ label, error, className = "", id, children, ...rest }: 
       {label && <span className="text-xs font-medium text-(--text-secondary)">{label}</span>}
       <select
         id={id}
-        className={`w-full rounded border border-(--border-color) bg-(--bg-primary) px-3 py-1.5 text-xs text-(--text-primary) ${className}`}
+        className={`w-full rounded border border-(--border-color) bg-(--bg-primary) px-3 py-1.5 text-xs text-(--text-primary) transition-colors ${className}`}
         {...rest}
       >
         {children}

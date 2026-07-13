@@ -1,43 +1,89 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, FileMinus } from "lucide-react";
+import { FileMinus, X } from "lucide-react";
 import { useNavigate } from "react-router";
 import { listDocuments } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
-import type { Document } from "../lib/types";
+import type { Document, DocumentStatus } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
-import { Button } from "../components/ui/Button";
+import { Pagination } from "../components/ui/Pagination";
 import { Spinner } from "../components/ui/Spinner";
 import { StatusBadge } from "../components/invoice-form/StatusBadge";
 
 const CREDIT_NOTE_DIAN_DOCUMENT_TYPE = "91";
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 10;
+
+const STATUS_OPTIONS: { value: DocumentStatus | ""; label: string }[] = [
+  { value: "", label: "Todos los estados" },
+  { value: "draft", label: "Borrador" },
+  { value: "accepted", label: "Aceptado" },
+  { value: "sent", label: "Enviado" },
+  { value: "rejected", label: "Rechazado" },
+  { value: "send_error", label: "Error de envío" },
+];
 
 export function CreditNotesPage() {
   const [documents, setDocuments] = useState<Document[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [loadingPage, setLoadingPage] = useState(false);
+  const [status, setStatus] = useState<DocumentStatus | "">("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const navigate = useNavigate();
+
+  const hasFilters = !!status || !!from || !!to;
+
+  function resetFilters() {
+    setStatus("");
+    setFrom("");
+    setTo("");
+    setOffset(0);
+  }
 
   useEffect(() => {
     setLoadingPage(true);
-    listDocuments({ dian_document_type_code: CREDIT_NOTE_DIAN_DOCUMENT_TYPE, limit: PAGE_SIZE, offset })
+    listDocuments({
+      dian_document_type_code: CREDIT_NOTE_DIAN_DOCUMENT_TYPE,
+      limit: PAGE_SIZE,
+      offset,
+      ...(status && { status }),
+      ...(from && { from }),
+      ...(to && { to }),
+    })
       .then(setDocuments)
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar las notas crédito"))
       .finally(() => setLoadingPage(false));
-  }, [offset]);
+  }, [offset, status, from, to]);
 
-  const hasPrevious = offset > 0;
   const hasNext = (documents?.length ?? 0) === PAGE_SIZE;
 
   return (
     <div className="p-4">
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
-            <FileMinus className="h-4 w-4 shrink-0 text-(--accent-primary)" />
-            Nota Crédito
-          </h1>
+          <FileMinus className="h-4 w-4 shrink-0 text-(--accent-primary)" />
+          Nota Crédito
+        </h1>
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <select
+          value={status}
+          onChange={(e) => { setStatus(e.target.value as DocumentStatus | ""); setOffset(0); }}
+          className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
+        >
+          {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <input type="date" value={from} title="Desde" onChange={(e) => { setFrom(e.target.value); setOffset(0); }}
+          className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors" />
+        <input type="date" value={to} title="Hasta" onChange={(e) => { setTo(e.target.value); setOffset(0); }}
+          className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors" />
+        {hasFilters && (
+          <button type="button" onClick={resetFilters} className="flex items-center gap-1 text-xs text-(--text-muted) hover:text-(--text-primary) transition-colors">
+            <X className="h-3 w-3" /> Limpiar
+          </button>
+        )}
       </div>
 
       {error && <Banner tone="danger">{error}</Banner>}
@@ -48,8 +94,9 @@ export function CreditNotesPage() {
         </div>
       ) : documents.length === 0 ? (
         <p className="text-xs text-(--text-secondary)">
-          Todavía no has emitido ninguna nota crédito. Para crear una, abre una factura confirmada y usa el botón
-          "Emitir Nota Crédito".
+          {hasFilters
+            ? "No hay notas crédito que coincidan con los filtros."
+            : "Todavía no has emitido ninguna nota crédito. Para crear una, abre una factura confirmada y usa el botón \"Emitir Nota Crédito\"."}
         </p>
       ) : (
         <div className="overflow-hidden rounded border border-(--border-color)">
@@ -75,20 +122,12 @@ export function CreditNotesPage() {
                     {d.prefix && d.number ? `${d.prefix}${d.number}` : "Borrador"}
                   </td>
                   <td className="px-3 py-2 font-mono text-(--text-secondary)">
-                    {d.billing_reference
-                      ? `${d.billing_reference.prefix}${d.billing_reference.number}`
-                      : "—"}
+                    {d.billing_reference ? `${d.billing_reference.prefix}${d.billing_reference.number}` : "—"}
                   </td>
                   <td className="px-3 py-2 text-(--text-secondary)">{d.customer.name}</td>
-                  <td className="px-3 py-2 font-mono text-(--text-secondary)">
-                    {formatCOP.format(d.totals.payable_cents / 100)}
-                  </td>
-                  <td className="px-3 py-2">
-                    <StatusBadge status={d.status} />
-                  </td>
-                  <td className="px-3 py-2 text-(--text-secondary)">
-                    {new Date(d.created_at).toLocaleDateString("es-CO")}
-                  </td>
+                  <td className="px-3 py-2 font-mono text-(--text-secondary)">{formatCOP.format(d.totals.payable_cents / 100)}</td>
+                  <td className="px-3 py-2"><StatusBadge status={d.status} /></td>
+                  <td className="px-3 py-2 text-(--text-secondary)">{new Date(d.created_at).toLocaleDateString("es-CO")}</td>
                 </tr>
               ))}
             </tbody>
@@ -96,33 +135,15 @@ export function CreditNotesPage() {
         </div>
       )}
 
-      {documents !== null && (hasPrevious || hasNext) && (
-        <div className="mt-3 flex items-center justify-between">
-          <span className="text-xs text-(--text-secondary)">
-            Mostrando {offset + 1}–{offset + documents.length}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              icon={<ChevronLeft className="h-3.5 w-3.5" />}
-              disabled={!hasPrevious || loadingPage}
-              onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-            >
-              Anterior
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              icon={<ChevronRight className="h-3.5 w-3.5" />}
-              disabled={!hasNext || loadingPage}
-              loading={loadingPage}
-              onClick={() => setOffset((o) => o + PAGE_SIZE)}
-            >
-              Siguiente
-            </Button>
-          </div>
-        </div>
+      {documents !== null && (
+        <Pagination
+          offset={offset}
+          count={documents.length}
+          hasNext={hasNext}
+          loading={loadingPage}
+          onPrev={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+          onNext={() => setOffset((o) => o + PAGE_SIZE)}
+        />
       )}
     </div>
   );
