@@ -44,7 +44,7 @@ func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byt
 	// liability_codes/payment_terms/payment_methods (catálogos sin FK posible, ver
 	// docs/apidian-architecture.md sección 9.34).
 	catalogsRepo := catalogs.NewPostgresRepository(db.Pool)
-	issuerSvc := issuers.New(issuers.NewPostgresRepository(db.Pool, issuerSecretsKey), documents.ValidateCertificate, catalogsRepo)
+	issuerSvc := issuers.New(issuers.NewPostgresRepository(db.Pool, issuerSecretsKey), documents.ValidateCertificate, documents.ParseCertificate, catalogsRepo)
 	numberingSvc := numbering.New(numbering.NewPostgresRepository(db.Pool, issuerSecretsKey))
 	customersSvc := customers.New(customers.NewPostgresRepository(db.Pool), catalogsRepo)
 	productsSvc := products.New(products.NewPostgresRepository(db.Pool), catalogsRepo)
@@ -169,6 +169,8 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("PUT /api/v1/issuers/me", a.handleUpdateMyIssuer)
 	handle("GET /api/v1/issuers/me/logo", a.handleGetMyIssuerLogo)
 	handle("DELETE /api/v1/issuers/me/logo", a.handleDeleteMyIssuerLogo)
+	handle("DELETE /api/v1/issuers/me/software", a.handleDeleteMyIssuerSoftware)
+	handle("DELETE /api/v1/issuers/me/certificate", a.handleDeleteMyIssuerCertificate)
 	handle("POST /api/v1/numbering-ranges", a.handleCreateNumberingRange)
 	handle("GET /api/v1/numbering-ranges", a.handleListNumberingRanges)
 	handle("GET /api/v1/numbering-ranges/{id}", a.handleGetNumberingRange)

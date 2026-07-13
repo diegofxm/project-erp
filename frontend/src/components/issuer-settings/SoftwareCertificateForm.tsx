@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Trash2, KeyRound, BadgeCheck } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useConfirm } from "../../context/ConfirmContext";
 import { useToast } from "../../context/ToastContext";
 import { ApiError } from "../../lib/apiClient";
 import { fileToBase64 } from "../../lib/fileToBase64";
@@ -18,106 +19,235 @@ export function StatusBadge({ label, ok }: { label: string; ok: boolean }) {
   );
 }
 
-// Completa software_id/software_pin/certificate/certificate_password DESPUÉS de creada la
-// empresa (PUT /issuers/me) — la DIAN nunca devuelve estos secretos de vuelta, solo si están
-// configurados o no (activeIssuer.has_software_credentials/has_certificate).
-export function SoftwareCertificateForm() {
-  const { activeIssuer, updateIssuer } = useAuth();
+// Semáforo de vencimiento del certificado. Verde > 30 días, amarillo ≤ 30 días, rojo vencido.
+function CertStatusBadge({ expiresAt }: { expiresAt: string }) {
+  const expiry = new Date(expiresAt);
+  const now = new Date();
+  const daysLeft = Math.floor((expiry.getTime() - now.getTime()) / 86_400_000);
+
+  let label: string;
+  let cls: string;
+  if (daysLeft < 0) {
+    label = "Vencido";
+    cls = "bg-(--color-danger-bg) text-(--color-danger-text)";
+  } else if (daysLeft <= 30) {
+    label = `Alerta — vence en ${daysLeft} día${daysLeft === 1 ? "" : "s"}`;
+    cls = "bg-(--color-warning-bg) text-(--color-warning-text)";
+  } else {
+    label = "Activo";
+    cls = "bg-(--color-success-bg) text-(--color-success-text)";
+  }
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {label}
+    </span>
+  );
+}
+
+function SoftwareSection() {
+  const { activeIssuer, updateIssuer, deleteIssuerSoftware } = useAuth();
+  const confirm = useConfirm();
   const toast = useToast();
   const [softwareId, setSoftwareId] = useState("");
   const [softwarePin, setSoftwarePin] = useState("");
-  const [certificateFile, setCertificateFile] = useState<File | null>(null);
-  const [certificatePassword, setCertificatePassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  async function handleSubmit(e: FormEvent) {
+  const configured = activeIssuer?.has_software_credentials ?? false;
+
+  async function handleSave(e: FormEvent) {
     e.preventDefault();
-
-    if ((certificateFile && !certificatePassword.trim()) || (!certificateFile && certificatePassword.trim())) {
-      toast.error("El certificado y su contraseña se deben actualizar juntos.");
+    if (!softwareId.trim() || !softwarePin.trim()) {
+      toast.error("El Software ID y el PIN son obligatorios.");
       return;
     }
-
-    const payload: UpdateIssuerPayload = {};
-    if (softwareId.trim()) payload.software_id = softwareId.trim();
-    if (softwarePin.trim()) payload.software_pin = softwarePin.trim();
-    if (certificateFile && certificatePassword.trim()) {
-      payload.certificate_base64 = await fileToBase64(certificateFile);
-      payload.certificate_password = certificatePassword.trim();
-    }
-
-    if (Object.keys(payload).length === 0) {
-      toast.error("No hay ningún campo nuevo para guardar.");
-      return;
-    }
-
+    const payload: UpdateIssuerPayload = { software_id: softwareId.trim(), software_pin: softwarePin.trim() };
     setLoading(true);
     try {
       await updateIssuer(payload);
-      toast.success("Guardado correctamente.");
+      toast.success("Software guardado correctamente.");
       setSoftwareId("");
       setSoftwarePin("");
-      setCertificateFile(null);
-      setCertificatePassword("");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo guardar la configuración");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo guardar el software");
     } finally {
       setLoading(false);
     }
   }
 
+  async function handleDelete() {
+    if (!(await confirm("¿Eliminar las credenciales de software? La empresa no podrá emitir documentos hasta volver a configurarlas.", { tone: "danger", title: "Eliminar software DIAN" }))) return;
+    setDeleting(true);
+    try {
+      await deleteIssuerSoftware();
+      toast.success("Credenciales de software eliminadas.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el software");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
-    <Card className="flex flex-col gap-3 p-4">
+    <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-xs font-semibold text-(--text-primary)">Software y certificado</h2>
-        <div className="flex gap-3">
-          <StatusBadge label="Software" ok={activeIssuer?.has_software_credentials ?? false} />
-          <StatusBadge label="Certificado" ok={activeIssuer?.has_certificate ?? false} />
+        <div className="flex items-center gap-1.5">
+          <KeyRound className="h-3.5 w-3.5 text-(--text-muted)" />
+          <h3 className="text-xs font-semibold text-(--text-primary)">Software DIAN</h3>
         </div>
+        {configured && (
+          <Button type="button" variant="danger" loading={deleting} icon={<Trash2 className="h-3 w-3" />} onClick={handleDelete}>
+            Eliminar
+          </Button>
+        )}
       </div>
-      <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
-        {/* Grilla de 12 columnas fijas, ver company-form/IdentificationStep.tsx para el porqué. */}
-        <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-3">
-            <Input
-              label="Software ID"
-              value={softwareId}
-              onChange={(e) => setSoftwareId(e.target.value)}
-              placeholder={activeIssuer?.has_software_credentials ? "Ya configurado — deja vacío para no cambiar" : undefined}
-            />
+
+      {configured ? (
+        <div className="flex flex-col gap-1.5 rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2.5 text-xs">
+          <div className="flex gap-2">
+            <span className="w-24 shrink-0 text-(--text-muted)">Software ID</span>
+            <span className="font-mono text-(--text-primary)">{activeIssuer?.software_id ?? "—"}</span>
           </div>
-          <div className="col-span-3">
-            <Input
-              label="Software PIN"
-              type="password"
-              value={softwarePin}
-              onChange={(e) => setSoftwarePin(e.target.value)}
-              placeholder={activeIssuer?.has_software_credentials ? "Ya configurado — deja vacío para no cambiar" : undefined}
-            />
-          </div>
-          <label className="col-span-3 flex flex-col gap-1">
-            <span className="text-xs font-medium text-(--text-secondary)">Certificado (.p12)</span>
-            <input
-              type="file"
-              accept=".p12,.pfx"
-              onChange={(e) => setCertificateFile(e.target.files?.[0] ?? null)}
-              className="rounded border border-(--border-color) bg-(--bg-primary) px-3 py-1.5 text-xs text-(--text-primary)"
-            />
-          </label>
-          <div className="col-span-3">
-            <Input
-              label="Contraseña del certificado"
-              type="password"
-              value={certificatePassword}
-              onChange={(e) => setCertificatePassword(e.target.value)}
-              placeholder={activeIssuer?.has_certificate ? "Ya configurado — deja vacío para no cambiar" : undefined}
-            />
+          <div className="flex gap-2">
+            <span className="w-24 shrink-0 text-(--text-muted)">PIN</span>
+            <span className="text-(--text-secondary)">configurado</span>
           </div>
         </div>
-        <Button type="submit" loading={loading} icon={<ShieldCheck className="h-3.5 w-3.5" />} className="self-start">
-          Guardar
-        </Button>
-      </form>
+      ) : (
+        <form className="flex flex-col gap-3" onSubmit={handleSave}>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Software ID" value={softwareId} onChange={(e) => setSoftwareId(e.target.value)} />
+            <Input label="Software PIN" type="password" value={softwarePin} onChange={(e) => setSoftwarePin(e.target.value)} />
+          </div>
+          <Button type="submit" loading={loading} icon={<ShieldCheck className="h-3.5 w-3.5" />} className="self-start">
+            Guardar software
+          </Button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function CertificateSection() {
+  const { activeIssuer, updateIssuer, deleteIssuerCertificate } = useAuth();
+  const confirm = useConfirm();
+  const toast = useToast();
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [certPassword, setCertPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const configured = activeIssuer?.has_certificate ?? false;
+
+  async function handleSave(e: FormEvent) {
+    e.preventDefault();
+    if (!certFile || !certPassword.trim()) {
+      toast.error("El archivo .p12 y la contraseña son obligatorios.");
+      return;
+    }
+    const payload: UpdateIssuerPayload = {
+      certificate_base64: await fileToBase64(certFile),
+      certificate_password: certPassword.trim(),
+    };
+    setLoading(true);
+    try {
+      await updateIssuer(payload);
+      toast.success("Certificado guardado correctamente.");
+      setCertFile(null);
+      setCertPassword("");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo guardar el certificado");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!(await confirm("¿Eliminar el certificado digital? La empresa no podrá firmar ni enviar documentos a la DIAN hasta volver a configurarlo.", { tone: "danger", title: "Eliminar certificado" }))) return;
+    setDeleting(true);
+    try {
+      await deleteIssuerCertificate();
+      toast.success("Certificado eliminado.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el certificado");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <BadgeCheck className="h-3.5 w-3.5 text-(--text-muted)" />
+          <h3 className="text-xs font-semibold text-(--text-primary)">Certificado digital</h3>
+        </div>
+        {configured && (
+          <Button type="button" variant="danger" loading={deleting} icon={<Trash2 className="h-3 w-3" />} onClick={handleDelete}>
+            Eliminar
+          </Button>
+        )}
+      </div>
+
+      {configured ? (
+        <div className="flex flex-col gap-1.5 rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2.5 text-xs">
+          {activeIssuer?.certificate_subject && (
+            <div className="flex gap-2">
+              <span className="w-24 shrink-0 text-(--text-muted)">Titular</span>
+              <span className="text-(--text-primary)">{activeIssuer.certificate_subject}</span>
+            </div>
+          )}
+          {activeIssuer?.certificate_issuer_cn && (
+            <div className="flex gap-2">
+              <span className="w-24 shrink-0 text-(--text-muted)">Emisor</span>
+              <span className="text-(--text-secondary)">{activeIssuer.certificate_issuer_cn}</span>
+            </div>
+          )}
+          {activeIssuer?.certificate_expires_at && (
+            <div className="flex items-center gap-2">
+              <span className="w-24 shrink-0 text-(--text-muted)">Vencimiento</span>
+              <span className="text-(--text-secondary)">
+                {new Date(activeIssuer.certificate_expires_at).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" })}
+              </span>
+              <CertStatusBadge expiresAt={activeIssuer.certificate_expires_at} />
+            </div>
+          )}
+        </div>
+      ) : (
+        <form className="flex flex-col gap-3" onSubmit={handleSave}>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-(--text-secondary)">Archivo (.p12 / .pfx)</span>
+              <input
+                type="file"
+                accept=".p12,.pfx"
+                onChange={(e) => setCertFile(e.target.files?.[0] ?? null)}
+                className="rounded border border-(--border-color) bg-(--bg-primary) px-3 py-1.5 text-xs text-(--text-primary)"
+              />
+            </label>
+            <Input label="Contraseña del certificado" type="password" value={certPassword} onChange={(e) => setCertPassword(e.target.value)} />
+          </div>
+          <Button type="submit" loading={loading} icon={<ShieldCheck className="h-3.5 w-3.5" />} className="self-start">
+            Guardar certificado
+          </Button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// Completa software_id/software_pin/certificate/certificate_password DESPUÉS de creada la
+// empresa (PUT /issuers/me) — cada sección muestra el formulario cuando no está configurada,
+// y la información guardada (sin secretos) cuando sí lo está.
+export function SoftwareCertificateForm() {
+  return (
+    <Card className="flex flex-col gap-5 p-4">
+      <h2 className="text-xs font-semibold text-(--text-primary)">Software y certificado</h2>
+      <SoftwareSection />
+      <div className="border-t border-(--border-light)" />
+      <CertificateSection />
     </Card>
   );
 }

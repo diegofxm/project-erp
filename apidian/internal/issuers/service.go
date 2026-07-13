@@ -13,13 +13,14 @@ import (
 type Service struct {
 	repo      Repository
 	validator CertificateValidator
+	parser    CertificateParser
 	catalogs  CatalogPort
 }
 
-// New crea el servicio de emisores. validator puede ser nil (no valida certificados) — ver
-// CertificateValidator.
-func New(repo Repository, validator CertificateValidator, catalogPort CatalogPort) *Service {
-	return &Service{repo: repo, validator: validator, catalogs: catalogPort}
+// New crea el servicio de emisores. validator y parser pueden ser nil (no valida/extrae
+// metadatos del certificado) — ver CertificateValidator y CertificateParser.
+func New(repo Repository, validator CertificateValidator, parser CertificateParser, catalogPort CatalogPort) *Service {
+	return &Service{repo: repo, validator: validator, parser: parser, catalogs: catalogPort}
 }
 
 // RegisterIssuer valida y persiste un nuevo emisor. SoftwareID/SoftwarePIN/Certificate son
@@ -136,7 +137,12 @@ func (s *Service) UpdateIssuer(ctx context.Context, id uuid.UUID, req UpdateIssu
 		}
 	}
 
-	return s.repo.Update(ctx, *iss)
+	result, err := s.repo.Update(ctx, *iss)
+	if err != nil {
+		return nil, err
+	}
+	s.enrichCertMetadata(result)
+	return result, nil
 }
 
 // DeleteLogo quita el logo del emisor — UpdateIssuer no puede expresar "bórralo": ahí
@@ -149,7 +155,61 @@ func (s *Service) DeleteLogo(ctx context.Context, id uuid.UUID) (*Issuer, error)
 	}
 	iss.Logo = nil
 	iss.LogoContentType = ""
-	return s.repo.Update(ctx, *iss)
+	result, err := s.repo.Update(ctx, *iss)
+	if err != nil {
+		return nil, err
+	}
+	s.enrichCertMetadata(result)
+	return result, nil
+}
+
+// ClearSoftware borra software_id y software_pin del emisor. El certificado no se toca.
+func (s *Service) ClearSoftware(ctx context.Context, id uuid.UUID) (*Issuer, error) {
+	iss, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	iss.SoftwareID = ""
+	iss.SoftwarePIN = ""
+	result, err := s.repo.Update(ctx, *iss)
+	if err != nil {
+		return nil, err
+	}
+	s.enrichCertMetadata(result)
+	return result, nil
+}
+
+// ClearCertificate borra el certificado y su contraseña. El software no se toca.
+func (s *Service) ClearCertificate(ctx context.Context, id uuid.UUID) (*Issuer, error) {
+	iss, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	iss.Certificate = nil
+	iss.CertificatePassword = ""
+	result, err := s.repo.Update(ctx, *iss)
+	if err != nil {
+		return nil, err
+	}
+	// No hay certificado — los campos derivados quedan vacíos (zero values).
+	return result, nil
+}
+
+// enrichCertMetadata popula CertificateSubject/CertificateIssuerCN/CertificateExpiresAt en
+// memoria a partir del .p12 ya descifrado. Los metadatos no se guardan en la base de datos —
+// el certificado cifrado YA está almacenado; parsearlo aquí garantiza que los metadatos
+// siempre sean frescos y evita tener que sincronizar columnas derivadas.
+func (s *Service) enrichCertMetadata(iss *Issuer) {
+	if s.parser == nil || len(iss.Certificate) == 0 || iss.CertificatePassword == "" {
+		return
+	}
+	subject, issuerCN, expiresAt, err := s.parser(iss.Certificate, iss.CertificatePassword)
+	if err != nil {
+		return
+	}
+	iss.CertificateSubject = subject
+	iss.CertificateIssuerCN = issuerCN
+	iss.CertificateExpiresAt = &expiresAt
 }
 
 // applyDefaults completa los campos del Party que la mayoría de emisores no necesita
@@ -206,14 +266,24 @@ func defaultEntityTypeCode(identificationTypeCode string) string {
 	}
 }
 
-// GetIssuer devuelve un emisor por ID.
+// GetIssuer devuelve un emisor por ID con metadatos del certificado ya derivados en memoria.
 func (s *Service) GetIssuer(ctx context.Context, id uuid.UUID) (*Issuer, error) {
-	return s.repo.GetByID(ctx, id)
+	iss, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	s.enrichCertMetadata(iss)
+	return iss, nil
 }
 
-// GetIssuerByNIT devuelve un emisor por NIT.
+// GetIssuerByNIT devuelve un emisor por NIT con metadatos del certificado ya derivados.
 func (s *Service) GetIssuerByNIT(ctx context.Context, nit string) (*Issuer, error) {
-	return s.repo.GetByNIT(ctx, nit)
+	iss, err := s.repo.GetByNIT(ctx, nit)
+	if err != nil {
+		return nil, err
+	}
+	s.enrichCertMetadata(iss)
+	return iss, nil
 }
 
 // validateIssuer solo exige los datos que la DIAN pide del emisor mismo — NO exige

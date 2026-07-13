@@ -70,7 +70,7 @@ func newTestEnvWithOrigins(t *testing.T, allowedOrigins []string) *testEnv {
 	log := zap.NewNop()
 
 	catalogsRepo := catalogs.NewMemoryRepository()
-	issuerSvc := issuers.New(issuers.NewMemoryRepository(), documents.ValidateCertificate, catalogsRepo)
+	issuerSvc := issuers.New(issuers.NewMemoryRepository(), documents.ValidateCertificate, documents.ParseCertificate, catalogsRepo)
 	numberingSvc := numbering.New(numbering.NewMemoryRepository())
 	customersSvc := customers.New(customers.NewMemoryRepository(), catalogsRepo)
 	productsSvc := products.New(products.NewMemoryRepository(), catalogsRepo)

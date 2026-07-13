@@ -70,6 +70,12 @@ type Issuer struct {
 	SoftwarePIN         string
 	Certificate         []byte // contenido del .p12
 	CertificatePassword string
+	// Metadatos extraídos del certificado al guardarlo (ver service.go UpdateIssuer). Se
+	// guardan en DB para poder mostrarlos sin tener que descifrar y parsear el .p12 en cada
+	// lectura. CertificateExpiresAt es nil si no hay certificado configurado.
+	CertificateSubject   string
+	CertificateIssuerCN  string
+	CertificateExpiresAt *time.Time
 
 	// Logo/LogoContentType: para la representación gráfica en PDF (ver
 	// docs/apidian-architecture.md sección 9.39) — opcionales, no son secretos, no se cifran.

@@ -34,7 +34,7 @@ func (f *fakeCatalogPort) GetTaxTypeName(_ context.Context, code string) (string
 // .p12. El parseo real se prueba aparte en TestUpdateIssuer_InvalidCertificate con un
 // validador doble que sí falla, y en internal/api (vía documents.ValidateCertificate real).
 func newService() *issuers.Service {
-	return issuers.New(issuers.NewMemoryRepository(), func([]byte, string) error { return nil }, &fakeCatalogPort{valid: true})
+	return issuers.New(issuers.NewMemoryRepository(), func([]byte, string) error { return nil }, nil, &fakeCatalogPort{valid: true})
 }
 
 func validIssuer() issuers.Issuer {
@@ -182,7 +182,7 @@ func TestRegisterIssuer_FourIndustryClassificationCodes_OK(t *testing.T) {
 // código que no existe en el catálogo se rechaza aquí — antes de este fix, no se rechazaba
 // en ningún lado hasta que la DIAN lo hiciera al confirmar un documento.
 func TestRegisterIssuer_InvalidLiabilityCode(t *testing.T) {
-	svc := issuers.New(issuers.NewMemoryRepository(), func([]byte, string) error { return nil }, &fakeCatalogPort{valid: false})
+	svc := issuers.New(issuers.NewMemoryRepository(), func([]byte, string) error { return nil }, nil, &fakeCatalogPort{valid: false})
 	iss := validIssuer()
 	iss.LiabilityCodes = []string{"CODIGO-INVENTADO"}
 
@@ -280,7 +280,7 @@ func TestUpdateIssuer_NotFound(t *testing.T) {
 // con un error de dominio claro, no recién al confirmar un documento.
 func TestUpdateIssuer_InvalidCertificate(t *testing.T) {
 	rejecting := func([]byte, string) error { return errors.New("contraseña incorrecta") }
-	svc := issuers.New(issuers.NewMemoryRepository(), rejecting, &fakeCatalogPort{valid: true})
+	svc := issuers.New(issuers.NewMemoryRepository(), rejecting, nil, &fakeCatalogPort{valid: true})
 	created, err := svc.RegisterIssuer(context.Background(), validIssuer())
 	require.NoError(t, err)
 
@@ -299,7 +299,7 @@ func TestUpdateIssuer_InvalidCertificate(t *testing.T) {
 // todavía. El validador "explota" si se llama, para probar que de verdad nunca se invoca.
 func TestUpdateIssuer_CertificateWithoutPasswordSkipsValidation(t *testing.T) {
 	exploding := func([]byte, string) error { t.Fatal("el validador no debería llamarse todavía"); return nil }
-	svc := issuers.New(issuers.NewMemoryRepository(), exploding, &fakeCatalogPort{valid: true})
+	svc := issuers.New(issuers.NewMemoryRepository(), exploding, nil, &fakeCatalogPort{valid: true})
 	iss := validIssuer()
 	iss.SoftwareID, iss.SoftwarePIN, iss.Certificate, iss.CertificatePassword = "", "", nil, ""
 	created, err := svc.RegisterIssuer(context.Background(), iss)

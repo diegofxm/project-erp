@@ -16,10 +16,16 @@ export interface Issuer {
   business_name: string;
   identification_type_code: string;
   environment: IssuerEnvironment;
-  // Solo presencia (true/false) — el secreto en sí (software_pin/certificate/
-  // certificate_password) nunca viaja de vuelta, ver issuerResponse en apidian.
+  // software_id no es secreto (es un ID de registro, no una contraseña). PIN/cert/password
+  // nunca viajan de vuelta — solo has_software_credentials / has_certificate (presencia).
+  software_id?: string;
   has_software_credentials: boolean;
   has_certificate: boolean;
+  // Metadatos del certificado derivados en memoria por issuers.Service.enrichCertMetadata —
+  // sin datos sensibles. Solo presentes cuando has_certificate es true.
+  certificate_subject?: string;
+  certificate_issuer_cn?: string;
+  certificate_expires_at?: string; // ISO 8601
   // has_logo: el logo en sí se sirve aparte (GET /issuers/me/logo) — ver
   // docs/apidian-architecture.md sección 9.39.
   has_logo: boolean;

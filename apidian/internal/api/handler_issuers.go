@@ -53,16 +53,24 @@ type createIssuerRequest struct {
 // CertificatePassword, ni siquiera cifrados: una vez guardados, esta API no los expone más.
 // HasSoftwareCredentials/HasCertificate son solo presencia (true/false) — para que el
 // frontend pueda mostrar "ya configurado" sin que el secreto en sí viaje de vuelta nunca.
+// SoftwareID no es secreto (es un ID de registro ante la DIAN, no una contraseña) — por eso
+// sí se expone, a diferencia del PIN. CertificateSubject/CertificateIssuerCN/
+// CertificateExpiresAt son metadatos de solo lectura derivados del .p12 en memoria cada vez
+// que se lee el emisor (ver issuers.Service.enrichCertMetadata) — sin datos sensibles.
 type issuerResponse struct {
-	ID                          uuid.UUID `json:"id"`
-	NIT                         string    `json:"nit"`
-	BusinessName                string    `json:"business_name"`
-	IdentificationTypeCode      string    `json:"identification_type_code"`
-	Environment                 string    `json:"environment"`
-	TaxRegimeCode               *string   `json:"tax_regime_code,omitempty"`
-	IndustryClassificationCodes []string  `json:"industry_classification_codes,omitempty"`
-	HasSoftwareCredentials      bool      `json:"has_software_credentials"`
-	HasCertificate              bool      `json:"has_certificate"`
+	ID                          uuid.UUID  `json:"id"`
+	NIT                         string     `json:"nit"`
+	BusinessName                string     `json:"business_name"`
+	IdentificationTypeCode      string     `json:"identification_type_code"`
+	Environment                 string     `json:"environment"`
+	TaxRegimeCode               *string    `json:"tax_regime_code,omitempty"`
+	IndustryClassificationCodes []string   `json:"industry_classification_codes,omitempty"`
+	SoftwareID                  string     `json:"software_id,omitempty"`
+	HasSoftwareCredentials      bool       `json:"has_software_credentials"`
+	HasCertificate              bool       `json:"has_certificate"`
+	CertificateSubject          string     `json:"certificate_subject,omitempty"`
+	CertificateIssuerCN         string     `json:"certificate_issuer_cn,omitempty"`
+	CertificateExpiresAt        *time.Time `json:"certificate_expires_at,omitempty"`
 	// HasLogo: mismo criterio que HasSoftwareCredentials/HasCertificate — solo presencia, el
 	// logo en sí se sirve aparte (GET /issuers/me/logo, más abajo en este archivo) para no
 	// inflar esta respuesta con bytes de imagen en cada GET/PUT.
@@ -80,8 +88,12 @@ func issuerToResponse(iss *issuers.Issuer) issuerResponse {
 		Environment:                 string(iss.Environment),
 		TaxRegimeCode:               iss.TaxRegimeCode,
 		IndustryClassificationCodes: iss.IndustryClassificationCodes,
+		SoftwareID:                  iss.SoftwareID,
 		HasSoftwareCredentials:      iss.SoftwareID != "" && iss.SoftwarePIN != "",
 		HasCertificate:              len(iss.Certificate) > 0 && iss.CertificatePassword != "",
+		CertificateSubject:          iss.CertificateSubject,
+		CertificateIssuerCN:         iss.CertificateIssuerCN,
+		CertificateExpiresAt:        iss.CertificateExpiresAt,
 		HasLogo:                     len(iss.Logo) > 0,
 		IsActive:                    iss.IsActive,
 		CreatedAt:                   iss.CreatedAt,
@@ -273,6 +285,28 @@ func (a *API) handleGetMyIssuerLogo(w http.ResponseWriter, r *http.Request) {
 // frontend pueda refrescar su estado sin un GET aparte.
 func (a *API) handleDeleteMyIssuerLogo(w http.ResponseWriter, r *http.Request) {
 	iss, err := a.issuers.DeleteLogo(r.Context(), middleware.GetTenantID(r.Context()))
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	response.WriteJSON(w, http.StatusOK, issuerToResponse(iss))
+}
+
+// handleDeleteMyIssuerSoftware borra software_id y software_pin del emisor autenticado.
+// Mismo patrón que handleDeleteMyIssuerLogo.
+func (a *API) handleDeleteMyIssuerSoftware(w http.ResponseWriter, r *http.Request) {
+	iss, err := a.issuers.ClearSoftware(r.Context(), middleware.GetTenantID(r.Context()))
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	response.WriteJSON(w, http.StatusOK, issuerToResponse(iss))
+}
+
+// handleDeleteMyIssuerCertificate borra el certificado y su contraseña del emisor autenticado.
+// Mismo patrón que handleDeleteMyIssuerLogo.
+func (a *API) handleDeleteMyIssuerCertificate(w http.ResponseWriter, r *http.Request) {
+	iss, err := a.issuers.ClearCertificate(r.Context(), middleware.GetTenantID(r.Context()))
 	if err != nil {
 		response.WriteError(w, err)
 		return

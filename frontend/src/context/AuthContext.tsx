@@ -38,6 +38,8 @@ interface AuthContextValue {
   updateProfile: (name: string, email: string) => Promise<User>;
   updateIssuer: (payload: UpdateIssuerPayload) => Promise<Issuer>;
   deleteIssuerLogo: () => Promise<Issuer>;
+  deleteIssuerSoftware: () => Promise<Issuer>;
+  deleteIssuerCertificate: () => Promise<Issuer>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -192,6 +194,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return updated;
   }, []);
 
+  const deleteIssuerSoftware = useCallback(async () => {
+    const updated = await apiClient.del<Issuer>("/issuers/me/software");
+    setActiveIssuer(updated);
+    const stored = readStoredSession();
+    if (stored) writeStoredSession({ ...stored, issuer: updated });
+    return updated;
+  }, []);
+
+  const deleteIssuerCertificate = useCallback(async () => {
+    const updated = await apiClient.del<Issuer>("/issuers/me/certificate");
+    setActiveIssuer(updated);
+    const stored = readStoredSession();
+    if (stored) writeStoredSession({ ...stored, issuer: updated });
+    return updated;
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -209,6 +227,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateProfile,
       updateIssuer,
       deleteIssuerLogo,
+      deleteIssuerSoftware,
+      deleteIssuerCertificate,
     }),
     [
       user,
@@ -225,6 +245,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateProfile,
       updateIssuer,
       deleteIssuerLogo,
+      deleteIssuerSoftware,
+      deleteIssuerCertificate,
     ],
   );
 

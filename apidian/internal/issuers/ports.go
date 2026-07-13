@@ -1,6 +1,9 @@
 package issuers
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // CatalogPort valida LiabilityCodes contra el catálogo liability_codes — TEXT[], sin FK
 // posible contra cada elemento (mismo motivo y mismo patrón que documents.CatalogPort).
@@ -21,3 +24,12 @@ type CatalogPort interface {
 // un .p12 real para probar lógica de dominio que nunca llega a esta validación (valores
 // vacíos, "no encontrado", actualización parcial sin tocar el certificado, etc.).
 type CertificateValidator func(certificate []byte, password string) error
+
+// CertificateParser extrae los metadatos visibles del .p12: nombre del titular (Subject
+// CommonName), nombre de la CA emisora (Issuer CommonName) y fecha de vencimiento. Se inyecta
+// desde internal/api (documents.ParseCertificate) para respetar la regla de que solo documents
+// importa cofacture directamente.
+//
+// nil es válido: significa "no extraer metadatos" — los tests de este paquete lo usan cuando
+// no necesitan un .p12 real.
+type CertificateParser func(certificate []byte, password string) (subject, issuerCN string, expiresAt time.Time, err error)

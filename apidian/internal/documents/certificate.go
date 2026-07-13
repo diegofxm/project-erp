@@ -1,6 +1,10 @@
 package documents
 
-import "github.com/diegofxm/cofacture/signer"
+import (
+	"time"
+
+	"github.com/diegofxm/cofacture/signer"
+)
 
 // ValidateCertificate confirma que certificate+password formen un .p12 (PKCS12) válido y
 // parseable. documents es el único paquete de apidian que importa cofacture directamente
@@ -10,4 +14,15 @@ import "github.com/diegofxm/cofacture/signer"
 func ValidateCertificate(certificate []byte, password string) error {
 	_, _, err := signer.LoadPKCS12(certificate, password)
 	return err
+}
+
+// ParseCertificate extrae los metadatos visibles del .p12: nombre del titular (Subject
+// CommonName), nombre de la CA emisora (Issuer CommonName) y fecha de vencimiento. Mismo
+// principio de aislamiento que ValidateCertificate — solo documents importa cofacture.
+func ParseCertificate(certificate []byte, password string) (subject, issuerCN string, expiresAt time.Time, err error) {
+	cert, _, err := signer.LoadPKCS12(certificate, password)
+	if err != nil {
+		return "", "", time.Time{}, err
+	}
+	return cert.Subject.CommonName, cert.Issuer.CommonName, cert.NotAfter, nil
 }
