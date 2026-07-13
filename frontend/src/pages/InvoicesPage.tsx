@@ -46,7 +46,7 @@ export function InvoicesPage() {
     setLoadingPage(true);
     listDocuments({
       dian_document_type_code: INVOICE_DIAN_DOCUMENT_TYPE,
-      limit: PAGE_SIZE,
+      limit: PAGE_SIZE + 1,
       offset,
       ...(status && { status }),
       ...(from && { from }),
@@ -57,8 +57,9 @@ export function InvoicesPage() {
       .finally(() => setLoadingPage(false));
   }, [offset, status, from, to]);
 
-  const hasNext = (documents?.length ?? 0) === PAGE_SIZE;
-  const hasRefs = documents?.some((d) => (d.nc_count ?? 0) > 0 || (d.nd_count ?? 0) > 0) ?? false;
+  const hasNext = (documents?.length ?? 0) > PAGE_SIZE;
+  const page = documents?.slice(0, PAGE_SIZE) ?? null;
+  const hasRefs = page?.some((d) => (d.nc_count ?? 0) > 0 || (d.nd_count ?? 0) > 0) ?? false;
 
   return (
     <div className="p-4">
@@ -103,11 +104,11 @@ export function InvoicesPage() {
 
       {error && <Banner tone="danger">{error}</Banner>}
 
-      {documents === null ? (
+      {page === null ? (
         <div className="flex min-h-32 items-center justify-center">
           <Spinner className="h-5 w-5 text-(--text-muted)" />
         </div>
-      ) : documents.length === 0 ? (
+      ) : page.length === 0 ? (
         <p className="text-xs text-(--text-secondary)">
           {hasFilters ? "No hay facturas que coincidan con los filtros." : "Todavía no has creado ninguna factura."}
         </p>
@@ -125,7 +126,7 @@ export function InvoicesPage() {
               </tr>
             </thead>
             <tbody>
-              {documents.map((d, i) => (
+              {page.map((d, i) => (
                 <tr
                   key={d.id}
                   className={`cursor-pointer hover:bg-(--bg-hover) ${i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}`}
@@ -157,10 +158,10 @@ export function InvoicesPage() {
         </div>
       )}
 
-      {documents !== null && (
+      {page !== null && (
         <Pagination
           offset={offset}
-          count={documents.length}
+          count={page.length}
           hasNext={hasNext}
           loading={loadingPage}
           onPrev={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
