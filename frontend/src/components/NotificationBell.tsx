@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { AlertTriangle, Bell, BellOff, CheckCheck } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, CheckCheck, X } from "lucide-react";
 import { useNotifications } from "../context/NotificationContext";
 
 export function NotificationBell() {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, dismiss } = useNotifications();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -61,11 +61,11 @@ export function NotificationBell() {
           ) : (
             <ul className="max-h-80 overflow-y-auto divide-y divide-(--border-light)">
               {notifications.map((n) => (
-                <li key={n.id}>
+                <li key={n.id} className={`flex items-start gap-1 border-b border-(--border-light) last:border-b-0 hover:bg-(--bg-hover) transition-colors ${n.isRead ? "opacity-60" : ""}`}>
                   <Link
                     to={n.linkTo}
                     onClick={() => { markAsRead(n.id); setOpen(false); }}
-                    className={`flex gap-2.5 px-3 py-2.5 hover:bg-(--bg-hover) transition-colors ${n.isRead ? "opacity-60" : ""}`}
+                    className="flex min-w-0 flex-1 gap-2.5 px-3 py-2.5"
                   >
                     <AlertTriangle
                       className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${
@@ -79,6 +79,14 @@ export function NotificationBell() {
                       <p className="mt-0.5 text-xs text-(--text-secondary) leading-relaxed">{n.message}</p>
                     </div>
                   </Link>
+                  <button
+                    type="button"
+                    title="Descartar"
+                    onClick={() => dismiss(n.id)}
+                    className="mr-1 mt-2 shrink-0 rounded p-1 text-(--text-muted) hover:bg-(--bg-tertiary) hover:text-(--text-primary)"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 </li>
               ))}
             </ul>

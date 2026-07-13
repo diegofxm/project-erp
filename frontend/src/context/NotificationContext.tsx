@@ -4,6 +4,7 @@ import { listNumberingRanges } from "../lib/numberingRanges";
 import type { Issuer, NumberingRange } from "../lib/types";
 
 const READS_KEY = "apidian.notification_reads";
+const DISMISSED_KEY = "apidian.notification_dismissed";
 const WARN_DAYS = 30;
 
 export interface AppNotification {
@@ -20,21 +21,24 @@ interface NotificationContextValue {
   unreadCount: number;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
+  // dismiss descarta permanentemente una notificación — no reaparece hasta que cambie el
+  // dato subyacente (ej. nueva fecha de vencimiento = nuevo ID = nueva notificación).
+  dismiss: (id: string) => void;
 }
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
-function readReads(): Set<string> {
+function readSet(key: string): Set<string> {
   try {
-    const raw = localStorage.getItem(READS_KEY);
+    const raw = localStorage.getItem(key);
     return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
   } catch {
     return new Set();
   }
 }
 
-function saveReads(reads: Set<string>) {
-  localStorage.setItem(READS_KEY, JSON.stringify([...reads]));
+function saveSet(key: string, set: Set<string>) {
+  localStorage.setItem(key, JSON.stringify([...set]));
 }
 
 function daysUntil(dateStr: string): number {
@@ -49,7 +53,7 @@ function docTypeLabel(code: string): string {
   return code === "01" ? "Factura" : code === "91" ? "Nota Crédito" : code === "92" ? "Nota Débito" : code;
 }
 
-function computeNotifications(issuer: Issuer | null, ranges: NumberingRange[], reads: Set<string>): AppNotification[] {
+function computeNotifications(issuer: Issuer | null, ranges: NumberingRange[], reads: Set<string>, dismissed: Set<string>): AppNotification[] {
   const out: AppNotification[] = [];
 
   // ── Certificado digital ────────────────────────────────────────────────────
@@ -103,16 +107,28 @@ function computeNotifications(issuer: Issuer | null, ranges: NumberingRange[], r
           linkTo: "/settings/company",
         });
       }
+    } else if (r.status === "exhausted") {
+      const id = `range_exhausted:${r.id}`;
+      out.push({
+        id, tone: "danger",
+        title: `Resolución ${rangeLabel} agotada`,
+        message: `Se usaron todos los números autorizados. Registra una nueva resolución para seguir facturando.`,
+        isRead: reads.has(id),
+        linkTo: "/settings/company",
+      });
     }
   }
 
-  return out;
+  // Las notificaciones descartadas no aparecen hasta que cambie el dato subyacente
+  // (nuevo ID = nueva condición = reaparece sin leer).
+  return out.filter((n) => !dismissed.has(n.id));
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { activeIssuer, isAuthenticated } = useAuth();
   const [ranges, setRanges] = useState<NumberingRange[]>([]);
-  const [reads, setReads] = useState<Set<string>>(readReads);
+  const [reads, setReads] = useState<Set<string>>(() => readSet(READS_KEY));
+  const [dismissed, setDismissed] = useState<Set<string>>(() => readSet(DISMISSED_KEY));
 
   useEffect(() => {
     if (!isAuthenticated || !activeIssuer) { setRanges([]); return; }
@@ -120,8 +136,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, activeIssuer?.id]);
 
   const notifications = useMemo(
-    () => computeNotifications(activeIssuer, ranges, reads),
-    [activeIssuer, ranges, reads],
+    () => computeNotifications(activeIssuer, ranges, reads, dismissed),
+    [activeIssuer, ranges, reads, dismissed],
   );
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.isRead).length, [notifications]);
@@ -130,7 +146,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setReads((prev) => {
       const next = new Set(prev);
       next.add(id);
-      saveReads(next);
+      saveSet(READS_KEY, next);
       return next;
     });
   }, []);
@@ -139,14 +155,30 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setReads((prev) => {
       const next = new Set(prev);
       notifications.forEach((n) => next.add(n.id));
-      saveReads(next);
+      saveSet(READS_KEY, next);
       return next;
     });
   }, [notifications]);
 
+  const dismiss = useCallback((id: string) => {
+    // Descartar también implica leer — así no queda contando en el badge si se deshace.
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      saveSet(DISMISSED_KEY, next);
+      return next;
+    });
+    setReads((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      saveSet(READS_KEY, next);
+      return next;
+    });
+  }, []);
+
   const value = useMemo<NotificationContextValue>(
-    () => ({ notifications, unreadCount, markAsRead, markAllAsRead }),
-    [notifications, unreadCount, markAsRead, markAllAsRead],
+    () => ({ notifications, unreadCount, markAsRead, markAllAsRead, dismiss }),
+    [notifications, unreadCount, markAsRead, markAllAsRead, dismiss],
   );
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
