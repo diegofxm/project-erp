@@ -49,32 +49,51 @@ type createIssuerRequest struct {
 	CertificatePassword         string   `json:"certificate_password"`
 }
 
-// issuerResponse es deliberadamente angosto — nunca incluye Certificate/SoftwarePIN/
-// CertificatePassword, ni siquiera cifrados: una vez guardados, esta API no los expone más.
-// HasSoftwareCredentials/HasCertificate son solo presencia (true/false) — para que el
-// frontend pueda mostrar "ya configurado" sin que el secreto en sí viaje de vuelta nunca.
-// SoftwareID no es secreto (es un ID de registro ante la DIAN, no una contraseña) — por eso
-// sí se expone, a diferencia del PIN. CertificateSubject/CertificateIssuerCN/
-// CertificateExpiresAt son metadatos de solo lectura derivados del .p12 en memoria cada vez
-// que se lee el emisor (ver issuers.Service.enrichCertMetadata) — sin datos sensibles.
+// issuerResponse expone los datos del emisor al frontend. Los secretos (SoftwarePIN/
+// Certificate/CertificatePassword) NUNCA se incluyen — ni cifrados. Los campos de identidad
+// y dirección (CheckDigit, TradeName, AddressLine, etc.) sí se exponen porque son datos
+// públicos que el emisor necesita ver en su pantalla de configuración.
 type issuerResponse struct {
-	ID                          uuid.UUID  `json:"id"`
-	NIT                         string     `json:"nit"`
-	BusinessName                string     `json:"business_name"`
-	IdentificationTypeCode      string     `json:"identification_type_code"`
-	Environment                 string     `json:"environment"`
-	TaxRegimeCode               *string    `json:"tax_regime_code,omitempty"`
-	IndustryClassificationCodes []string   `json:"industry_classification_codes,omitempty"`
-	SoftwareID                  string     `json:"software_id,omitempty"`
-	HasSoftwareCredentials      bool       `json:"has_software_credentials"`
-	HasCertificate              bool       `json:"has_certificate"`
-	CertificateSubject          string     `json:"certificate_subject,omitempty"`
-	CertificateIssuerCN         string     `json:"certificate_issuer_cn,omitempty"`
-	CertificateExpiresAt        *time.Time `json:"certificate_expires_at,omitempty"`
-	// HasLogo: mismo criterio que HasSoftwareCredentials/HasCertificate — solo presencia, el
-	// logo en sí se sirve aparte (GET /issuers/me/logo, más abajo en este archivo) para no
-	// inflar esta respuesta con bytes de imagen en cada GET/PUT.
-	HasLogo   bool      `json:"has_logo"`
+	ID                     uuid.UUID `json:"id"`
+	NIT                    string    `json:"nit"`
+	CheckDigit             string    `json:"check_digit"`
+	BusinessName           string    `json:"business_name"`
+	TradeName              string    `json:"trade_name,omitempty"`
+	IdentificationTypeCode string    `json:"identification_type_code"`
+	Environment            string    `json:"environment"`
+
+	// Dirección
+	DepartmentCode   string `json:"department_code"`
+	MunicipalityCode string `json:"municipality_code"`
+	DepartmentName   string `json:"department_name,omitempty"`
+	MunicipalityName string `json:"municipality_name,omitempty"`
+	AddressLine      string `json:"address_line"`
+	Phone            string `json:"phone,omitempty"`
+	Email            string `json:"email"`
+
+	// Información fiscal
+	EntityTypeCode              string   `json:"entity_type_code,omitempty"`
+	TaxSchemeCode               string   `json:"tax_scheme_code,omitempty"`
+	TaxSchemeName               string   `json:"tax_scheme_name,omitempty"`
+	LiabilityCodes              []string `json:"liability_codes,omitempty"`
+	TaxRegimeCode               *string  `json:"tax_regime_code,omitempty"`
+	IndustryClassificationCodes []string `json:"industry_classification_codes,omitempty"`
+	MerchantRegistrationNumber  *string  `json:"merchant_registration_number,omitempty"`
+
+	// Credenciales DIAN — nunca PIN/cert/password, solo presencia y metadatos seguros
+	SoftwareID             string     `json:"software_id,omitempty"`
+	HasSoftwareCredentials bool       `json:"has_software_credentials"`
+	HasCertificate         bool       `json:"has_certificate"`
+	CertificateSubject     string     `json:"certificate_subject,omitempty"`
+	CertificateIssuerCN    string     `json:"certificate_issuer_cn,omitempty"`
+	CertificateExpiresAt   *time.Time `json:"certificate_expires_at,omitempty"`
+
+	// HasLogo: el logo en sí se sirve aparte (GET /issuers/me/logo) para no inflar esta respuesta.
+	HasLogo bool `json:"has_logo"`
+
+	// Plantilla personalizada del cuerpo del correo al cliente. nil = usar el texto por defecto.
+	EmailBodyTemplate *string `json:"email_body_template,omitempty"`
+
 	IsActive  bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -83,11 +102,25 @@ func issuerToResponse(iss *issuers.Issuer) issuerResponse {
 	return issuerResponse{
 		ID:                          iss.ID,
 		NIT:                         iss.NIT,
+		CheckDigit:                  iss.CheckDigit,
 		BusinessName:                iss.BusinessName,
+		TradeName:                   iss.TradeName,
 		IdentificationTypeCode:      iss.IdentificationTypeCode,
 		Environment:                 string(iss.Environment),
+		DepartmentCode:              iss.DepartmentCode,
+		MunicipalityCode:            iss.MunicipalityCode,
+		DepartmentName:              iss.DepartmentName,
+		MunicipalityName:            iss.MunicipalityName,
+		AddressLine:                 iss.AddressLine,
+		Phone:                       iss.Phone,
+		Email:                       iss.Email,
+		EntityTypeCode:              iss.EntityTypeCode,
+		TaxSchemeCode:               iss.TaxSchemeCode,
+		TaxSchemeName:               iss.TaxSchemeName,
+		LiabilityCodes:              iss.LiabilityCodes,
 		TaxRegimeCode:               iss.TaxRegimeCode,
 		IndustryClassificationCodes: iss.IndustryClassificationCodes,
+		MerchantRegistrationNumber:  iss.MerchantRegistrationNumber,
 		SoftwareID:                  iss.SoftwareID,
 		HasSoftwareCredentials:      iss.SoftwareID != "" && iss.SoftwarePIN != "",
 		HasCertificate:              len(iss.Certificate) > 0 && iss.CertificatePassword != "",
@@ -95,6 +128,7 @@ func issuerToResponse(iss *issuers.Issuer) issuerResponse {
 		CertificateIssuerCN:         iss.CertificateIssuerCN,
 		CertificateExpiresAt:        iss.CertificateExpiresAt,
 		HasLogo:                     len(iss.Logo) > 0,
+		EmailBodyTemplate:           iss.EmailBodyTemplate,
 		IsActive:                    iss.IsActive,
 		CreatedAt:                   iss.CreatedAt,
 	}
@@ -214,11 +248,12 @@ type updateIssuerRequest struct {
 	SoftwarePIN         *string `json:"software_pin,omitempty"`
 	CertificateBase64   *string `json:"certificate_base64,omitempty"`
 	CertificatePassword *string `json:"certificate_password,omitempty"`
-	// LogoBase64/LogoContentType: para la representación gráfica en PDF (ver
-	// docs/apidian-architecture.md sección 9.39) — mismo criterio *string que el resto de este
-	// payload (nil = no tocar).
-	LogoBase64      *string `json:"logo_base64,omitempty"`
-	LogoContentType *string `json:"logo_content_type,omitempty"`
+	LogoBase64          *string `json:"logo_base64,omitempty"`
+	LogoContentType     *string `json:"logo_content_type,omitempty"`
+	// EmailBodyTemplate: nil = no tocar; "" (string vacío) = borrar plantilla personalizada
+	// (vuelve al texto por defecto embebido); cualquier otro valor = guardar como plantilla.
+	// Soporta marcadores {nombre_cliente}, {numero_documento}, {nombre_empresa}, {tipo_documento}.
+	EmailBodyTemplate *string `json:"email_body_template,omitempty"`
 }
 
 // handleUpdateMyIssuer completa/reemplaza software/PIN/certificado del emisor autenticado —
@@ -234,6 +269,7 @@ func (a *API) handleUpdateMyIssuer(w http.ResponseWriter, r *http.Request) {
 		SoftwareID:          req.SoftwareID,
 		SoftwarePIN:         req.SoftwarePIN,
 		CertificatePassword: req.CertificatePassword,
+		EmailBodyTemplate:   req.EmailBodyTemplate,
 	}
 	if req.CertificateBase64 != nil {
 		cert, err := base64.StdEncoding.DecodeString(*req.CertificateBase64)

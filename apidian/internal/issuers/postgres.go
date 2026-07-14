@@ -44,7 +44,7 @@ const issuerSelectWithNames = `
 	       i.entity_type_code, i.tax_scheme_code, i.tax_scheme_name, i.liability_codes, i.tax_regime_code,
 	       i.industry_classification_codes, i.merchant_registration_number,
 	       i.software_id, i.software_pin, i.certificate, i.certificate_password,
-	       i.logo, i.logo_content_type, i.is_active,
+	       i.logo, i.logo_content_type, i.email_body_template, i.is_active,
 	       i.created_at, i.updated_at
 	FROM issuers i
 	JOIN departments d ON d.code = i.department_code
@@ -126,9 +126,9 @@ func (r *PostgresRepository) Update(ctx context.Context, iss Issuer) (*Issuer, e
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE issuers SET
 			software_id = $1, software_pin = $2, certificate = $3, certificate_password = $4,
-			logo = $5, logo_content_type = $6, updated_at = $7
-		WHERE id = $8`,
-		iss.SoftwareID, encPIN, encCert, encCertPwd, iss.Logo, iss.LogoContentType, time.Now().UTC(), iss.ID,
+			logo = $5, logo_content_type = $6, email_body_template = $7, updated_at = $8
+		WHERE id = $9`,
+		iss.SoftwareID, encPIN, encCert, encCertPwd, iss.Logo, iss.LogoContentType, iss.EmailBodyTemplate, time.Now().UTC(), iss.ID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update issuer: %w", err)
@@ -160,7 +160,7 @@ func (r *PostgresRepository) scan(row pgx.Row) (*Issuer, error) {
 		&iss.Email, &iss.Phone, &env, &iss.EntityTypeCode, &iss.TaxSchemeCode, &iss.TaxSchemeName,
 		&iss.LiabilityCodes, &iss.TaxRegimeCode, &iss.IndustryClassificationCodes,
 		&iss.MerchantRegistrationNumber, &iss.SoftwareID, &encPIN, &encCert, &encCertPwd,
-		&iss.Logo, &iss.LogoContentType,
+		&iss.Logo, &iss.LogoContentType, &iss.EmailBodyTemplate,
 		&iss.IsActive, &iss.CreatedAt, &iss.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrIssuerNotFound

@@ -63,6 +63,7 @@ CREATE TABLE issuers (
     certificate_password         BYTEA,
     logo                          BYTEA,
     logo_content_type             VARCHAR(10),
+    email_body_template           TEXT,
     is_active                    BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at                   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at                   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

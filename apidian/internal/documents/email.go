@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"strings"
 	"time"
 
 	"github.com/beevik/etree"
@@ -67,11 +68,22 @@ func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID,
 	// Asunto según Anexo Técnico 1.9 sección 9.1:
 	// NIT; Nombre del facturador; Número del documento; Código tipo; Nombre comercial
 	subject := fmt.Sprintf("%s;%s;%s;%s;%s", iss.NIT, iss.BusinessName, filename, d.DianDocumentTypeCode, tradeName)
+
+	var bodyText, bodyHTML string
+	if iss.EmailBodyTemplate != nil && *iss.EmailBodyTemplate != "" {
+		rendered := renderCustomEmailBody(*iss.EmailBodyTemplate, d, iss, typeName)
+		bodyText = rendered
+		bodyHTML = customBodyToHTML(rendered)
+	} else {
+		bodyText = documentEmailText(d, iss, typeName)
+		bodyHTML = documentEmailHTML(d, iss, typeName)
+	}
+
 	msg := email.Message{
 		To:       d.Customer.Email,
 		Subject:  subject,
-		BodyText: documentEmailText(d, iss, typeName),
-		BodyHTML: documentEmailHTML(d, iss, typeName),
+		BodyText: bodyText,
+		BodyHTML: bodyHTML,
 		Attachments: []email.Attachment{
 			{Filename: filename + ".zip", ContentType: "application/zip", Content: zipBytes},
 		},
@@ -171,6 +183,40 @@ func buildAttachedDocumentXML(d *Document, iss *issuers.Issuer, filename string,
 		return nil, "", fmt.Errorf("serializar AttachedDocument: %w", err)
 	}
 	return xmlBytes, filename + "ad.xml", nil
+}
+
+// renderCustomEmailBody reemplaza los marcadores {variable} de la plantilla personalizada del
+// emisor. No usa html/template — los valores se sustituyen como texto plano; customBodyToHTML
+// se encarga del escape HTML cuando se necesita la versión HTML del correo.
+func renderCustomEmailBody(tmpl string, d *Document, iss *issuers.Issuer, typeName string) string {
+	docNum := fmt.Sprintf("%s%d", d.Prefix, d.Number)
+	r := strings.NewReplacer(
+		"{nombre_cliente}", d.Customer.Name,
+		"{numero_documento}", docNum,
+		"{nombre_empresa}", iss.BusinessName,
+		"{tipo_documento}", typeName,
+	)
+	return r.Replace(tmpl)
+}
+
+// customBodyToHTML convierte el cuerpo de texto plano ya renderizado en HTML seguro —
+// escapa caracteres especiales y envuelve cada párrafo (separado por línea en blanco) en <p>.
+func customBodyToHTML(text string) string {
+	paragraphs := strings.Split(text, "\n\n")
+	var b strings.Builder
+	for _, p := range paragraphs {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		// Escapa HTML y convierte saltos de línea simples en <br>.
+		escaped := html.EscapeString(p)
+		escaped = strings.ReplaceAll(escaped, "\n", "<br>")
+		b.WriteString("<p>")
+		b.WriteString(escaped)
+		b.WriteString("</p>")
+	}
+	return b.String()
 }
 
 // documentTypeName devuelve el nombre en minúsculas del tipo de documento para usar en emails.

@@ -1,8 +1,10 @@
 import { Building2 } from "lucide-react";
-import { SoftwareCertificateForm } from "../components/issuer-settings/SoftwareCertificateForm";
+import { CompanyDataPanel } from "../components/issuer-settings/CompanyDataPanel";
+import { EmailTemplatePanel } from "../components/issuer-settings/EmailTemplatePanel";
 import { LogoForm } from "../components/issuer-settings/LogoForm";
-import { PublicRegistrationPanel } from "../components/issuer-settings/PublicRegistrationPanel";
 import { NumberingRangesPanel } from "../components/issuer-settings/NumberingRangesPanel";
+import { PublicRegistrationPanel } from "../components/issuer-settings/PublicRegistrationPanel";
+import { SoftwareCertificateForm } from "../components/issuer-settings/SoftwareCertificateForm";
 
 export function SettingsCompanyPage() {
   return (
@@ -12,8 +14,10 @@ export function SettingsCompanyPage() {
         Empresa
       </h1>
       <div className="flex flex-col gap-4">
+        <CompanyDataPanel />
         <SoftwareCertificateForm />
         <LogoForm />
+        <EmailTemplatePanel />
         <PublicRegistrationPanel />
         <NumberingRangesPanel />
       </div>

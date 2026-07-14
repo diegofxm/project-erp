@@ -13,9 +13,30 @@ export type IssuerEnvironment = "1" | "2"; // 1 = producción, 2 = habilitación
 export interface Issuer {
   id: string;
   nit: string;
+  check_digit: string;
   business_name: string;
+  trade_name?: string;
   identification_type_code: string;
   environment: IssuerEnvironment;
+
+  // Dirección
+  department_code: string;
+  municipality_code: string;
+  department_name?: string;
+  municipality_name?: string;
+  address_line: string;
+  phone?: string;
+  email: string;
+
+  // Información fiscal
+  entity_type_code?: string;
+  tax_scheme_code?: string;
+  tax_scheme_name?: string;
+  liability_codes?: string[];
+  tax_regime_code?: string;
+  industry_classification_codes?: string[];
+  merchant_registration_number?: string;
+
   // software_id no es secreto (es un ID de registro, no una contraseña). PIN/cert/password
   // nunca viajan de vuelta — solo has_software_credentials / has_certificate (presencia).
   software_id?: string;
@@ -26,9 +47,14 @@ export interface Issuer {
   certificate_subject?: string;
   certificate_issuer_cn?: string;
   certificate_expires_at?: string; // ISO 8601
+
   // has_logo: el logo en sí se sirve aparte (GET /issuers/me/logo) — ver
   // docs/apidian-architecture.md sección 9.39.
   has_logo: boolean;
+
+  // nil = usa el cuerpo de correo predeterminado; no vacío = plantilla personalizada con {variables}.
+  email_body_template?: string;
+
   is_active: boolean;
   created_at: string;
 }
@@ -92,6 +118,8 @@ export interface UpdateIssuerPayload {
   // docs/apidian-architecture.md sección 9.39). logo_content_type es "png"/"jpg"/"jpeg".
   logo_base64?: string;
   logo_content_type?: string;
+  // email_body_template: "" = volver al predeterminado; texto = plantilla personalizada con {variables}.
+  email_body_template?: string;
 }
 
 // Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.
