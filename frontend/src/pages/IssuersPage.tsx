@@ -11,13 +11,19 @@ export function IssuersPage() {
         Mis empresas
       </h1>
 
-      {/* Perfil de la empresa activa */}
-      <CompanyDataPanel />
+      <div className="flex gap-4 items-start">
+        {/* Perfil de la empresa activa — columna ancha */}
+        <div className="flex-3 min-w-0">
+          <CompanyDataPanel />
+        </div>
 
-      {/* Cambiar de empresa o crear una nueva */}
-      <Card className="p-4">
-        <IssuerManager />
-      </Card>
+        {/* Cambiar de empresa o crear una nueva — columna estrecha */}
+        <div className="flex-2 min-w-0">
+          <Card className="p-4">
+            <IssuerManager />
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
