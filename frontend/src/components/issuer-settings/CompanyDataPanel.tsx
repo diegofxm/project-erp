@@ -81,18 +81,20 @@ export function CompanyDataPanel() {
     .filter(Boolean)
     .join(", ");
 
-  const entityType = activeIssuer.entity_type_code ? (ENTITY_TYPE[activeIssuer.entity_type_code] ?? activeIssuer.entity_type_code) : undefined;
+  const entityType = activeIssuer.entity_type_code
+    ? `${activeIssuer.entity_type_code} - ${ENTITY_TYPE[activeIssuer.entity_type_code] ?? activeIssuer.entity_type_code}`
+    : undefined;
 
   const taxRegime = activeIssuer.tax_regime_code
-    ? (TAX_REGIME[activeIssuer.tax_regime_code] ?? activeIssuer.tax_regime_code)
+    ? `${activeIssuer.tax_regime_code} - ${TAX_REGIME[activeIssuer.tax_regime_code] ?? activeIssuer.tax_regime_code}`
     : undefined;
 
   const liabilities = activeIssuer.liability_codes
-    ?.map((c) => LIABILITY_CODE[c] ?? c)
-    .join(", ");
+    ?.map((c) => `${c} - ${LIABILITY_CODE[c] ?? c}`)
+    .join("\n");
 
   const taxScheme = activeIssuer.tax_scheme_code
-    ? `${activeIssuer.tax_scheme_name ?? activeIssuer.tax_scheme_code}`
+    ? `${activeIssuer.tax_scheme_code} - ${activeIssuer.tax_scheme_name ?? activeIssuer.tax_scheme_code}`
     : undefined;
 
   const ciiu = activeIssuer.industry_classification_codes
