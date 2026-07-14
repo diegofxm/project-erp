@@ -80,7 +80,7 @@ export function IssuerManager() {
                 type="button"
                 disabled={loading || isActive}
                 onClick={() => handleSelect(issuer.id)}
-                className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-left text-xs hover:bg-(--bg-hover) disabled:cursor-default disabled:opacity-60"
+                className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-left text-xs cursor-pointer hover:bg-(--bg-hover) disabled:cursor-default disabled:opacity-60"
               >
                 <span className="font-medium text-(--text-primary)">{issuer.business_name}</span>
                 <span className="flex items-center gap-2">
