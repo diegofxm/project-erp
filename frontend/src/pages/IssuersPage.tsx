@@ -9,7 +9,7 @@ export function IssuersPage() {
         <Building2 className="h-4 w-4 shrink-0 text-(--accent-primary)" />
         Mis empresas
       </h1>
-      <Card className="max-w-lg p-4">
+      <Card className="p-4">
         <IssuerManager />
       </Card>
     </div>
