@@ -5,7 +5,6 @@
 <title>{{.Copy1.DocumentTitle}} · {{.Copy1.DocNumber}}</title>
 <style>
 
-/* ── Reset ───────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 @page { size: A4; margin: 0; }
@@ -14,17 +13,18 @@
   --ink:         #111111;
   --muted:       #555555;
   --accent:      #14345C;
+  --line:        var(--accent);
   --shade:       #EDEDED;
   --accent-tint: #EAF0F8;
   --num-red:     #C0392B;
+  --rule-strong: 1pt;
   --rule:        0.6pt;
   --hair:        0.4pt;
-  --rule-strong: 1pt;
 }
 
 body {
   font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 7.5pt;
+  font-size: 7pt;
   line-height: 1.2;
   color: var(--ink);
   background: #fff;
@@ -32,56 +32,53 @@ body {
   print-color-adjust: exact;
 }
 
-/* ── Página ──────────────────────────────────── */
 .page {
-  height: 297mm;
-  display: flex;
-  flex-direction: column;
+  padding: 6mm 8mm;
 }
 
-/* Cada slip ocupa la mitad disponible de la hoja */
 .slip {
-  flex: 1;
-  min-height: 0;
+  height: 138mm;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 5mm 8mm 4mm 8mm;
 }
 
-/* ── Línea de corte ──────────────────────────── */
-.cut {
-  height: 7mm;
-  flex-shrink: 0;
+.cut-line {
+  position: relative;
+  height: 0;
   border-top: 1pt dashed var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 6pt;
-  color: var(--muted);
-  letter-spacing: 0.05em;
+  margin: 3mm 0;
 }
 
-/* ── Cabecera del slip ───────────────────────── */
+.cut-line span {
+  position: absolute;
+  top: -2.3mm;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  padding: 0 2.5mm;
+  font-size: 6pt;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ── Cabecera ──────────────────────────── */
 .s-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 4mm;
-  margin-bottom: 2.5mm;
-  flex-shrink: 0;
+  padding-top: 2mm;
+  margin-bottom: 2mm;
 }
 
-.s-co {
-  display: flex;
-  gap: 2mm;
-  align-items: flex-start;
-  flex: 1;
-}
+.s-co-block { display: flex; gap: 2mm; align-items: flex-start; }
 
-.s-logo {
-  width: 14mm;
-  height: 14mm;
+.s-logo-box {
+  width: 12mm;
+  height: 12mm;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -89,116 +86,48 @@ body {
   overflow: hidden;
 }
 
-.s-logo img { width: 100%; height: 100%; object-fit: contain; }
+.s-logo-box img { width: 100%; height: 100%; object-fit: contain; }
 
-.s-coname {
-  font-size: 9pt;
-  font-weight: 700;
-  text-transform: uppercase;
-  line-height: 1.15;
-  color: var(--accent);
-}
+.s-co-name { font-size: 9pt; font-weight: 700; text-transform: uppercase; line-height: 1.15; color: var(--accent); }
+.s-co-nit  { font-size: 6.5pt; font-weight: 700; margin-top: 0.3mm; }
+.s-co-info { font-size: 6pt; color: var(--muted); line-height: 1.3; margin-top: 0.3mm; }
 
-.s-nit {
-  font-size: 7pt;
-  font-weight: 700;
-  margin-top: 0.5mm;
-}
-
-.s-coinfo {
-  font-size: 6.5pt;
-  color: var(--muted);
-  line-height: 1.3;
-  margin-top: 0.5mm;
-}
-
-/* Bloque derecho: tipo + número + copia + QR */
-.s-docbox {
-  text-align: right;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.5mm;
-}
-
-.s-doctype {
-  font-size: 7.5pt;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: var(--accent);
-}
-
-.s-docnum {
-  font-size: 12pt;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  line-height: 1.1;
-  white-space: nowrap;
-  color: var(--num-red);
-}
-
-.s-date {
-  font-size: 6.5pt;
-  color: var(--muted);
-}
-
-.s-copy-label {
+.s-doc-title { text-align: right; flex-shrink: 0; }
+.s-doc-title .t1 { font-size: 8.5pt; font-weight: 700; text-transform: uppercase; color: var(--accent); }
+.s-doc-title .t2 { font-size: 6pt; color: var(--muted); line-height: 1.3; margin-top: 0.5mm; }
+.s-doc-title .t2 b { color: var(--ink); }
+.copy-tag {
   font-size: 6pt;
-  font-weight: 700;
-  text-transform: uppercase;
+  font-weight: 600;
   letter-spacing: 0.08em;
-  color: var(--muted);
-  border: 0.4pt solid var(--muted);
-  padding: 0.4mm 1.2mm;
-  border-radius: 0.5mm;
-  margin-top: 0.5mm;
-}
-
-.s-qr {
-  width: 16mm;
-  height: 16mm;
-  margin-top: 1mm;
-}
-
-.s-qr img { width: 100%; height: 100%; object-fit: contain; display: block; }
-
-.s-qr-ph {
-  width: 16mm;
-  height: 16mm;
-  margin-top: 1mm;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 5.5pt;
-  color: #bbb;
-  text-align: center;
-  border: 0.4pt dashed #ccc;
-}
-
-/* ── Borrador ────────────────────────────────── */
-.s-draft-bar {
-  background: var(--shade);
-  border: var(--rule-strong) solid var(--accent);
-  text-align: center;
-  font-size: 7pt;
-  font-weight: 700;
   text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 0.8mm;
+}
+
+/* ── Borrador ──────────────────────────── */
+.s-draft-bar {
+  border: var(--rule-strong) solid var(--line);
+  background: var(--shade);
+  padding: 1mm 2mm;
+  margin-bottom: 1.5mm;
+  text-align: center;
+  font-size: 6.5pt;
+  font-weight: 700;
   letter-spacing: 0.05em;
-  padding: 0.8mm 2mm;
-  margin-bottom: 2mm;
+  text-transform: uppercase;
+}
+
+/* ── Identidad (adquiriente + número + QR) ── */
+.s-idbox {
+  display: grid;
+  grid-template-columns: 1fr 30mm;
+  border: var(--rule) solid var(--line);
+  margin-bottom: 1.5mm;
   flex-shrink: 0;
 }
 
-/* ── Adquiriente ─────────────────────────────── */
-.s-customer {
-  border: var(--rule) solid var(--accent);
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 2mm;
-  flex-shrink: 0;
-}
+.s-idbox .col + .col { border-left: var(--rule) solid var(--line); }
 
 .s-bar {
   background: var(--accent);
@@ -206,119 +135,148 @@ body {
   font-size: 6pt;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   padding: 0.6mm 2mm;
 }
 
-.s-customer-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2mm;
-  padding: 1.2mm 2mm;
-  font-size: 7pt;
+.s-kv-block { padding: 1mm 2mm; }
+
+.s-kv-row { display: flex; gap: 1.5mm; font-size: 6.3pt; line-height: 1.35; }
+.s-kv-row .k { font-weight: 700; flex-shrink: 0; min-width: 12mm; }
+.s-kv-row .v { color: var(--ink); }
+
+.s-docnum {
+  padding: 1.5mm 2mm 1mm 3mm;
+  border-bottom: var(--hair) solid var(--line);
 }
 
-.s-kv { display: flex; gap: 1mm; }
-.s-kv .k { font-weight: 700; flex-shrink: 0; }
-.s-kv .v { color: var(--ink); }
+.s-docnum .lbl {
+  font-size: 5.5pt;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.5mm;
+}
 
-/* ── Tabla de ítems ──────────────────────────── */
+.s-docnum .num {
+  font-size: 9pt;
+  font-weight: 400;
+  color: var(--num-red);
+  white-space: nowrap;
+}
+
+.s-qr-wrap { padding: 1.5mm; }
+.s-qr-wrap img { display: block; width: 100%; height: auto; }
+.s-qr-ph {
+  padding: 1.5mm;
+  font-size: 5.5pt;
+  color: #bbb;
+  text-align: center;
+  border: 0.4pt dashed #ccc;
+  margin: 1.5mm;
+}
+
+/* ── Tabla de ítems ──────────────────── */
 .s-items-frame {
-  border: var(--rule) solid var(--accent);
-  margin-bottom: 2mm;
   flex: 1 1 auto;
-  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: var(--rule) solid var(--line);
+  margin-bottom: 1.5mm;
+  min-height: 12mm;
   overflow: hidden;
 }
 
-table.s-items {
-  width: 100%;
-  border-collapse: collapse;
-}
+table.s-items { width: 100%; border-collapse: collapse; }
 
 table.s-items thead th {
   background: var(--accent-tint);
   color: var(--accent);
   border-bottom: var(--hair) solid var(--accent);
-  font-size: 6pt;
+  font-size: 5.8pt;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
   padding: 0.8mm 1.5mm;
   text-align: left;
 }
 
+table.s-items thead th:not(:last-child) { border-right: var(--hair) solid var(--accent); }
 table.s-items thead th.r { text-align: right; }
 table.s-items thead th.c { text-align: center; }
-table.s-items thead th:not(:last-child) { border-right: var(--hair) solid var(--accent); }
 
 table.s-items tbody td {
-  padding: 1mm 1.5mm;
-  font-size: 7pt;
-  border-bottom: var(--hair) solid var(--accent);
+  border-bottom: var(--hair) solid var(--line);
+  padding: 0.8mm 1.5mm;
+  font-size: 6.3pt;
   vertical-align: top;
 }
 
-table.s-items tbody td:not(:last-child) { border-right: var(--hair) solid var(--accent); }
+table.s-items tbody td:not(:last-child) { border-right: var(--hair) solid var(--line); }
 table.s-items tbody td.r { text-align: right; }
 table.s-items tbody td.c { text-align: center; color: var(--muted); }
 
-/* ── Totales ─────────────────────────────────── */
-.s-totals {
-  border: var(--rule) solid var(--accent);
-  margin-bottom: 2mm;
+/* ── Caja financiera (impuestos + totales) ── */
+.s-finbox {
+  display: grid;
+  grid-template-columns: 1fr 55mm;
+  border: var(--rule) solid var(--line);
+  margin-bottom: 1.5mm;
   flex-shrink: 0;
 }
+
+.s-finbox .col + .col { border-left: var(--rule) solid var(--line); }
+
+table.s-taxes { width: 100%; border-collapse: collapse; font-size: 6pt; }
+
+table.s-taxes th {
+  border-bottom: var(--hair) solid var(--line);
+  padding: 0.6mm 2mm;
+  text-align: left;
+  font-weight: 700;
+}
+
+table.s-taxes td {
+  padding: 0.6mm 2mm;
+  border-bottom: 0.3pt solid #ccc;
+}
+
+table.s-taxes th.r, table.s-taxes td.r { text-align: right; }
 
 .s-t-row {
   display: flex;
   justify-content: space-between;
   padding: 0.8mm 2mm;
   font-size: 7pt;
-  border-bottom: 0.3pt solid #ddd;
+  border-bottom: 0.3pt solid #ccc;
 }
 
 .s-t-row.grand {
-  border-top: var(--rule-strong) solid var(--accent);
   border-bottom: none;
+  border-top: var(--rule-strong) solid var(--accent);
   background: var(--accent-tint);
   color: var(--accent);
   font-weight: 700;
-  font-size: 8.5pt;
+  font-size: 8pt;
   padding: 1.2mm 2mm;
 }
 
-/* ── Pie del slip ────────────────────────────── */
+/* ── Son / Nota ──────────────────────── */
+.s-words { font-size: 6.3pt; margin-bottom: 1mm; }
+.s-note  { font-size: 6.3pt; color: var(--muted); margin-bottom: 1mm; }
+
+/* ── Pie ─────────────────────────────── */
 .s-footer {
-  border: var(--rule) solid var(--accent);
-  padding: 1.2mm 2mm;
-  font-size: 6pt;
+  font-size: 5.3pt;
   color: var(--muted);
-  line-height: 1.35;
-  flex-shrink: 0;
+  line-height: 1.3;
+  border-top: var(--hair) solid var(--line);
+  padding-top: 1mm;
 }
 
-.s-cufe-row {
-  display: flex;
-  gap: 1.5mm;
-  align-items: baseline;
-  margin-top: 0.5mm;
-}
-
-.s-cufe-row .k {
-  font-size: 6pt;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ink);
-  flex-shrink: 0;
-}
-
-.s-cufe-row .v {
-  font-size: 6pt;
-  color: var(--ink);
-  word-break: break-all;
-}
+.s-footer-cufe { display: block; margin-top: 0.5mm; }
+.s-footer-cufe .k { font-weight: 700; color: var(--ink); }
+.s-footer-cufe .v { color: var(--ink); word-break: break-all; }
 
 </style>
 </head>
@@ -328,7 +286,7 @@ table.s-items tbody td.c { text-align: center; color: var(--muted); }
 
   {{template "slip" .Copy1}}
 
-  <div class="cut">✂&ensp;— — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —</div>
+  <div class="cut-line"><span>✂ Corte aquí</span></div>
 
   {{template "slip" .Copy2}}
 
@@ -338,27 +296,21 @@ table.s-items tbody td.c { text-align: center; color: var(--muted); }
 <div class="slip">
 
   <div class="s-header">
-    <div class="s-co">
+    <div class="s-co-block">
       {{if .LogoDataURL}}
-      <div class="s-logo"><img src="{{.LogoDataURL}}" alt=""></div>
+      <div class="s-logo-box"><img src="{{.LogoDataURL}}" alt=""></div>
       {{end}}
       <div>
-        <div class="s-coname">{{.BusinessName}}</div>
-        <div class="s-nit">NIT {{.NIT}}-{{.CheckDigit}}</div>
-        {{if .City}}<div class="s-coinfo">{{.City}}</div>{{end}}
+        <div class="s-co-name">{{.BusinessName}}</div>
+        <div class="s-co-nit">NIT {{.NIT}}-{{.CheckDigit}}</div>
+        {{if .City}}<div class="s-co-info">{{.City}}</div>{{end}}
+        {{if .Phone}}<div class="s-co-info">{{.Phone}}</div>{{end}}
       </div>
     </div>
-
-    <div class="s-docbox">
-      <div class="s-doctype">{{.DocumentTitle}}</div>
-      <div class="s-docnum">{{.DocNumber}}</div>
-      {{if .IssueDate}}<div class="s-date">{{.IssueDate}}</div>{{end}}
-      <div class="s-copy-label">{{.CopyLabel}}</div>
-      {{if .QR}}
-      <div class="s-qr"><img src="{{.QR}}" alt="QR DIAN"></div>
-      {{else}}
-      <div class="s-qr-ph">QR al confirmar</div>
-      {{end}}
+    <div class="s-doc-title">
+      <div class="t1">{{.DocumentTitle}}</div>
+      <div class="t2">Emisión: <b>{{.IssueDate}}</b>{{if .Currency}} &middot; Moneda: <b>{{.Currency}}</b>{{end}}</div>
+      <div class="copy-tag">{{.CopyLabel}}</div>
     </div>
   </div>
 
@@ -366,12 +318,34 @@ table.s-items tbody td.c { text-align: center; color: var(--muted); }
   <div class="s-draft-bar">Borrador — Pendiente de confirmación ante la DIAN</div>
   {{end}}
 
-  <div class="s-customer">
-    <div class="s-bar">Adquiriente</div>
-    <div class="s-customer-row">
-      <div class="s-kv"><span class="k">Nombre:</span><span class="v">{{.CustomerName}}</span></div>
-      <div class="s-kv"><span class="k">{{.CustomerIDType}}:</span><span class="v">{{.CustomerID}}</span></div>
-      {{if .CustomerEmail}}<div class="s-kv"><span class="k">Email:</span><span class="v">{{.CustomerEmail}}</span></div>{{end}}
+  <div class="s-idbox">
+    <div class="col">
+      <div class="s-bar">Adquiriente</div>
+      <div class="s-kv-block">
+        <div class="s-kv-row"><span class="k">Nombre:</span><span class="v">{{.CustomerName}}</span></div>
+        <div class="s-kv-row"><span class="k">{{.CustomerIDType}}:</span><span class="v">{{.CustomerID}}</span></div>
+        {{if .CustomerPhone}}<div class="s-kv-row"><span class="k">Tel:</span><span class="v">{{.CustomerPhone}}</span></div>{{end}}
+        {{if .CustomerEmail}}<div class="s-kv-row"><span class="k">Email:</span><span class="v">{{.CustomerEmail}}</span></div>{{end}}
+      </div>
+      {{if or .PaymentTerm .PaymentMethod .DueDate}}
+      <div class="s-bar">Condiciones de Pago</div>
+      <div class="s-kv-block">
+        {{if .PaymentTerm}}<div class="s-kv-row"><span class="k">Forma:</span><span class="v">{{.PaymentTerm}}</span></div>{{end}}
+        {{if .PaymentMethod}}<div class="s-kv-row"><span class="k">Medio:</span><span class="v">{{.PaymentMethod}}</span></div>{{end}}
+        {{if .DueDate}}<div class="s-kv-row"><span class="k">Vence:</span><span class="v">{{.DueDate}}</span></div>{{end}}
+      </div>
+      {{end}}
+    </div>
+    <div class="col">
+      <div class="s-docnum">
+        <div class="lbl">{{.DocNumberLabel}}</div>
+        <div class="num">{{.DocNumber}}</div>
+      </div>
+      {{if .QR}}
+      <div class="s-qr-wrap"><img src="{{.QR}}" alt="QR DIAN"></div>
+      {{else}}
+      <div class="s-qr-ph">QR al confirmar</div>
+      {{end}}
     </div>
   </div>
 
@@ -380,17 +354,19 @@ table.s-items tbody td.c { text-align: center; color: var(--muted); }
       <thead>
         <tr>
           <th style="width:6mm">#</th>
+          <th style="width:16mm">Código</th>
           <th>Descripción</th>
-          <th class="r" style="width:12mm">Cant.</th>
-          <th class="r" style="width:22mm">P. Unit.</th>
-          <th class="c" style="width:10mm">IVA</th>
-          <th class="r" style="width:22mm">Total</th>
+          <th class="r" style="width:10mm">Cant.</th>
+          <th class="r" style="width:18mm">Vlr. Unit.</th>
+          <th class="c" style="width:9mm">IVA</th>
+          <th class="r" style="width:20mm">Total</th>
         </tr>
       </thead>
       <tbody>
         {{range .Lines}}
         <tr>
           <td class="c">{{.Num}}</td>
+          <td>{{.Code}}</td>
           <td>{{.Description}}</td>
           <td class="r">{{.Qty}}</td>
           <td class="r">{{.UnitPrice}}</td>
@@ -402,17 +378,47 @@ table.s-items tbody td.c { text-align: center; color: var(--muted); }
     </table>
   </div>
 
-  <div class="s-totals">
-    <div class="s-t-row"><span>Subtotal</span><span>{{.Subtotal}}</span></div>
-    <div class="s-t-row"><span>Impuestos</span><span>{{.TaxTotal}}</span></div>
-    <div class="s-t-row grand"><span>Total {{.Currency}}</span><span>{{.GrandTotal}}</span></div>
+  <div class="s-finbox">
+    <div class="col">
+      <div class="s-bar">Desglose de Impuestos</div>
+      <table class="s-taxes">
+        <thead>
+          <tr><th>Impuesto</th><th class="r">Tarifa</th><th class="r">Base</th><th class="r">Valor</th></tr>
+        </thead>
+        <tbody>
+          {{range .Taxes}}
+          <tr>
+            <td>{{.Name}}</td>
+            <td class="r">{{.Rate}}</td>
+            <td class="r">{{.TaxBase}}</td>
+            <td class="r">{{.TaxAmount}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    <div class="col">
+      <div class="s-t-row"><span>Subtotal</span><span>{{.Subtotal}}</span></div>
+      <div class="s-t-row"><span>Impuestos</span><span>{{.TaxTotal}}</span></div>
+      <div class="s-t-row grand"><span>Total {{.Currency}}</span><span>{{.GrandTotal}}</span></div>
+    </div>
   </div>
 
+  {{if .AmountInWords}}
+  <div class="s-words"><b>Son:</b> {{.AmountInWords}}</div>
+  {{end}}
+
+  {{if .Note}}
+  <div class="s-note"><b>Nota:</b> {{.Note}}</div>
+  {{end}}
+
   <div class="s-footer">
-    {{if .ResolutionText}}{{.ResolutionText}}<br>{{end}}
-    Representación gráfica de {{.DocTitleLower}}. Válida solo con archivo XML firmado ante la DIAN.
+    <b>Representación gráfica de {{.DocTitleLower}}.</b>
+    {{if .ResolutionText}} &middot; {{.ResolutionText}}{{end}}
+    {{if .TaxRegime}} &middot; {{.TaxRegime}}{{end}}
+    {{if .Liabilities}} &middot; {{.Liabilities}}{{end}}
     {{if not .IsDraft}}
-    <div class="s-cufe-row"><span class="k">{{.HashLabel}}</span><span class="v">{{.CUFE}}</span></div>
+    <span class="s-footer-cufe"><span class="k">{{.HashLabel}}&ensp;</span><span class="v">{{.CUFE}}</span></span>
     {{end}}
   </div>
 
