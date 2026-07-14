@@ -162,10 +162,19 @@ export function CompanyProfileForm() {
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-semibold text-(--text-primary)">Datos de la empresa</h2>
-        {!editing && (
+        {!editing ? (
           <Button type="button" variant="secondary" icon={<Pencil className="h-3.5 w-3.5" />} onClick={openForm}>
             Editar
           </Button>
+        ) : (
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={() => setEditing(false)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button type="submit" form="company-profile-form" loading={saving}>
+              Guardar cambios
+            </Button>
+          </div>
         )}
       </div>
 
@@ -209,26 +218,23 @@ export function CompanyProfileForm() {
               <Row label="Matrícula mercantil" value={activeIssuer.merchant_registration_number} />
             )}
             {activeIssuer.industry_classification_codes && activeIssuer.industry_classification_codes.length > 0 && (
-              <div className="col-span-2 flex flex-col gap-0.5">
-                <span className="text-(--text-muted)">Códigos CIIU</span>
-                <div className="flex flex-col gap-0.5">
-                  {activeIssuer.industry_classification_codes.map((code) => {
-                    const opt = ciiuOptions.find((o) => o.value === code);
-                    const desc = opt?.label.includes(" - ") ? opt.label.slice(opt.label.indexOf(" - ") + 3) : undefined;
-                    return (
-                      <span key={code} className="text-(--text-primary)">
-                        <span className="font-mono font-medium">{code}</span>
-                        {desc && <span className="text-(--text-secondary)"> – {desc}</span>}
-                      </span>
-                    );
-                  })}
-                </div>
+              <div className="col-span-2">
+                <Row
+                  label="Códigos CIIU"
+                  value={activeIssuer.industry_classification_codes
+                    .map((code) => {
+                      const opt = ciiuOptions.find((o) => o.value === code);
+                      const desc = opt?.label.includes(" - ") ? opt.label.slice(opt.label.indexOf(" - ") + 3) : undefined;
+                      return desc ? `${code} – ${desc}` : code;
+                    })
+                    .join(", ")}
+                />
               </div>
             )}
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <form id="company-profile-form" onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div className="grid grid-cols-12 gap-3">
             <div className="col-span-6">
               <Input
@@ -379,14 +385,6 @@ export function CompanyProfileForm() {
             </div>
           </div>
 
-          <div className="flex gap-2 pt-1">
-            <Button type="submit" loading={saving}>
-              Guardar cambios
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setEditing(false)} disabled={saving}>
-              Cancelar
-            </Button>
-          </div>
         </form>
       )}
     </Card>
