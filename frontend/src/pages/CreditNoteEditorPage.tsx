@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileMinus, FileText, Mail, Send, Trash2 } from "lucide-react";
+import { FileCode, FileMinus, FileText, Mail, Send, Trash2 } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   confirmDocument,
@@ -7,6 +7,7 @@ import {
   deleteDraft,
   getDocument,
   getDocumentPdfBlobUrl,
+  getDocumentXmlBlobUrl,
   sendDocumentEmail,
   updateCreditNoteDraft,
   type PDFFormat,
@@ -63,6 +64,7 @@ export function CreditNoteEditorPage() {
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [loadingXml, setLoadingXml] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [pdfFormat, setPdfFormat] = useState<PDFFormat>("full_a4");
 
@@ -161,6 +163,23 @@ export function CreditNoteEditorPage() {
     }
   }
 
+  async function handleDownloadXml() {
+    if (!id || isNew) return;
+    setLoadingXml(true);
+    try {
+      const url = await getDocumentXmlBlobUrl(id);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc ? `${doc.prefix ?? ""}${doc.number ?? ""}.xml` : "nota-credito.xml";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo descargar el XML");
+    } finally {
+      setLoadingXml(false);
+    }
+  }
+
   async function handleSendEmail() {
     if (!id || isNew || !doc) return;
     if (!(await confirmDialog(`¿Enviar esta nota crédito por correo a ${doc.customer.email || "el cliente"}?`))) return;
@@ -215,6 +234,11 @@ export function CreditNoteEditorPage() {
           {!isNew && doc && (
             <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
               Ver PDF
+            </Button>
+          )}
+          {!isNew && doc && doc.status !== "draft" && (
+            <Button type="button" variant="secondary" icon={<FileCode className="h-3.5 w-3.5" />} loading={loadingXml} onClick={handleDownloadXml}>
+              Descargar XML
             </Button>
           )}
           {!isNew && doc?.status === "accepted" && (

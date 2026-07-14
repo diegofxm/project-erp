@@ -40,6 +40,12 @@ function wouldBeUsable(r: NumberingRange): boolean {
   return true;
 }
 
+function isExpiringSoon(r: NumberingRange): boolean {
+  if (r.status !== "active") return false;
+  const daysLeft = (new Date(r.valid_to).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+  return daysLeft <= 30;
+}
+
 function RangesTable({ rows, docTypeName, onDeactivate, onArchive, onActivate }: {
   rows: NumberingRange[];
   docTypeName: (code: string) => string;
@@ -75,7 +81,9 @@ function RangesTable({ rows, docTypeName, onDeactivate, onArchive, onActivate }:
                 <td className="whitespace-nowrap px-3 py-2 text-(--text-muted)">{r.valid_to}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-(--text-muted)">{r.environment === "1" ? "Producción" : "Habilitación"}</td>
                 <td className="whitespace-nowrap px-3 py-2">
-                  <span className={`rounded px-2 py-0.5 font-medium ${STATUS_CLASSES[r.status]}`}>{STATUS_LABELS[r.status]}</span>
+                  <span className={`rounded px-2 py-0.5 font-medium ${isExpiringSoon(r) ? "bg-(--color-warning-bg) text-(--color-warning-text)" : STATUS_CLASSES[r.status]}`}>
+                    {isExpiringSoon(r) ? "Por vencer" : STATUS_LABELS[r.status]}
+                  </span>
                 </td>
                 <td className="px-3 py-2 text-right">
                   <div className="flex items-center justify-end gap-1">
