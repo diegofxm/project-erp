@@ -45,4 +45,9 @@ type Repository interface {
 	// pertenece al emisor autenticado la hace el llamador (mismo patrón que
 	// handleGetNumberingRange en internal/api), no este método.
 	Deactivate(ctx context.Context, id uuid.UUID) error
+
+	// Activate marca is_active = true — permite reactivar un rango previamente desactivado.
+	// Mismo patrón de responsabilidad que Deactivate: quien llama verifica la pertenencia al
+	// emisor antes de llamar aquí.
+	Activate(ctx context.Context, id uuid.UUID) error
 }

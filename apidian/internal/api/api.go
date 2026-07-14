@@ -99,7 +99,7 @@ func (a *API) Handler() http.Handler {
 // Resumen de rutas:
 //
 //	POST   /api/v1/auth/register                         → crea el usuario, SIN empresa todavía (público, ver 9.32)
-//	POST   /api/v1/auth/login                             → inicia sesión, devuelve el token (público)
+//	POST   /api/v1/auth/login                             → inicia sesión, devuelve el token (público, rate-limited: 10/min por IP)
 //	GET    /api/v1/public/issuers/{id}                    → nombre del emisor para el formulario de autorregistro (público, ver 9.41)
 //	GET    /api/v1/public/issuers/{id}/logo               → logo del emisor en crudo, sin sesión (404 si no tiene)
 //	POST   /api/v1/public/issuers/{id}/customers          → autorregistro de cliente por QR, sin sesión (público, ver 9.41)
@@ -118,12 +118,14 @@ func (a *API) Handler() http.Handler {
 //
 //	GET    /api/v1/issuers/me                            → consultar la empresa activa
 //	PUT    /api/v1/issuers/me                            → completar software/PIN/certificado/logo de la empresa activa (ver 9.25/9.39)
+//	PATCH  /api/v1/issuers/me/profile                   → editar perfil (razón social, dirección, datos fiscales) — no toca secretos
 //	GET    /api/v1/issuers/me/logo                       → logo en crudo de la empresa activa (404 si no tiene, ver 9.39)
 //	DELETE /api/v1/issuers/me/logo                       → quitar el logo de la empresa activa
 //	POST   /api/v1/numbering-ranges                      → registrar rango de numeración de la empresa activa
 //	GET    /api/v1/numbering-ranges                      → listar rangos de la empresa activa (?dian_document_type_code=)
 //	GET    /api/v1/numbering-ranges/{id}                  → consultar rango (debe ser de la empresa activa)
-//	DELETE /api/v1/numbering-ranges/{id}                  → desactivar rango (no se puede volver a usar ni se ofrece al armar una factura)
+//	DELETE /api/v1/numbering-ranges/{id}                  → desactivar rango
+//	PUT    /api/v1/numbering-ranges/{id}/activate          → reactivar un rango previamente desactivado
 //	POST   /api/v1/invoices                               → crear borrador de Factura (sin reclamar número)
 //	PUT    /api/v1/invoices/{id}                          → reemplazar un borrador de Factura
 //	POST   /api/v1/credit-notes                           → crear borrador de Nota Crédito
@@ -149,7 +151,7 @@ func (a *API) Handler() http.Handler {
 //	    internal/catalogs). municipalities acepta ?department_code= para filtrar.
 func (a *API) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/register", a.handleRegister)
-	mux.HandleFunc("POST /api/v1/auth/login", a.handleLogin)
+	mux.Handle("POST /api/v1/auth/login", middleware.LoginRateLimit(http.HandlerFunc(a.handleLogin)))
 	mux.HandleFunc("GET /api/v1/public/issuers/{id}", a.handleGetPublicIssuer)
 	mux.HandleFunc("GET /api/v1/public/issuers/{id}/logo", a.handleGetPublicIssuerLogo)
 	mux.HandleFunc("POST /api/v1/public/issuers/{id}/customers", a.handleCreatePublicCustomer)
@@ -168,6 +170,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 
 	handle("GET /api/v1/issuers/me", a.handleGetMyIssuer)
 	handle("PUT /api/v1/issuers/me", a.handleUpdateMyIssuer)
+	handle("PATCH /api/v1/issuers/me/profile", a.handleUpdateMyIssuerProfile)
 	handle("GET /api/v1/issuers/me/logo", a.handleGetMyIssuerLogo)
 	handle("DELETE /api/v1/issuers/me/logo", a.handleDeleteMyIssuerLogo)
 	handle("DELETE /api/v1/issuers/me/software", a.handleDeleteMyIssuerSoftware)
@@ -176,6 +179,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("GET /api/v1/numbering-ranges", a.handleListNumberingRanges)
 	handle("GET /api/v1/numbering-ranges/{id}", a.handleGetNumberingRange)
 	handle("DELETE /api/v1/numbering-ranges/{id}", a.handleDeactivateNumberingRange)
+	handle("PUT /api/v1/numbering-ranges/{id}/activate", a.handleActivateNumberingRange)
 
 	handle("POST /api/v1/invoices", a.handleCreateInvoice)
 	handle("PUT /api/v1/invoices/{id}", a.handleUpdateInvoice)

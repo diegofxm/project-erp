@@ -289,6 +289,59 @@ func (a *API) handleUpdateMyIssuer(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, http.StatusOK, issuerToResponse(iss))
 }
 
+// updateIssuerProfileRequest son los datos de perfil editables del emisor — PATCH
+// /api/v1/issuers/me/profile. Todos los campos de texto son requeridos (no punteros): el
+// formulario del frontend siempre los envía completos. TaxRegimeCode y
+// MerchantRegistrationNumber son *string porque son nullable en el dominio (null = borrar).
+type updateIssuerProfileRequest struct {
+	BusinessName                string   `json:"business_name"`
+	TradeName                   string   `json:"trade_name"`
+	DepartmentCode              string   `json:"department_code"`
+	MunicipalityCode            string   `json:"municipality_code"`
+	AddressLine                 string   `json:"address_line"`
+	Email                       string   `json:"email"`
+	Phone                       string   `json:"phone"`
+	EntityTypeCode              string   `json:"entity_type_code"`
+	TaxSchemeCode               string   `json:"tax_scheme_code"`
+	LiabilityCodes              []string `json:"liability_codes"`
+	TaxRegimeCode               *string  `json:"tax_regime_code"`
+	IndustryClassificationCodes []string `json:"industry_classification_codes"`
+	MerchantRegistrationNumber  *string  `json:"merchant_registration_number"`
+}
+
+// handleUpdateMyIssuerProfile actualiza los campos de perfil del emisor autenticado
+// (razón social, dirección, datos fiscales) — separado de PUT /issuers/me que toca solo
+// credenciales técnicas. PATCH a propósito: nunca toca NIT/ambiente/tipo_identificación.
+func (a *API) handleUpdateMyIssuerProfile(w http.ResponseWriter, r *http.Request) {
+	var req updateIssuerProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
+		return
+	}
+
+	iss, err := a.issuers.UpdateProfile(r.Context(), middleware.GetTenantID(r.Context()), issuers.UpdateProfileRequest{
+		BusinessName:                req.BusinessName,
+		TradeName:                   req.TradeName,
+		DepartmentCode:              req.DepartmentCode,
+		MunicipalityCode:            req.MunicipalityCode,
+		AddressLine:                 req.AddressLine,
+		Email:                       req.Email,
+		Phone:                       req.Phone,
+		EntityTypeCode:              req.EntityTypeCode,
+		TaxSchemeCode:               req.TaxSchemeCode,
+		LiabilityCodes:              req.LiabilityCodes,
+		TaxRegimeCode:               req.TaxRegimeCode,
+		IndustryClassificationCodes: req.IndustryClassificationCodes,
+		MerchantRegistrationNumber:  req.MerchantRegistrationNumber,
+	})
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	response.WriteJSON(w, http.StatusOK, issuerToResponse(iss))
+}
+
 // handleGetMyIssuerLogo sirve el logo del emisor autenticado en crudo (mismo patrón binario
 // que handleGetDocumentPDF) — separado de issuerResponse a propósito, para no inflar esa
 // respuesta JSON con bytes de imagen en cada GET/PUT de /issuers/me.
@@ -514,6 +567,37 @@ func (a *API) handleDeactivateNumberingRange(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleActivateNumberingRange reactiva un rango previamente desactivado. Mismo chequeo de
+// pertenencia al emisor que handleDeactivateNumberingRange; devuelve el rango actualizado.
+func (a *API) handleActivateNumberingRange(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+
+	nr, err := a.numbering.GetRange(r.Context(), id)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	if nr.IssuerID != middleware.GetTenantID(r.Context()) {
+		response.WriteError(w, numbering.ErrRangeNotFound)
+		return
+	}
+
+	if err := a.numbering.ActivateRange(r.Context(), id); err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	updated, err := a.numbering.GetRange(r.Context(), id)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	response.WriteJSON(w, http.StatusOK, numberingRangeToResponse(updated))
 }
 
 func parseDate(s string) (time.Time, error) {

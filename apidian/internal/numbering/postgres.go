@@ -140,6 +140,21 @@ func (r *PostgresRepository) Deactivate(ctx context.Context, id uuid.UUID) error
 	return nil
 }
 
+// Activate — ver Repository.Activate.
+func (r *PostgresRepository) Activate(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE numbering_ranges SET is_active = TRUE, updated_at = NOW() WHERE id = $1`,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("activate numbering range: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrRangeNotFound
+	}
+	return nil
+}
+
 func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error) {
 	query := `SELECT ` + numberingColumns + ` FROM numbering_ranges WHERE issuer_id = $1`
 	args := []any{issuerID}

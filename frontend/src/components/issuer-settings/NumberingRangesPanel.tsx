@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Pagination } from "../ui/Pagination";
 import { listDianDocumentTypes } from "../../lib/catalogs";
-import { createNumberingRange, deactivateNumberingRange, listNumberingRanges } from "../../lib/numberingRanges";
+import { activateNumberingRange, createNumberingRange, deactivateNumberingRange, listNumberingRanges } from "../../lib/numberingRanges";
 import { ApiError } from "../../lib/apiClient";
 import { useCatalog } from "../../lib/useCatalog";
 import { useConfirm } from "../../context/ConfirmContext";
@@ -32,10 +32,11 @@ const STATUS_CLASSES: Record<NumberingRangeStatus, string> = {
 
 const RANGES_PAGE_SIZE = 5;
 
-function RangesTable({ rows, docTypeName, onDeactivate }: {
+function RangesTable({ rows, docTypeName, onDeactivate, onActivate }: {
   rows: NumberingRange[];
   docTypeName: (code: string) => string;
   onDeactivate: (r: NumberingRange) => void;
+  onActivate: (r: NumberingRange) => void;
 }) {
   const [offset, setOffset] = useState(0);
   const page = rows.slice(offset, offset + RANGES_PAGE_SIZE);
@@ -68,15 +69,27 @@ function RangesTable({ rows, docTypeName, onDeactivate }: {
                   <span className={`rounded px-2 py-0.5 font-medium ${STATUS_CLASSES[r.status]}`}>{STATUS_LABELS[r.status]}</span>
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    title="Eliminar"
-                    disabled={r.status === "inactive"}
-                    onClick={() => onDeactivate(r)}
-                    className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover) disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  <div className="flex items-center justify-end gap-1">
+                    {r.status === "inactive" ? (
+                      <button
+                        type="button"
+                        title="Reactivar"
+                        onClick={() => onActivate(r)}
+                        className="rounded p-1 text-(--color-success) transition-colors hover:bg-(--bg-hover)"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        title="Desactivar"
+                        onClick={() => onDeactivate(r)}
+                        className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -137,13 +150,24 @@ export function NumberingRangesPanel() {
   // numbering.Repository.Deactivate en apidian: un rango ya usado tiene FK real desde
   // documents.Document, y una resolución de numeración es un dato legal/auditable.
   async function handleDeactivate(r: NumberingRange) {
-    if (!(await confirm(`¿Eliminar el rango "${r.prefix}"? Dejará de poder usarse para emitir facturas.`, { tone: "danger" }))) return;
+    if (!(await confirm(`¿Desactivar el rango "${r.prefix}"? Dejará de poder usarse para emitir facturas hasta reactivarlo.`, { tone: "danger" }))) return;
     try {
       await deactivateNumberingRange(r.id);
-      toast.success("Rango de numeración eliminado.");
+      toast.success("Rango de numeración desactivado.");
       refresh();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el rango de numeración");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo desactivar el rango de numeración");
+    }
+  }
+
+  async function handleActivate(r: NumberingRange) {
+    if (!(await confirm(`¿Reactivar el rango "${r.prefix}"? Volverá a estar disponible para emitir facturas.`))) return;
+    try {
+      await activateNumberingRange(r.id);
+      toast.success("Rango de numeración reactivado.");
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo reactivar el rango de numeración");
     }
   }
 
@@ -180,7 +204,7 @@ export function NumberingRangesPanel() {
       {activeRanges.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <p className="text-xs font-medium text-(--text-secondary)">Activos</p>
-          <RangesTable rows={activeRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} />
+          <RangesTable rows={activeRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} onActivate={handleActivate} />
         </div>
       )}
 
@@ -191,7 +215,7 @@ export function NumberingRangesPanel() {
       {inactiveRanges.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <p className="text-xs font-medium text-(--text-muted)">Inactivos y vencidos</p>
-          <RangesTable rows={inactiveRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} />
+          <RangesTable rows={inactiveRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} onActivate={handleActivate} />
         </div>
       )}
     </Card>

@@ -18,3 +18,7 @@ export function createNumberingRange(payload: CreateNumberingRangePayload): Prom
 export function deactivateNumberingRange(id: string): Promise<void> {
   return apiClient.del<void>(`/numbering-ranges/${id}`);
 }
+
+export function activateNumberingRange(id: string): Promise<NumberingRange> {
+  return apiClient.put<NumberingRange>(`/numbering-ranges/${id}/activate`, undefined);
+}

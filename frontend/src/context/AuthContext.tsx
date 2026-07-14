@@ -8,6 +8,7 @@ import type {
   LoginPayload,
   RegisterPayload,
   UpdateIssuerPayload,
+  UpdateIssuerProfilePayload,
   User,
 } from "../lib/types";
 
@@ -37,6 +38,7 @@ interface AuthContextValue {
   selectIssuer: (id: string) => Promise<void>;
   updateProfile: (name: string, email: string) => Promise<User>;
   updateIssuer: (payload: UpdateIssuerPayload) => Promise<Issuer>;
+  updateIssuerProfile: (payload: UpdateIssuerProfilePayload) => Promise<Issuer>;
   deleteIssuerLogo: () => Promise<Issuer>;
   deleteIssuerSoftware: () => Promise<Issuer>;
   deleteIssuerCertificate: () => Promise<Issuer>;
@@ -184,6 +186,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return updated;
   }, []);
 
+  const updateIssuerProfile = useCallback(async (payload: UpdateIssuerProfilePayload) => {
+    const updated = await apiClient.patch<Issuer>("/issuers/me/profile", payload);
+    setActiveIssuer(updated);
+    const stored = readStoredSession();
+    if (stored) writeStoredSession({ ...stored, issuer: updated });
+    return updated;
+  }, []);
+
   // Misma forma que updateIssuer — DELETE /issuers/me/logo tampoco reemite el token, solo
   // limpia has_logo en la empresa activa.
   const deleteIssuerLogo = useCallback(async () => {
@@ -226,6 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       selectIssuer,
       updateProfile,
       updateIssuer,
+      updateIssuerProfile,
       deleteIssuerLogo,
       deleteIssuerSoftware,
       deleteIssuerCertificate,
@@ -244,6 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       selectIssuer,
       updateProfile,
       updateIssuer,
+      updateIssuerProfile,
       deleteIssuerLogo,
       deleteIssuerSoftware,
       deleteIssuerCertificate,

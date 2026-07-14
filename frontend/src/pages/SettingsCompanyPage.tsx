@@ -1,4 +1,5 @@
 import { Building2 } from "lucide-react";
+import { CompanyProfileForm } from "../components/issuer-settings/CompanyProfileForm";
 import { LogoForm } from "../components/issuer-settings/LogoForm";
 import { NumberingRangesPanel } from "../components/issuer-settings/NumberingRangesPanel";
 import { PublicRegistrationPanel } from "../components/issuer-settings/PublicRegistrationPanel";
@@ -12,6 +13,7 @@ export function SettingsCompanyPage() {
         Configuración
       </h1>
       <div className="flex flex-col gap-4">
+        <CompanyProfileForm />
         <SoftwareCertificateForm />
         <LogoForm />
         <PublicRegistrationPanel />

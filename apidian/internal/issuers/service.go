@@ -144,6 +144,78 @@ func (s *Service) UpdateIssuer(ctx context.Context, id uuid.UUID, req UpdateIssu
 	return result, nil
 }
 
+// UpdateProfileRequest contiene los campos de perfil editables después del registro. Los
+// secretos (software/cert) NO están aquí — se modifican exclusivamente por UpdateIssuer.
+// Todos los campos de texto son requeridos en la llamada (no punteros): el handler del API
+// siempre los envía completos desde el formulario — nil no ocurre en la práctica.
+type UpdateProfileRequest struct {
+	BusinessName               string
+	TradeName                  string   // "" = borrar nombre comercial
+	DepartmentCode             string
+	MunicipalityCode           string
+	AddressLine                string
+	Email                      string
+	Phone                      string   // "" = borrar teléfono
+	EntityTypeCode             string
+	TaxSchemeCode              string
+	LiabilityCodes             []string // slice vacío = borrar todos
+	TaxRegimeCode              *string  // nil = borrar; "code" = asignar
+	IndustryClassificationCodes []string
+	MerchantRegistrationNumber *string  // nil = borrar; "XYZ" = asignar
+}
+
+// UpdateProfile actualiza los campos de perfil del emisor — razón social, dirección, datos
+// fiscales. NIT/ambiente/tipo_identificación son inmutables. Los secretos (software/cert) no
+// se tocan. TaxSchemeName se re-deriva del catálogo a partir de TaxSchemeCode para que nombre
+// y código nunca queden desincronizados.
+func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, req UpdateProfileRequest) (*Issuer, error) {
+	if strings.TrimSpace(req.BusinessName) == "" {
+		return nil, ErrEmptyBusinessName
+	}
+	if len(req.IndustryClassificationCodes) > 4 {
+		return nil, ErrTooManyIndustryClassificationCodes
+	}
+	for _, code := range req.LiabilityCodes {
+		ok, err := s.catalogs.IsValidLiabilityCode(ctx, code)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, fmt.Errorf("%w: %q", ErrInvalidLiabilityCode, code)
+		}
+	}
+
+	iss, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	iss.BusinessName = req.BusinessName
+	iss.TradeName = req.TradeName
+	iss.DepartmentCode = req.DepartmentCode
+	iss.MunicipalityCode = req.MunicipalityCode
+	iss.AddressLine = req.AddressLine
+	iss.Email = req.Email
+	iss.Phone = req.Phone
+	iss.EntityTypeCode = req.EntityTypeCode
+	iss.TaxSchemeCode = req.TaxSchemeCode
+	iss.LiabilityCodes = req.LiabilityCodes
+	iss.TaxRegimeCode = req.TaxRegimeCode
+	iss.IndustryClassificationCodes = req.IndustryClassificationCodes
+	iss.MerchantRegistrationNumber = req.MerchantRegistrationNumber
+
+	if err := s.resolveTaxSchemeName(ctx, iss); err != nil {
+		return nil, err
+	}
+
+	result, err := s.repo.UpdateProfile(ctx, *iss)
+	if err != nil {
+		return nil, err
+	}
+	s.enrichCertMetadata(result)
+	return result, nil
+}
+
 // DeleteLogo quita el logo del emisor — UpdateIssuer no puede expresar "bórralo": ahí
 // Logo nil ya significa "no tocar" (ver UpdateIssuerRequest), así que hace falta esta
 // operación separada en vez de forzar un caso especial dentro de ese merge parcial.

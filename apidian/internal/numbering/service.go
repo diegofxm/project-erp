@@ -74,6 +74,11 @@ func (s *Service) DeactivateRange(ctx context.Context, id uuid.UUID) error {
 	return s.repo.Deactivate(ctx, id)
 }
 
+// ActivateRange — ver Repository.Activate.
+func (s *Service) ActivateRange(ctx context.Context, id uuid.UUID) error {
+	return s.repo.Activate(ctx, id)
+}
+
 // ListRanges devuelve los rangos de numeración de un emisor, opcionalmente filtrados por tipo
 // de documento DIAN ("" = todos).
 func (s *Service) ListRanges(ctx context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error) {

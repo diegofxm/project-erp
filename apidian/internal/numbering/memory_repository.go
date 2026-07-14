@@ -117,6 +117,20 @@ func (r *MemoryRepository) Deactivate(_ context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// Activate — ver Repository.Activate.
+func (r *MemoryRepository) Activate(_ context.Context, id uuid.UUID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	nr, ok := r.ranges[id]
+	if !ok {
+		return ErrRangeNotFound
+	}
+	nr.IsActive = true
+	nr.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
 func (r *MemoryRepository) ListByIssuer(_ context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

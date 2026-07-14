@@ -139,6 +139,45 @@ func (r *PostgresRepository) Update(ctx context.Context, iss Issuer) (*Issuer, e
 	return r.GetByID(ctx, iss.ID)
 }
 
+// UpdateProfile persiste los campos de perfil (ver Repository.UpdateProfile). Solo toca los
+// campos de identidad/dirección/fiscal — nunca los secretos cifrados (software/cert).
+func (r *PostgresRepository) UpdateProfile(ctx context.Context, iss Issuer) (*Issuer, error) {
+	liabilityCodes := iss.LiabilityCodes
+	if liabilityCodes == nil {
+		liabilityCodes = []string{}
+	}
+	industryClassificationCodes := iss.IndustryClassificationCodes
+	if industryClassificationCodes == nil {
+		industryClassificationCodes = []string{}
+	}
+
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE issuers SET
+			business_name = $1, trade_name = $2,
+			department_code = $3, municipality_code = $4, address_line = $5,
+			email = $6, phone = $7,
+			entity_type_code = $8, tax_scheme_code = $9, tax_scheme_name = $10,
+			liability_codes = $11, tax_regime_code = $12,
+			industry_classification_codes = $13, merchant_registration_number = $14,
+			updated_at = $15
+		WHERE id = $16`,
+		iss.BusinessName, iss.TradeName,
+		iss.DepartmentCode, iss.MunicipalityCode, iss.AddressLine,
+		iss.Email, iss.Phone,
+		iss.EntityTypeCode, iss.TaxSchemeCode, iss.TaxSchemeName,
+		liabilityCodes, iss.TaxRegimeCode,
+		industryClassificationCodes, iss.MerchantRegistrationNumber,
+		time.Now().UTC(), iss.ID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("update issuer profile: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrIssuerNotFound
+	}
+	return r.GetByID(ctx, iss.ID)
+}
+
 func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Issuer, error) {
 	row := r.pool.QueryRow(ctx, issuerSelectWithNames+` WHERE i.id = $1`, id)
 	return r.scan(row)

@@ -117,6 +117,25 @@ export interface UpdateIssuerPayload {
   logo_content_type?: string;
 }
 
+// Editar perfil de empresa (razón social, dirección, datos fiscales) — PATCH /issuers/me/profile.
+// Separado de UpdateIssuerPayload que toca solo credenciales técnicas (PUT /issuers/me).
+// TaxRegimeCode/MerchantRegistrationNumber son nullable: null = borrar, "code" = asignar.
+export interface UpdateIssuerProfilePayload {
+  business_name: string;
+  trade_name: string;
+  department_code: string;
+  municipality_code: string;
+  address_line: string;
+  email: string;
+  phone: string;
+  entity_type_code: string;
+  tax_scheme_code: string;
+  liability_codes: string[];
+  tax_regime_code: string | null;
+  industry_classification_codes: string[];
+  merchant_registration_number: string | null;
+}
+
 // Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.
 export interface CatalogEntry {
   code: string;

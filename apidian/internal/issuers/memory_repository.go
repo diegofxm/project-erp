@@ -85,3 +85,31 @@ func (r *MemoryRepository) GetByNIT(_ context.Context, nit string) (*Issuer, err
 	cp := *iss
 	return &cp, nil
 }
+
+func (r *MemoryRepository) UpdateProfile(_ context.Context, iss Issuer) (*Issuer, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	existing, ok := r.byID[iss.ID]
+	if !ok {
+		return nil, ErrIssuerNotFound
+	}
+	existing.BusinessName = iss.BusinessName
+	existing.TradeName = iss.TradeName
+	existing.DepartmentCode = iss.DepartmentCode
+	existing.MunicipalityCode = iss.MunicipalityCode
+	existing.AddressLine = iss.AddressLine
+	existing.Email = iss.Email
+	existing.Phone = iss.Phone
+	existing.EntityTypeCode = iss.EntityTypeCode
+	existing.TaxSchemeCode = iss.TaxSchemeCode
+	existing.TaxSchemeName = iss.TaxSchemeName
+	existing.LiabilityCodes = iss.LiabilityCodes
+	existing.TaxRegimeCode = iss.TaxRegimeCode
+	existing.IndustryClassificationCodes = iss.IndustryClassificationCodes
+	existing.MerchantRegistrationNumber = iss.MerchantRegistrationNumber
+	existing.UpdatedAt = time.Now().UTC()
+
+	cp := *existing
+	return &cp, nil
+}
