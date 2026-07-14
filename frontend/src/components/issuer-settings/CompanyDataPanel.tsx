@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { listCiiuOptions } from "../../lib/ciiu";
 
 const ENTITY_TYPE: Record<string, string> = {
   "1": "Persona jurídica y asimilada",
@@ -37,16 +39,31 @@ const LIABILITY_CODE: Record<string, string> = {
 
 function Field({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
+  const lines = value.split("\n");
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[10px] font-semibold uppercase tracking-wide text-(--text-muted)">{label}</span>
-      <span className="text-xs text-(--text-primary)">{value}</span>
+      <div className="flex flex-col gap-0.5">
+        {lines.map((line, i) => (
+          <span key={i} className="text-xs text-(--text-primary)">{line}</span>
+        ))}
+      </div>
     </div>
   );
 }
 
 export function CompanyDataPanel() {
   const { activeIssuer } = useAuth();
+  const [ciiuMap, setCiiuMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    listCiiuOptions().then((opts) => {
+      const map: Record<string, string> = {};
+      for (const o of opts) map[o.value] = o.label;
+      setCiiuMap(map);
+    }).catch(() => {});
+  }, []);
+
   if (!activeIssuer) return null;
 
   const idTypeLabel = ID_TYPE[activeIssuer.identification_type_code] ?? activeIssuer.identification_type_code;
@@ -78,7 +95,9 @@ export function CompanyDataPanel() {
     ? `${activeIssuer.tax_scheme_name ?? activeIssuer.tax_scheme_code}`
     : undefined;
 
-  const ciiu = activeIssuer.industry_classification_codes?.join(", ");
+  const ciiu = activeIssuer.industry_classification_codes
+    ?.map((c) => ciiuMap[c] ?? c)
+    .join("\n");
 
   return (
     <div className="rounded-lg border border-(--border-color) bg-(--bg-secondary) px-5 py-4">
