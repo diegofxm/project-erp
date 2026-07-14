@@ -72,7 +72,7 @@ export function IssuerManager() {
       {hasIssuers && !showForm && (
         <div className="flex flex-col gap-2">
           <p className="text-xs text-(--text-secondary)">Elige con cuál empresa quieres trabajar:</p>
-          {issuers.map((issuer) => {
+          {[...issuers].sort((a, b) => (b.id === activeIssuer?.id ? 1 : 0) - (a.id === activeIssuer?.id ? 1 : 0)).map((issuer) => {
             const isActive = issuer.id === activeIssuer?.id;
             return (
               <button
