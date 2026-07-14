@@ -211,8 +211,25 @@ export function CompanyProfileForm() {
                 value={`${activeIssuer.tax_scheme_code}${activeIssuer.tax_scheme_name ? ` – ${activeIssuer.tax_scheme_name}` : ""}`}
               />
             )}
+            {activeIssuer.tax_regime_code && (
+              <Row
+                label="Tipo de régimen"
+                value={(() => {
+                  const name = taxRegimes.find((r) => r.code === activeIssuer.tax_regime_code)?.name;
+                  return name ? `${activeIssuer.tax_regime_code} – ${name}` : activeIssuer.tax_regime_code;
+                })()}
+              />
+            )}
             {activeIssuer.liability_codes && activeIssuer.liability_codes.length > 0 && (
-              <Row label="Responsabilidades" value={activeIssuer.liability_codes.join(", ")} />
+              <Row
+                label="Responsabilidades"
+                value={activeIssuer.liability_codes
+                  .map((c) => {
+                    const name = liabilityCatalog.find((l) => l.code === c)?.name;
+                    return name ? `${c} – ${name}` : c;
+                  })
+                  .join("\n")}
+              />
             )}
             {activeIssuer.merchant_registration_number && (
               <Row label="Matrícula mercantil" value={activeIssuer.merchant_registration_number} />
@@ -227,7 +244,7 @@ export function CompanyProfileForm() {
                       const desc = opt?.label.includes(" - ") ? opt.label.slice(opt.label.indexOf(" - ") + 3) : undefined;
                       return desc ? `${code} – ${desc}` : code;
                     })
-                    .join(", ")}
+                    .join("\n")}
                 />
               </div>
             )}
@@ -393,10 +410,13 @@ export function CompanyProfileForm() {
 
 function Row({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
+  const lines = value.split("\n");
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-(--text-muted)">{label}</span>
-      <span className="text-(--text-primary)">{value}</span>
+      {lines.map((line, i) => (
+        <span key={i} className="text-(--text-primary)">{line}</span>
+      ))}
     </div>
   );
 }
