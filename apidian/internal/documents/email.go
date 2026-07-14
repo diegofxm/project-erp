@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"encoding/base64"
 	"fmt"
 	"html"
 	htmltmpl "html/template"
@@ -30,6 +31,9 @@ type emailTemplateData struct {
 	IssuerTradeName string
 	IssuerNIT       string
 	IssuerEmail     string
+	// LogoSrc es el data URI del logo (data:image/png;base64,...). htmltmpl.URL para
+	// que html/template no lo filtre como URL no segura. Vacío si no hay logo.
+	LogoSrc          htmltmpl.URL
 	DocumentTypeName string
 	DocumentNumber   string
 	IssueDate        string
@@ -111,6 +115,7 @@ func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID,
 		IssuerTradeName:  iss.TradeName,
 		IssuerNIT:        issuerNIT,
 		IssuerEmail:      iss.Email,
+		LogoSrc:          logoDataURI(iss.Logo, iss.LogoContentType),
 		DocumentTypeName: capitalizeFirst(typeName),
 		DocumentNumber:   filename,
 		IssueDate:        formatDateES(d.IssueDate),
@@ -222,6 +227,19 @@ func formatDateES(t time.Time) string {
 		return "—"
 	}
 	return fmt.Sprintf("%d de %s de %d", t.Day(), monthsES[t.Month()-1], t.Year())
+}
+
+// logoDataURI construye un data URI para incrustar el logo inline en el correo HTML.
+// Devuelve htmltmpl.URL vacío si no hay logo — el template lo omite con {{if .LogoSrc}}.
+func logoDataURI(logo []byte, contentType string) htmltmpl.URL {
+	if len(logo) == 0 || contentType == "" {
+		return ""
+	}
+	mime := "image/jpeg"
+	if contentType == "png" {
+		mime = "image/png"
+	}
+	return htmltmpl.URL("data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(logo))
 }
 
 // capitalizeFirst pone en mayúscula la primera letra de s.
