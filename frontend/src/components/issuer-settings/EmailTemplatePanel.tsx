@@ -60,7 +60,7 @@ export function EmailTemplatePanel() {
           onChange={(e) => setBody(e.target.value)}
           rows={6}
           placeholder={
-            "Hola {nombre_cliente},\n\nAdjuntamos tu {tipo_documento} No. {numero_documento}, emitida por {nombre_empresa}.\n\n..."
+            "Hola {nombre_cliente},\n\n{nombre_empresa} te hace llegar tu {tipo_documento}. Encuéntrala en el archivo ZIP adjunto.\n\nSi tienes alguna duda, no dudes en contactarnos."
           }
           className="w-full resize-y rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 font-mono text-xs text-(--text-primary) placeholder:text-(--text-muted) focus:outline-none focus:ring-1 focus:ring-(--accent-primary)"
         />
