@@ -21,6 +21,19 @@ const ENTITY_TYPE_OPTIONS = [
   { code: "2", name: "Persona natural y asimilada" },
 ];
 
+const ID_TYPE_LABEL: Record<string, string> = {
+  "31": "NIT",
+  "13": "Cédula de ciudadanía",
+  "22": "Cédula de extranjería",
+  "47": "NIT (otro país)",
+  "50": "NIT (DIAN)",
+  "91": "NUIP",
+  "11": "Registro civil",
+  "12": "Tarjeta de identidad",
+  "41": "Pasaporte",
+  "42": "Documento extranjero",
+};
+
 export function CompanyProfileForm() {
   const { activeIssuer, updateIssuerProfile } = useAuth();
   const toast = useToast();
@@ -119,6 +132,13 @@ export function CompanyProfileForm() {
 
   if (!activeIssuer) return null;
 
+  const idTypeLabel = ID_TYPE_LABEL[activeIssuer.identification_type_code] ?? activeIssuer.identification_type_code;
+  const formattedNit =
+    activeIssuer.identification_type_code === "31"
+      ? `${activeIssuer.nit}-${activeIssuer.check_digit}`
+      : activeIssuer.nit;
+  const envLabel = activeIssuer.environment === "1" ? "Producción" : "Habilitación";
+
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-center justify-between">
@@ -131,19 +151,31 @@ export function CompanyProfileForm() {
       </div>
 
       {!editing ? (
-        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
-          <Row label="Razón social" value={activeIssuer.business_name} />
-          {activeIssuer.trade_name && <Row label="Nombre comercial" value={activeIssuer.trade_name} />}
-          <Row label="Correo" value={activeIssuer.email} />
-          {activeIssuer.phone && <Row label="Teléfono" value={activeIssuer.phone} />}
-          <Row label="Dirección" value={[activeIssuer.address_line, activeIssuer.municipality_name ?? activeIssuer.municipality_code, activeIssuer.department_name ?? activeIssuer.department_code].filter(Boolean).join(", ")} />
-          {activeIssuer.tax_scheme_code && <Row label="Esquema tributario" value={`${activeIssuer.tax_scheme_code}${activeIssuer.tax_scheme_name ? ` – ${activeIssuer.tax_scheme_name}` : ""}`} />}
-          {activeIssuer.liability_codes && activeIssuer.liability_codes.length > 0 && (
-            <Row label="Responsabilidades" value={activeIssuer.liability_codes.join(", ")} />
-          )}
-          {activeIssuer.merchant_registration_number && (
-            <Row label="Matrícula mercantil" value={activeIssuer.merchant_registration_number} />
-          )}
+        <div className="flex flex-col gap-3">
+          {/* Identidad (inmutable) */}
+          <div>
+            <p className="text-sm font-bold leading-tight text-(--text-primary)">{activeIssuer.business_name}</p>
+            {activeIssuer.trade_name && (
+              <p className="mt-0.5 text-xs text-(--text-secondary)">{activeIssuer.trade_name}</p>
+            )}
+            <p className="mt-1 text-xs text-(--text-muted)">
+              {idTypeLabel} {formattedNit} · {envLabel}
+            </p>
+          </div>
+
+          {/* Campos editables */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-(--border-color) pt-3 text-xs">
+            <Row label="Correo" value={activeIssuer.email} />
+            {activeIssuer.phone && <Row label="Teléfono" value={activeIssuer.phone} />}
+            <Row label="Dirección" value={[activeIssuer.address_line, activeIssuer.municipality_name ?? activeIssuer.municipality_code, activeIssuer.department_name ?? activeIssuer.department_code].filter(Boolean).join(", ")} />
+            {activeIssuer.tax_scheme_code && <Row label="Esquema tributario" value={`${activeIssuer.tax_scheme_code}${activeIssuer.tax_scheme_name ? ` – ${activeIssuer.tax_scheme_name}` : ""}`} />}
+            {activeIssuer.liability_codes && activeIssuer.liability_codes.length > 0 && (
+              <Row label="Responsabilidades" value={activeIssuer.liability_codes.join(", ")} />
+            )}
+            {activeIssuer.merchant_registration_number && (
+              <Row label="Matrícula mercantil" value={activeIssuer.merchant_registration_number} />
+            )}
+          </div>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">

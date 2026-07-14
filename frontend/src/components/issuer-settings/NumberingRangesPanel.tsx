@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Archive, Ban, Plus, RotateCcw } from "lucide-react";
 import { Pagination } from "../ui/Pagination";
 import { listDianDocumentTypes } from "../../lib/catalogs";
 import { activateNumberingRange, createNumberingRange, deactivateNumberingRange, listNumberingRanges } from "../../lib/numberingRanges";
@@ -32,10 +32,19 @@ const STATUS_CLASSES: Record<NumberingRangeStatus, string> = {
 
 const RANGES_PAGE_SIZE = 5;
 
-function RangesTable({ rows, docTypeName, onDeactivate, onActivate }: {
+// Un rango inactivo "vale la pena reactivar" si su fecha de vencimiento es futura Y no está
+// agotado — de lo contrario, reactivarlo lo pondría inmediatamente en estado expired/exhausted.
+function wouldBeUsable(r: NumberingRange): boolean {
+  if (new Date(r.valid_to) < new Date()) return false;
+  if (r.range_to !== undefined && r.current_number >= r.range_to) return false;
+  return true;
+}
+
+function RangesTable({ rows, docTypeName, onDeactivate, onArchive, onActivate }: {
   rows: NumberingRange[];
   docTypeName: (code: string) => string;
   onDeactivate: (r: NumberingRange) => void;
+  onArchive: (r: NumberingRange) => void;
   onActivate: (r: NumberingRange) => void;
 }) {
   const [offset, setOffset] = useState(0);
@@ -70,7 +79,27 @@ function RangesTable({ rows, docTypeName, onDeactivate, onActivate }: {
                 </td>
                 <td className="px-3 py-2 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    {r.status === "inactive" ? (
+                    {r.status === "active" && (
+                      <button
+                        type="button"
+                        title="Desactivar"
+                        onClick={() => onDeactivate(r)}
+                        className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)"
+                      >
+                        <Ban className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {(r.status === "expired" || r.status === "exhausted") && (
+                      <button
+                        type="button"
+                        title="Archivar"
+                        onClick={() => onArchive(r)}
+                        className="rounded p-1 text-(--text-muted) transition-colors hover:bg-(--bg-hover)"
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {r.status === "inactive" && wouldBeUsable(r) && (
                       <button
                         type="button"
                         title="Reactivar"
@@ -78,15 +107,6 @@ function RangesTable({ rows, docTypeName, onDeactivate, onActivate }: {
                         className="rounded p-1 text-(--color-success) transition-colors hover:bg-(--bg-hover)"
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        title="Desactivar"
-                        onClick={() => onDeactivate(r)}
-                        className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     )}
                   </div>
@@ -146,17 +166,28 @@ export function NumberingRangesPanel() {
     }
   }
 
-  // "Eliminar" desactiva el rango (is_active=false) — nunca un borrado real, ver
-  // numbering.Repository.Deactivate en apidian: un rango ya usado tiene FK real desde
-  // documents.Document, y una resolución de numeración es un dato legal/auditable.
   async function handleDeactivate(r: NumberingRange) {
-    if (!(await confirm(`¿Desactivar el rango "${r.prefix}"? Dejará de poder usarse para emitir facturas hasta reactivarlo.`, { tone: "danger" }))) return;
+    if (!(await confirm(`¿Desactivar el rango "${r.prefix}"? Dejará de usarse para emitir facturas — podrás reactivarlo después si sigue siendo válido.`, { tone: "danger" }))) return;
     try {
       await deactivateNumberingRange(r.id);
-      toast.success("Rango de numeración desactivado.");
+      toast.success("Rango desactivado.");
       refresh();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo desactivar el rango de numeración");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo desactivar el rango");
+    }
+  }
+
+  // Archivar = mismo endpoint que desactivar, pero para rangos vencidos o agotados que el
+  // usuario quiere ocultar de la vista activa sin reactivarlos (semánticamente es "ya no me
+  // importa ver esto, pero no lo borro porque es un registro legal").
+  async function handleArchive(r: NumberingRange) {
+    if (!(await confirm(`¿Archivar el rango "${r.prefix}"? Quedará oculto en esta vista. No se puede reactivar porque ya está ${r.status === "expired" ? "vencido" : "agotado"}.`))) return;
+    try {
+      await deactivateNumberingRange(r.id);
+      toast.success("Rango archivado.");
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo archivar el rango");
     }
   }
 
@@ -164,10 +195,10 @@ export function NumberingRangesPanel() {
     if (!(await confirm(`¿Reactivar el rango "${r.prefix}"? Volverá a estar disponible para emitir facturas.`))) return;
     try {
       await activateNumberingRange(r.id);
-      toast.success("Rango de numeración reactivado.");
+      toast.success("Rango reactivado.");
       refresh();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo reactivar el rango de numeración");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo reactivar el rango");
     }
   }
 
@@ -204,7 +235,7 @@ export function NumberingRangesPanel() {
       {activeRanges.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <p className="text-xs font-medium text-(--text-secondary)">Activos</p>
-          <RangesTable rows={activeRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} onActivate={handleActivate} />
+          <RangesTable rows={activeRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} onArchive={handleArchive} onActivate={handleActivate} />
         </div>
       )}
 
@@ -215,7 +246,7 @@ export function NumberingRangesPanel() {
       {inactiveRanges.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <p className="text-xs font-medium text-(--text-muted)">Inactivos y vencidos</p>
-          <RangesTable rows={inactiveRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} onActivate={handleActivate} />
+          <RangesTable rows={inactiveRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} onArchive={handleArchive} onActivate={handleActivate} />
         </div>
       )}
     </Card>
