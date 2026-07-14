@@ -2065,8 +2065,8 @@ inbox, fuera de mi alcance. Datos de prueba eliminados al terminar.
 
 Con esto queda cerrado el ciclo completo de un solo documento: Factura Electrónica →
 representación gráfica en PDF → envío al cliente por correo, los tres verificados contra
-servicios reales (DIAN real, Postgres real, SMTP real). Lo que sigue, cuando el usuario lo
-decida, es repetir este mismo patrón para Nota Crédito/Nota Débito.
+servicios reales (DIAN real, Postgres real, SMTP real). El patrón se extendió a Nota Crédito y
+Nota Débito en la sección 9.49 (`SendDocumentEmail` generalizado para los 3 tipos).
 
 ### 9.43 Auto-curar "set de pruebas cerrado" — sin intervención manual nunca más
 
@@ -2418,3 +2418,55 @@ oficial del estándar. Implementar el `AttachmentDocument` requeriría:
 3. Firmarlo con el certificado del emisor.
 
 Queda como ítem pendiente documentado (ver sección 9.2).
+
+### 9.50 Paridad NC/ND con Factura — "Descargar XML" + alertas visuales de vigencia (2026-07-14)
+
+#### "Descargar XML" en Nota Crédito y Nota Débito
+
+`InvoiceEditorPage` ya tenía el botón "Descargar XML" (visible cuando `status !== "draft"`)
+desde antes, pero `CreditNoteEditorPage` y `DebitNoteEditorPage` no lo tenían. El hueco se
+detectó comparando imports: `getDocumentXmlBlobUrl` y `FileCode` (lucide) presentes en la
+factura, ausentes en NC/ND.
+
+Fix idéntico en ambos editores:
+- Import `getDocumentXmlBlobUrl` desde `lib/documents` y `FileCode` desde `lucide-react`.
+- Estado `loadingXml` (mismo patrón que `loadingPdf`).
+- Handler `handleDownloadXml` — crea un enlace `<a>` temporal, lo dispara, revoca la blob URL;
+  nombre de archivo `{prefix}{number}.xml` (fallback `nota-credito.xml` / `nota-debito.xml`).
+- Botón "Descargar XML" en el header del editor, visible cuando `!isNew && doc && doc.status !== "draft"`.
+
+Con este cambio, los tres editores son funcionalmente idénticos en cuanto a botones:
+Ver PDF · Descargar XML · Enviar al cliente · (Eliminar borrador / Confirmar y enviar).
+
+#### Correo en NC/ND — ya estaba implementado desde 9.49
+
+La memoria marcaba "correo NC/ND pendiente de verificar end-to-end". Revisando el código,
+`sendDocumentEmail` (función genérica para los 3 tipos) ya estaba importada y cableada en
+`CreditNoteEditorPage` y `DebitNoteEditorPage` desde la sección 9.49 — incluyendo estado
+`sendingEmail`, confirmación vía `useConfirm()` y toast de resultado. No se requirió ningún
+cambio.
+
+#### Alerta visual "Por vencer" en rangos de numeración
+
+`NumberingRangesPanel` ya mostraba la columna "Vence" y el badge "Vencido" (rojo) cuando
+`valid_to` había pasado. Lo que faltaba era el estado intermedio de advertencia.
+
+Se añadió la función auxiliar `isExpiringSoon(r: NumberingRange): boolean` en el frontend:
+
+```tsx
+function isExpiringSoon(r: NumberingRange): boolean {
+  if (r.status !== "active") return false;
+  const daysLeft = (new Date(r.valid_to).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+  return daysLeft <= 30;
+}
+```
+
+En la celda del badge, si `isExpiringSoon(r)` es `true` se muestra "Por vencer" con los tokens
+`--color-warning-bg` / `--color-warning-text` (amarillo) en lugar de "Activo" verde. La lógica
+vive exclusivamente en el frontend — el `status` que llega del backend sigue siendo `"active"`, y
+el botón Desactivar sigue apareciendo igual.
+
+El umbral de 30 días es idéntico al que ya usaba `CertStatusBadge` para el certificado digital
+(en `SoftwareCertificateForm.tsx`), que además muestra el conteo exacto de días restantes
+("Alerta — vence en X día(s)"). La coherencia entre certificado y rangos es intencional; si en
+el futuro se quiere añadir el conteo de días al badge de rangos, el patrón ya está establecido.
