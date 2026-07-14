@@ -97,13 +97,7 @@ func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID,
 	// NIT; Nombre del facturador; Número del documento; Código tipo; Nombre comercial
 	subject := fmt.Sprintf("%s;%s;%s;%s;%s", iss.NIT, iss.BusinessName, filename, d.DianDocumentTypeCode, tradeName)
 
-	// Cuerpo del correo: plantilla personalizada o texto predeterminado
-	var bodyPlainText string
-	if iss.EmailBodyTemplate != nil && *iss.EmailBodyTemplate != "" {
-		bodyPlainText = renderEmailBody(*iss.EmailBodyTemplate, d, iss, typeName)
-	} else {
-		bodyPlainText = defaultEmailBody(d, iss, typeName)
-	}
+	bodyPlainText := defaultEmailBody(d, iss, typeName)
 
 	issuerNIT := iss.NIT
 	if iss.IdentificationTypeCode == "31" {
@@ -160,19 +154,6 @@ func buildEmailText(bodyText, issuerName, issuerNIT, issuerEmail, docTypeName, d
 		sep, docTypeName, docNumber, issueDate, total, sep,
 		issuerNIT, issuerEmail,
 	)
-}
-
-// renderEmailBody reemplaza los marcadores {variable} de la plantilla personalizada del
-// emisor con los valores reales del documento.
-func renderEmailBody(tmpl string, d *Document, iss *issuers.Issuer, typeName string) string {
-	docNum := fmt.Sprintf("%s%d", d.Prefix, d.Number)
-	r := strings.NewReplacer(
-		"{nombre_cliente}", d.Customer.Name,
-		"{numero_documento}", docNum,
-		"{nombre_empresa}", iss.BusinessName,
-		"{tipo_documento}", typeName,
-	)
-	return r.Replace(tmpl)
 }
 
 // defaultEmailBody retorna el cuerpo predeterminado cuando el emisor no configuró una

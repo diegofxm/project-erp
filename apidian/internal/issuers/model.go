@@ -84,11 +84,6 @@ type Issuer struct {
 	Logo            []byte
 	LogoContentType string
 
-	// EmailBodyTemplate es la plantilla de texto plano para el cuerpo del correo al cliente.
-	// nil = usar la plantilla por defecto embebida en Go (ver documents/email.go).
-	// Soporta marcadores {nombre_cliente}, {numero_documento}, {nombre_empresa}, {tipo_documento}.
-	EmailBodyTemplate *string
-
 	IsActive  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time

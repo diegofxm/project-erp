@@ -71,11 +71,8 @@ type UpdateIssuerRequest struct {
 	SoftwarePIN         *string
 	Certificate         []byte // nil = no tocar
 	CertificatePassword *string
-	Logo                []byte  // nil = no tocar
-	LogoContentType     *string // "png"/"jpg"/"jpeg"
-	// EmailBodyTemplate: nil = no tocar; puntero a string vacío = borrar (volver al default);
-	// puntero a string no vacío = guardar la plantilla personalizada.
-	EmailBodyTemplate *string
+	Logo            []byte  // nil = no tocar
+	LogoContentType *string // "png"/"jpg"/"jpeg"
 }
 
 // UpdateIssuer completa/reemplaza software/PIN/certificado de un emisor ya registrado. Un
@@ -139,14 +136,6 @@ func (s *Service) UpdateIssuer(ctx context.Context, id uuid.UUID, req UpdateIssu
 			return nil, ErrInvalidLogoContentType
 		}
 	}
-	if req.EmailBodyTemplate != nil {
-		if *req.EmailBodyTemplate == "" {
-			iss.EmailBodyTemplate = nil // borrar → volver al default
-		} else {
-			iss.EmailBodyTemplate = req.EmailBodyTemplate
-		}
-	}
-
 	result, err := s.repo.Update(ctx, *iss)
 	if err != nil {
 		return nil, err

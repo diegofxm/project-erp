@@ -52,9 +52,6 @@ export interface Issuer {
   // docs/apidian-architecture.md sección 9.39.
   has_logo: boolean;
 
-  // nil = usa el cuerpo de correo predeterminado; no vacío = plantilla personalizada con {variables}.
-  email_body_template?: string;
-
   is_active: boolean;
   created_at: string;
 }
@@ -118,8 +115,6 @@ export interface UpdateIssuerPayload {
   // docs/apidian-architecture.md sección 9.39). logo_content_type es "png"/"jpg"/"jpeg".
   logo_base64?: string;
   logo_content_type?: string;
-  // email_body_template: "" = volver al predeterminado; texto = plantilla personalizada con {variables}.
-  email_body_template?: string;
 }
 
 // Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.

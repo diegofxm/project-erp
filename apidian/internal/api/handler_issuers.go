@@ -91,9 +91,6 @@ type issuerResponse struct {
 	// HasLogo: el logo en sí se sirve aparte (GET /issuers/me/logo) para no inflar esta respuesta.
 	HasLogo bool `json:"has_logo"`
 
-	// Plantilla personalizada del cuerpo del correo al cliente. nil = usar el texto por defecto.
-	EmailBodyTemplate *string `json:"email_body_template,omitempty"`
-
 	IsActive  bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -128,7 +125,6 @@ func issuerToResponse(iss *issuers.Issuer) issuerResponse {
 		CertificateIssuerCN:         iss.CertificateIssuerCN,
 		CertificateExpiresAt:        iss.CertificateExpiresAt,
 		HasLogo:                     len(iss.Logo) > 0,
-		EmailBodyTemplate:           iss.EmailBodyTemplate,
 		IsActive:                    iss.IsActive,
 		CreatedAt:                   iss.CreatedAt,
 	}
@@ -248,12 +244,8 @@ type updateIssuerRequest struct {
 	SoftwarePIN         *string `json:"software_pin,omitempty"`
 	CertificateBase64   *string `json:"certificate_base64,omitempty"`
 	CertificatePassword *string `json:"certificate_password,omitempty"`
-	LogoBase64          *string `json:"logo_base64,omitempty"`
-	LogoContentType     *string `json:"logo_content_type,omitempty"`
-	// EmailBodyTemplate: nil = no tocar; "" (string vacío) = borrar plantilla personalizada
-	// (vuelve al texto por defecto embebido); cualquier otro valor = guardar como plantilla.
-	// Soporta marcadores {nombre_cliente}, {numero_documento}, {nombre_empresa}, {tipo_documento}.
-	EmailBodyTemplate *string `json:"email_body_template,omitempty"`
+	LogoBase64      *string `json:"logo_base64,omitempty"`
+	LogoContentType *string `json:"logo_content_type,omitempty"`
 }
 
 // handleUpdateMyIssuer completa/reemplaza software/PIN/certificado del emisor autenticado —
@@ -269,7 +261,6 @@ func (a *API) handleUpdateMyIssuer(w http.ResponseWriter, r *http.Request) {
 		SoftwareID:          req.SoftwareID,
 		SoftwarePIN:         req.SoftwarePIN,
 		CertificatePassword: req.CertificatePassword,
-		EmailBodyTemplate:   req.EmailBodyTemplate,
 	}
 	if req.CertificateBase64 != nil {
 		cert, err := base64.StdEncoding.DecodeString(*req.CertificateBase64)
