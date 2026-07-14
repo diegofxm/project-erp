@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from "react";
-import { Mail } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { ApiError } from "../../lib/apiClient";
@@ -38,10 +37,7 @@ export function EmailTemplatePanel() {
 
   return (
     <Card className="flex flex-col gap-3 p-4">
-      <h2 className="flex items-center gap-1.5 text-xs font-semibold text-(--text-primary)">
-        <Mail className="h-3.5 w-3.5 shrink-0 text-(--accent-primary)" />
-        Cuerpo del correo al cliente
-      </h2>
+      <h2 className="text-xs font-semibold text-(--text-primary)">Cuerpo del correo al cliente</h2>
       <p className="text-xs text-(--text-secondary)">
         Texto que se envía al cliente junto con el ZIP del documento. Deja vacío para usar el mensaje predeterminado.
         Puedes insertar variables entre llaves:

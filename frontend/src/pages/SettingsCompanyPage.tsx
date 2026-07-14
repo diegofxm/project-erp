@@ -13,8 +13,12 @@ export function SettingsCompanyPage() {
         <Building2 className="h-4 w-4 shrink-0 text-(--accent-primary)" />
         Empresa
       </h1>
-      <div className="flex flex-col gap-4">
-        <CompanyDataPanel />
+
+      {/* Perfil de la empresa — sección prominente, no una card más */}
+      <CompanyDataPanel />
+
+      {/* Configuración operativa */}
+      <div className="mt-5 flex flex-col gap-4">
         <SoftwareCertificateForm />
         <LogoForm />
         <EmailTemplatePanel />
