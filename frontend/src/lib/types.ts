@@ -235,7 +235,7 @@ export interface ListCustomersResult {
 // Espejo de productRequest/productResponse (apidian/internal/api/handler_products.go).
 // Deliberadamente sin quantity/line_extension_cents/taxes (plural) — eso es dato de USO al
 // armar una línea de documento, no del catálogo (ver products.Product). tax_type_code/
-// tax_type_name/tax_percent son un único impuesto por defecto, de conveniencia.
+// tax_percent son un único impuesto por defecto, de conveniencia.
 // item_type_code: selector de @schemeID (tabla 13.3.5, ver ItemStandard) — "001" UNSPSC/"010"
 // GTIN/"020" Partida Arancelaria/"999" propio (vacío = "999"). item_type_name/
 // item_type_agency_id ya NO se mandan: el backend los deriva del catálogo (ver
@@ -247,7 +247,6 @@ export interface ProductPayload {
   item_code?: string;
   item_type_code?: string;
   tax_type_code?: string;
-  tax_type_name?: string;
   tax_percent?: number;
 }
 

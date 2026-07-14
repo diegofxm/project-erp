@@ -70,9 +70,9 @@ type Issuer struct {
 	SoftwarePIN         string
 	Certificate         []byte // contenido del .p12
 	CertificatePassword string
-	// Metadatos extraídos del certificado al guardarlo (ver service.go UpdateIssuer). Se
-	// guardan en DB para poder mostrarlos sin tener que descifrar y parsear el .p12 en cada
-	// lectura. CertificateExpiresAt es nil si no hay certificado configurado.
+	// Metadatos del certificado derivados en memoria por enrichCertMetadata — no se
+	// guardan en DB (el .p12 cifrado ya está; parsearlo aquí garantiza datos frescos).
+	// CertificateExpiresAt es nil si no hay certificado o no se pudo parsear.
 	CertificateSubject   string
 	CertificateIssuerCN  string
 	CertificateExpiresAt *time.Time

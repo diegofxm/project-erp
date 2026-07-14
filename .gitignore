@@ -24,3 +24,5 @@ cofacture.exe
 *.out
 coverage.html
 coverage.txt
+server.exe
+apidian/server.exe

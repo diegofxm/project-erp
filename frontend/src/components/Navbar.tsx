@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { Building2, ChevronDown, LogOut, Server, Settings, UserCircle } from "lucide-react";
+import { Building2, ChevronDown, LogOut, Server, UserCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { NotificationBell } from "./NotificationBell";
 
@@ -73,20 +73,12 @@ export function Navbar() {
                 <p className="text-xs text-(--text-muted)">{user?.email}</p>
               </div>
               <Link
-                to="/settings?tab=account"
+                to="/settings/account"
                 onClick={() => setMenuOpen(false)}
                 className="flex items-center gap-1.5 px-3 py-2 text-xs text-(--text-primary) hover:bg-(--bg-hover)"
               >
                 <UserCircle className="h-3.5 w-3.5" />
                 Mi cuenta
-              </Link>
-              <Link
-                to="/settings?tab=general"
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs text-(--text-primary) hover:bg-(--bg-hover)"
-              >
-                <Settings className="h-3.5 w-3.5" />
-                Configuración
               </Link>
               <button
                 type="button"

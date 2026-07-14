@@ -25,7 +25,6 @@ const SUB_NAVS: SubNavConfig[] = [
     prefix: "/settings",
     items: [
       { to: "/settings/general", label: "General" },
-      { to: "/settings/account", label: "Mi cuenta" },
       { to: "/settings/company", label: "Empresa" },
     ],
   },
