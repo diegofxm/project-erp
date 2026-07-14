@@ -352,7 +352,7 @@ El pipeline completo (build → CUFE/CUDE → `SoftwareSecurityCode` → QR → 
 
 | Pendiente | Por qué importa | Prioridad sugerida |
 |---|---|---|
-| `AttachmentDocument` completo (UBL con `ApplicationResponse` embebido) para los tres tipos | Sección 9.1 del Anexo exige un ZIP con este contenedor firmado, no XML crudo. Requiere persistir el XML del `ApplicationResponse` devuelto por la DIAN y extender `BuildInvoiceAttachedDocument` a NC/ND (ver 9.49) | Alta — conformidad real con el estándar |
+| ~~`AttachedDocument` completo (UBL con `ApplicationResponse` embebido) para los tres tipos~~ | **✅ Implementado** — ver sección 9.51. `application_response_xml` se persiste desde la DIAN; `email.go:buildAttachedDocumentXML` construye el sobre UBL firmado cuando el campo está presente, con fallback a XML crudo para documentos anteriores a la migración. | — |
 | Documento Soporte (05, CUDS) | Compras a no obligados a facturar — caso de uso frecuente | Media-alta, según necesidad real |
 | Eventos RADIAN (Acuse de recibo, Reclamo) | Solo si la factura se negocia como título valor | Baja, opcional |
 | Factura exportación (02) / importación (04) / contingencia (03) | Comercio exterior / caída de los sistemas DIAN | Baja, según necesidad |
@@ -2404,20 +2404,7 @@ de los tres tipos de documentos del Anexo 1.9 queda validado en habilitación re
 
 La tabla en 9.1 fue actualizada para reflejar esto.
 
-**Hallazgo de conformidad — correo al adquiriente**: el Anexo Técnico 1.9 sección 9.1 especifica
-que el adjunto del correo al cliente debe ser un único `.zip` que contenga un `AttachmentDocument`
-UBL (no el XML de la factura crudo): un sobre firmado que embebe el XML firmado de la factura
-**y** el `ApplicationResponse` de la DIAN en CDATA. Actualmente enviamos un ZIP con el XML
-firmado + el PDF, lo que en la práctica es legible y útil para el cliente, pero no es el formato
-oficial del estándar. Implementar el `AttachmentDocument` requeriría:
-
-1. Persistir el XML del `ApplicationResponse` devuelto por la DIAN (hoy solo guardamos el
-   `dian_status_code`/`dian_status_description`/`dian_status_message`).
-2. Construir el `<AttachedDocument>` UBL (ya existe `BuildInvoiceAttachedDocument` en `cofacture`
-   solo para Invoice — hay que extenderlo a NC/ND).
-3. Firmarlo con el certificado del emisor.
-
-Queda como ítem pendiente documentado (ver sección 9.2).
+**Hallazgo de conformidad — correo al adquiriente** *(documentado aquí; implementado después, ver sección 9.51)*: el Anexo Técnico 1.9 sección 9.1 especifica que el adjunto del correo al cliente debe ser un único `.zip` que contenga un `AttachedDocument` UBL firmado que embebe el XML firmado de la factura **y** el `ApplicationResponse` de la DIAN en CDATA. En el momento de esta sección se enviaba un ZIP con el XML crudo + el PDF. El problema se resolvió completamente en una sesión posterior sin que se documentara en su momento — ver sección 9.51 para el detalle.
 
 ### 9.50 Paridad NC/ND con Factura — "Descargar XML" + alertas visuales de vigencia (2026-07-14)
 
@@ -2470,3 +2457,53 @@ El umbral de 30 días es idéntico al que ya usaba `CertStatusBadge` para el cer
 (en `SoftwareCertificateForm.tsx`), que además muestra el conteo exacto de días restantes
 ("Alerta — vence en X día(s)"). La coherencia entre certificado y rangos es intencional; si en
 el futuro se quiere añadir el conteo de días al badge de rangos, el patrón ya está establecido.
+
+### 9.51 `AttachedDocument` UBL conforme al Anexo 1.9 — verificado como ya implementado (2026-07-14)
+
+Al revisar el código en detalle (motivado por el hallazgo de 9.49 que lo marcaba como pendiente),
+se confirmó que el `AttachedDocument` UBL conforme estaba **completamente implementado** en una
+sesión anterior sin que se documentara en su momento. El código cubre los tres documentos (01, 91,
+92) y el fallback para documentos históricos. No se escribió código nuevo — solo se corrigió la
+documentación.
+
+#### Qué hay implementado y dónde
+
+**Persistencia del `ApplicationResponse`**
+
+`documents.Service.finish()` (`service.go`) recibe `applicationResponseXML string` desde
+`sendAsyncAndUpdate` y `sendSyncAndUpdate`, que a su vez lo obtienen de
+`dian.Interpret(resp).ApplicationResponseXML`. `dian.Interpret` (`cofacture/dian/parser.go`)
+decodifica el base64 de `XmlBase64Bytes` que la DIAN devuelve en el cuerpo SOAP de su respuesta.
+`PostgresRepository.UpdateDianStatus` (`postgres.go:130`) persiste el valor en la columna
+`application_response_xml TEXT` (migración `000008_documents.up.sql`) vía `$6`.
+
+**Construcción del sobre UBL y firma**
+
+`buildAttachedDocumentXML` (`email.go:251`) — función interna llamada por `SendDocumentEmail`:
+
+```
+si d.ApplicationResponseXML == ""  →  devuelve d.SignedXML crudo + filename.xml
+                                       (fallback para documentos sin el campo)
+si d.ApplicationResponseXML != ""  →  construye domain.AttachedDocument con todos los campos
+                                       del Anexo (Sender/Receiver/ValidationResult con el XML
+                                       de la DIAN embebido), llama al builder correcto según
+                                       tipo de documento, firma con el certificado del emisor
+                                       vía signer.Sign, devuelve filenamead.xml
+```
+
+Los tres builders ya existían en `cofacture/builder/attached_document.go`:
+- `BuildInvoiceAttachedDocument` — Factura (01)
+- `BuildCreditNoteAttachedDocument` — Nota Crédito (91)
+- `BuildDebitNoteAttachedDocument` — Nota Débito (92)
+
+**Por qué unos documentos tienen el campo y otros no**
+
+La columna existe desde la migración correspondiente. Los documentos confirmados *antes* de que
+existiera tienen `application_response_xml = NULL` → el ZIP del correo incluye el XML crudo + PDF
+(fallback, útil aunque no formalmente conforme). Los documentos confirmados *después* tienen el
+campo → el ZIP incluye el `AttachedDocument` UBL firmado + PDF (conforme al Anexo 1.9 sección 9.1).
+Este comportamiento dual es intencional y está documentado en el comentario de `SendDocumentEmail`
+(`email.go:51-55`).
+
+**Estado en 9.2**: la fila de `AttachedDocument` en la tabla de pendientes fue actualizada para
+reflejar que está implementado.
