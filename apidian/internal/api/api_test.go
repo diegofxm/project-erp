@@ -670,11 +670,36 @@ func TestAPI_ConfirmDocument_OK(t *testing.T) {
 	assert.Equal(t, "SETP", got["prefix"])
 	assert.Equal(t, "built", got["status"])
 	assert.NotEmpty(t, got["document_key"])
-	assert.Contains(t, got["signed_xml"], "<ds:Signature")
+	// signed_xml ya no viaja en el JSON — se descarga por GET /documents/{id}/xml.
+	assert.Nil(t, got["signed_xml"], "signed_xml no debe aparecer en la respuesta JSON")
 
 	customer, ok := got["customer"].(map[string]any)
 	require.True(t, ok, "customer debe seguir presente después de confirmar")
 	assert.Equal(t, "Consumidor Final", customer["name"])
+}
+
+func TestAPI_GetDocumentXML_OK(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, token, "01", "SETP")
+
+	doc := issueInvoiceViaAPI(t, env, token, rangeID)
+	id := doc["id"].(string)
+
+	rw := env.doAuth(t, "GET", "/api/v1/documents/"+id+"/xml", token, nil)
+	require.Equal(t, http.StatusOK, rw.Code, rw.Body.String())
+	assert.Equal(t, "application/xml", rw.Header().Get("Content-Type"))
+	assert.Contains(t, rw.Body.String(), "<ds:Signature")
+}
+
+func TestAPI_GetDocumentXML_Draft(t *testing.T) {
+	env := newTestEnv(t)
+	_, token := registerTestIssuer(t, env)
+	rangeID := createTestRange(t, env, token, "01", "SETP")
+
+	draft := createDraftInvoice(t, env, token, rangeID)
+	rw := env.doAuth(t, "GET", "/api/v1/documents/"+draft["id"].(string)+"/xml", token, nil)
+	assert.Equal(t, http.StatusConflict, rw.Code, "un borrador no tiene XML todavía")
 }
 
 func TestAPI_ConfirmDocument_NotDraft(t *testing.T) {

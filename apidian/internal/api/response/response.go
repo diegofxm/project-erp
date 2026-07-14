@@ -53,6 +53,7 @@ func classify(err error) (int, string) {
 	case errors.Is(err, issuers.ErrNITAlreadyExists),
 		errors.Is(err, auth.ErrEmailAlreadyExists),
 		errors.Is(err, documents.ErrDocumentNotDraft),
+		errors.Is(err, documents.ErrDocumentNotSigned),
 		errors.Is(err, products.ErrDuplicateItemCode):
 		return http.StatusConflict, err.Error()
 

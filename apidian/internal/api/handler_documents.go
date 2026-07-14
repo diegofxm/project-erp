@@ -65,9 +65,9 @@ type issueCreditNoteRequest struct {
 
 // documentResponse es la representación pública de un documento. Customer/Lines/PaymentMeans/
 // Totals/Note/CurrencyCode están SIEMPRE presentes, incluso en borrador — son el contenido
-// que el usuario ya capturó. Prefix/Number/DocumentKey/IssueDate/QRURL/SignedXML son
-// punteros/omitempty: vacíos mientras Status == "draft", porque todavía no se reclamó número
-// ni se firmó (ver documents.Document).
+// que el usuario ya capturó. Prefix/Number/DocumentKey/IssueDate/QRURL son omitempty: vacíos
+// mientras Status == "draft", porque todavía no se reclamó número ni se firmó.
+// El XML firmado NO se incluye aquí — se descarga por separado via GET /documents/{id}/xml.
 //
 // Customer/Lines/PaymentMeans/Totals se agregaron en la Fase 2.28 — antes GET /documents y
 // GET /documents/{id} solo devolvían metadatos (ID, status, fechas), nunca el contenido en
@@ -95,13 +95,13 @@ type documentResponse struct {
 	NoteTypeCode        string                  `json:"note_type_code,omitempty"`
 
 	// Solo se llenan al confirmar (POST /documents/{id}/confirm) — vacíos mientras Status ==
-	// "draft".
+	// "draft". SignedXML no se incluye: se sirve por GET /documents/{id}/xml (ver
+	// handleGetDocumentXML), igual que el PDF tiene su propio endpoint.
 	Prefix      string     `json:"prefix,omitempty"`
 	Number      int64      `json:"number,omitempty"`
 	DocumentKey string     `json:"document_key,omitempty"`
 	IssueDate   *time.Time `json:"issue_date,omitempty"`
 	QRURL       string     `json:"qr_url,omitempty"`
-	SignedXML   string     `json:"signed_xml,omitempty"`
 
 	DianTrackID           string `json:"dian_track_id,omitempty"`
 	DianStatusCode        string `json:"dian_status_code,omitempty"`
@@ -143,7 +143,6 @@ func documentToResponse(d *documents.Document) documentResponse {
 		Number:                d.Number,
 		DocumentKey:           d.DocumentKey,
 		QRURL:                 d.QRURL,
-		SignedXML:             d.SignedXML,
 		DianTrackID:           d.DianTrackID,
 		DianStatusCode:        d.DianStatusCode,
 		DianStatusDescription: d.DianStatusDescription,
@@ -512,6 +511,39 @@ func (a *API) handleGetDocumentPDF(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", `inline; filename="documento.pdf"`)
 	_, _ = w.Write(pdfBytes)
+}
+
+// handleGetDocumentXML sirve el XML UBL firmado — disponible solo después de que el documento
+// fue confirmado (POST /documents/{id}/confirm). Para borradores (SignedXML vacío) devuelve
+// 409/ErrDocumentNotSigned. Sigue el mismo patrón que handleGetDocumentPDF: endpoint de
+// descarga separado en lugar de embeberlo en el JSON (el XML puede pesar 100-200 KB).
+func (a *API) handleGetDocumentXML(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+
+	doc, err := a.documents.GetDocument(r.Context(), id)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	if doc.IssuerID != middleware.GetTenantID(r.Context()) {
+		response.WriteError(w, documents.ErrDocumentNotFound)
+		return
+	}
+	if doc.SignedXML == "" {
+		response.WriteError(w, documents.ErrDocumentNotSigned)
+		return
+	}
+
+	filename := strconv.FormatInt(doc.Number, 10) + ".xml"
+	if doc.Prefix != "" {
+		filename = doc.Prefix + filename
+	}
+	w.Header().Set("Content-Type", "application/xml")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	_, _ = w.Write([]byte(doc.SignedXML))
 }
 
 type sendEmailRequest struct {

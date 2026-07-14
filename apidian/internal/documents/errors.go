@@ -81,4 +81,9 @@ var (
 	// ErrCustomerEmailMissing: el snapshot del cliente (ver model.go) no trae correo — sin él
 	// no hay a dónde enviar la factura.
 	ErrCustomerEmailMissing = errors.New("documents: el cliente no tiene un correo registrado, no se puede enviar la factura")
+
+	// ErrDocumentNotSigned: GET /documents/{id}/xml solo existe para documentos ya firmados
+	// (SignedXML != ""). Un borrador (Status == StatusDraft) nunca tiene XML porque todavía
+	// no pasó por POST /documents/{id}/confirm.
+	ErrDocumentNotSigned = errors.New("documents: el documento todavía no ha sido firmado — solo los documentos confirmados tienen un XML descargable")
 )

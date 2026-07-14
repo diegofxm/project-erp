@@ -32,6 +32,14 @@ export async function getDocumentPdfBlobUrl(id: string, format: PDFFormat = "ful
   return URL.createObjectURL(blob);
 }
 
+// getDocumentXmlBlobUrl descarga el XML UBL firmado y devuelve un Object URL para forzar
+// la descarga — mismo patrón que getDocumentPdfBlobUrl. Solo disponible después de confirmar
+// (el servidor devuelve 409 si el documento todavía es un borrador).
+export async function getDocumentXmlBlobUrl(id: string): Promise<string> {
+  const blob = await apiClient.getBlob(`/documents/${id}/xml`);
+  return URL.createObjectURL(blob);
+}
+
 export function createInvoiceDraft(payload: IssueInvoicePayload): Promise<Document> {
   return apiClient.post<Document>("/invoices", payload);
 }

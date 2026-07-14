@@ -402,7 +402,6 @@ export interface Document {
   document_key?: string;
   issue_date?: string;
   qr_url?: string;
-  signed_xml?: string;
   dian_track_id?: string;
   dian_status_code?: string;
   dian_status_description?: string;

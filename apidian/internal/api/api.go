@@ -135,6 +135,7 @@ func (a *API) Handler() http.Handler {
 //	GET    /api/v1/documents                              → listar documentos de la empresa activa (filtros + ?limit=&offset=)
 //	GET    /api/v1/documents/{id}                         → consultar documento (debe ser de la empresa activa)
 //	GET    /api/v1/documents/{id}/pdf                      → representación gráfica en PDF, generada en memoria (ver 9.39)
+//	GET    /api/v1/documents/{id}/xml                      → XML UBL firmado, solo si ya fue confirmado (ver handleGetDocumentXML)
 //	POST   /api/v1/documents/{id}/send-email               → envía la Factura accepted al correo del cliente, PDF+XML adjuntos (ver 9.42)
 //	GET    /api/v1/dian/verify-acquirer                    → ayuda opcional al capturar un NIT, no bloqueante (?identification_type_code=&identification_number=, ver 9.41)
 //
@@ -187,6 +188,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("GET /api/v1/documents", a.handleListDocuments)
 	handle("GET /api/v1/documents/{id}", a.handleGetDocument)
 	handle("GET /api/v1/documents/{id}/pdf", a.handleGetDocumentPDF)
+	handle("GET /api/v1/documents/{id}/xml", a.handleGetDocumentXML)
 	handle("POST /api/v1/documents/{id}/send-email", a.handleSendDocumentEmail)
 	handle("GET /api/v1/dian/verify-acquirer", a.handleVerifyAcquirer)
 
