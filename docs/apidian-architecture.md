@@ -2507,3 +2507,76 @@ Este comportamiento dual es intencional y está documentado en el comentario de 
 
 **Estado en 9.2**: la fila de `AttachedDocument` en la tabla de pendientes fue actualizada para
 reflejar que está implementado.
+
+### 9.52 Alertas proactivas por correo — rangos por vencer y certificado (pendiente)
+
+> **Estado: diseñado, no implementado.** Este es el diseño acordado para cuando se construya.
+
+#### Qué notificar
+
+- **Rangos de numeración**: cualquier rango con `status = active` y `valid_to` dentro de los
+  próximos 30 días, o ya vencido (`status = expired`). Se notifica al correo del emisor (`issuers.email`).
+- **Certificado digital**: cualquier emisor con `certificate_expires_at` dentro de los próximos
+  30 días, o ya vencido. Mismo correo destinatario.
+
+El umbral de 30 días es coherente con el badge "Por vencer" del frontend (sección 9.50) y con
+`CertStatusBadge` en `SoftwareCertificateForm.tsx`.
+
+#### Mecanismo de disparo — goroutine interna (sin dependencias externas)
+
+Una goroutine lanzada desde `cmd/server/main.go` al arrancar, usando el `context` de shutdown
+que ya existe. Esquema:
+
+```go
+go func() {
+    alertSvc.RunOnce(ctx)               // pasada inmediata al arrancar
+    ticker := time.NewTicker(24 * time.Hour)
+    defer ticker.Stop()
+    for {
+        select {
+        case <-ticker.C:
+            alertSvc.RunOnce(ctx)
+        case <-ctx.Done():
+            return
+        }
+    }
+}()
+```
+
+La pasada inmediata al arrancar garantiza que si el servidor estuvo caído la noche anterior,
+el chequeo igual se ejecuta al volver — nunca se pierde un día entero.
+
+#### Evitar envíos duplicados — dos columnas nuevas
+
+Sin registro de "ya avisé", el chequeo mandaría el correo cada día mientras el rango/cert siga
+en riesgo. Solución: dos columnas nullable en las tablas correspondientes:
+
+```sql
+-- en numbering_ranges (integrar en la migración existente 000009):
+expiry_alert_sent_at  TIMESTAMPTZ  -- NULL = nunca enviada
+
+-- en issuers (integrar en la migración existente 000003):
+cert_alert_sent_at    TIMESTAMPTZ  -- NULL = nunca enviada
+```
+
+Criterio de envío: `expiry_alert_sent_at IS NULL` (o han pasado más de 7 días desde la última,
+para recordatorios de seguimiento). Al renovar el rango o reemplazar el certificado, la columna
+se limpia a NULL automáticamente.
+
+#### Template HTML de alerta
+
+Un nuevo `alert_template.html` embebido (`//go:embed`) en `internal/documents` o en un nuevo
+`internal/alerting`. Más simple que `email_template.html` — sin DocumentNumber/IssueDate/Total
+(esos son datos de documento, no aplican aquí). Contiene: logo del emisor, título de la alerta
+("Tu resolución de numeración está por vencer" / "Tu certificado digital vence pronto"),
+cuerpo con los rangos/cert afectados, y un enlace o instrucción para ir a Configuración.
+
+#### Piezas de implementación
+
+| Pieza | Dónde vive | Notas |
+|---|---|---|
+| Migración: `expiry_alert_sent_at` | `000009_numbering_ranges` editado | Integrar, no ALTER TABLE nuevo |
+| Migración: `cert_alert_sent_at` | `000003_issuers` editado | Mismo criterio |
+| `alert_template.html` | `internal/documents/` (o `internal/alerting/`) | `//go:embed`, más simple que el de facturas |
+| `alerting.go` — lógica de chequeo | `internal/documents/` (o nuevo paquete) | Lee rangos/certs, filtra candidatos, envía, marca columna |
+| Goroutine en `cmd/server/main.go` | `cmd/server/main.go` | `RunOnce` + `time.Ticker(24h)` + `ctx.Done()` |
