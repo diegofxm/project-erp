@@ -13,6 +13,7 @@ import (
 	"github.com/diegofxm/apidian/internal/numbering"
 	"github.com/diegofxm/cofacture/builder"
 	"github.com/diegofxm/cofacture/cude"
+	"github.com/diegofxm/cofacture/cuds"
 	"github.com/diegofxm/cofacture/cufe"
 	"github.com/diegofxm/cofacture/dian"
 	"github.com/diegofxm/cofacture/domain"
@@ -44,6 +45,10 @@ const (
 	debitNoteOperationTypeCode = "30"
 	debitNoteHashType          = "CUDE-SHA384"
 	debitNoteDianDocumentType  = "92"
+
+	supportDocumentProfileID    = "DIAN 2.1: documento soporte en adquisiciones efectuadas a no obligados a facturar."
+	supportDocumentHashType     = "CUDS-SHA384"
+	supportDocumentDianDocType  = "05"
 )
 
 // Service orquesta el ciclo de vida de documentos DIAN: crear borradores, editarlos,
@@ -105,6 +110,25 @@ type IssueNoteRequest struct {
 type IssueCreditNoteRequest struct {
 	IssueNoteRequest
 	CreditNoteTypeCode string
+}
+
+// IssueSupportDocumentRequest es el payload de un Documento Soporte (InvoiceTypeCode "05").
+//
+// Los roles están invertidos respecto a la Factura: Vendor es el tercero no obligado
+// (AccountingSupplierParty), y la empresa emisora actúa como compradora
+// (AccountingCustomerParty — no se recibe del cliente, se deriva del emisor al confirmar).
+// OperationTypeCode distingue si el vendedor es Residente ("10") o No Residente ("11").
+// WithholdingTaxes son las retenciones calculadas (ReteIVA código "05", ReteRenta código "06").
+type IssueSupportDocumentRequest struct {
+	IssuerID          uuid.UUID
+	NumberingRangeID  uuid.UUID
+	Vendor            domain.Party
+	Lines             []LineInput
+	PaymentMeans      []domain.PaymentMean
+	Note              string
+	CurrencyCode      string
+	OperationTypeCode string    // "10" Residente, "11" No Residente
+	WithholdingTaxes  []domain.Tax
 }
 
 // ── Crear / editar / eliminar borradores ────────────────────────────────────────────────────
@@ -258,6 +282,150 @@ func (s *Service) UpdateDebitNoteDraft(ctx context.Context, id uuid.UUID, req Is
 	return s.repo.UpdateDraft(ctx, draft)
 }
 
+// CreateSupportDocumentDraft valida y persiste un borrador de Documento Soporte.
+func (s *Service) CreateSupportDocumentDraft(ctx context.Context, req IssueSupportDocumentRequest) (*Document, error) {
+	if err := s.validateSupportDocumentRequest(ctx, req); err != nil {
+		return nil, err
+	}
+	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, supportDocumentDianDocType, nil); err != nil {
+		return nil, err
+	}
+	applyVendorDefaults(&req.Vendor)
+	lines, err := s.linesFromInput(ctx, req.Lines)
+	if err != nil {
+		return nil, err
+	}
+	draft := s.supportDocumentDraftFromRequest(req, lines)
+	return s.repo.Create(ctx, draft)
+}
+
+// UpdateSupportDocumentDraft reemplaza por completo los datos de un borrador de Documento
+// Soporte existente — mismas reglas que UpdateInvoiceDraft.
+func (s *Service) UpdateSupportDocumentDraft(ctx context.Context, id uuid.UUID, req IssueSupportDocumentRequest) (*Document, error) {
+	if err := s.validateSupportDocumentRequest(ctx, req); err != nil {
+		return nil, err
+	}
+	if err := s.requireOwnDraft(ctx, req.IssuerID, id); err != nil {
+		return nil, err
+	}
+	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, supportDocumentDianDocType, nil); err != nil {
+		return nil, err
+	}
+	applyVendorDefaults(&req.Vendor)
+	lines, err := s.linesFromInput(ctx, req.Lines)
+	if err != nil {
+		return nil, err
+	}
+	draft := s.supportDocumentDraftFromRequest(req, lines)
+	draft.ID = id
+	return s.repo.UpdateDraft(ctx, draft)
+}
+
+func (s *Service) supportDocumentDraftFromRequest(req IssueSupportDocumentRequest, lines []domain.Line) Document {
+	vendor := req.Vendor
+	return Document{
+		IssuerID:             req.IssuerID,
+		NumberingRangeID:     req.NumberingRangeID,
+		DianDocumentTypeCode: supportDocumentDianDocType,
+		CurrencyCode:         defaultCurrency(req.CurrencyCode),
+		Note:                 req.Note,
+		Lines:                lines,
+		PaymentMeans:         req.PaymentMeans,
+		Totals:               computeTotalsForDS(lines, req.WithholdingTaxes),
+		Vendor:               &vendor,
+		OperationTypeCode:    req.OperationTypeCode,
+		WithholdingTaxes:     req.WithholdingTaxes,
+		Status:               StatusDraft,
+	}
+}
+
+// validateSupportDocumentRequest valida los campos obligatorios del Documento Soporte.
+// No reutiliza validateBase porque DS no tiene Customer (la empresa es el comprador) y las
+// retenciones son opcionales (no todos los DS las llevan).
+func (s *Service) validateSupportDocumentRequest(ctx context.Context, req IssueSupportDocumentRequest) error {
+	if req.IssuerID == uuid.Nil {
+		return ErrMissingIssuer
+	}
+	if req.NumberingRangeID == uuid.Nil {
+		return ErrMissingNumberingRange
+	}
+	if len(req.Lines) == 0 {
+		return ErrEmptyLines
+	}
+	if req.Vendor.Identification.Number == "" {
+		return ErrMissingCustomer // reuse: "el tercero" es obligatorio igual que el cliente en Invoice
+	}
+	if req.OperationTypeCode != "10" && req.OperationTypeCode != "11" {
+		return fmt.Errorf("%w: operation_type_code debe ser '10' (Residente) o '11' (No Residente)", ErrInvalidPaymentTerm)
+	}
+	if len(req.PaymentMeans) == 0 {
+		return ErrMissingPaymentMeans
+	}
+	for _, pm := range req.PaymentMeans {
+		ok, err := s.catalogs.IsValidPaymentTerm(ctx, pm.Code)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%w: %q", ErrInvalidPaymentTerm, pm.Code)
+		}
+		ok, err = s.catalogs.IsValidPaymentMethod(ctx, pm.PaymentMethodCode)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%w: %q", ErrInvalidPaymentMethod, pm.PaymentMethodCode)
+		}
+	}
+	return nil
+}
+
+// applyVendorDefaults completa los campos que la mayoría de terceros no obligados no
+// personalizan — persona natural sin obligación de facturar (código O-49).
+func applyVendorDefaults(p *domain.Party) {
+	if p.EntityTypeCode == "" {
+		p.EntityTypeCode = "1" // persona natural
+	}
+	if p.TaxSchemeCode == "" {
+		p.TaxSchemeCode = "ZZ"
+	}
+	if p.TaxSchemeName == "" {
+		p.TaxSchemeName = "No aplica"
+	}
+	if len(p.LiabilityCodes) == 0 {
+		p.LiabilityCodes = []string{"O-49"}
+	}
+	if p.TaxRegimeCode == "" {
+		p.TaxRegimeCode = "49"
+	}
+	if p.Address.CountryCode == "" {
+		p.Address.CountryCode = "CO"
+		p.Address.CountryName = "Colombia"
+	}
+}
+
+// computeTotalsForDS calcula los totales de un Documento Soporte, descontando las
+// retenciones del monto pagable (el PayableCents de DS es neto de retenciones).
+func computeTotalsForDS(lines []domain.Line, withholdingTaxes []domain.Tax) domain.Totals {
+	var lineExt, lineTaxAmount, withholdingAmount int64
+	for _, l := range lines {
+		lineExt += l.LineExtensionCents
+		for _, t := range l.Taxes {
+			lineTaxAmount += t.TaxAmountCents
+		}
+	}
+	for _, t := range withholdingTaxes {
+		withholdingAmount += t.TaxAmountCents
+	}
+	taxInclusive := lineExt + lineTaxAmount
+	return domain.Totals{
+		LineExtensionCents: lineExt,
+		TaxExclusiveCents:  lineExt,
+		TaxInclusiveCents:  taxInclusive,
+		PayableCents:       taxInclusive - withholdingAmount,
+	}
+}
+
 // DeleteDraft elimina un borrador — solo mientras siga en borrador y pertenezca al emisor dado.
 func (s *Service) DeleteDraft(ctx context.Context, issuerID, id uuid.UUID) error {
 	if err := s.requireOwnDraft(ctx, issuerID, id); err != nil {
@@ -341,6 +509,8 @@ func (s *Service) ConfirmDocument(ctx context.Context, issuerID, id uuid.UUID) (
 		return s.confirmCreditNote(ctx, d)
 	case debitNoteDianDocumentType:
 		return s.confirmDebitNote(ctx, d)
+	case supportDocumentDianDocType:
+		return s.confirmSupportDocument(ctx, d)
 	default:
 		return nil, fmt.Errorf("documents: tipo de documento desconocido %q", d.DianDocumentTypeCode)
 	}
@@ -454,6 +624,62 @@ func (s *Service) confirmDebitNote(ctx context.Context, d *Document) (*Document,
 	d.IssueDate, d.IssueTime, d.QRURL = p.now, dn.IssueTime, dn.QRURL
 
 	return s.finalizeAndSend(ctx, xmlDoc, p, d, zip.KindDebitNote)
+}
+
+func (s *Service) confirmSupportDocument(ctx context.Context, d *Document) (*Document, error) {
+	if d.Vendor == nil {
+		return nil, fmt.Errorf("documents: documento soporte sin vendor")
+	}
+	p, err := s.claimAndLoadCert(ctx, d)
+	if err != nil {
+		return nil, err
+	}
+
+	headerTaxes := aggregateTaxes(d.Lines)
+	inv := domain.Invoice{
+		ProfileID:         supportDocumentProfileID,
+		EnvironmentCode:   string(p.iss.Environment),
+		OperationTypeCode: d.OperationTypeCode,
+		DocumentTypeCode:  supportDocumentDianDocType,
+		HashType:          supportDocumentHashType,
+
+		Prefix: p.nr.Prefix,
+		Number: strconv.FormatInt(p.number, 10),
+
+		IssueDate: p.now.Format("2006-01-02"),
+		IssueTime: p.now.Format("15:04:05-07:00"),
+
+		CurrencyCode: d.CurrencyCode,
+		Note:         d.Note,
+
+		// Roles invertidos: Supplier = tercero no obligado, Customer = empresa compradora.
+		Supplier: *d.Vendor,
+		Customer: partyFromIssuer(p.iss),
+
+		PaymentMeans:     d.PaymentMeans,
+		HeaderTaxes:      headerTaxes,
+		WithholdingTaxes: d.WithholdingTaxes,
+		Totals:           d.Totals,
+		Lines:            d.Lines,
+
+		NumberingRange:   numberingRangeFromRange(p.nr),
+		SoftwareProvider: softwareProviderFromIssuer(p.iss),
+	}
+
+	inv.CUFE = cuds.Compute(inv, p.iss.SoftwarePIN)
+	inv.SoftwareSecurityCode = securitycode.Compute(p.iss.SoftwareID, p.iss.SoftwarePIN, inv.Prefix+inv.Number)
+	inv.QRURL = qr.SupportDocumentContent(inv, inv.CUFE, p.iss.SoftwarePIN)
+
+	xmlDoc, err := builder.BuildSupportDocument(inv)
+	if err != nil {
+		_ = s.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, p.number)
+		return nil, fmt.Errorf("construir XML: %w", err)
+	}
+
+	d.Prefix, d.Number, d.DocumentKey = inv.Prefix, p.number, inv.CUFE
+	d.IssueDate, d.IssueTime, d.QRURL = p.now, inv.IssueTime, inv.QRURL
+
+	return s.finalizeAndSend(ctx, xmlDoc, p, d, zip.KindSupportDocument)
 }
 
 // noteBaseFromDraft construye el domain.Invoice embebido que comparten CreditNote y

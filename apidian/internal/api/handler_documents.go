@@ -94,6 +94,11 @@ type documentResponse struct {
 	DiscrepancyResponse *discrepancyResponseDTO `json:"discrepancy_response,omitempty"`
 	NoteTypeCode        string                  `json:"note_type_code,omitempty"`
 
+	// Solo Documento Soporte (DianDocumentTypeCode "05") — nil/vacíos en los demás.
+	Vendor            *partyDTO `json:"vendor,omitempty"`
+	OperationTypeCode string    `json:"operation_type_code,omitempty"`
+	WithholdingTaxes  []taxDTO  `json:"withholding_taxes,omitempty"`
+
 	// Solo se llenan al confirmar (POST /documents/{id}/confirm) — vacíos mientras Status ==
 	// "draft". SignedXML no se incluye: se sirve por GET /documents/{id}/xml (ver
 	// handleGetDocumentXML), igual que el PDF tiene su propio endpoint.
@@ -139,6 +144,7 @@ func documentToResponse(d *documents.Document) documentResponse {
 		Note:                  d.Note,
 		CurrencyCode:          d.CurrencyCode,
 		NoteTypeCode:          d.NoteTypeCode,
+		OperationTypeCode:     d.OperationTypeCode,
 		Prefix:                d.Prefix,
 		Number:                d.Number,
 		DocumentKey:           d.DocumentKey,
@@ -168,6 +174,16 @@ func documentToResponse(d *documents.Document) documentResponse {
 			ReferenceID:  d.DiscrepancyResponse.ReferenceID,
 			ResponseCode: d.DiscrepancyResponse.ResponseCode,
 			Description:  d.DiscrepancyResponse.Description,
+		}
+	}
+	if d.Vendor != nil {
+		v := partyFromDomain(*d.Vendor)
+		resp.Vendor = &v
+	}
+	if len(d.WithholdingTaxes) > 0 {
+		resp.WithholdingTaxes = make([]taxDTO, len(d.WithholdingTaxes))
+		for i, t := range d.WithholdingTaxes {
+			resp.WithholdingTaxes[i] = taxFromDomain(t)
 		}
 	}
 	return resp

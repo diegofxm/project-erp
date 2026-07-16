@@ -46,13 +46,24 @@ func TestBuild_RoundTrip(t *testing.T) {
 }
 
 func TestDocumentFileName(t *testing.T) {
-	// NIT 800197268 (9 dígitos) -> 0800197268 (10 dígitos), software propio, año 2019,
-	// consecutivo decimal 11 -> hex "0000000B" (no "00000011": ver nota en DocumentFileName
-	// sobre la inconsistencia del propio anexo en su ejemplo ilustrativo).
-	got := DocumentFileName(KindInvoice, "800197268", SoftwarePropioCode, 2019, 11)
-	want := "fv0800197268000190000000B.xml"
-	if got != want {
-		t.Errorf("DocumentFileName() = %q, want %q", got, want)
+	cases := []struct {
+		kind DocumentKind
+		want string
+	}{
+		// NIT 800197268 (9 dígitos) -> 0800197268 (10 dígitos), software propio, año 2019,
+		// consecutivo decimal 11 -> hex "0000000B" (no "00000011": ver nota en DocumentFileName
+		// sobre la inconsistencia del propio anexo en su ejemplo ilustrativo).
+		{KindInvoice, "fv0800197268000190000000B.xml"},
+		{KindCreditNote, "nc0800197268000190000000B.xml"},
+		{KindDebitNote, "nd0800197268000190000000B.xml"},
+		{KindSupportDocument, "ds0800197268000190000000B.xml"},
+		{KindAdjustmentNote, "na0800197268000190000000B.xml"},
+	}
+	for _, c := range cases {
+		got := DocumentFileName(c.kind, "800197268", SoftwarePropioCode, 2019, 11)
+		if got != c.want {
+			t.Errorf("DocumentFileName(%q) = %q, want %q", c.kind, got, c.want)
+		}
 	}
 }
 

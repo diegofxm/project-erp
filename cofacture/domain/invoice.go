@@ -35,6 +35,11 @@ type Invoice struct {
 	// modelo, no del builder.
 	HeaderTaxes []Tax
 
+	// WithholdingTaxes son las retenciones (WithholdingTaxTotal) — exclusivo del Documento
+	// Soporte (InvoiceTypeCode "05"). Cada elemento genera un cac:WithholdingTaxTotal
+	// independiente (uno por tipo: ReteIVA="05", ReteRenta="06"). Se ignora en Invoice/NC/ND.
+	WithholdingTaxes []Tax
+
 	Totals Totals
 	Lines  []Line
 

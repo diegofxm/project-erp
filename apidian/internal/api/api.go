@@ -187,6 +187,8 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("PUT /api/v1/credit-notes/{id}", a.handleUpdateCreditNote)
 	handle("POST /api/v1/debit-notes", a.handleCreateDebitNote)
 	handle("PUT /api/v1/debit-notes/{id}", a.handleUpdateDebitNote)
+	handle("POST /api/v1/support-documents", a.handleCreateSupportDocument)
+	handle("PUT /api/v1/support-documents/{id}", a.handleUpdateSupportDocument)
 	handle("POST /api/v1/documents/{id}/confirm", a.handleConfirmDocument)
 	handle("DELETE /api/v1/documents/{id}", a.handleDeleteDocument)
 	handle("GET /api/v1/documents", a.handleListDocuments)

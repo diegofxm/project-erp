@@ -10,6 +10,8 @@ const (
 	KindInvoice             DocumentKind = "fv" // Factura de Venta
 	KindCreditNote          DocumentKind = "nc" // Nota Crédito
 	KindDebitNote           DocumentKind = "nd" // Nota Débito
+	KindSupportDocument     DocumentKind = "ds" // Documento Soporte
+	KindAdjustmentNote      DocumentKind = "na" // Nota de Ajuste al Documento Soporte
 	KindApplicationResponse DocumentKind = "ar"
 	KindAttachedDocument    DocumentKind = "ad"
 )

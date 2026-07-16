@@ -2580,3 +2580,177 @@ cuerpo con los rangos/cert afectados, y un enlace o instrucción para ir a Confi
 | `alert_template.html` | `internal/documents/` (o `internal/alerting/`) | `//go:embed`, más simple que el de facturas |
 | `alerting.go` — lógica de chequeo | `internal/documents/` (o nuevo paquete) | Lee rangos/certs, filtra candidatos, envía, marca columna |
 | Goroutine en `cmd/server/main.go` | `cmd/server/main.go` | `RunOnce` + `time.Ticker(24h)` + `ctx.Done()` |
+
+### 9.53 Modelo de entidades — decisión de tablas separadas (2026-07-15)
+
+El usuario evaluó si convenía unificar `issuers`, `customers`, y los futuros `employees`/
+`vendors` en una sola tabla de "actores" o "partes", dado que comparten campos de identificación,
+nombre y dirección.
+
+**Decisión: mantener tablas separadas por rol.** Razonamiento:
+
+El solapamiento real entre tablas es de ~10 columnas (NIT/número de identificación, nombre,
+dirección, teléfono, correo). Lo que difiere es mucho mayor:
+
+- `issuers` es una tabla de **configuración de tenant**: contiene credenciales cifradas (`BYTEA`
+  para `software_pin`, `certificate`, `certificate_password`), logo, plantilla de correo,
+  `environment`, `is_active` — campos que no tienen análogo en ninguna otra entidad.
+- `customers` usa campos de dirección como texto libre (acepta clientes extranjeros sin DIVIPOLA
+  válido); `issuers` usa FK a `departments`/`municipalities` (siempre entidades colombianas).
+- `employees` (nómina, futuro): tienen `TipoContrato`, `Sueldo`, `AltoRiesgoPension`,
+  `SalarioIntegral`, `CodigoTrabajador`, `NumeroCuenta`/`TipoCuenta` — datos laborales que no
+  tienen nada que ver con datos fiscales de una factura. Una tabla unificada generaría columnas
+  NULL masivo para cada rol.
+- La fuente de verdad de los datos del tercero en un documento ya emitido **no son estas tablas**
+  — es el snapshot JSONB (`documents.customer`) capturado al momento de emitir. Las tablas de
+  catálogo son solo directorios de conveniencia para no retipear en la UI.
+
+Una tabla unificada implicaría discriminadores de rol en todos los queries, índices compuestos
+`(issuer_id, role)`, NULLs masivos y pérdida de FK específicas por rol. El ahorro es ruido
+frente a ese costo. La comparación con ERPNext/Odoo (`res.partner` unificado) no aplica:
+esos son CRMs primero; aquí el core es el pipeline DIAN, no un CRM.
+
+**Mapa de entidades definitivo:**
+
+| Tabla | Rol | Estado |
+|---|---|---|
+| `issuers` | Tenant / emisor (la empresa) | Implementado |
+| `customers` | Adquirientes (directorio por emisor) | Implementado |
+| `vendors` | Vendedores no obligados (para Documento Soporte) | Pendiente — se agrega al implementar DS |
+| `employees` | Trabajadores (para Nómina Electrónica) | Pendiente — se agrega al implementar nómina |
+
+---
+
+### 9.54 Hoja de ruta hacia producción — flujo comercial completo (2026-07-15)
+
+> **Estado: diseñado, no implementado.** El motor de emisión (FE + NC + ND) está listo para
+> producción. Lo que falta es el flujo de adquisición de clientes y la infraestructura de
+> despliegue.
+
+#### Estado de producción del motor de emisión
+
+| Documento | Estado DIAN real |
+|---|---|
+| Factura electrónica (01) | ✅ Autorizada en habilitación real |
+| Nota Crédito (91) | ✅ Aceptada en habilitación real |
+| Nota Débito (92) | ✅ Aceptada en habilitación real |
+| Documento Soporte (05) | ⏳ Pendiente de implementar |
+| Nota de Ajuste (95) | ⏳ Pendiente (depende de DS) |
+
+**Documento Soporte NO es requisito para ir a producción.** FE + NC + ND cubre el 95% del
+mercado. DS es nicho (empresas que compran a agricultores, trabajadores informales, etc.) y
+se implementa en una fase posterior sin bloquear el lanzamiento comercial.
+
+#### Modelo de precios elegido
+
+Tarificación de dos capas, sin tiers ni upgrades:
+
+- **Suscripción anual** (tarifa de acceso): cubre plataforma, soporte y actualizaciones.
+  Precio a definir por el usuario.
+- **Cobro por documento emitido**: se registra cada `confirmDocument` exitoso en una tabla
+  `billing_events`. Precio por documento a definir por el usuario.
+- **Sin tiers**: un solo plan para todos los clientes. Eliminates complejidad de gestión de
+  planes y es fácil de explicar ("$X/año + $Y por factura").
+
+Justificación: el cobro por documento alinea el costo operativo (DIAN, servidor, firma) con
+el ingreso; la tarifa anual cubre el costo fijo. La competencia colombiana (Alegra, Siigo)
+usa suscripciones mensuales con tiers — diferenciarse con simplicidad es una ventaja real en
+el segmento PYME.
+
+#### Infraestructura de despliegue
+
+- **Plataforma**: Railway (elegida por el usuario). Un servicio Go + un servicio Postgres
+  gestionado. Railway maneja SSL y dominios custom nativamente.
+- **Dominio**: `cofacture.co` (ya adquirido). El dashboard vive en `app.cofacture.co` (o
+  subdirectorio); la landing en `cofacture.co` (sitio estático independiente).
+- **Pasarela de pago**: ePayco (elegida por el usuario). SDK Go propio del usuario:
+  `github.com/diegofxm/epayco-go` — sin dependencias externas, ya tiene soporte para cobros
+  con tarjeta (`Charges`), PSE (`PSE`), efectivo (`Cash`), Daviplata, webhooks con
+  verificación de firma, y **suscripciones/planes** (`Plans`/`Subscriptions` vía
+  `api.secure.payco.co`). Permite implementar tanto el cobro único anual como el recurrente
+  sin otro SDK.
+- **Correo transaccional**: SMTP propio (ya configurado en `internal/email`, sección 9.40).
+  Ya usado para envío de documentos al cliente; se reutiliza sin cambios para notificaciones
+  de onboarding y activación de cuenta.
+- **Backups**: Railway Postgres incluye snapshots automáticos. Suficiente para la fase inicial.
+
+#### Flujo de adquisición de clientes (diseño)
+
+```
+cofacture.co (landing estática — Astro o HTML puro con Tailwind CDN)
+    → Descripción del servicio + precios + CTA "Empezar"
+    → Redirige a app.cofacture.co/registro
+
+/registro (formulario en el frontend existente)
+    → Datos básicos: nombre, correo, contraseña, NIT de la empresa
+    → Documentos: cédula del representante legal (PDF) + RUT (PDF)
+    → Pago: checkout ePayco para la suscripción anual
+    → Al completar el pago, ePayco llama al webhook de apidian
+
+apidian recibe webhook ePayco
+    → Verifica firma (epayco.VerifySignature con p_cust_id_cliente + p_key del dashboard ePayco)
+    → Si pago aprobado: cambia user.account_status a "pending_review"
+    → Envía correo al platform_admin: "Nueva solicitud de cuenta — NIT XXXX"
+    → Envía correo al usuario: "Recibimos tu solicitud, en revisión"
+
+Panel de admin (/admin — protegido por RequirePlatformAdmin, sección 9.35)
+    → Lista solicitudes pending_review con sus documentos adjuntos
+    → Botón "Aprobar": crea el issuer a partir de los datos del RUT enviado,
+      cambia account_status a "active", notifica al usuario
+    → Botón "Rechazar" + campo de motivo: cambia a "rejected", notifica al usuario
+      con el motivo y ofrece reembolso (proceso manual en esta fase)
+
+Cliente recibe correo "Tu cuenta en Cofacture está lista"
+    → Entra a app.cofacture.co → login
+    → La empresa ya está creada (el admin la creó del RUT) pero sin software/certificado
+    → El wizard de configuración existente lo guía: subir certificado → registrar software → crear rango
+    → Listo para emitir
+```
+
+#### Piezas de implementación pendientes
+
+| Componente | Dónde vive | Notas |
+|---|---|---|
+| `account_status` en `users` | Migración `000007_users` editada | `pending_review \| active \| suspended \| rejected`; default `active` para los usuarios existentes en dev |
+| `onboarding_documents` (nueva tabla) | Nueva migración `000013` | `(id, user_id, document_type, content BYTEA, content_type, uploaded_at)`. Tipos: `cedula`, `rut` |
+| Upload en `/registro` | `frontend/src/pages/RegisterPage.tsx` | Dos inputs `<input type="file" accept=".pdf">`, FileReader → base64 → `POST /auth/register` ampliado |
+| Webhook ePayco | `apidian/internal/api/handler_epayco.go` | `POST /api/webhooks/epayco` — sin auth JWT (llamado por ePayco), con `epayco.VerifySignature`. Actualiza `account_status`. |
+| Guard por `account_status` | `internal/api/middleware/tenant.go` | `RequireTenant` ya existe; agregar chequeo de `account_status == "active"` antes de inyectar `tenantID` en el contexto |
+| Panel `/admin` | `frontend/src/pages/admin/` + layout propio | Lista solicitudes, descarga PDFs, botones Aprobar/Rechazar. Layout separado de `DashboardLayout` (sección 9.35) |
+| `POST /admin/users/{id}/approve` | `apidian/internal/api/handler_admin.go` | Crea issuer desde datos recibidos en el registro, activa cuenta, envía email |
+| `POST /admin/users/{id}/reject` | Mismo archivo | Cambia status a rejected, envía email con motivo |
+| `billing_events` (nueva tabla) | Nueva migración `000014` | `(id, issuer_id, document_id, document_type, emitted_at, amount_cents)`. Se inserta en `documents.Service.finish()` cuando `StatusCode == "00"` |
+| Landing page | Repositorio separado o `frontend/public/` | Estática. No comparte código con el dashboard. Incluye precios, características, CTA |
+| ePayco SDK | `go.work` / `go get github.com/diegofxm/epayco-go` | Ya existe y tiene tests. Se importa en `apidian` como cualquier dependencia |
+
+#### Secuencia de implementación recomendada
+
+1. **Infraestructura Railway** — configurar el proyecto, el servicio Postgres, las variables de
+   entorno de producción, el dominio `app.cofacture.co`, y hacer un primer despliegue del
+   estado actual. Esto valida el pipeline de deploy antes de agregar más código.
+2. **`account_status` + guard** — migración + middleware. Sin esto, cualquier usuario que se
+   registre tiene acceso inmediato sin validación; esto cierra ese hueco antes de abrir el
+   registro al público.
+3. **Upload documentos en `/registro`** — ampliar el formulario de registro para recibir
+   cédula + RUT como PDFs. Guardar en `onboarding_documents`.
+4. **Webhook ePayco** — `POST /api/webhooks/epayco`. Con esto el pago cierra el loop de
+   registro sin intervención manual.
+5. **Panel de admin** — lista de solicitudes + aprobar/rechazar. Es el único punto de
+   intervención humana en el flujo.
+6. **`billing_events`** — tabla + inserción en `finish()`. Permite empezar a registrar uso
+   desde el día uno, aunque la facturación al cliente sea manual al principio.
+7. **Landing page** — puede construirse en paralelo con los pasos 2–6; no bloquea ningún
+   paso técnico.
+
+#### Lo que deliberadamente queda fuera de esta fase
+
+- **Facturación automática al cliente** (generación automática de la factura mensual/anual
+  de Cofacture al cliente): manual en la primera fase. Con `billing_events` ya poblada, se
+  puede hacer el cálculo y cobro a mano hasta que el volumen justifique automatizarlo.
+- **Reembolsos automáticos**: el flujo de rechazo notifica al usuario y el reembolso es manual
+  (vía panel de ePayco). Aceptable para volúmenes iniciales.
+- **Invitación de usuarios por empresa** (`POST /issuers/me/members`, sección 9.35): no es
+  requisito para el lanzamiento — cada empresa empieza con un solo usuario (el owner).
+- **Suscripciones recurrentes automáticas con ePayco** (`Plans`/`Subscriptions`): la primera
+  versión cobra manualmente o vía checkout al vencer la suscripción. Se puede automatizar
+  con `epayco-go`'s `Plans`/`Subscriptions` una vez se tenga el volumen que lo justifique.

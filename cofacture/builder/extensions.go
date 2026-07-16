@@ -41,7 +41,7 @@ func appendUBLExtensions(parent *etree.Element, inv domain.Invoice) {
 		CreateElement("ext:ExtensionContent").
 		CreateElement("sts:DianExtensions")
 
-	if inv.DocumentTypeCode == "01" {
+	if inv.DocumentTypeCode == "01" || inv.DocumentTypeCode == "05" {
 		appendInvoiceControl(dianExt, inv.NumberingRange)
 	}
 

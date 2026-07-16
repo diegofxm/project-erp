@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { Document, DocumentLine, DocumentLineInput, IssueCreditNotePayload, IssueDebitNotePayload, IssueInvoicePayload, ListDocumentsFilter, ListDocumentsResult } from "./types";
+import type { Document, DocumentLine, DocumentLineInput, IssueCreditNotePayload, IssueDebitNotePayload, IssueInvoicePayload, IssueSupportDocumentPayload, ListDocumentsFilter, ListDocumentsResult } from "./types";
 
 export async function listDocuments(filter?: ListDocumentsFilter): Promise<Document[]> {
   const params = new URLSearchParams();
@@ -62,6 +62,14 @@ export function createDebitNoteDraft(payload: IssueDebitNotePayload): Promise<Do
 
 export function updateDebitNoteDraft(id: string, payload: IssueDebitNotePayload): Promise<Document> {
   return apiClient.put<Document>(`/debit-notes/${id}`, payload);
+}
+
+export function createSupportDocumentDraft(payload: IssueSupportDocumentPayload): Promise<Document> {
+  return apiClient.post<Document>("/support-documents", payload);
+}
+
+export function updateSupportDocumentDraft(id: string, payload: IssueSupportDocumentPayload): Promise<Document> {
+  return apiClient.put<Document>(`/support-documents/${id}`, payload);
 }
 
 export function deleteDraft(id: string): Promise<void> {

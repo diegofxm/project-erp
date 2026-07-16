@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/diegofxm/apidian/internal/sqlutil"
+	"github.com/diegofxm/cofacture/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -60,6 +61,9 @@ const documentColumns = `
 	dian_status_description,
 	dian_status_message,
 	application_response_xml,
+	vendor,
+	operation_type_code,
+	withholding_taxes,
 	created_at,
 	updated_at`
 
@@ -74,7 +78,7 @@ func (r *PostgresRepository) Create(ctx context.Context, d Document) (*Document,
 	d.CreatedAt = now
 	d.UpdatedAt = now
 
-	customerJSON, linesJSON, paymentMeansJSON, billingRefJSON, discrepancyJSON, err := marshalSnapshots(d)
+	customerJSON, linesJSON, paymentMeansJSON, billingRefJSON, discrepancyJSON, vendorJSON, withholdingJSON, err := marshalSnapshots(d)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +115,9 @@ func (r *PostgresRepository) Create(ctx context.Context, d Document) (*Document,
 		d.DianStatusDescription,
 		d.DianStatusMessage,
 		nullableString(d.ApplicationResponseXML),
+		vendorJSON,
+		nullableString(d.OperationTypeCode),
+		withholdingJSON,
 		d.CreatedAt,
 		d.UpdatedAt,
 	}
@@ -150,7 +157,7 @@ func (r *PostgresRepository) UpdateDianStatus(ctx context.Context, id uuid.UUID,
 // criterio que customers/products.Update: nunca confiar en que el llamador ya comprobó el
 // estado, la query misma lo garantiza.
 func (r *PostgresRepository) UpdateDraft(ctx context.Context, d Document) (*Document, error) {
-	customerJSON, linesJSON, paymentMeansJSON, billingRefJSON, discrepancyJSON, err := marshalSnapshots(d)
+	customerJSON, linesJSON, paymentMeansJSON, billingRefJSON, discrepancyJSON, vendorJSON, withholdingJSON, err := marshalSnapshots(d)
 	if err != nil {
 		return nil, err
 	}
@@ -172,12 +179,17 @@ func (r *PostgresRepository) UpdateDraft(ctx context.Context, d Document) (*Docu
 			discrepancy_response = $13,
 			note_type_code = $14,
 			note = $15,
-			updated_at = $16
-		WHERE id = $17 AND status = 'draft'`,
+			vendor = $16,
+			operation_type_code = $17,
+			withholding_taxes = $18,
+			updated_at = $19
+		WHERE id = $20 AND status = 'draft'`,
 		d.NumberingRangeID, d.CurrencyCode, customerJSON, d.CustomerID, linesJSON, paymentMeansJSON,
 		d.Totals.LineExtensionCents, d.Totals.TaxExclusiveCents, d.Totals.TaxInclusiveCents,
 		d.Totals.PrepaidCents, d.Totals.PayableCents, billingRefJSON, discrepancyJSON,
-		nullableString(d.NoteTypeCode), nullableString(d.Note), time.Now().UTC(), d.ID,
+		nullableString(d.NoteTypeCode), nullableString(d.Note),
+		vendorJSON, nullableString(d.OperationTypeCode), withholdingJSON,
+		time.Now().UTC(), d.ID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update draft: %w", err)
@@ -322,9 +334,11 @@ func scanDocument(row pgx.Row) (*Document, error) {
 	var d Document
 	var status string
 	var customerJSON, linesJSON, paymentMeansJSON, billingRefJSON, discrepancyJSON []byte
+	var vendorJSON, withholdingJSON []byte
 	var dianTrackID, dianStatusCode, dianStatusDescription, dianStatusMessage, noteTypeCode, note *string
 	var applicationResponseXML *string
 	var prefix, documentKey, issueTime, qrURL, signedXML *string
+	var operationTypeCode *string
 	var number *int64
 	var issueDate *time.Time
 
@@ -360,6 +374,9 @@ func scanDocument(row pgx.Row) (*Document, error) {
 		&dianStatusDescription,
 		&dianStatusMessage,
 		&applicationResponseXML,
+		&vendorJSON,
+		&operationTypeCode,
+		&withholdingJSON,
 		&d.CreatedAt,
 		&d.UpdatedAt,
 	)
@@ -418,6 +435,21 @@ func scanDocument(row pgx.Row) (*Document, error) {
 			return nil, fmt.Errorf("deserializar discrepancy_response: %w", err)
 		}
 	}
+	if len(vendorJSON) > 0 {
+		var v domain.Party
+		if err := json.Unmarshal(vendorJSON, &v); err != nil {
+			return nil, fmt.Errorf("deserializar vendor: %w", err)
+		}
+		d.Vendor = &v
+	}
+	if operationTypeCode != nil {
+		d.OperationTypeCode = *operationTypeCode
+	}
+	if len(withholdingJSON) > 0 {
+		if err := json.Unmarshal(withholdingJSON, &d.WithholdingTaxes); err != nil {
+			return nil, fmt.Errorf("deserializar withholding_taxes: %w", err)
+		}
+	}
 
 	return &d, nil
 }
@@ -426,34 +458,48 @@ func scanDocument(row pgx.Row) (*Document, error) {
 //
 // any(nil) explícito, no json.Marshal(nil) — un *T nil dentro de un []byte JSONB sería el
 // literal "null", no NULL de verdad; pgx solo trata como NULL un any(nil) genuino.
-func marshalSnapshots(d Document) (customerJSON, linesJSON, paymentMeansJSON []byte, billingRefJSON, discrepancyJSON any, err error) {
+func marshalSnapshots(d Document) (customerJSON, linesJSON, paymentMeansJSON []byte, billingRefJSON, discrepancyJSON, vendorJSON, withholdingJSON any, err error) {
 	customerJSON, err = json.Marshal(d.Customer)
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("serializar customer: %w", err)
+		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("serializar customer: %w", err)
 	}
 	linesJSON, err = json.Marshal(d.Lines)
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("serializar lines: %w", err)
+		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("serializar lines: %w", err)
 	}
 	paymentMeansJSON, err = json.Marshal(d.PaymentMeans)
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("serializar payment_means: %w", err)
+		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("serializar payment_means: %w", err)
 	}
 	if d.BillingReference != nil {
 		b, err := json.Marshal(d.BillingReference)
 		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("serializar billing_reference: %w", err)
+			return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("serializar billing_reference: %w", err)
 		}
 		billingRefJSON = b
 	}
 	if d.DiscrepancyResponse != nil {
 		b, err := json.Marshal(d.DiscrepancyResponse)
 		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("serializar discrepancy_response: %w", err)
+			return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("serializar discrepancy_response: %w", err)
 		}
 		discrepancyJSON = b
 	}
-	return customerJSON, linesJSON, paymentMeansJSON, billingRefJSON, discrepancyJSON, nil
+	if d.Vendor != nil {
+		b, err := json.Marshal(d.Vendor)
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("serializar vendor: %w", err)
+		}
+		vendorJSON = b
+	}
+	if len(d.WithholdingTaxes) > 0 {
+		b, err := json.Marshal(d.WithholdingTaxes)
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("serializar withholding_taxes: %w", err)
+		}
+		withholdingJSON = b
+	}
+	return customerJSON, linesJSON, paymentMeansJSON, billingRefJSON, discrepancyJSON, vendorJSON, withholdingJSON, nil
 }
 
 func nullableString(s string) any {

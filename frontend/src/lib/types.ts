@@ -399,8 +399,25 @@ export interface IssueDebitNotePayload {
   discrepancy_response?: DiscrepancyResponse;
 }
 
-// Espejo de documentResponse — cubre Factura, Nota Crédito y Nota Débito. billing_reference/
-// discrepancy_response/note_type_code son null en Factura y presentes en las notas.
+// Espejo de issueSupportDocumentRequest (apidian/internal/api/handler_support_documents.go).
+// Vendor es el tercero no obligado (AccountingSupplierParty); la empresa emisora actúa de
+// compradora y se deriva del token — no se envía en el payload.
+// operation_type_code: "10" Residente / "11" No Residente.
+// withholding_taxes: retenciones calculadas (ReteIVA "05", ReteRenta "06").
+export interface IssueSupportDocumentPayload {
+  numbering_range_id: string;
+  vendor: CustomerPayload;
+  lines: DocumentLineInput[];
+  payment_means?: PaymentMean[];
+  note?: string;
+  currency_code?: string;
+  operation_type_code: string;
+  withholding_taxes?: Tax[];
+}
+
+// Espejo de documentResponse — cubre Factura, Nota Crédito, Nota Débito y Documento Soporte.
+// billing_reference/discrepancy_response/note_type_code son null en Factura y DS; presentes en NC/ND.
+// vendor/operation_type_code/withholding_taxes solo en DS.
 export interface Document {
   id: string;
   issuer_id: string;
@@ -416,6 +433,10 @@ export interface Document {
   billing_reference?: BillingReference;
   discrepancy_response?: DiscrepancyResponse;
   note_type_code?: string;
+  // Documento Soporte (dian_document_type_code "05")
+  vendor?: CustomerPayload;
+  operation_type_code?: string;
+  withholding_taxes?: Tax[];
   prefix?: string;
   number?: number;
   document_key?: string;

@@ -86,6 +86,14 @@ type Document struct {
 	DiscrepancyResponse *DiscrepancyResponseInput
 	NoteTypeCode        string // CreditNoteTypeCode — solo CreditNote tiene este campo en cofacture
 
+	// Solo aplican a Documento Soporte (DianDocumentTypeCode "05") — nil/vacíos en los demás.
+	// En DS los roles están invertidos: Vendor es el tercero no obligado (AccountingSupplierParty),
+	// y la empresa emisora hace de compradora (AccountingCustomerParty), por eso no hay Customer
+	// en el request — se deriva del emisor en el momento de confirmar.
+	Vendor            *domain.Party
+	OperationTypeCode string     // "10" Residente, "11" No Residente
+	WithholdingTaxes  []domain.Tax
+
 	QRURL     string
 	SignedXML string // texto del XML firmado — retención legal, no se recalcula después
 
