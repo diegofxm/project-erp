@@ -34,7 +34,7 @@ const WITHHOLDING_TYPE_OPTIONS = [
 ];
 
 const NEW_VENDOR: CustomerPayload = {
-  identification: { number: "", type_code: "13" }, // CC por defecto (persona natural)
+  identification: { number: "", type_code: "13" },
   name: "",
   entity_type_code: "1",
   tax_scheme_code: "ZZ",
@@ -108,13 +108,12 @@ export function SupportDocumentForm({ initial, onSubmit, onCancel, loading }: Su
     );
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function handleSubmit() {
     onSubmit({
       numbering_range_id: numberingRangeId,
       vendor,
       lines,
-      payment_means: paymentMeans,
+      payment_means: paymentMeans.length > 0 ? paymentMeans : undefined,
       note: note || undefined,
       currency_code: currencyCode,
       operation_type_code: operationTypeCode,
@@ -122,66 +121,106 @@ export function SupportDocumentForm({ initial, onSubmit, onCancel, loading }: Su
     });
   }
 
-  const activeRanges = ranges.filter((r) => r.status === "active");
+  const selectedRange = ranges.find((r) => r.id === numberingRangeId);
+  const selectableRanges = ranges.filter((r) => r.status === "active" || r.id === numberingRangeId);
+  const canSubmit =
+    numberingRangeId !== "" &&
+    vendor.identification.number.trim() !== "" &&
+    lines.length > 0 &&
+    paymentMeans.length > 0;
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* Rango de numeración + tipo de operación */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-(--text-secondary)">Rango de numeración</label>
+    <div className="flex flex-col gap-4 p-4">
+      {/* Cabecera: rango, tipo operación, moneda, nota */}
+      <div className="grid grid-cols-12 gap-3">
+        <div className="col-span-6">
           <Select
+            label="Rango de numeración"
+            required
             value={numberingRangeId}
             onChange={(e) => setNumberingRangeId(e.target.value)}
-            disabled={loadingRanges || !!initial}
-            required
+            disabled={loadingRanges}
           >
-            <option value="">
-              {loadingRanges ? "Cargando…" : activeRanges.length === 0 ? "Sin rangos activos" : "Selecciona un rango"}
-            </option>
-            {activeRanges.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.prefix || "(sin prefijo)"} — hasta {r.range_to ?? "∞"}
-              </option>
-            ))}
+            {loadingRanges ? (
+              <option>Cargando…</option>
+            ) : (
+              <>
+                <option value="">Selecciona…</option>
+                {selectableRanges.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.prefix || "(sin prefijo)"}
+                  </option>
+                ))}
+              </>
+            )}
           </Select>
+          {selectedRange && (
+            <p className="mt-1 text-xs text-(--text-muted)">
+              Próximo número: {selectedRange.prefix}{selectedRange.current_number + 1}
+            </p>
+          )}
+          {!loadingRanges && selectableRanges.length === 0 && (
+            <p className="mt-1 text-xs text-(--text-muted)">
+              No hay un rango activo para Documento Soporte — créalo en Configuración → Empresa.
+            </p>
+          )}
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-(--text-secondary)">Tipo de operación</label>
+        <div className="col-span-3">
           <Select
+            label="Tipo de operación"
             value={operationTypeCode}
             onChange={(e) => setOperationTypeCode(e.target.value)}
-            required
           >
             {OPERATION_TYPE_OPTIONS.map((o) => (
               <option key={o.code} value={o.code}>{o.label}</option>
             ))}
           </Select>
         </div>
+        <div className="col-span-3">
+          <Select
+            label="Moneda"
+            disabled={loadingCurrencies}
+            value={currencyCode}
+            onChange={(e) => setCurrencyCode(e.target.value)}
+          >
+            {loadingCurrencies ? (
+              <option>Cargando…</option>
+            ) : (
+              currencies.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} — {c.name}
+                </option>
+              ))
+            )}
+          </Select>
+        </div>
+        <div className="col-span-12">
+          <Input label="Nota (opcional)" value={note} onChange={(e) => setNote(e.target.value)} />
+        </div>
       </div>
 
-      {/* Tercero no obligado (vendedor) */}
-      <section>
-        <h3 className="mb-2 text-xs font-semibold text-(--text-primary)">Tercero no obligado a facturar</h3>
+      {/* Tercero no obligado */}
+      <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+        <h2 className="text-xs font-semibold text-(--text-primary)">Tercero no obligado a facturar</h2>
         <PartyFields value={vendor} onChange={setVendor} />
       </section>
 
       {/* Líneas */}
-      <section>
-        <h3 className="mb-2 text-xs font-semibold text-(--text-primary)">Bienes / servicios adquiridos</h3>
+      <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+        <h2 className="text-xs font-semibold text-(--text-primary)">Líneas</h2>
         <LineItemsEditor lines={lines} onChange={setLines} />
       </section>
 
-      {/* Medios de pago */}
-      <section>
-        <h3 className="mb-2 text-xs font-semibold text-(--text-primary)">Forma de pago</h3>
+      {/* Forma de pago */}
+      <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+        <h2 className="text-xs font-semibold text-(--text-primary)">Forma de pago</h2>
         <PaymentMeansEditor paymentMeans={paymentMeans} onChange={setPaymentMeans} />
       </section>
 
       {/* Retenciones */}
-      <section>
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-(--text-primary)">Retenciones</h3>
+      <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Retenciones</h2>
           <Button type="button" variant="secondary" onClick={addWithholding}>
             + Agregar retención
           </Button>
@@ -252,36 +291,21 @@ export function SupportDocumentForm({ initial, onSubmit, onCancel, loading }: Su
         )}
       </section>
 
-      {/* Nota + moneda + totales */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-(--text-secondary)">Nota (opcional)</label>
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Observaciones…" />
+      {/* Totales alineados a la derecha */}
+      <section className="grid grid-cols-12 gap-3 border-t border-(--border-color) pt-3">
+        <div className="col-span-4 col-start-9">
+          <TotalsSummary lines={lines} withholdingTaxes={withholdingTaxes} />
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-(--text-secondary)">Moneda</label>
-          <Select
-            value={currencyCode}
-            onChange={(e) => setCurrencyCode(e.target.value)}
-            disabled={loadingCurrencies}
-          >
-            {(currencies ?? [{ code: "COP", name: "Peso colombiano", symbol: "$" }]).map((c) => (
-              <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
-            ))}
-          </Select>
-        </div>
-      </div>
+      </section>
 
-      <TotalsSummary lines={lines} withholdingTaxes={withholdingTaxes} />
-
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="secondary" onClick={onCancel} disabled={loading}>
+      <div className="flex gap-2">
+        <Button type="button" variant="secondary" onClick={onCancel} className="flex-1">
           Cancelar
         </Button>
-        <Button type="submit" disabled={loading || loadingRanges || !numberingRangeId}>
-          {loading ? "Guardando…" : "Guardar borrador"}
+        <Button type="button" disabled={!canSubmit} loading={loading} onClick={handleSubmit} className="flex-1">
+          {initial ? "Guardar borrador" : "Crear borrador"}
         </Button>
       </div>
-    </form>
+    </div>
   );
 }
