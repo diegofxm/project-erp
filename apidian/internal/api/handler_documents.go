@@ -116,6 +116,8 @@ type documentResponse struct {
 	// CustomerID es solo trazabilidad — ver documents.Document.CustomerID. nil si el
 	// documento no referenció un cliente guardado.
 	CustomerID *uuid.UUID `json:"customer_id,omitempty"`
+	// VendorID es solo trazabilidad para DS — nil si el DS no se creó desde un vendor guardado.
+	VendorID *uuid.UUID `json:"vendor_id,omitempty"`
 
 	// NCCount/NDCount: cuántas NC/ND referencian esta factura. Solo presentes (>0) en el
 	// listado de facturas; siempre 0 (omitido) en GET /documents/{id} individual.
@@ -135,6 +137,7 @@ func documentToResponse(d *documents.Document) documentResponse {
 		IssuerID:              d.IssuerID,
 		NumberingRangeID:      d.NumberingRangeID,
 		CustomerID:            d.CustomerID,
+		VendorID:              d.VendorID,
 		DianDocumentTypeCode:  d.DianDocumentTypeCode,
 		Status:                string(d.Status),
 		Customer:              partyFromDomain(d.Customer),

@@ -50,6 +50,10 @@ var (
 	// realmente le pertenece sin comprobarlo.
 	ErrCustomerIssuerMismatch = errors.New("documents: el cliente referenciado no pertenece a este emisor")
 
+	// ErrVendorIssuerMismatch: igual que ErrCustomerIssuerMismatch pero para el VendorID
+	// opcional del Documento Soporte.
+	ErrVendorIssuerMismatch = errors.New("documents: el proveedor referenciado no pertenece a este emisor")
+
 	// ErrDocumentNotDraft: Update/Delete solo aplican mientras Status == StatusDraft — una vez
 	// confirmado (número reclamado, firmado, posiblemente enviado), el documento es inmutable
 	// para siempre, mismo principio que "nunca mutar un documento ya firmado" (ver model.go).

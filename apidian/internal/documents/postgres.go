@@ -64,6 +64,7 @@ const documentColumns = `
 	vendor,
 	operation_type_code,
 	withholding_taxes,
+	vendor_id,
 	created_at,
 	updated_at`
 
@@ -118,6 +119,7 @@ func (r *PostgresRepository) Create(ctx context.Context, d Document) (*Document,
 		vendorJSON,
 		nullableString(d.OperationTypeCode),
 		withholdingJSON,
+		d.VendorID,
 		d.CreatedAt,
 		d.UpdatedAt,
 	}
@@ -182,14 +184,15 @@ func (r *PostgresRepository) UpdateDraft(ctx context.Context, d Document) (*Docu
 			vendor = $16,
 			operation_type_code = $17,
 			withholding_taxes = $18,
-			updated_at = $19
-		WHERE id = $20 AND status = 'draft'`,
+			vendor_id = $19,
+			updated_at = $20
+		WHERE id = $21 AND status = 'draft'`,
 		d.NumberingRangeID, d.CurrencyCode, customerJSON, d.CustomerID, linesJSON, paymentMeansJSON,
 		d.Totals.LineExtensionCents, d.Totals.TaxExclusiveCents, d.Totals.TaxInclusiveCents,
 		d.Totals.PrepaidCents, d.Totals.PayableCents, billingRefJSON, discrepancyJSON,
 		nullableString(d.NoteTypeCode), nullableString(d.Note),
 		vendorJSON, nullableString(d.OperationTypeCode), withholdingJSON,
-		time.Now().UTC(), d.ID,
+		d.VendorID, time.Now().UTC(), d.ID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update draft: %w", err)
@@ -341,6 +344,7 @@ func scanDocument(row pgx.Row) (*Document, error) {
 	var operationTypeCode *string
 	var number *int64
 	var issueDate *time.Time
+	var vendorID *uuid.UUID
 
 	err := row.Scan(
 		&d.ID,
@@ -377,6 +381,7 @@ func scanDocument(row pgx.Row) (*Document, error) {
 		&vendorJSON,
 		&operationTypeCode,
 		&withholdingJSON,
+		&vendorID,
 		&d.CreatedAt,
 		&d.UpdatedAt,
 	)
@@ -445,6 +450,7 @@ func scanDocument(row pgx.Row) (*Document, error) {
 	if operationTypeCode != nil {
 		d.OperationTypeCode = *operationTypeCode
 	}
+	d.VendorID = vendorID
 	if len(withholdingJSON) > 0 {
 		if err := json.Unmarshal(withholdingJSON, &d.WithholdingTaxes); err != nil {
 			return nil, fmt.Errorf("deserializar withholding_taxes: %w", err)

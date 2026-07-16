@@ -13,9 +13,11 @@ import (
 // issueSupportDocumentRequest es el payload público del Documento Soporte. Vendor es el
 // tercero no obligado (AccountingSupplierParty); la empresa emisora actúa de compradora y
 // se deriva del token — no se acepta del cliente. OperationTypeCode distingue Residente
-// ("10") de No Residente ("11").
+// ("10") de No Residente ("11"). VendorID es OPCIONAL: si viene, es la referencia al
+// catálogo de proveedores para trazabilidad (igual que customer_id en Invoice).
 type issueSupportDocumentRequest struct {
 	NumberingRangeID  string           `json:"numbering_range_id"`
+	VendorID          string           `json:"vendor_id,omitempty"`
 	Vendor            partyDTO         `json:"vendor"`
 	Lines             []lineInputDTO   `json:"lines"`
 	PaymentMeans      []paymentMeanDTO `json:"payment_means,omitempty"`
@@ -65,9 +67,14 @@ func decodeIssueSupportDocumentRequest(w http.ResponseWriter, r *http.Request) (
 	if !ok {
 		return documents.IssueSupportDocumentRequest{}, false
 	}
+	vendorID, ok := parseOptionalUUIDField(w, req.VendorID, "vendor_id")
+	if !ok {
+		return documents.IssueSupportDocumentRequest{}, false
+	}
 	return documents.IssueSupportDocumentRequest{
 		IssuerID:          middleware.GetTenantID(r.Context()),
 		NumberingRangeID:  rangeID,
+		VendorID:          vendorID,
 		Vendor:            req.Vendor.toDomain(),
 		Lines:             linesToInput(req.Lines),
 		PaymentMeans:      paymentMeansToDomain(req.PaymentMeans),

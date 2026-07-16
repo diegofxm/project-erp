@@ -5,18 +5,18 @@ import { lineToInput } from "../../lib/documents";
 import { listNumberingRanges } from "../../lib/numberingRanges";
 import { useCatalog } from "../../lib/useCatalog";
 import type {
-  CustomerPayload,
   Document,
   DocumentLineInput,
   IssueSupportDocumentPayload,
   NumberingRange,
   PaymentMean,
   Tax,
+  VendorPayload,
 } from "../../lib/types";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
-import { PartyFields } from "../party-fields/PartyFields";
+import { VendorSection } from "./VendorSection";
 import { LineItemsEditor } from "./LineItemsEditor";
 import { PaymentMeansEditor } from "./PaymentMeansEditor";
 import { TotalsSummary } from "./TotalsSummary";
@@ -33,12 +33,11 @@ const WITHHOLDING_TYPE_OPTIONS = [
   { code: "06", name: "ReteRenta", label: "ReteRenta (06)" },
 ];
 
-const NEW_VENDOR: CustomerPayload = {
+const NEW_VENDOR: VendorPayload = {
   identification: { number: "", type_code: "13" },
   name: "",
   entity_type_code: "1",
   tax_scheme_code: "ZZ",
-  tax_scheme_name: "No aplica",
   liability_codes: ["O-49"],
   tax_regime_code: "49",
 };
@@ -65,7 +64,8 @@ export function SupportDocumentForm({ initial, onSubmit, onCancel, loading }: Su
 
   const [numberingRangeId, setNumberingRangeId] = useState(initial?.numbering_range_id ?? "");
   const [operationTypeCode, setOperationTypeCode] = useState(initial?.operation_type_code ?? "10");
-  const [vendor, setVendor] = useState<CustomerPayload>(initial?.vendor ?? NEW_VENDOR);
+  const [vendor, setVendor] = useState<VendorPayload>(initial?.vendor ?? NEW_VENDOR);
+  const [vendorId, setVendorId] = useState(initial?.vendor_id ?? "");
   const [lines, setLines] = useState<DocumentLineInput[]>(initial?.lines.map(lineToInput) ?? []);
   const [paymentMeans, setPaymentMeans] = useState<PaymentMean[]>(initial?.payment_means ?? []);
   const [withholdingTaxes, setWithholdingTaxes] = useState<Tax[]>(initial?.withholding_taxes ?? []);
@@ -108,9 +108,15 @@ export function SupportDocumentForm({ initial, onSubmit, onCancel, loading }: Su
     );
   }
 
+  function handleVendorChange(next: VendorPayload, nextVendorId: string) {
+    setVendor(next);
+    setVendorId(nextVendorId);
+  }
+
   function handleSubmit() {
     onSubmit({
       numbering_range_id: numberingRangeId,
+      vendor_id: vendorId || undefined,
       vendor,
       lines,
       payment_means: paymentMeans.length > 0 ? paymentMeans : undefined,
@@ -202,7 +208,7 @@ export function SupportDocumentForm({ initial, onSubmit, onCancel, loading }: Su
       {/* Tercero no obligado */}
       <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
         <h2 className="text-xs font-semibold text-(--text-primary)">Tercero no obligado a facturar</h2>
-        <PartyFields value={vendor} onChange={setVendor} />
+        <VendorSection value={vendor} vendorId={vendorId} onChange={handleVendorChange} />
       </section>
 
       {/* Líneas */}

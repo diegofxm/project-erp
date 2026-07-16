@@ -7,6 +7,7 @@ import (
 	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
+	"github.com/diegofxm/apidian/internal/vendors"
 	"github.com/google/uuid"
 )
 
@@ -44,6 +45,12 @@ type NumberingPort interface {
 // participa en construir el XML — eso sigue siendo pass-through puro (ver model.go).
 type CustomerPort interface {
 	GetCustomer(ctx context.Context, id uuid.UUID) (*customers.Customer, error)
+}
+
+// VendorPort define lo que documents necesita del catálogo de proveedores — misma función que
+// CustomerPort pero para el VendorID opcional de Documento Soporte.
+type VendorPort interface {
+	GetVendor(ctx context.Context, id uuid.UUID) (*vendors.Vendor, error)
 }
 
 // CatalogPort valida payment_means/liability_codes contra catálogos DIAN que viven en JSONB

@@ -62,6 +62,7 @@ type Service struct {
 	issuers   IssuerPort
 	numbering NumberingPort
 	customers CustomerPort
+	vendors   VendorPort // opcional; nil si no se configuró el catálogo de proveedores
 	catalogs  CatalogPort
 	email     EmailPort
 }
@@ -69,6 +70,13 @@ type Service struct {
 // New crea el servicio de documentos.
 func New(repo Repository, issuerPort IssuerPort, numberingPort NumberingPort, customerPort CustomerPort, catalogPort CatalogPort, emailPort EmailPort) *Service {
 	return &Service{repo: repo, issuers: issuerPort, numbering: numberingPort, customers: customerPort, catalogs: catalogPort, email: emailPort}
+}
+
+// WithVendors establece el puerto de proveedores para validar VendorID en Documentos Soporte.
+// Se llama en cadena sobre New() desde api.go; los tests que no necesitan vendors lo omiten.
+func (s *Service) WithVendors(p VendorPort) *Service {
+	s.vendors = p
+	return s
 }
 
 // IssueInvoiceRequest es el payload de una Factura Electrónica de Venta — sirve tanto para
@@ -129,6 +137,7 @@ type IssueSupportDocumentRequest struct {
 	CurrencyCode      string
 	OperationTypeCode string    // "10" Residente, "11" No Residente
 	WithholdingTaxes  []domain.Tax
+	VendorID          *uuid.UUID // opcional, trazabilidad al catálogo de proveedores
 }
 
 // ── Crear / editar / eliminar borradores ────────────────────────────────────────────────────
@@ -290,6 +299,9 @@ func (s *Service) CreateSupportDocumentDraft(ctx context.Context, req IssueSuppo
 	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, supportDocumentDianDocType, nil); err != nil {
 		return nil, err
 	}
+	if err := s.validateVendorID(ctx, req.IssuerID, req.VendorID); err != nil {
+		return nil, err
+	}
 	applyVendorDefaults(&req.Vendor)
 	lines, err := s.linesFromInput(ctx, req.Lines)
 	if err != nil {
@@ -311,6 +323,9 @@ func (s *Service) UpdateSupportDocumentDraft(ctx context.Context, id uuid.UUID, 
 	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, supportDocumentDianDocType, nil); err != nil {
 		return nil, err
 	}
+	if err := s.validateVendorID(ctx, req.IssuerID, req.VendorID); err != nil {
+		return nil, err
+	}
 	applyVendorDefaults(&req.Vendor)
 	lines, err := s.linesFromInput(ctx, req.Lines)
 	if err != nil {
@@ -319,6 +334,22 @@ func (s *Service) UpdateSupportDocumentDraft(ctx context.Context, id uuid.UUID, 
 	draft := s.supportDocumentDraftFromRequest(req, lines)
 	draft.ID = id
 	return s.repo.UpdateDraft(ctx, draft)
+}
+
+// validateVendorID verifica que el VendorID opcional pertenezca al mismo emisor — solo si el
+// VendorPort está configurado y el caller mandó un VendorID.
+func (s *Service) validateVendorID(ctx context.Context, issuerID uuid.UUID, vendorID *uuid.UUID) error {
+	if vendorID == nil || s.vendors == nil {
+		return nil
+	}
+	v, err := s.vendors.GetVendor(ctx, *vendorID)
+	if err != nil {
+		return err
+	}
+	if v.IssuerID != issuerID {
+		return ErrVendorIssuerMismatch
+	}
+	return nil
 }
 
 func (s *Service) supportDocumentDraftFromRequest(req IssueSupportDocumentRequest, lines []domain.Line) Document {
@@ -333,6 +364,7 @@ func (s *Service) supportDocumentDraftFromRequest(req IssueSupportDocumentReques
 		PaymentMeans:         req.PaymentMeans,
 		Totals:               computeTotalsForDS(lines, req.WithholdingTaxes),
 		Vendor:               &vendor,
+		VendorID:             req.VendorID,
 		OperationTypeCode:    req.OperationTypeCode,
 		WithholdingTaxes:     req.WithholdingTaxes,
 		Status:               StatusDraft,

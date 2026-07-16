@@ -81,6 +81,11 @@ type Document struct {
 	// docs/apidian-architecture.md sección 9.21 para el porqué de esta separación.
 	CustomerID *uuid.UUID
 
+	// VendorID es la contraparte de CustomerID para Documento Soporte: referencia OPCIONAL al
+	// catálogo internal/vendors, solo trazabilidad — no participa en el XML. nil si el DS no
+	// fue creado desde un vendor guardado.
+	VendorID *uuid.UUID
+
 	// Solo aplican a CreditNote/DebitNote — nil en Invoice.
 	BillingReference    *BillingReferenceInput
 	DiscrepancyResponse *DiscrepancyResponseInput

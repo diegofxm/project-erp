@@ -251,6 +251,32 @@ export interface ListCustomersResult {
   count: number;
 }
 
+// Espejo de partyDTO para el catálogo de proveedores/terceros no obligados (Documento Soporte).
+// Misma forma que CustomerPayload — los campos son idénticos porque ambos son domain.Party.
+export interface VendorPayload {
+  entity_type_code?: string;
+  identification: Identification;
+  name: string;
+  address?: Address;
+  tax_scheme_code?: string;
+  tax_scheme_name?: string;
+  liability_codes?: string[];
+  tax_regime_code?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface Vendor extends VendorPayload {
+  id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListVendorsResult {
+  vendors: Vendor[];
+  count: number;
+}
+
 // Espejo de productRequest/productResponse (apidian/internal/api/handler_products.go).
 // Deliberadamente sin quantity/line_extension_cents/taxes (plural) — eso es dato de USO al
 // armar una línea de documento, no del catálogo (ver products.Product). tax_type_code/
@@ -406,7 +432,8 @@ export interface IssueDebitNotePayload {
 // withholding_taxes: retenciones calculadas (ReteIVA "05", ReteRenta "06").
 export interface IssueSupportDocumentPayload {
   numbering_range_id: string;
-  vendor: CustomerPayload;
+  vendor_id?: string;
+  vendor: VendorPayload;
   lines: DocumentLineInput[];
   payment_means?: PaymentMean[];
   note?: string;
@@ -447,6 +474,7 @@ export interface Document {
   dian_status_description?: string;
   dian_status_message?: string;
   customer_id?: string;
+  vendor_id?: string; // trazabilidad DS — nil si no se creó desde vendor guardado
   nc_count?: number; // cuántas NC referencian esta factura — solo en el listado
   nd_count?: number; // cuántas ND referencian esta factura — solo en el listado
   created_at: string;

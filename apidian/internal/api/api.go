@@ -17,9 +17,10 @@ import (
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
 	"github.com/diegofxm/apidian/internal/products"
+	"github.com/diegofxm/apidian/internal/vendors"
 )
 
-// API agrupa los siete servicios de dominio y expone el http.Handler.
+// API agrupa los servicios de dominio y expone el http.Handler.
 type API struct {
 	log            *zap.Logger
 	issuers        *issuers.Service
@@ -29,6 +30,7 @@ type API struct {
 	tokens         *auth.TokenIssuer
 	customers      *customers.Service
 	products       *products.Service
+	vendors        *vendors.Service
 	catalogs       catalogs.Repository
 	allowedOrigins []string
 }
@@ -48,12 +50,13 @@ func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byt
 	numberingSvc := numbering.New(numbering.NewPostgresRepository(db.Pool, issuerSecretsKey))
 	customersSvc := customers.New(customers.NewPostgresRepository(db.Pool), catalogsRepo)
 	productsSvc := products.New(products.NewPostgresRepository(db.Pool), catalogsRepo)
+	vendorsSvc := vendors.New(vendors.NewPostgresRepository(db.Pool), catalogsRepo)
 	emailSender := email.NewSMTPSender(smtpCfg)
-	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc, customersSvc, catalogsRepo, emailSender)
+	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc, customersSvc, catalogsRepo, emailSender).WithVendors(vendorsSvc)
 	tokens := auth.NewTokenIssuer(authJWTSecret)
 	authSvc := auth.New(auth.NewPostgresRepository(db.Pool), issuerSvc, tokens)
 
-	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, catalogsRepo, allowedOrigins)
+	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, vendorsSvc, catalogsRepo, allowedOrigins)
 }
 
 // NewFromServices crea una API a partir de servicios ya construidos — útil para tests que
@@ -67,13 +70,14 @@ func NewFromServices(
 	tokens *auth.TokenIssuer,
 	customersSvc *customers.Service,
 	productsSvc *products.Service,
+	vendorsSvc *vendors.Service,
 	catalogsRepo catalogs.Repository,
 	allowedOrigins []string,
 ) *API {
 	return &API{
 		log: log, issuers: issuerSvc, numbering: numberingSvc, documents: documentsSvc,
 		auth: authSvc, tokens: tokens, customers: customersSvc, products: productsSvc,
-		catalogs:       catalogsRepo,
+		vendors: vendorsSvc, catalogs: catalogsRepo,
 		allowedOrigins: allowedOrigins,
 	}
 }
@@ -143,6 +147,7 @@ func (a *API) Handler() http.Handler {
 //
 //	POST/GET/PUT/DELETE /api/v1/customers[/{id}]          → catálogo de adquirientes (conveniencia, ver internal/customers)
 //	POST/GET/PUT/DELETE /api/v1/products[/{id}]           → catálogo de ítems/servicios (conveniencia, ver internal/products)
+//	POST/GET/PUT/DELETE /api/v1/vendors[/{id}]            → catálogo de proveedores/terceros no obligados (ver internal/vendors)
 //
 //	GET /api/v1/catalogs/{departments,municipalities,identification-types,tax-types,
 //	    payment-methods,payment-terms,unit-measures,tax-regimes,liability-codes,
@@ -209,6 +214,12 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("GET /api/v1/products/{id}", a.handleGetProduct)
 	handle("PUT /api/v1/products/{id}", a.handleUpdateProduct)
 	handle("DELETE /api/v1/products/{id}", a.handleDeleteProduct)
+
+	handle("POST /api/v1/vendors", a.handleCreateVendor)
+	handle("GET /api/v1/vendors", a.handleListVendors)
+	handle("GET /api/v1/vendors/{id}", a.handleGetVendor)
+	handle("PUT /api/v1/vendors/{id}", a.handleUpdateVendor)
+	handle("DELETE /api/v1/vendors/{id}", a.handleDeleteVendor)
 
 	// Catálogos: iguales para cualquier usuario autenticado, no dependen de la empresa activa
 	// — por eso usan handleNoTenant (solo Auth), no handle (que exigiría RequireTenant).
