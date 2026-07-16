@@ -11,6 +11,7 @@ import (
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
 	"github.com/diegofxm/apidian/internal/products"
+	"github.com/diegofxm/apidian/internal/vendors"
 )
 
 // Error es el JSON body devuelto en respuestas no-2xx.
@@ -40,6 +41,7 @@ func classify(err error) (int, string) {
 		errors.Is(err, documents.ErrDocumentNotFound),
 		errors.Is(err, customers.ErrCustomerNotFound),
 		errors.Is(err, products.ErrProductNotFound),
+		errors.Is(err, vendors.ErrVendorNotFound),
 		errors.Is(err, auth.ErrUserNotFound),
 		errors.Is(err, auth.ErrIssuerAccessDenied):
 		return http.StatusNotFound, err.Error()
@@ -98,6 +100,11 @@ func classify(err error) (int, string) {
 		errors.Is(err, customers.ErrInvalidLiabilityCode),
 		errors.Is(err, customers.ErrInvalidTaxSchemeCode),
 		errors.Is(err, customers.ErrInvalidIdentificationNumber),
+		errors.Is(err, vendors.ErrEmptyName),
+		errors.Is(err, vendors.ErrEmptyIdentification),
+		errors.Is(err, vendors.ErrInvalidLiabilityCode),
+		errors.Is(err, vendors.ErrInvalidTaxSchemeCode),
+		errors.Is(err, vendors.ErrInvalidIdentificationNumber),
 		errors.Is(err, products.ErrEmptyDescription),
 		errors.Is(err, products.ErrEmptyUnitCode),
 		errors.Is(err, products.ErrInvalidUnitPrice),

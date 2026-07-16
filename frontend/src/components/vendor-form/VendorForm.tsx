@@ -18,7 +18,7 @@ function payloadFromVendor(vendor: Vendor | null): VendorPayload {
       name: "",
       entity_type_code: "1",
       tax_scheme_code: "ZZ",
-      liability_codes: ["O-49"],
+      liability_codes: ["R-99-PN"],
       tax_regime_code: "49",
     };
   }
