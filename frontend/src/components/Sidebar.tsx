@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router";
-import { Files, Home, Menu, Package, Settings, Users } from "lucide-react";
+import { Files, Home, Menu, Package, Settings, Truck, Users } from "lucide-react";
 
 const COLLAPSED_KEY = "apidian.sidebarCollapsed";
 
@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Inicio", icon: <Home className="h-3.5 w-3.5" />, end: true },
   { to: "/documents/invoices", label: "Documentos", icon: <Files className="h-3.5 w-3.5" />, activePrefix: "/documents" },
   { to: "/customers", label: "Clientes", icon: <Users className="h-3.5 w-3.5" />, activePrefix: "/customers" },
+  { to: "/vendors", label: "Proveedores", icon: <Truck className="h-3.5 w-3.5" />, activePrefix: "/vendors" },
   { to: "/products", label: "Productos", icon: <Package className="h-3.5 w-3.5" />, activePrefix: "/products" },
   { to: "/settings", label: "Configuración", icon: <Settings className="h-3.5 w-3.5" />, activePrefix: "/settings" },
 ];

@@ -15,6 +15,7 @@ import { SettingsAccountPage } from "./pages/SettingsAccountPage";
 import { SettingsCompanyPage } from "./pages/SettingsCompanyPage";
 import { IssuersPage } from "./pages/IssuersPage";
 import { CustomersPage } from "./pages/CustomersPage";
+import { VendorsPage } from "./pages/VendorsPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { InvoicesPage } from "./pages/InvoicesPage";
 import { InvoiceEditorPage } from "./pages/InvoiceEditorPage";
@@ -48,6 +49,7 @@ function App() {
                     <Route path="/settings/company" element={<SettingsCompanyPage />} />
                     <Route path="/issuers" element={<IssuersPage />} />
                     <Route path="/customers" element={<CustomersPage />} />
+                    <Route path="/vendors" element={<VendorsPage />} />
                     <Route path="/products" element={<ProductsPage />} />
                     <Route path="/documents/invoices" element={<InvoicesPage />} />
                     <Route path="/documents/invoices/:id" element={<InvoiceEditorPage />} />
