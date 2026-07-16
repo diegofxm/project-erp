@@ -20,7 +20,7 @@ const NEW_VENDOR: VendorPayload = {
   entity_type_code: "1",
   tax_scheme_code: "ZZ",
   liability_codes: ["R-99-PN"],
-  tax_regime_code: "49",
+  tax_regime_code: "",
 };
 
 type Mode = "search" | "summary" | "form";
