@@ -65,6 +65,8 @@ func (r *MemoryRepository) Update(_ context.Context, iss Issuer) (*Issuer, error
 	}
 	existing.SoftwareID = iss.SoftwareID
 	existing.SoftwarePIN = iss.SoftwarePIN
+	existing.NeSoftwareID = iss.NeSoftwareID
+	existing.NeSoftwarePIN = iss.NeSoftwarePIN
 	existing.Certificate = iss.Certificate
 	existing.CertificatePassword = iss.CertificatePassword
 	existing.Logo = iss.Logo

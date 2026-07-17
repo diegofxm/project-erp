@@ -68,8 +68,35 @@ func BuildSupportDocument(inv domain.Invoice) (*etree.Document, error) {
 
 	root.CreateElement("cbc:LineCountNumeric").SetText(strconv.Itoa(len(inv.Lines)))
 
-	// Roles invertidos: Supplier = no-obligado, Customer = empresa compradora/emisora
-	appendAccountingParty(root, "AccountingSupplierParty", inv.Supplier, false, "", false)
+	// cac:InvoicePeriod es obligatorio en DS (DSFC01). Se usan las fechas del propio documento
+	// si no se especificó un periodo distinto.
+	periodStart, periodEnd := inv.PeriodStartDate, inv.PeriodEndDate
+	if periodStart == "" {
+		periodStart = inv.IssueDate
+	}
+	if periodEnd == "" {
+		periodEnd = inv.IssueDate
+	}
+	period := root.CreateElement("cac:InvoicePeriod")
+	period.CreateElement("cbc:StartDate").SetText(periodStart)
+	period.CreateElement("cbc:EndDate").SetText(periodEnd)
+
+	// Roles invertidos: Supplier = no-obligado, Customer = empresa compradora/emisora.
+	// DS CustomizationID="10": el no-obligado lleva PhysicalLocation con SOLO AddressLine +
+	// Country (sin ciudad ni departamento) tanto en PhysicalLocation como en RegistrationAddress.
+	countryCode := inv.Supplier.Address.CountryCode
+	countryName := inv.Supplier.Address.CountryName
+	if countryCode == "" {
+		countryCode = "CO"
+		countryName = "Colombia"
+	}
+	supplierXML := inv.Supplier
+	supplierXML.Address = domain.Address{
+		Line:        inv.Supplier.Address.Line,
+		CountryCode: countryCode,
+		CountryName: countryName,
+	}
+	appendAccountingParty(root, "AccountingSupplierParty", supplierXML, false, "", true)
 	appendAccountingParty(root, "AccountingCustomerParty", inv.Customer, true, inv.Prefix, true)
 
 	for _, pm := range inv.PaymentMeans {

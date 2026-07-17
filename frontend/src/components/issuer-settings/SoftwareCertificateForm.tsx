@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { ShieldCheck, Trash2, KeyRound, BadgeCheck } from "lucide-react";
+import { ShieldCheck, Trash2, KeyRound, BadgeCheck, ClipboardList } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useConfirm } from "../../context/ConfirmContext";
 import { useToast } from "../../context/ToastContext";
@@ -238,14 +238,99 @@ function CertificateSection() {
   );
 }
 
-// Completa software_id/software_pin/certificate/certificate_password DESPUÉS de creada la
-// empresa (PUT /issuers/me) — cada sección muestra el formulario cuando no está configurada,
-// y la información guardada (sin secretos) cuando sí lo está.
+function NeSoftwareSection() {
+  const { activeIssuer, updateIssuer, deleteIssuerNeSoftware } = useAuth();
+  const confirm = useConfirm();
+  const toast = useToast();
+  const [softwareId, setSoftwareId] = useState("");
+  const [softwarePin, setSoftwarePin] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const configured = activeIssuer?.has_ne_software_credentials ?? false;
+
+  async function handleSave(e: FormEvent) {
+    e.preventDefault();
+    if (!softwareId.trim() || !softwarePin.trim()) {
+      toast.error("El Software ID NE y el PIN son obligatorios.");
+      return;
+    }
+    const payload: UpdateIssuerPayload = { ne_software_id: softwareId.trim(), ne_software_pin: softwarePin.trim() };
+    setLoading(true);
+    try {
+      await updateIssuer(payload);
+      toast.success("Software NE guardado correctamente.");
+      setSoftwareId("");
+      setSoftwarePin("");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo guardar el software NE");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!(await confirm("¿Eliminar las credenciales de software NE? No podrás emitir Nómina Electrónica hasta volver a configurarlas.", { tone: "danger", title: "Eliminar software NE" }))) return;
+    setDeleting(true);
+    try {
+      await deleteIssuerNeSoftware();
+      toast.success("Credenciales de software NE eliminadas.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el software NE");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <ClipboardList className="h-3.5 w-3.5 text-(--text-muted)" />
+          <h3 className="text-xs font-semibold text-(--text-primary)">Software NE (Nómina Electrónica)</h3>
+        </div>
+        {configured && (
+          <Button type="button" variant="danger" loading={deleting} icon={<Trash2 className="h-3 w-3" />} onClick={handleDelete}>
+            Eliminar
+          </Button>
+        )}
+      </div>
+
+      {configured ? (
+        <div className="flex flex-col gap-1.5 rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2.5 text-xs">
+          <div className="flex gap-2">
+            <span className="w-24 shrink-0 text-(--text-muted)">Software ID</span>
+            <span className="font-mono text-(--text-primary)">{activeIssuer?.ne_software_id ?? "—"}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="w-24 shrink-0 text-(--text-muted)">PIN</span>
+            <span className="text-(--text-secondary)">configurado</span>
+          </div>
+        </div>
+      ) : (
+        <form className="flex flex-col gap-3" onSubmit={handleSave}>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Software ID NE" value={softwareId} onChange={(e) => setSoftwareId(e.target.value)} />
+            <Input label="Software PIN NE" type="password" value={softwarePin} onChange={(e) => setSoftwarePin(e.target.value)} />
+          </div>
+          <Button type="submit" loading={loading} icon={<ShieldCheck className="h-3.5 w-3.5" />} className="self-start">
+            Guardar software NE
+          </Button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// Completa software/PIN/certificado DESPUÉS de creada la empresa (PUT /issuers/me).
+// FE y DS comparten el mismo software; NE tiene credenciales propias.
 export function SoftwareCertificateForm() {
   return (
     <Card className="flex flex-col gap-5 p-4">
       <h2 className="text-xs font-semibold text-(--text-primary)">Software y certificado</h2>
       <SoftwareSection />
+      <div className="border-t border-(--border-light)" />
+      <NeSoftwareSection />
       <div className="border-t border-(--border-light)" />
       <CertificateSection />
     </Card>

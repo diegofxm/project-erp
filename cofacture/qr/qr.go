@@ -28,6 +28,17 @@ func URL(environmentCode, documentKey string) string {
 	return base + "?documentkey=" + documentKey
 }
 
+// SupportDocumentURL construye la URL que va en sts:QRCode del Documento Soporte.
+// Para DS la DIAN usa el endpoint FindDocument (con documentKey en camelCase) en lugar de
+// searchqr — distinto dominio y path que FE/NC/ND.
+func SupportDocumentURL(environmentCode, cuds string) string {
+	base := produccionDSBaseURL
+	if environmentCode == "2" {
+		base = habilitacionDSBaseURL
+	}
+	return base + "?documentKey=" + cuds
+}
+
 // SupportDocumentContent construye el contenido completo del QR del Documento Soporte
 // (InvoiceTypeCode "05"). A diferencia de la Factura/NC/ND cuyo QR es solo una URL, el DS
 // exige un bloque de texto multilinea seguido de la URL (Anexo Técnico 1.9, sección 11.7.1).

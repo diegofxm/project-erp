@@ -41,6 +41,7 @@ interface AuthContextValue {
   updateIssuerProfile: (payload: UpdateIssuerProfilePayload) => Promise<Issuer>;
   deleteIssuerLogo: () => Promise<Issuer>;
   deleteIssuerSoftware: () => Promise<Issuer>;
+  deleteIssuerNeSoftware: () => Promise<Issuer>;
   deleteIssuerCertificate: () => Promise<Issuer>;
 }
 
@@ -212,6 +213,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return updated;
   }, []);
 
+  const deleteIssuerNeSoftware = useCallback(async () => {
+    const updated = await apiClient.del<Issuer>("/issuers/me/ne-software");
+    setActiveIssuer(updated);
+    const stored = readStoredSession();
+    if (stored) writeStoredSession({ ...stored, issuer: updated });
+    return updated;
+  }, []);
+
   const deleteIssuerCertificate = useCallback(async () => {
     const updated = await apiClient.del<Issuer>("/issuers/me/certificate");
     setActiveIssuer(updated);
@@ -239,6 +248,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateIssuerProfile,
       deleteIssuerLogo,
       deleteIssuerSoftware,
+      deleteIssuerNeSoftware,
       deleteIssuerCertificate,
     }),
     [
@@ -258,6 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateIssuerProfile,
       deleteIssuerLogo,
       deleteIssuerSoftware,
+      deleteIssuerNeSoftware,
       deleteIssuerCertificate,
     ],
   );

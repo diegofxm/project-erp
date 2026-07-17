@@ -64,11 +64,17 @@ type Issuer struct {
 	// Credenciales DIAN. En este struct de dominio viajan en texto plano (el servicio y
 	// internal/documents las necesitan así para usarlas con cofacture) — es
 	// PostgresRepository quien las cifra antes de guardar y las descifra al leer (AES-256-GCM,
-	// internal/cryptutil). SoftwareID no es secreto (es un identificador de registro ante la
-	// DIAN, no una contraseña), por eso es el único de los cuatro que no se cifra.
-	SoftwareID          string
-	SoftwarePIN         string
-	Certificate         []byte // contenido del .p12
+	// internal/cryptutil). Los campos SoftwareID no son secretos (son identificadores de
+	// registro ante la DIAN, no contraseñas), por eso son los únicos que no se cifran.
+	//
+	// FE, DS (Documento Soporte) comparten el mismo Software ID/PIN — el portal DIAN reutiliza
+	// el software de FE al habilitar DS; solo el TestSetID difiere (vive en numbering_ranges).
+	SoftwareID  string
+	SoftwarePIN string
+	// NE (Nómina Electrónica) — software independiente en el portal DIAN.
+	NeSoftwareID  string
+	NeSoftwarePIN string
+	Certificate         []byte // contenido del .p12 — compartido entre FE/DS/NE
 	CertificatePassword string
 	// Metadatos del certificado derivados en memoria por enrichCertMetadata — no se
 	// guardan en DB (el .p12 cifrado ya está; parsearlo aquí garantiza datos frescos).

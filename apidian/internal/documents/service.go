@@ -454,7 +454,9 @@ func computeTotalsForDS(lines []domain.Line, withholdingTaxes []domain.Tax) doma
 		LineExtensionCents: lineExt,
 		TaxExclusiveCents:  lineExt,
 		TaxInclusiveCents:  taxInclusive,
-		PayableCents:       taxInclusive - withholdingAmount,
+		// Las retenciones son informativas en el DS (WithholdingTaxTotal); no reducen
+		// PayableAmount en el XML — DIAN exige PayableAmount == TaxInclusiveAmount (DSAU14).
+		PayableCents: taxInclusive,
 	}
 }
 
@@ -685,8 +687,10 @@ func (s *Service) confirmSupportDocument(ctx context.Context, d *Document) (*Doc
 		Note:         d.Note,
 
 		// Roles invertidos: Supplier = tercero no obligado, Customer = empresa compradora.
+		// Customer siempre con TypeCode="31" (NIT) + VerificationCode, sin importar el tipo
+		// de identificación registrado del emisor (DSAJ25a/DSAK24b/DSAK25).
 		Supplier: *d.Vendor,
-		Customer: partyFromIssuer(p.iss),
+		Customer: partyFromIssuerAsNIT(p.iss),
 
 		PaymentMeans:     d.PaymentMeans,
 		HeaderTaxes:      headerTaxes,
@@ -700,7 +704,9 @@ func (s *Service) confirmSupportDocument(ctx context.Context, d *Document) (*Doc
 
 	inv.CUFE = cuds.Compute(inv, p.iss.SoftwarePIN)
 	inv.SoftwareSecurityCode = securitycode.Compute(p.iss.SoftwareID, p.iss.SoftwarePIN, inv.Prefix+inv.Number)
-	inv.QRURL = qr.SupportDocumentContent(inv, inv.CUFE, p.iss.SoftwarePIN)
+	// sts:QRCode en el XML del DS debe contener solo la URL (como FE/NC/ND con searchqr).
+	// El contenido multi-línea del QR impreso en el PDF se genera aparte en documents/pdf.go.
+	inv.QRURL = qr.SupportDocumentURL(inv.EnvironmentCode, inv.CUFE)
 
 	xmlDoc, err := builder.BuildSupportDocument(inv)
 	if err != nil {
@@ -1152,6 +1158,16 @@ func partyFromIssuer(iss *issuers.Issuer) domain.Party {
 	}
 }
 
+// partyFromIssuerAsNIT es igual que partyFromIssuer pero fuerza TypeCode="31" y
+// VerificationCode=CheckDigit — requerido para AccountingCustomerParty en DS (la empresa
+// emisora siempre se identifica como NIT en el DS, sin importar su tipo de identificación).
+func partyFromIssuerAsNIT(iss *issuers.Issuer) domain.Party {
+	p := partyFromIssuer(iss)
+	p.Identification.TypeCode = "31"
+	p.Identification.VerificationCode = iss.CheckDigit
+	return p
+}
+
 func numberingRangeFromRange(nr *numbering.NumberingRange) domain.NumberingRange {
 	return domain.NumberingRange{
 		AuthorizedCode: nr.ResolutionNumber,
@@ -1178,6 +1194,7 @@ func softwareProviderFromIssuer(iss *issuers.Issuer) domain.SoftwareProvider {
 		SoftwareID: iss.SoftwareID,
 	}
 }
+
 
 func billingReferenceFromInput(b BillingReferenceInput) domain.BillingReference {
 	return domain.BillingReference{

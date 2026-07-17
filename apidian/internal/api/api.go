@@ -179,6 +179,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("GET /api/v1/issuers/me/logo", a.handleGetMyIssuerLogo)
 	handle("DELETE /api/v1/issuers/me/logo", a.handleDeleteMyIssuerLogo)
 	handle("DELETE /api/v1/issuers/me/software", a.handleDeleteMyIssuerSoftware)
+	handle("DELETE /api/v1/issuers/me/ne-software", a.handleDeleteMyIssuerNeSoftware)
 	handle("DELETE /api/v1/issuers/me/certificate", a.handleDeleteMyIssuerCertificate)
 	handle("POST /api/v1/numbering-ranges", a.handleCreateNumberingRange)
 	handle("GET /api/v1/numbering-ranges", a.handleListNumberingRanges)

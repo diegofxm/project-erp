@@ -32,7 +32,9 @@ const issuerColumns = `
 	department_code, municipality_code, address_line, email, phone, environment,
 	entity_type_code, tax_scheme_code, tax_scheme_name, liability_codes, tax_regime_code,
 	industry_classification_codes, merchant_registration_number,
-	software_id, software_pin, certificate, certificate_password, logo, logo_content_type,
+	software_id, software_pin, certificate, certificate_password,
+	ne_software_id, ne_software_pin,
+	logo, logo_content_type,
 	is_active, created_at, updated_at`
 
 // issuerSelectWithNames hace JOIN con departments/municipalities para traer
@@ -44,6 +46,7 @@ const issuerSelectWithNames = `
 	       i.entity_type_code, i.tax_scheme_code, i.tax_scheme_name, i.liability_codes, i.tax_regime_code,
 	       i.industry_classification_codes, i.merchant_registration_number,
 	       i.software_id, i.software_pin, i.certificate, i.certificate_password,
+	       i.ne_software_id, i.ne_software_pin,
 	       i.logo, i.logo_content_type, i.is_active,
 	       i.created_at, i.updated_at
 	FROM issuers i
@@ -70,6 +73,10 @@ func (r *PostgresRepository) Create(ctx context.Context, iss Issuer) (*Issuer, e
 	if err != nil {
 		return nil, fmt.Errorf("cifrar certificate_password: %w", err)
 	}
+	encNePIN, err := encryptPIN(r.key, iss.NeSoftwarePIN)
+	if err != nil {
+		return nil, fmt.Errorf("cifrar ne_software_pin: %w", err)
+	}
 
 	// liability_codes es NOT NULL en el esquema (DEFAULT '{}') — pero ese default solo
 	// aplica si la columna se omite del INSERT, no si se manda un nil explícito, así que un
@@ -88,7 +95,9 @@ func (r *PostgresRepository) Create(ctx context.Context, iss Issuer) (*Issuer, e
 		iss.DepartmentCode, iss.MunicipalityCode, iss.AddressLine, iss.Email, iss.Phone, string(iss.Environment),
 		iss.EntityTypeCode, iss.TaxSchemeCode, iss.TaxSchemeName, liabilityCodes, iss.TaxRegimeCode,
 		industryClassificationCodes, iss.MerchantRegistrationNumber,
-		iss.SoftwareID, encPIN, encCert, encCertPwd, iss.Logo, iss.LogoContentType,
+		iss.SoftwareID, encPIN, encCert, encCertPwd,
+		nullableString(iss.NeSoftwareID), encNePIN,
+		iss.Logo, iss.LogoContentType,
 		iss.IsActive, iss.CreatedAt, iss.UpdatedAt,
 	}
 	_, err = r.pool.Exec(ctx, `INSERT INTO issuers (`+issuerColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
@@ -101,10 +110,10 @@ func (r *PostgresRepository) Create(ctx context.Context, iss Issuer) (*Issuer, e
 	return &iss, nil
 }
 
-// Update persiste software_id/software_pin/certificate/certificate_password/logo/
-// logo_content_type — los únicos campos editables vía UpdateIssuer (ver service.go),
-// cifrando PIN/certificado/password con el mismo esquema que Create. logo/logo_content_type
-// no son secretos, no se cifran.
+// Update persiste software_id/software_pin/certificate/certificate_password/
+// ne_software_id/ne_software_pin/logo/logo_content_type — los únicos campos editables vía
+// UpdateIssuer (ver service.go), cifrando PINs y certificado con el mismo esquema que Create.
+// ne_software_pin se guarda como NULL si está vacío (= aún no configurado).
 func (r *PostgresRepository) Update(ctx context.Context, iss Issuer) (*Issuer, error) {
 	encPIN, err := cryptutil.Encrypt(r.key, []byte(iss.SoftwarePIN))
 	if err != nil {
@@ -118,17 +127,20 @@ func (r *PostgresRepository) Update(ctx context.Context, iss Issuer) (*Issuer, e
 	if err != nil {
 		return nil, fmt.Errorf("cifrar certificate_password: %w", err)
 	}
+	encNePIN, err := encryptPIN(r.key, iss.NeSoftwarePIN)
+	if err != nil {
+		return nil, fmt.Errorf("cifrar ne_software_pin: %w", err)
+	}
 
-	// software_id/logo_content_type se mandan tal cual (nunca como NULL explícito) aunque la
-	// columna lo permita — igual que Create: una cadena vacía se guarda como cadena vacía.
-	// scan() lee esas columnas directo a un string de Go (no *string); un NULL real ahí
-	// rompería el Scan.
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE issuers SET
 			software_id = $1, software_pin = $2, certificate = $3, certificate_password = $4,
-			logo = $5, logo_content_type = $6, updated_at = $7
-		WHERE id = $8`,
-		iss.SoftwareID, encPIN, encCert, encCertPwd, iss.Logo, iss.LogoContentType, time.Now().UTC(), iss.ID,
+			ne_software_id = $5, ne_software_pin = $6,
+			logo = $7, logo_content_type = $8, updated_at = $9
+		WHERE id = $10`,
+		iss.SoftwareID, encPIN, encCert, encCertPwd,
+		nullableString(iss.NeSoftwareID), encNePIN,
+		iss.Logo, iss.LogoContentType, time.Now().UTC(), iss.ID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update issuer: %w", err)
@@ -192,6 +204,8 @@ func (r *PostgresRepository) scan(row pgx.Row) (*Issuer, error) {
 	var iss Issuer
 	var env string
 	var encPIN, encCert, encCertPwd []byte
+	var encNePIN []byte
+	var neSoftwareID *string
 
 	err := row.Scan(&iss.ID, &iss.NIT, &iss.CheckDigit, &iss.BusinessName, &iss.TradeName,
 		&iss.IdentificationTypeCode, &iss.DepartmentCode, &iss.MunicipalityCode,
@@ -199,6 +213,7 @@ func (r *PostgresRepository) scan(row pgx.Row) (*Issuer, error) {
 		&iss.Email, &iss.Phone, &env, &iss.EntityTypeCode, &iss.TaxSchemeCode, &iss.TaxSchemeName,
 		&iss.LiabilityCodes, &iss.TaxRegimeCode, &iss.IndustryClassificationCodes,
 		&iss.MerchantRegistrationNumber, &iss.SoftwareID, &encPIN, &encCert, &encCertPwd,
+		&neSoftwareID, &encNePIN,
 		&iss.Logo, &iss.LogoContentType,
 		&iss.IsActive, &iss.CreatedAt, &iss.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -227,10 +242,48 @@ func (r *PostgresRepository) scan(row pgx.Row) (*Issuer, error) {
 	}
 	iss.CertificatePassword = string(certPwd)
 
+	if neSoftwareID != nil {
+		iss.NeSoftwareID = *neSoftwareID
+	}
+	nePin, err := decryptPIN(r.key, encNePIN)
+	if err != nil {
+		return nil, fmt.Errorf("descifrar ne_software_pin: %w", err)
+	}
+	iss.NeSoftwarePIN = nePin
+
 	return &iss, nil
 }
 
 func isDuplicateKey(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+// encryptPIN cifra un PIN no vacío con AES-256-GCM; devuelve nil si el PIN está vacío —
+// PIN vacío = credencial no configurada todavía, se persiste como NULL en la columna BYTEA.
+func encryptPIN(key []byte, pin string) ([]byte, error) {
+	if pin == "" {
+		return nil, nil
+	}
+	return cryptutil.Encrypt(key, []byte(pin))
+}
+
+// decryptPIN descifra un PIN nullable; devuelve "" si el dato es nil (columna NULL en BD —
+// credencial aún no configurada).
+func decryptPIN(key, data []byte) (string, error) {
+	if len(data) == 0 {
+		return "", nil
+	}
+	b, err := cryptutil.Decrypt(key, data)
+	return string(b), err
+}
+
+// nullableString convierte una cadena vacía en nil para que pgx lo persista como NULL —
+// ds_software_id/ne_software_id son TEXT nullable; "" y NULL tienen semánticas distintas
+// (NULL = no configurado, "" = configurado con valor vacío — queremos siempre NULL).
+func nullableString(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }

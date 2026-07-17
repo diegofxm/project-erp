@@ -19,6 +19,11 @@ type Invoice struct {
 	IssueTime string // HH:MM:SS-05:00
 	DueDate   string // opcional
 
+	// PeriodStartDate/PeriodEndDate son el periodo de adquisición del DS (cac:InvoicePeriod).
+	// Vacíos → el builder usa IssueDate para ambos.
+	PeriodStartDate string // YYYY-MM-DD
+	PeriodEndDate   string // YYYY-MM-DD
+
 	Note string // opcional
 
 	CurrencyCode string // catálogo currency_codes, ISO 4217, ej. "COP"

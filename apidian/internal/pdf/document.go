@@ -58,12 +58,13 @@ type InvoiceInput struct {
 	IssuerLogo         []byte
 	IssuerLogoExt      string // "png", "jpg", etc.
 
-	IsDraft   bool
-	Prefix    string
-	Number    int64
-	CUFE      string
-	QRURL     string
-	IssueDate string
+	IsDraft      bool
+	Prefix       string
+	Number       int64
+	CUFE         string
+	QRURL        string // URL que va en sts:QRCode del XML; para FE/NC/ND es el mismo contenido del QR
+	QRContent    string // para DS: texto multi-línea que se codifica en la imagen QR (distinto de QRURL)
+	IssueDate    string
 
 	CurrencyCode string
 
@@ -200,8 +201,12 @@ func buildTemplateData(in InvoiceInput) (docTemplateData, error) {
 
 	var qrURL template.URL
 	if !in.IsDraft && in.QRURL != "" {
+		qrSource := in.QRURL
+		if in.QRContent != "" {
+			qrSource = in.QRContent // DS: imagen QR codifica el bloque multi-línea, no la URL
+		}
 		var err error
-		qrURL, err = makeQR(in.QRURL)
+		qrURL, err = makeQR(qrSource)
 		if err != nil {
 			return docTemplateData{}, fmt.Errorf("pdf: QR: %w", err)
 		}

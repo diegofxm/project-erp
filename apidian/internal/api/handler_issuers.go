@@ -80,13 +80,16 @@ type issuerResponse struct {
 	IndustryClassificationCodes []string `json:"industry_classification_codes,omitempty"`
 	MerchantRegistrationNumber  *string  `json:"merchant_registration_number,omitempty"`
 
-	// Credenciales DIAN — nunca PIN/cert/password, solo presencia y metadatos seguros
-	SoftwareID             string     `json:"software_id,omitempty"`
-	HasSoftwareCredentials bool       `json:"has_software_credentials"`
-	HasCertificate         bool       `json:"has_certificate"`
-	CertificateSubject     string     `json:"certificate_subject,omitempty"`
-	CertificateIssuerCN    string     `json:"certificate_issuer_cn,omitempty"`
-	CertificateExpiresAt   *time.Time `json:"certificate_expires_at,omitempty"`
+	// Credenciales DIAN — nunca PIN/cert/password, solo presencia y metadatos seguros.
+	// FE y DS comparten el mismo software; NE tiene software independiente.
+	SoftwareID             string `json:"software_id,omitempty"`
+	HasSoftwareCredentials bool   `json:"has_software_credentials"`
+	NeSoftwareID            string `json:"ne_software_id,omitempty"`
+	HasNeSoftwareCredentials bool   `json:"has_ne_software_credentials"`
+	HasCertificate       bool       `json:"has_certificate"`
+	CertificateSubject   string     `json:"certificate_subject,omitempty"`
+	CertificateIssuerCN  string     `json:"certificate_issuer_cn,omitempty"`
+	CertificateExpiresAt *time.Time `json:"certificate_expires_at,omitempty"`
 
 	// HasLogo: el logo en sí se sirve aparte (GET /issuers/me/logo) para no inflar esta respuesta.
 	HasLogo bool `json:"has_logo"`
@@ -120,6 +123,8 @@ func issuerToResponse(iss *issuers.Issuer) issuerResponse {
 		MerchantRegistrationNumber:  iss.MerchantRegistrationNumber,
 		SoftwareID:                  iss.SoftwareID,
 		HasSoftwareCredentials:      iss.SoftwareID != "" && iss.SoftwarePIN != "",
+		NeSoftwareID:                iss.NeSoftwareID,
+		HasNeSoftwareCredentials:    iss.NeSoftwareID != "" && iss.NeSoftwarePIN != "",
 		HasCertificate:              len(iss.Certificate) > 0 && iss.CertificatePassword != "",
 		CertificateSubject:          iss.CertificateSubject,
 		CertificateIssuerCN:         iss.CertificateIssuerCN,
@@ -240,8 +245,13 @@ func (a *API) handleGetMyIssuer(w http.ResponseWriter, r *http.Request) {
 // que distinguir "no mandó este campo" (nil) de "lo mandó vacío" (string vacío, que
 // issuers.Service.UpdateIssuer rechaza con ErrEmptyCertificate).
 type updateIssuerRequest struct {
-	SoftwareID          *string `json:"software_id,omitempty"`
-	SoftwarePIN         *string `json:"software_pin,omitempty"`
+	// FE (Factura Electrónica, NC, ND)
+	SoftwareID  *string `json:"software_id,omitempty"`
+	SoftwarePIN *string `json:"software_pin,omitempty"`
+	// NE (Nómina Electrónica)
+	NeSoftwareID  *string `json:"ne_software_id,omitempty"`
+	NeSoftwarePIN *string `json:"ne_software_pin,omitempty"`
+	// Certificado digital compartido entre FE/DS/NE
 	CertificateBase64   *string `json:"certificate_base64,omitempty"`
 	CertificatePassword *string `json:"certificate_password,omitempty"`
 	LogoBase64      *string `json:"logo_base64,omitempty"`
@@ -260,6 +270,8 @@ func (a *API) handleUpdateMyIssuer(w http.ResponseWriter, r *http.Request) {
 	svcReq := issuers.UpdateIssuerRequest{
 		SoftwareID:          req.SoftwareID,
 		SoftwarePIN:         req.SoftwarePIN,
+		NeSoftwareID:        req.NeSoftwareID,
+		NeSoftwarePIN:       req.NeSoftwarePIN,
 		CertificatePassword: req.CertificatePassword,
 	}
 	if req.CertificateBase64 != nil {
@@ -387,6 +399,16 @@ func (a *API) handleDeleteMyIssuerSoftware(w http.ResponseWriter, r *http.Reques
 // Mismo patrón que handleDeleteMyIssuerLogo.
 func (a *API) handleDeleteMyIssuerCertificate(w http.ResponseWriter, r *http.Request) {
 	iss, err := a.issuers.ClearCertificate(r.Context(), middleware.GetTenantID(r.Context()))
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	response.WriteJSON(w, http.StatusOK, issuerToResponse(iss))
+}
+
+// handleDeleteMyIssuerNeSoftware borra las credenciales de software NE del emisor autenticado.
+func (a *API) handleDeleteMyIssuerNeSoftware(w http.ResponseWriter, r *http.Request) {
+	iss, err := a.issuers.ClearNeSoftware(r.Context(), middleware.GetTenantID(r.Context()))
 	if err != nil {
 		response.WriteError(w, err)
 		return

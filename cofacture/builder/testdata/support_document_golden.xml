@@ -46,21 +46,32 @@
   <cbc:InvoiceTypeCode>05</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode listAgencyID="6" listAgencyName="United Nations Economic Commission for Europe" listID="ISO 4217 Alpha">COP</cbc:DocumentCurrencyCode>
   <cbc:LineCountNumeric>1</cbc:LineCountNumeric>
+  <cac:InvoicePeriod>
+    <cbc:StartDate>2024-01-20</cbc:StartDate>
+    <cbc:EndDate>2024-01-20</cbc:EndDate>
+  </cac:InvoicePeriod>
   <cac:AccountingSupplierParty>
     <cbc:AdditionalAccountID>1</cbc:AdditionalAccountID>
     <cac:Party>
       <cac:PartyName>
         <cbc:Name>María García</cbc:Name>
       </cac:PartyName>
+      <cac:PhysicalLocation>
+        <cac:Address>
+          <cac:AddressLine>
+            <cbc:Line>Vereda El Rosal</cbc:Line>
+          </cac:AddressLine>
+          <cac:Country>
+            <cbc:IdentificationCode>CO</cbc:IdentificationCode>
+            <cbc:Name languageID="es">Colombia</cbc:Name>
+          </cac:Country>
+        </cac:Address>
+      </cac:PhysicalLocation>
       <cac:PartyTaxScheme>
         <cbc:RegistrationName>María García</cbc:RegistrationName>
         <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeName="13">1020304050</cbc:CompanyID>
         <cbc:TaxLevelCode listName="49">O-49</cbc:TaxLevelCode>
         <cac:RegistrationAddress>
-          <cbc:ID>05001</cbc:ID>
-          <cbc:CityName>Medellín</cbc:CityName>
-          <cbc:CountrySubentity>Antioquia</cbc:CountrySubentity>
-          <cbc:CountrySubentityCode>05</cbc:CountrySubentityCode>
           <cac:AddressLine>
             <cbc:Line>Vereda El Rosal</cbc:Line>
           </cac:AddressLine>
@@ -203,15 +214,9 @@
     </cac:TaxTotal>
     <cac:Item>
       <cbc:Description>Laptop Dell Inspiron 15, 8GB RAM, 256GB SSD</cbc:Description>
-      <cac:InformationContentProviderParty>
-        <cac:PowerOfAttorney>
-          <cac:AgentParty>
-            <cac:PartyIdentification>
-              <cbc:ID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeName=""/>
-            </cac:PartyIdentification>
-          </cac:AgentParty>
-        </cac:PowerOfAttorney>
-      </cac:InformationContentProviderParty>
+      <cac:StandardItemIdentification>
+        <cbc:ID schemeID="999" schemeName="Estándar de adopción del contribuyente">PROD001</cbc:ID>
+      </cac:StandardItemIdentification>
     </cac:Item>
     <cac:Price>
       <cbc:PriceAmount currencyID="COP">1260504.20</cbc:PriceAmount>

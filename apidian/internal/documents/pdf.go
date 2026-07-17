@@ -2,11 +2,14 @@ package documents
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
 	"github.com/diegofxm/apidian/internal/pdf"
+	"github.com/diegofxm/cofacture/domain"
+	"github.com/diegofxm/cofacture/qr"
 	"github.com/google/uuid"
 )
 
@@ -113,9 +116,31 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 	case debitNoteDianDocumentType:
 		documentTitle = "NOTA DÉBITO DE VENTA"
 		hashLabel = "CUDE"
+	case supportDocumentDianDocType:
+		documentTitle = "DOCUMENTO SOPORTE"
+		hashLabel = "CUDS"
 	default:
 		documentTitle = "FACTURA ELECTRÓNICA DE VENTA"
 		hashLabel = "CUFE"
+	}
+
+	// Para el DS: el QR impreso debe codificar el bloque multi-línea (N°DocSoporte, Fecha,
+	// PIN, CUDS…). La URL (sts:QRCode del XML) se guarda en d.QRURL; el contenido completo
+	// solo se necesita para generar la imagen QR en el PDF.
+	var qrContent string
+	if d.DianDocumentTypeCode == supportDocumentDianDocType && d.Vendor != nil && d.DocumentKey != "" {
+		dsInv := domain.Invoice{
+			Prefix:          d.Prefix,
+			Number:          strconv.FormatInt(d.Number, 10),
+			IssueDate:       d.IssueDate.Format("2006-01-02"),
+			IssueTime:       d.IssueTime,
+			EnvironmentCode: string(iss.Environment),
+			HeaderTaxes:     aggregated,
+			Totals:          d.Totals,
+			Supplier:        *d.Vendor,
+			Customer:        domain.Party{Identification: domain.Identification{Number: iss.NIT}},
+		}
+		qrContent = qr.SupportDocumentContent(dsInv, d.DocumentKey, iss.SoftwarePIN)
 	}
 
 	// Información fiscal del emisor para el pie del PDF (Resolución DIAN 042).
@@ -169,6 +194,7 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		Number:       d.Number,
 		CUFE:         d.DocumentKey,
 		QRURL:        d.QRURL,
+		QRContent:    qrContent,
 		IssueDate:    issueDate,
 		CurrencyCode: d.CurrencyCode,
 

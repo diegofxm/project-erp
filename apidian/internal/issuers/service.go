@@ -67,9 +67,13 @@ func (s *Service) resolveTaxSchemeName(ctx context.Context, iss *Issuer) error {
 // propósito: el usuario va cargando software/PIN/certificado en el orden en que los consiga,
 // sin tener que reenviar lo que ya configuró antes.
 type UpdateIssuerRequest struct {
-	SoftwareID          *string
-	SoftwarePIN         *string
-	Certificate         []byte // nil = no tocar
+	// FE y DS comparten el mismo software (el portal DIAN reutiliza el software de FE para DS)
+	SoftwareID  *string
+	SoftwarePIN *string
+	// NE (Nómina Electrónica) — software independiente en el portal DIAN
+	NeSoftwareID  *string
+	NeSoftwarePIN *string
+	Certificate         []byte  // nil = no tocar; compartido entre FE/DS/NE
 	CertificatePassword *string
 	Logo            []byte  // nil = no tocar
 	LogoContentType *string // "png"/"jpg"/"jpeg"
@@ -105,6 +109,18 @@ func (s *Service) UpdateIssuer(ctx context.Context, id uuid.UUID, req UpdateIssu
 			return nil, ErrEmptySoftwarePIN
 		}
 		iss.SoftwarePIN = *req.SoftwarePIN
+	}
+	if req.NeSoftwareID != nil {
+		if strings.TrimSpace(*req.NeSoftwareID) == "" {
+			return nil, ErrEmptyNeSoftwareID
+		}
+		iss.NeSoftwareID = *req.NeSoftwareID
+	}
+	if req.NeSoftwarePIN != nil {
+		if strings.TrimSpace(*req.NeSoftwarePIN) == "" {
+			return nil, ErrEmptyNeSoftwarePIN
+		}
+		iss.NeSoftwarePIN = *req.NeSoftwarePIN
 	}
 	if req.Certificate != nil {
 		if len(req.Certificate) == 0 {
@@ -234,7 +250,7 @@ func (s *Service) DeleteLogo(ctx context.Context, id uuid.UUID) (*Issuer, error)
 	return result, nil
 }
 
-// ClearSoftware borra software_id y software_pin del emisor. El certificado no se toca.
+// ClearSoftware borra software_id y software_pin del emisor (FE). El certificado no se toca.
 func (s *Service) ClearSoftware(ctx context.Context, id uuid.UUID) (*Issuer, error) {
 	iss, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -242,6 +258,22 @@ func (s *Service) ClearSoftware(ctx context.Context, id uuid.UUID) (*Issuer, err
 	}
 	iss.SoftwareID = ""
 	iss.SoftwarePIN = ""
+	result, err := s.repo.Update(ctx, *iss)
+	if err != nil {
+		return nil, err
+	}
+	s.enrichCertMetadata(result)
+	return result, nil
+}
+
+// ClearNeSoftware borra ne_software_id y ne_software_pin del emisor (NE). No toca FE ni certificado.
+func (s *Service) ClearNeSoftware(ctx context.Context, id uuid.UUID) (*Issuer, error) {
+	iss, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	iss.NeSoftwareID = ""
+	iss.NeSoftwarePIN = ""
 	result, err := s.repo.Update(ctx, *iss)
 	if err != nil {
 		return nil, err

@@ -37,10 +37,13 @@ export interface Issuer {
   industry_classification_codes?: string[];
   merchant_registration_number?: string;
 
-  // software_id no es secreto (es un ID de registro, no una contraseña). PIN/cert/password
-  // nunca viajan de vuelta — solo has_software_credentials / has_certificate (presencia).
+  // Credenciales DIAN — los IDs no son secretos; PINs/cert nunca viajan de vuelta.
+  // FE y DS comparten el mismo software; NE tiene software independiente.
   software_id?: string;
   has_software_credentials: boolean;
+  ne_software_id?: string;
+  has_ne_software_credentials: boolean;
+  // Certificado digital compartido entre FE/DS/NE:
   has_certificate: boolean;
   // Metadatos del certificado derivados en memoria por issuers.Service.enrichCertMetadata —
   // sin datos sensibles. Solo presentes cuando has_certificate es true.
@@ -107,12 +110,16 @@ export interface ListIssuersResult {
 // campo es independiente (omitido = "no tocar"), espejo de issuers.UpdateIssuerRequest. Nunca
 // se manda "" para un campo que el usuario no llenó — se omite la llave entera.
 export interface UpdateIssuerPayload {
+  // FE y DS comparten el mismo software
   software_id?: string;
   software_pin?: string;
+  // NE (Nómina Electrónica) — software independiente
+  ne_software_id?: string;
+  ne_software_pin?: string;
+  // Certificado compartido entre FE/DS/NE
   certificate_base64?: string;
   certificate_password?: string;
-  // logo_base64/logo_content_type: para la representación gráfica en PDF (ver
-  // docs/apidian-architecture.md sección 9.39). logo_content_type es "png"/"jpg"/"jpeg".
+  // logo_base64/logo_content_type: para la representación gráfica en PDF.
   logo_base64?: string;
   logo_content_type?: string;
 }
