@@ -79,7 +79,7 @@ func SupportDocumentContent(inv domain.Invoice, cuds, softwarePIN string) string
 	}())
 
 	return fmt.Sprintf(
-		"N°DocSoporte=%s\nFecha=%s\nHora=%s\nValDS=%s\nCodImp=%s\nValImp=%s\nValTot=%s\nNumSNO=%s\nNITABS=%s\nPIN:%s\nAmb:%s\nCUDS=%s\n%s",
+		"N°DocSoporte=%s\nFecha=%s\nHora=%s\nValDS=%s\nCodImp=%s\nValImp=%s\nValTot=%s\nNumSNO=%s\nNITABS=%s\nPIN:%s\nAmb:%s\nCUDS=%s\nURL=%s",
 		inv.Prefix+inv.Number,
 		inv.IssueDate,
 		inv.IssueTime,

@@ -66,9 +66,9 @@ func TestSupportDocumentContent(t *testing.T) {
 		}
 	}
 
-	// La última línea debe ser la URL de FindDocument en habilitación.
+	// La última línea debe ser "URL=<FindDocument>" (referencia DIAN DS v1.1, sección 11.7.1).
 	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
-	wantURL := "https://catalogo-vpfe-hab.dian.gov.co/Document/FindDocument?documentKey=" + cuds
+	wantURL := "URL=https://catalogo-vpfe-hab.dian.gov.co/Document/FindDocument?documentKey=" + cuds
 	if lines[len(lines)-1] != wantURL {
 		t.Errorf("última línea = %q, want %q", lines[len(lines)-1], wantURL)
 	}
@@ -88,7 +88,7 @@ func TestSupportDocumentContent_Produccion(t *testing.T) {
 	const cuds = "abc"
 	got := SupportDocumentContent(inv, cuds, "000")
 
-	wantURL := "https://catalogo-vpfe.dian.gov.co/Document/FindDocument?documentKey=abc"
+	wantURL := "URL=https://catalogo-vpfe.dian.gov.co/Document/FindDocument?documentKey=abc"
 	if !strings.Contains(got, wantURL) {
 		t.Errorf("esperaba URL de producción en el contenido, got:\n%s", got)
 	}

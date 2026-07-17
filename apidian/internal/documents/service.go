@@ -716,7 +716,8 @@ func (s *Service) confirmSupportDocument(ctx context.Context, d *Document) (*Doc
 	}
 
 	d.Prefix, d.Number, d.DocumentKey = inv.Prefix, p.number, inv.CUFE
-	d.IssueDate, d.IssueTime, d.QRURL = p.now, inv.IssueTime, inv.QRURL
+	d.IssueDate, d.IssueTime = p.now, inv.IssueTime
+	d.QRURL = qr.SupportDocumentURL(inv.EnvironmentCode, inv.CUFE)
 
 	return s.finalizeAndSend(ctx, xmlDoc, p, d, zip.KindSupportDocument)
 }

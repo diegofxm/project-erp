@@ -124,9 +124,9 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		hashLabel = "CUFE"
 	}
 
-	// Para el DS: el QR impreso debe codificar el bloque multi-línea (N°DocSoporte, Fecha,
-	// PIN, CUDS…). La URL (sts:QRCode del XML) se guarda en d.QRURL; el contenido completo
-	// solo se necesita para generar la imagen QR en el PDF.
+	// Para el DS: sts:QRCode del XML lleva el bloque multi-línea (N°DocSoporte, Fecha,
+	// PIN, CUDS, URL=…); d.QRURL almacena solo la URL (para el frontend/PDF link). El
+	// contenido completo se reconstruye aquí para generar la imagen QR del PDF.
 	var qrContent string
 	if d.DianDocumentTypeCode == supportDocumentDianDocType && d.Vendor != nil && d.DocumentKey != "" {
 		dsInv := domain.Invoice{
