@@ -17,10 +17,8 @@ interface VendorSectionProps {
 const NEW_VENDOR: VendorPayload = {
   identification: { number: "", type_code: "13" },
   name: "",
-  entity_type_code: "1",
   tax_scheme_code: "ZZ",
   liability_codes: ["R-99-PN"],
-  tax_regime_code: "",
 };
 
 type Mode = "search" | "summary" | "form";
