@@ -416,7 +416,7 @@ func (s *Service) validateSupportDocumentRequest(ctx context.Context, req IssueS
 // personalizan — persona natural sin obligación de facturar (código O-49).
 func applyVendorDefaults(p *domain.Party) {
 	if p.EntityTypeCode == "" {
-		p.EntityTypeCode = "1" // persona natural
+		p.EntityTypeCode = "1" // persona jurídica (cbc:AdditionalAccountID — confirmado aceptado por DIAN para terceros no obligados)
 	}
 	if p.TaxSchemeCode == "" {
 		p.TaxSchemeCode = "ZZ"

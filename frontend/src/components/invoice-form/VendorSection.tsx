@@ -18,7 +18,8 @@ const NEW_VENDOR: VendorPayload = {
   identification: { number: "", type_code: "13" },
   name: "",
   tax_scheme_code: "ZZ",
-  liability_codes: ["R-99-PN"],
+  tax_regime_code: "49",
+  liability_codes: ["O-49"],
 };
 
 type Mode = "search" | "summary" | "form";
