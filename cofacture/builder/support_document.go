@@ -61,26 +61,10 @@ func BuildSupportDocument(inv domain.Invoice) (*etree.Document, error) {
 		root.CreateElement("cbc:Note").SetText(inv.Note)
 	}
 
-	currency := root.CreateElement("cbc:DocumentCurrencyCode")
-	currency.CreateAttr("listAgencyID", "6")
-	currency.CreateAttr("listAgencyName", "United Nations Economic Commission for Europe")
-	currency.CreateAttr("listID", "ISO 4217 Alpha")
-	currency.SetText(inv.CurrencyCode)
+	// DS: DocumentCurrencyCode sin atributos de lista (DSFC03 — el esquema DS los rechaza).
+	root.CreateElement("cbc:DocumentCurrencyCode").SetText(inv.CurrencyCode)
 
 	root.CreateElement("cbc:LineCountNumeric").SetText(strconv.Itoa(len(inv.Lines)))
-
-	// cac:InvoicePeriod es obligatorio en DS (DSFC01). Se usan las fechas del propio documento
-	// si no se especificó un periodo distinto.
-	periodStart, periodEnd := inv.PeriodStartDate, inv.PeriodEndDate
-	if periodStart == "" {
-		periodStart = inv.IssueDate
-	}
-	if periodEnd == "" {
-		periodEnd = inv.IssueDate
-	}
-	period := root.CreateElement("cac:InvoicePeriod")
-	period.CreateElement("cbc:StartDate").SetText(periodStart)
-	period.CreateElement("cbc:EndDate").SetText(periodEnd)
 
 	// Roles invertidos: Supplier = no-obligado, Customer = empresa compradora/emisora.
 	// DS usa estructuras de partes más simples que FE — funciones dedicadas por tipo.
@@ -95,8 +79,14 @@ func BuildSupportDocument(inv domain.Invoice) (*etree.Document, error) {
 	appendWithholdingTaxTotal(root, inv.WithholdingTaxes, inv.CurrencyCode)
 	appendMonetaryTotal(root, "LegalMonetaryTotal", inv.Totals, inv.CurrencyCode, inv.DocumentTypeCode)
 
+	// Fecha de periodo por línea: PeriodStartDate del documento si se especificó, o IssueDate.
+	// cac:InvoicePeriod es obligatorio en cada InvoiceLine del DS (DSFC01).
+	linePeriodDate := inv.PeriodStartDate
+	if linePeriodDate == "" {
+		linePeriodDate = inv.IssueDate
+	}
 	for i, line := range inv.Lines {
-		appendDocumentLine(root, "InvoiceLine", "InvoicedQuantity", i+1, line, inv.CurrencyCode, inv.DocumentTypeCode, domain.Identification{})
+		appendDocumentLine(root, "InvoiceLine", "InvoicedQuantity", i+1, line, inv.CurrencyCode, inv.DocumentTypeCode, domain.Identification{}, linePeriodDate)
 	}
 
 	return doc, nil

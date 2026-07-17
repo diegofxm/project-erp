@@ -56,8 +56,8 @@ func TestSupportDocumentContent(t *testing.T) {
 		"ValTot=119000.00",
 		"NumSNO=1020304050",
 		"NITABS=900123456",
-		"PIN=12345",
-		"Amb=2",
+		"PIN:12345",
+		"Amb:2",
 		"CUDS=" + cuds,
 	}
 	for _, r := range required {
@@ -92,7 +92,7 @@ func TestSupportDocumentContent_Produccion(t *testing.T) {
 	if !strings.Contains(got, wantURL) {
 		t.Errorf("esperaba URL de producción en el contenido, got:\n%s", got)
 	}
-	if !strings.Contains(got, "Amb=1") {
-		t.Errorf("esperaba Amb=1 en el contenido, got:\n%s", got)
+	if !strings.Contains(got, "Amb:1") {
+		t.Errorf("esperaba Amb:1 en el contenido, got:\n%s", got)
 	}
 }

@@ -704,9 +704,10 @@ func (s *Service) confirmSupportDocument(ctx context.Context, d *Document) (*Doc
 
 	inv.CUFE = cuds.Compute(inv, p.iss.SoftwarePIN)
 	inv.SoftwareSecurityCode = securitycode.Compute(p.iss.SoftwareID, p.iss.SoftwarePIN, inv.Prefix+inv.Number)
-	// sts:QRCode en el XML del DS debe contener solo la URL (como FE/NC/ND con searchqr).
-	// El contenido multi-línea del QR impreso en el PDF se genera aparte en documents/pdf.go.
-	inv.QRURL = qr.SupportDocumentURL(inv.EnvironmentCode, inv.CUFE)
+	// sts:QRCode en el XML del DS es el bloque de texto completo (N°DocSoporte, Fecha, ...
+	// CUDS, URL), NO solo la URL — verificado en la caja de herramientas DIAN DS v1.1.
+	// El PDF usa el mismo contenido (qr.SupportDocumentContent) como fuente para la imagen QR.
+	inv.QRURL = qr.SupportDocumentContent(inv, inv.CUFE, p.iss.SoftwarePIN)
 
 	xmlDoc, err := builder.BuildSupportDocument(inv)
 	if err != nil {

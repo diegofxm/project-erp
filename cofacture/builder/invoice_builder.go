@@ -78,7 +78,7 @@ func BuildInvoice(inv domain.Invoice) (*etree.Document, error) {
 
 	for i, line := range inv.Lines {
 		// mandanteID no aplica a Invoice (solo lo usan las notas); se pasa vacío.
-		appendDocumentLine(root, "InvoiceLine", "InvoicedQuantity", i+1, line, inv.CurrencyCode, inv.DocumentTypeCode, domain.Identification{})
+		appendDocumentLine(root, "InvoiceLine", "InvoicedQuantity", i+1, line, inv.CurrencyCode, inv.DocumentTypeCode, domain.Identification{}, "")
 	}
 
 	return doc, nil

@@ -44,12 +44,8 @@
   <cbc:IssueDate>2024-01-20</cbc:IssueDate>
   <cbc:IssueTime>10:00:00-05:00</cbc:IssueTime>
   <cbc:InvoiceTypeCode>05</cbc:InvoiceTypeCode>
-  <cbc:DocumentCurrencyCode listAgencyID="6" listAgencyName="United Nations Economic Commission for Europe" listID="ISO 4217 Alpha">COP</cbc:DocumentCurrencyCode>
+  <cbc:DocumentCurrencyCode>COP</cbc:DocumentCurrencyCode>
   <cbc:LineCountNumeric>1</cbc:LineCountNumeric>
-  <cac:InvoicePeriod>
-    <cbc:StartDate>2024-01-20</cbc:StartDate>
-    <cbc:EndDate>2024-01-20</cbc:EndDate>
-  </cac:InvoicePeriod>
   <cac:AccountingSupplierParty>
     <cbc:AdditionalAccountID>1</cbc:AdditionalAccountID>
     <cac:Party>
@@ -137,6 +133,11 @@
     <cbc:InvoicedQuantity unitCode="94">1.000000</cbc:InvoicedQuantity>
     <cbc:LineExtensionAmount currencyID="COP">1260504.20</cbc:LineExtensionAmount>
     <cbc:FreeOfChargeIndicator>false</cbc:FreeOfChargeIndicator>
+    <cac:InvoicePeriod>
+      <cbc:StartDate>2024-01-20</cbc:StartDate>
+      <cbc:DescriptionCode>1</cbc:DescriptionCode>
+      <cbc:Description>Por operación</cbc:Description>
+    </cac:InvoicePeriod>
     <cac:TaxTotal>
       <cbc:TaxAmount currencyID="COP">239495.80</cbc:TaxAmount>
       <cac:TaxSubtotal>

@@ -72,7 +72,7 @@ func BuildCreditNote(cn domain.CreditNote) (*etree.Document, error) {
 	appendMonetaryTotal(root, "LegalMonetaryTotal", cn.Totals, cn.CurrencyCode, cn.DocumentTypeCode)
 
 	for i, line := range cn.Lines {
-		appendDocumentLine(root, "CreditNoteLine", "CreditedQuantity", i+1, line, cn.CurrencyCode, cn.DocumentTypeCode, cn.Supplier.Identification)
+		appendDocumentLine(root, "CreditNoteLine", "CreditedQuantity", i+1, line, cn.CurrencyCode, cn.DocumentTypeCode, cn.Supplier.Identification, "")
 	}
 
 	return doc, nil

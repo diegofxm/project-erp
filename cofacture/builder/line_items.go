@@ -16,7 +16,9 @@ import (
 // identificación del "Mandante" — en la práctica, la del propio emisor (mandanteID) cuando
 // no hay un mandante distinto; verificado contra el anexo técnico (grupo FBA0x/CBA0x) y
 // contra un generador de referencia en uso real.
-func appendDocumentLine(parent *etree.Element, node, nodeQty string, index int, line domain.Line, currency, documentTypeCode string, mandanteID domain.Identification) {
+// invoicePeriodStartDate: si no es vacío, agrega cac:InvoicePeriod al renglón — requerido
+// en cada línea del Documento Soporte (DSFC01). Vacío en FE/NC/ND.
+func appendDocumentLine(parent *etree.Element, node, nodeQty string, index int, line domain.Line, currency, documentTypeCode string, mandanteID domain.Identification, invoicePeriodStartDate string) {
 	el := parent.CreateElement("cac:" + node)
 	el.CreateElement("cbc:ID").SetText(strconv.Itoa(index))
 
@@ -38,6 +40,13 @@ func appendDocumentLine(parent *etree.Element, node, nodeQty string, index int, 
 		price.CreateAttr("currencyID", currency)
 		price.SetText(formatAmount(line.ReferencePrice.PriceAmountCents))
 		altPrice.CreateElement("cbc:PriceTypeCode").SetText(line.ReferencePrice.TypeCode)
+	}
+
+	if invoicePeriodStartDate != "" {
+		ip := el.CreateElement("cac:InvoicePeriod")
+		ip.CreateElement("cbc:StartDate").SetText(invoicePeriodStartDate)
+		ip.CreateElement("cbc:DescriptionCode").SetText("1")
+		ip.CreateElement("cbc:Description").SetText("Por operación")
 	}
 
 	appendTaxTotal(el, line.Taxes, currency)
