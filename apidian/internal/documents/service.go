@@ -425,7 +425,7 @@ func applyVendorDefaults(p *domain.Party) {
 		p.TaxSchemeName = "No aplica"
 	}
 	if len(p.LiabilityCodes) == 0 {
-		p.LiabilityCodes = []string{"O-49"}
+		p.LiabilityCodes = []string{"O-47"}
 	}
 	if p.TaxRegimeCode == "" {
 		p.TaxRegimeCode = "49"

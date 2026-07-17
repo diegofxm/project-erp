@@ -2,6 +2,7 @@ package builder
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/beevik/etree"
 	"github.com/diegofxm/cofacture/domain"
@@ -82,22 +83,9 @@ func BuildSupportDocument(inv domain.Invoice) (*etree.Document, error) {
 	period.CreateElement("cbc:EndDate").SetText(periodEnd)
 
 	// Roles invertidos: Supplier = no-obligado, Customer = empresa compradora/emisora.
-	// DS CustomizationID="10": el no-obligado lleva PhysicalLocation con SOLO AddressLine +
-	// Country (sin ciudad ni departamento) tanto en PhysicalLocation como en RegistrationAddress.
-	countryCode := inv.Supplier.Address.CountryCode
-	countryName := inv.Supplier.Address.CountryName
-	if countryCode == "" {
-		countryCode = "CO"
-		countryName = "Colombia"
-	}
-	supplierXML := inv.Supplier
-	supplierXML.Address = domain.Address{
-		Line:        inv.Supplier.Address.Line,
-		CountryCode: countryCode,
-		CountryName: countryName,
-	}
-	appendAccountingParty(root, "AccountingSupplierParty", supplierXML, false, "", true)
-	appendAccountingParty(root, "AccountingCustomerParty", inv.Customer, true, inv.Prefix, true)
+	// DS usa estructuras de partes más simples que FE — funciones dedicadas por tipo.
+	appendDSSupplierParty(root, inv.Supplier)
+	appendDSCustomerParty(root, inv.Customer)
 
 	for _, pm := range inv.PaymentMeans {
 		appendPaymentMean(root, pm)
@@ -112,4 +100,57 @@ func BuildSupportDocument(inv domain.Invoice) (*etree.Document, error) {
 	}
 
 	return doc, nil
+}
+
+// appendDSSupplierParty genera el AccountingSupplierParty del Documento Soporte.
+// El tercero no obligado lleva SOLO PhysicalLocation (dirección completa con ciudad/depto) +
+// PartyTaxScheme — sin RegistrationAddress, sin PartyName, sin PartyLegalEntity, sin Contact.
+// TaxLevelCode lleva listName="" (vacío), NO el código de régimen.
+// Verificado contra la caja de herramientas DIAN DS v1.1.
+func appendDSSupplierParty(root *etree.Element, p domain.Party) {
+	ap := root.CreateElement("cac:AccountingSupplierParty")
+	ap.CreateElement("cbc:AdditionalAccountID").SetText(p.EntityTypeCode)
+	party := ap.CreateElement("cac:Party")
+
+	if p.Address.Line != "" {
+		addr := party.CreateElement("cac:PhysicalLocation").CreateElement("cac:Address")
+		appendAddressFields(addr, p.Address)
+	}
+
+	taxScheme := party.CreateElement("cac:PartyTaxScheme")
+	taxScheme.CreateElement("cbc:RegistrationName").SetText(p.Name)
+	companyID := taxScheme.CreateElement("cbc:CompanyID")
+	setIdentificationAttrs(companyID, p.Identification)
+	companyID.SetText(p.Identification.Number)
+	if len(p.LiabilityCodes) > 0 {
+		tlc := taxScheme.CreateElement("cbc:TaxLevelCode")
+		tlc.CreateAttr("listName", "")
+		tlc.SetText(strings.Join(p.LiabilityCodes, ";"))
+	}
+	scheme := taxScheme.CreateElement("cac:TaxScheme")
+	scheme.CreateElement("cbc:ID").SetText(p.TaxSchemeCode)
+	scheme.CreateElement("cbc:Name").SetText(p.TaxSchemeName)
+}
+
+// appendDSCustomerParty genera el AccountingCustomerParty del Documento Soporte.
+// La empresa compradora/emisora lleva SOLO PartyTaxScheme — sin PartyIdentification,
+// PhysicalLocation, RegistrationAddress, PartyLegalEntity ni Contact.
+// TaxLevelCode NO lleva el atributo listName.
+// Verificado contra la caja de herramientas DIAN DS v1.1.
+func appendDSCustomerParty(root *etree.Element, p domain.Party) {
+	ap := root.CreateElement("cac:AccountingCustomerParty")
+	ap.CreateElement("cbc:AdditionalAccountID").SetText(p.EntityTypeCode)
+	party := ap.CreateElement("cac:Party")
+
+	taxScheme := party.CreateElement("cac:PartyTaxScheme")
+	taxScheme.CreateElement("cbc:RegistrationName").SetText(p.Name)
+	companyID := taxScheme.CreateElement("cbc:CompanyID")
+	setIdentificationAttrs(companyID, p.Identification)
+	companyID.SetText(p.Identification.Number)
+	if len(p.LiabilityCodes) > 0 {
+		taxScheme.CreateElement("cbc:TaxLevelCode").SetText(strings.Join(p.LiabilityCodes, ";"))
+	}
+	scheme := taxScheme.CreateElement("cac:TaxScheme")
+	scheme.CreateElement("cbc:ID").SetText(p.TaxSchemeCode)
+	scheme.CreateElement("cbc:Name").SetText(p.TaxSchemeName)
 }
