@@ -10,10 +10,8 @@ import (
 )
 
 const (
-	habilitacionBaseURL   = "https://catalogo-vpfe-hab.dian.gov.co/document/searchqr"
-	produccionBaseURL     = "https://catalogo-vpfe.dian.gov.co/document/searchqr"
-	habilitacionDSBaseURL = "https://catalogo-vpfe-hab.dian.gov.co/Document/FindDocument"
-	produccionDSBaseURL   = "https://catalogo-vpfe.dian.gov.co/Document/FindDocument"
+	habilitacionBaseURL = "https://catalogo-vpfe-hab.dian.gov.co/document/searchqr"
+	produccionBaseURL   = "https://catalogo-vpfe.dian.gov.co/document/searchqr"
 )
 
 // URL construye la URL del QR a partir del CUFE (o CUDE) y el código de ambiente
@@ -28,15 +26,10 @@ func URL(environmentCode, documentKey string) string {
 	return base + "?documentkey=" + documentKey
 }
 
-// SupportDocumentURL construye la URL que va en sts:QRCode del Documento Soporte.
-// Para DS la DIAN usa el endpoint FindDocument (con documentKey en camelCase) en lugar de
-// searchqr — distinto dominio y path que FE/NC/ND.
+// SupportDocumentURL construye la URL del QR del Documento Soporte.
+// Usa el mismo endpoint searchqr que FE/NC/ND (verificado: FindDocument no redirige).
 func SupportDocumentURL(environmentCode, cuds string) string {
-	base := produccionDSBaseURL
-	if environmentCode == "2" {
-		base = habilitacionDSBaseURL
-	}
-	return base + "?documentKey=" + cuds
+	return URL(environmentCode, cuds)
 }
 
 // SupportDocumentContent construye el contenido completo del QR del Documento Soporte
@@ -65,11 +58,7 @@ func SupportDocumentContent(inv domain.Invoice, cuds, softwarePIN string) string
 		valImp = "0.00"
 	}
 
-	base := produccionDSBaseURL
-	if inv.EnvironmentCode == "2" {
-		base = habilitacionDSBaseURL
-	}
-	url := base + "?documentKey=" + cuds
+	url := URL(inv.EnvironmentCode, cuds)
 
 	ambLabel := strconv.Itoa(func() int {
 		if inv.EnvironmentCode == "2" {
