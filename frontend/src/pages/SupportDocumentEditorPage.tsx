@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BookCopy, FileCode, FileText, Send, Trash2 } from "lucide-react";
+import { BookCopy, FileCode, FileText, Mail, Send, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import {
   confirmDocument,
@@ -8,6 +8,7 @@ import {
   getDocument,
   getDocumentPdfBlobUrl,
   getDocumentXmlBlobUrl,
+  sendDocumentEmail,
   updateSupportDocumentDraft,
   type PDFFormat,
 } from "../lib/documents";
@@ -42,6 +43,7 @@ export function SupportDocumentEditorPage() {
   const [confirming, setConfirming] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingXml, setLoadingXml] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [pdfFormat, setPdfFormat] = useState<PDFFormat>("full_a4");
 
   useEffect(() => {
@@ -116,6 +118,20 @@ export function SupportDocumentEditorPage() {
     }
   }
 
+  async function handleSendEmail() {
+    if (!id || isNew || !doc) return;
+    if (!(await confirmDialog(`¿Enviar este Documento Soporte por correo a ${doc.vendor?.email || "el proveedor"}?`))) return;
+    setSendingEmail(true);
+    try {
+      await sendDocumentEmail(id, pdfFormat);
+      toast.success(`Documento Soporte enviado a ${doc.vendor?.email}`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo enviar el documento por correo");
+    } finally {
+      setSendingEmail(false);
+    }
+  }
+
   async function handleDownloadXml() {
     if (!id || isNew) return;
     setLoadingXml(true);
@@ -181,6 +197,11 @@ export function SupportDocumentEditorPage() {
           {!isNew && doc && doc.status !== "draft" && (
             <Button type="button" variant="secondary" icon={<FileCode className="h-3.5 w-3.5" />} loading={loadingXml} onClick={handleDownloadXml}>
               Descargar XML
+            </Button>
+          )}
+          {!isNew && doc?.status === "accepted" && (
+            <Button type="button" variant="secondary" icon={<Mail className="h-3.5 w-3.5" />} loading={sendingEmail} onClick={handleSendEmail}>
+              Enviar al proveedor
             </Button>
           )}
           {!isNew && doc?.status === "draft" && (
