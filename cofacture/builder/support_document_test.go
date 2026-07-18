@@ -16,17 +16,19 @@ func sampleSupportDocument() domain.Invoice {
 	sup.Prefix = "DS"
 	sup.Number = "1"
 
-	// Roles invertidos: Supplier = tercero no obligado (persona natural), Customer = emisor.
+	// Roles invertidos: Supplier = tercero no obligado (SNO), Customer = emisor.
+	// La DIAN exige schemeName="31" (NIT) para el SNO — verificado en DS-real.xml.
 	sup.Supplier = domain.Party{
-		EntityTypeCode: "1",
+		EntityTypeCode: "2",
 		Identification: domain.Identification{
-			Number:   "1020304050",
-			TypeCode: "13", // CC
+			Number:           "1020304050",
+			TypeCode:         "31",
+			VerificationCode: "8",
 		},
 		Name:           "María García",
 		TaxSchemeCode:  "ZZ",
 		TaxSchemeName:  "No aplica",
-		LiabilityCodes: []string{"O-49"},
+		LiabilityCodes: []string{"R-99-PN"},
 		TaxRegimeCode:  "49",
 		Address: domain.Address{
 			Line:        "Vereda El Rosal",
@@ -44,7 +46,7 @@ func sampleSupportDocument() domain.Invoice {
 		Identification: domain.Identification{
 			Number:           "900123456",
 			TypeCode:         "31",
-			VerificationCode: "3",
+			VerificationCode: "8",
 		},
 		Name: "MI EMPRESA S.A.S.",
 		Address: domain.Address{

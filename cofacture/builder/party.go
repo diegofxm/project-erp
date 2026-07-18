@@ -93,6 +93,9 @@ func appendAddressFields(addr *etree.Element, a domain.Address) {
 		addr.CreateElement("cbc:ID").SetText(a.CityCode)
 		addr.CreateElement("cbc:CityName").SetText(a.CityName)
 	}
+	if a.PostalZone != "" {
+		addr.CreateElement("cbc:PostalZone").SetText(a.PostalZone)
+	}
 	if a.StateCode != "" {
 		addr.CreateElement("cbc:CountrySubentity").SetText(a.StateName)
 		addr.CreateElement("cbc:CountrySubentityCode").SetText(a.StateCode)

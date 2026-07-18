@@ -93,14 +93,15 @@ func BuildSupportDocument(inv domain.Invoice) (*etree.Document, error) {
 }
 
 // appendDSSupplierParty genera el AccountingSupplierParty del Documento Soporte.
-// El tercero no obligado lleva SOLO PhysicalLocation (dirección completa con ciudad/depto) +
-// PartyTaxScheme — sin RegistrationAddress, sin PartyName, sin PartyLegalEntity, sin Contact.
-// TaxLevelCode lleva listName="" (vacío), NO el código de régimen.
-// Verificado contra la caja de herramientas DIAN DS v1.1.
+// La DIAN exige schemeName="31" (NIT) para el CompanyID del SNO en todos los casos —
+// incluyendo personas naturales — según comportamiento verificado en DS real aceptado por la
+// DIAN (DS-real.xml). TaxLevelCode va sin atributo listName (también verificado en DS real).
 func appendDSSupplierParty(root *etree.Element, p domain.Party) {
 	ap := root.CreateElement("cac:AccountingSupplierParty")
 	ap.CreateElement("cbc:AdditionalAccountID").SetText(p.EntityTypeCode)
 	party := ap.CreateElement("cac:Party")
+
+	party.CreateElement("cac:PartyName").CreateElement("cbc:Name").SetText(p.Name)
 
 	if p.Address.Line != "" {
 		addr := party.CreateElement("cac:PhysicalLocation").CreateElement("cac:Address")
@@ -110,12 +111,16 @@ func appendDSSupplierParty(root *etree.Element, p domain.Party) {
 	taxScheme := party.CreateElement("cac:PartyTaxScheme")
 	taxScheme.CreateElement("cbc:RegistrationName").SetText(p.Name)
 	companyID := taxScheme.CreateElement("cbc:CompanyID")
-	setIdentificationAttrs(companyID, p.Identification)
+	companyID.CreateAttr("schemeAgencyID", ubl.DianSchemeAgencyID)
+	companyID.CreateAttr("schemeAgencyName", ubl.DianSchemeAgencyName)
+	// La DIAN requiere schemeName="31" (NIT) para el SNO; schemeID es el dígito verificador.
+	if p.Identification.VerificationCode != "" {
+		companyID.CreateAttr("schemeID", p.Identification.VerificationCode)
+	}
+	companyID.CreateAttr("schemeName", "31")
 	companyID.SetText(p.Identification.Number)
 	if len(p.LiabilityCodes) > 0 {
-		tlc := taxScheme.CreateElement("cbc:TaxLevelCode")
-		tlc.CreateAttr("listName", "")
-		tlc.SetText(strings.Join(p.LiabilityCodes, ";"))
+		taxScheme.CreateElement("cbc:TaxLevelCode").SetText(strings.Join(p.LiabilityCodes, ";"))
 	}
 	scheme := taxScheme.CreateElement("cac:TaxScheme")
 	scheme.CreateElement("cbc:ID").SetText(p.TaxSchemeCode)
@@ -131,6 +136,13 @@ func appendDSCustomerParty(root *etree.Element, p domain.Party) {
 	ap := root.CreateElement("cac:AccountingCustomerParty")
 	ap.CreateElement("cbc:AdditionalAccountID").SetText(p.EntityTypeCode)
 	party := ap.CreateElement("cac:Party")
+
+	party.CreateElement("cac:PartyName").CreateElement("cbc:Name").SetText(p.Name)
+
+	if p.Address.Line != "" {
+		addr := party.CreateElement("cac:PhysicalLocation").CreateElement("cac:Address")
+		appendAddressFields(addr, p.Address)
+	}
 
 	taxScheme := party.CreateElement("cac:PartyTaxScheme")
 	taxScheme.CreateElement("cbc:RegistrationName").SetText(p.Name)

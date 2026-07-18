@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/beevik/etree"
@@ -1162,12 +1161,11 @@ func partyFromIssuer(iss *issuers.Issuer) domain.Party {
 	}
 }
 
-// vendorAsNIT normaliza el proveedor del DS para cumplir las reglas DIAN:
-//   - TypeCode="31" (DSAJ25a: schemeName debe ser "31").
-//   - EntityTypeCode="1" (DSAJ08a: único conjunto de elementos documentado en caja de herramientas DS v1.1).
-//   - LiabilityCodes=["O-47"] si el proveedor trae códigos PN (R-*-PN) o ninguno — el código
-//     O-47 ("no obligado a FE") es el estándar para proveedores no obligados en DS.
-// El DV se recalcula si el tipo original no era "31".
+// vendorAsNIT normaliza el proveedor del DS: fuerza schemeName="31" (DSAJ25a) y recalcula
+// el DV cuando el tipo original no era NIT. PostalZone se rellena con "000000" si está vacío
+// (la DIAN exige el elemento; "000000" es el placeholder estándar en producción).
+// EntityTypeCode y LiabilityCodes se dejan tal como vienen del catálogo — el DS real acepta
+// tanto persona natural ("2"/R-99-PN) como jurídica ("1"/O-*).
 func vendorAsNIT(p domain.Party) domain.Party {
 	if p.Identification.TypeCode != "31" {
 		digit, err := nit.ComputeCheckDigit(p.Identification.Number)
@@ -1176,34 +1174,23 @@ func vendorAsNIT(p domain.Party) domain.Party {
 		}
 		p.Identification.TypeCode = "31"
 	}
-	p.EntityTypeCode = "1"
-	if needsDefaultLiability(p.LiabilityCodes) {
-		p.LiabilityCodes = []string{"O-23", "O-47"}
+	if p.Address.PostalZone == "" {
+		p.Address.PostalZone = "000000"
 	}
 	return p
-}
-
-// needsDefaultLiability devuelve true si los códigos de responsabilidad no son válidos para un
-// proveedor DS (persona jurídica no obligada): códigos vacíos o con sufijo "-PN" (persona natural).
-func needsDefaultLiability(codes []string) bool {
-	if len(codes) == 0 {
-		return true
-	}
-	for _, c := range codes {
-		if strings.HasSuffix(c, "-PN") {
-			return true
-		}
-	}
-	return false
 }
 
 // partyFromIssuerAsNIT es igual que partyFromIssuer pero fuerza TypeCode="31" y
 // VerificationCode=CheckDigit — requerido para AccountingCustomerParty en DS (la empresa
 // emisora siempre se identifica como NIT en el DS, sin importar su tipo de identificación).
+// PostalZone se rellena con "000000" si está vacío — la DIAN exige el elemento en PhysicalLocation.
 func partyFromIssuerAsNIT(iss *issuers.Issuer) domain.Party {
 	p := partyFromIssuer(iss)
 	p.Identification.TypeCode = "31"
 	p.Identification.VerificationCode = iss.CheckDigit
+	if p.Address.PostalZone == "" {
+		p.Address.PostalZone = "000000"
+	}
 	return p
 }
 

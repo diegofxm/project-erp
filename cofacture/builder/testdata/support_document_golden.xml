@@ -47,8 +47,11 @@
   <cbc:DocumentCurrencyCode>COP</cbc:DocumentCurrencyCode>
   <cbc:LineCountNumeric>1</cbc:LineCountNumeric>
   <cac:AccountingSupplierParty>
-    <cbc:AdditionalAccountID>1</cbc:AdditionalAccountID>
+    <cbc:AdditionalAccountID>2</cbc:AdditionalAccountID>
     <cac:Party>
+      <cac:PartyName>
+        <cbc:Name>María García</cbc:Name>
+      </cac:PartyName>
       <cac:PhysicalLocation>
         <cac:Address>
           <cbc:ID>05001</cbc:ID>
@@ -66,8 +69,8 @@
       </cac:PhysicalLocation>
       <cac:PartyTaxScheme>
         <cbc:RegistrationName>María García</cbc:RegistrationName>
-        <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeName="13">1020304050</cbc:CompanyID>
-        <cbc:TaxLevelCode listName="">O-49</cbc:TaxLevelCode>
+        <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="8" schemeName="31">1020304050</cbc:CompanyID>
+        <cbc:TaxLevelCode>R-99-PN</cbc:TaxLevelCode>
         <cac:TaxScheme>
           <cbc:ID>ZZ</cbc:ID>
           <cbc:Name>No aplica</cbc:Name>
@@ -78,9 +81,27 @@
   <cac:AccountingCustomerParty>
     <cbc:AdditionalAccountID>2</cbc:AdditionalAccountID>
     <cac:Party>
+      <cac:PartyName>
+        <cbc:Name>MI EMPRESA S.A.S.</cbc:Name>
+      </cac:PartyName>
+      <cac:PhysicalLocation>
+        <cac:Address>
+          <cbc:ID>11001</cbc:ID>
+          <cbc:CityName>Bogotá D.C.</cbc:CityName>
+          <cbc:CountrySubentity>Bogotá D.C.</cbc:CountrySubentity>
+          <cbc:CountrySubentityCode>11</cbc:CountrySubentityCode>
+          <cac:AddressLine>
+            <cbc:Line>Calle 123 #45-67</cbc:Line>
+          </cac:AddressLine>
+          <cac:Country>
+            <cbc:IdentificationCode>CO</cbc:IdentificationCode>
+            <cbc:Name languageID="es">Colombia</cbc:Name>
+          </cac:Country>
+        </cac:Address>
+      </cac:PhysicalLocation>
       <cac:PartyTaxScheme>
         <cbc:RegistrationName>MI EMPRESA S.A.S.</cbc:RegistrationName>
-        <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="3" schemeName="31">900123456</cbc:CompanyID>
+        <cbc:CompanyID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)" schemeID="8" schemeName="31">900123456</cbc:CompanyID>
         <cbc:TaxLevelCode>O-13;O-15;O-23</cbc:TaxLevelCode>
         <cac:TaxScheme>
           <cbc:ID>01</cbc:ID>

@@ -19,6 +19,7 @@ type Address struct {
 	Line        string
 	CityCode    string
 	CityName    string
+	PostalZone  string
 	StateCode   string
 	StateName   string
 	CountryCode string

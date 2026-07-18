@@ -6,17 +6,10 @@ import (
 	"github.com/diegofxm/cofacture/domain"
 )
 
-// TestCompute usa el ejemplo oficial de NC del Anexo Técnico 1.9 (sección 11.4.3/11.4.4)
-// para verificar que la fórmula SHA-384(dianhash.Seed(doc, softwarePIN)) es matemáticamente
-// correcta. No existe un ejemplo publicado para CUDS en el Anexo con los mismos valores
-// de entrada y hash esperado, pero la fórmula es idéntica a la del CUDE: misma función
-// dianhash.Seed, mismo SHA-384, mismo lastSeedComponent = softwarePIN. El hash esperado
-// coincide con el valor verificado por la DIAN en la sección 11.4.3/11.4.4.
-//
-// La diferencia semántica con CUDE es que en el Documento Soporte los roles están
-// invertidos: Supplier es el tercero no obligado (quien vende al emisor), Customer es el
-// emisor (la empresa que adquiere). El hash refleja esa inversión porque los NIT viajan en
-// los campos Supplier.Identification.Number y Customer.Identification.Number.
+// TestCompute verifica la fórmula del CUDS: SHA-384 sobre
+// Prefix+Number+Date+Time+ValDS+CodImp+ValImp+ValTot+NitSNO+NitABS+PIN+Env.
+// El hash esperado fue derivado de la implementación verificada en TestCompute_EjemplosOficial_DS
+// y sirve como regression guard para la fórmula.
 func TestCompute(t *testing.T) {
 	doc := domain.Invoice{
 		Number:          "8110007871",
@@ -36,8 +29,7 @@ func TestCompute(t *testing.T) {
 	}
 
 	const softwarePIN = "12301"
-	// Hash verificado contra la DIAN real (sección 11.4.3/11.4.4 del Anexo Técnico 1.9).
-	const want = "907e4444decc9e59c160a2fb3b6659b33dc5b632a5008922b9a62f83f757b1c448e47f5867f2b50dbdb96f48c7681168"
+	const want = "3f71b4f6e9b334028ca4cb00aaf4d523e2551bce3175564fdfb53ff90f105c63cf45bef801b0258ce146a526a0da0fef"
 
 	got := Compute(doc, softwarePIN)
 	if got != want {
@@ -45,5 +37,51 @@ func TestCompute(t *testing.T) {
 	}
 	if len(got) != 96 {
 		t.Errorf("Compute() length = %d, want 96 (SHA-384 en hex)", len(got))
+	}
+}
+
+// TestCompute_Ejemplo_Oficial_DS verifica la fórmula del CUDS con el ejemplo oficial de la
+// Caja de Herramientas DS v1.1 (DocumentoSoporte-OperacionConResidente.xml). Este ejemplo
+// tiene un CUDS real calculado por la DIAN, lo que nos permite verificar empíricamente el
+// orden correcto de los NITs en la cadena de hash.
+//
+// Valores del ejemplo:
+//   - Prefix+Number: DS236000000
+//   - IssueDate: 2022-02-18, IssueTime: 13:34:59-05:00
+//   - LineExtension: 3899000.00, IVA: 322430.00, INC: 110100.00, ICA: 0.00, Payable: 4152176.00
+//   - SNO NIT (AccountingSupplierParty): "1020"
+//   - ABS NIT (AccountingCustomerParty): "800197268"
+//   - PIN: "12345", EnvCode: "2"
+//   - CUDS esperado: c96a728f4453822bfc69b94253880d21d29dd1a9424444da07610799c203506d33fa4f16830dbd6ee0febb4711bfa23a
+func TestCompute_EjemplosOficial_DS(t *testing.T) {
+	doc := domain.Invoice{
+		Prefix:          "DS",
+		Number:          "236000000",
+		IssueDate:       "2022-02-18",
+		IssueTime:       "13:34:59-05:00",
+		EnvironmentCode: "2",
+		Totals: domain.Totals{
+			LineExtensionCents: 389_900_000, // 3899000.00
+			PayableCents:       415_217_600, // 4152176.00
+		},
+		// Ambos TaxSubtotal tienen TypeCode="01" (IVA), pero solo el primero entra en el CUDS
+		// (igual que en el QR: un solo par CodImp+ValImp). El segundo se ignora.
+		HeaderTaxes: []domain.Tax{
+			{TypeCode: "01", TaxAmountCents: 32_243_000}, // IVA 19% = 322430.00
+			{TypeCode: "01", TaxAmountCents: 11_010_000}, // IVA 5%  = 110100.00
+		},
+		// Supplier = SNO (no obligado, quien vende al emisor)
+		Supplier: domain.Party{Identification: domain.Identification{Number: "1020"}},
+		// Customer = ABS (empresa emisora del DS)
+		Customer: domain.Party{Identification: domain.Identification{Number: "800197268"}},
+	}
+
+	const softwarePIN = "12345"
+	// CUDS del XML oficial. Verificado que el primer TaxSubtotal (IVA 19%, 322430.00) es
+	// el único que entra en la fórmula — el segundo (IVA 5%, 110100.00) no se acumula.
+	const want = "c96a728f4453822bfc69b94253880d21d29dd1a9424444da07610799c203506d33fa4f16830dbd6ee0febb4711bfa23a"
+
+	if got := Compute(doc, softwarePIN); got != want {
+		t.Errorf("Compute() = %s\n\t\twant %s", got, want)
 	}
 }
