@@ -451,6 +451,7 @@ type numberingRangeResponse struct {
 	ValidFrom            string    `json:"valid_from"`
 	ValidTo              string    `json:"valid_to"`
 	Environment          string    `json:"environment"`
+	TestSetID            string    `json:"test_set_id,omitempty"`
 	IsActive             bool      `json:"is_active"`
 	// Status resume IsActive/Exhausted/ValidTo en un solo valor ("active"/"expired"/
 	// "exhausted"/"inactive") — ver numbering.NumberingRange.Status. El frontend lo usa para
@@ -471,6 +472,7 @@ func numberingRangeToResponse(nr *numbering.NumberingRange) numberingRangeRespon
 		ValidFrom:            nr.ValidFrom.Format("2006-01-02"),
 		ValidTo:              nr.ValidTo.Format("2006-01-02"),
 		Environment:          string(nr.Environment),
+		TestSetID:            nr.TestSetID,
 		IsActive:             nr.IsActive,
 		Status:               nr.Status(),
 	}

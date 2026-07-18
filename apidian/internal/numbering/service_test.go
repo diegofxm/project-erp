@@ -30,6 +30,7 @@ func validRange() numbering.NumberingRange {
 		ValidTo:              time.Now().AddDate(2, 0, 0),
 		Environment:          numbering.EnvironmentHabilitacion,
 		TechnicalKey:         "clave-tecnica-de-prueba",
+		TestSetID:            "653bf9d9-b2b1-44ae-a66d-3b9cdc4271c3",
 	}
 }
 
@@ -54,6 +55,7 @@ func TestRegisterRange_Validations(t *testing.T) {
 		{"range_from en cero", func(nr *numbering.NumberingRange) { nr.RangeFrom = 0 }, numbering.ErrInvalidRange},
 		{"range_from mayor que range_to", func(nr *numbering.NumberingRange) { nr.RangeFrom = 20; nr.RangeTo = &rangeTo }, numbering.ErrInvalidRange},
 		{"ambiente inválido", func(nr *numbering.NumberingRange) { nr.Environment = "9" }, numbering.ErrInvalidEnvironment},
+		{"habilitación sin test_set_id", func(nr *numbering.NumberingRange) { nr.TestSetID = "" }, numbering.ErrMissingTestSetID},
 	}
 
 	for _, tt := range tests {

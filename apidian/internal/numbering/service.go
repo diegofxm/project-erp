@@ -103,5 +103,8 @@ func validateRange(nr NumberingRange) error {
 	default:
 		return ErrInvalidEnvironment
 	}
+	if nr.Environment == EnvironmentHabilitacion && strings.TrimSpace(nr.TestSetID) == "" {
+		return ErrMissingTestSetID
+	}
 	return nil
 }

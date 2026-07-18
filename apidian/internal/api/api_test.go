@@ -495,12 +495,14 @@ func TestAPI_CreateNumberingRange_OK(t *testing.T) {
 		"valid_to":                "2026-01-01",
 		"environment":             "2",
 		"technical_key":           "clave-tecnica-de-prueba",
+		"test_set_id":             "653bf9d9-b2b1-44ae-a66d-3b9cdc4271c3",
 	})
 
 	require.Equal(t, http.StatusCreated, rw.Code)
 	var got map[string]any
 	decode(t, rw, &got)
 	assert.Equal(t, "SETP", got["prefix"])
+	assert.Equal(t, "653bf9d9-b2b1-44ae-a66d-3b9cdc4271c3", got["test_set_id"])
 	assert.NotContains(t, got, "technical_key", "el secreto nunca debe salir en la respuesta")
 }
 
