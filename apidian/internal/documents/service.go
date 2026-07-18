@@ -6,10 +6,12 @@ import (
 	"crypto/x509"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/beevik/etree"
 	"github.com/diegofxm/apidian/internal/issuers"
+	"github.com/diegofxm/apidian/internal/nit"
 	"github.com/diegofxm/apidian/internal/numbering"
 	"github.com/diegofxm/cofacture/builder"
 	"github.com/diegofxm/cofacture/cude"
@@ -687,9 +689,9 @@ func (s *Service) confirmSupportDocument(ctx context.Context, d *Document) (*Doc
 		Note:         d.Note,
 
 		// Roles invertidos: Supplier = tercero no obligado, Customer = empresa compradora.
-		// Customer siempre con TypeCode="31" (NIT) + VerificationCode, sin importar el tipo
-		// de identificación registrado del emisor (DSAJ25a/DSAK24b/DSAK25).
-		Supplier: *d.Vendor,
+		// vendorAsNIT fuerza TypeCode="31" y EntityTypeCode="1" (DSAJ25a + DSAJ08a).
+		// partyFromIssuerAsNIT fuerza TypeCode="31" en el emisor (DSAK24b/DSAK25).
+		Supplier: vendorAsNIT(*d.Vendor),
 		Customer: partyFromIssuerAsNIT(p.iss),
 
 		PaymentMeans:     d.PaymentMeans,
@@ -1158,6 +1160,41 @@ func partyFromIssuer(iss *issuers.Issuer) domain.Party {
 		Email:                       iss.Email,
 		MerchantRegistrationNumber:  iss.MerchantRegistrationNumber,
 	}
+}
+
+// vendorAsNIT normaliza el proveedor del DS para cumplir las reglas DIAN:
+//   - TypeCode="31" (DSAJ25a: schemeName debe ser "31").
+//   - EntityTypeCode="1" (DSAJ08a: único conjunto de elementos documentado en caja de herramientas DS v1.1).
+//   - LiabilityCodes=["O-47"] si el proveedor trae códigos PN (R-*-PN) o ninguno — el código
+//     O-47 ("no obligado a FE") es el estándar para proveedores no obligados en DS.
+// El DV se recalcula si el tipo original no era "31".
+func vendorAsNIT(p domain.Party) domain.Party {
+	if p.Identification.TypeCode != "31" {
+		digit, err := nit.ComputeCheckDigit(p.Identification.Number)
+		if err == nil {
+			p.Identification.VerificationCode = digit
+		}
+		p.Identification.TypeCode = "31"
+	}
+	p.EntityTypeCode = "1"
+	if needsDefaultLiability(p.LiabilityCodes) {
+		p.LiabilityCodes = []string{"O-23", "O-47"}
+	}
+	return p
+}
+
+// needsDefaultLiability devuelve true si los códigos de responsabilidad no son válidos para un
+// proveedor DS (persona jurídica no obligada): códigos vacíos o con sufijo "-PN" (persona natural).
+func needsDefaultLiability(codes []string) bool {
+	if len(codes) == 0 {
+		return true
+	}
+	for _, c := range codes {
+		if strings.HasSuffix(c, "-PN") {
+			return true
+		}
+	}
+	return false
 }
 
 // partyFromIssuerAsNIT es igual que partyFromIssuer pero fuerza TypeCode="31" y
