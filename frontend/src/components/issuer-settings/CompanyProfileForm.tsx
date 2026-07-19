@@ -253,6 +253,13 @@ export function CompanyProfileForm() {
       ) : (
         <form id="company-profile-form" onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div className="grid grid-cols-12 gap-3">
+            {/* Identificación — inmutable, solo lectura */}
+            <div className="col-span-12 rounded border border-(--border-color) bg-(--bg-secondary) px-3 py-2">
+              <p className="text-xs text-(--text-muted)">Identificación (no editable)</p>
+              <p className="mt-0.5 text-xs font-medium text-(--text-primary)">
+                {idTypeLabel} {formattedNit} · {envLabel}
+              </p>
+            </div>
             <div className="col-span-6">
               <Input
                 label="Razón social"

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "react-router";
-import { CheckCircle2, UserPlus } from "lucide-react";
+import { CheckCircle2, UserPlus, X } from "lucide-react";
 import { ApiError } from "../lib/apiClient";
 import { getPublicIssuer, getPublicIssuerLogoBlobUrl, registerPublicCustomer } from "../lib/publicRegistration";
 import { AsyncImage } from "../components/ui/AsyncImage";
@@ -11,9 +11,6 @@ import { Input } from "../components/ui/Input";
 import { Select } from "../components/ui/Select";
 import { Spinner } from "../components/ui/Spinner";
 
-// Lista corta a mano (no el catálogo identification_types completo): esta página no tiene
-// sesión, y los identification-types de apidian son una ruta autenticada (ver
-// docs/apidian-architecture.md sección 9.41) — estos 5 cubren el caso real de mostrador.
 const IDENTIFICATION_TYPES = [
   { code: "13", name: "Cédula de Ciudadanía" },
   { code: "31", name: "NIT" },
@@ -22,9 +19,6 @@ const IDENTIFICATION_TYPES = [
   { code: "91", name: "NUIP" },
 ];
 
-// Página pública de autorregistro (patrón QR/D1, sección 9.41) — sin Navbar/Sidebar, sin
-// sesión: el emisor imprime el link/QR a esta ruta en su mostrador, el cliente la escanea
-// desde el celular y se autorregistra sin que nadie tenga que digitar nada por él.
 export function PublicCustomerRegisterPage() {
   const { issuerId } = useParams<{ issuerId: string }>();
   const [businessName, setBusinessName] = useState<string | null>(null);
@@ -40,40 +34,35 @@ export function PublicCustomerRegisterPage() {
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [done, setDone] = useState(false);
 
   useEffect(() => {
     if (!issuerId) return;
     let objectUrl: string | null = null;
-    // El logo se trae aparte, sin bloquear que el formulario aparezca — mismo Spinner de
-    // AsyncImage que LogoForm.tsx mientras llega, en vez de esperar el blob para mostrar todo
-    // junto (regla general: ninguna imagen asíncrona deja un hueco en blanco, pero tampoco
-    // detiene el resto de la pantalla).
     getPublicIssuer(issuerId)
       .then((iss) => {
         setBusinessName(iss.business_name);
         if (iss.has_logo) {
           setLoadingLogo(true);
           getPublicIssuerLogoBlobUrl(issuerId)
-            .then((url) => {
-              objectUrl = url;
-              setLogoUrl(url);
-            })
+            .then((url) => { objectUrl = url; setLogoUrl(url); })
             .catch(() => setLogoUrl(null))
             .finally(() => setLoadingLogo(false));
         }
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoadingIssuer(false));
-    // Mismo criterio que LogoForm.tsx: revocar el Object URL al desmontar, no dejarlo vivo más
-    // de lo necesario.
-    return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [issuerId]);
 
-  async function handleSubmit(e: FormEvent) {
+  function handleFormSubmit(e: FormEvent) {
     e.preventDefault();
+    setError(null);
+    setConfirming(true);
+  }
+
+  async function doRegister() {
     if (!issuerId) return;
     setError(null);
     setSubmitting(true);
@@ -85,15 +74,32 @@ export function PublicCustomerRegisterPage() {
         phone: phone || undefined,
       });
       setDone(true);
+      setConfirming(false);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo completar el registro");
+      setConfirming(false);
     } finally {
       setSubmitting(false);
     }
   }
 
+  function resetForm() {
+    setTypeCode("13");
+    setNumber("");
+    setName("");
+    setEmail("");
+    setPhone("");
+    setError(null);
+    setConfirming(false);
+    setDone(false);
+  }
+
+  const logoBlock = (loadingLogo || logoUrl) && (
+    <AsyncImage src={logoUrl} loading={loadingLogo} alt={businessName ?? ""} className="h-14 w-14 rounded-lg p-1" />
+  );
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-(--bg-primary) px-4">
+    <div className="flex min-h-screen items-start justify-center bg-(--bg-primary) px-4 pt-8 sm:items-center sm:pt-0">
       <Card className="w-full max-w-md">
         {loadingIssuer ? (
           <div className="flex min-h-32 items-center justify-center p-4">
@@ -104,16 +110,41 @@ export function PublicCustomerRegisterPage() {
             <Banner tone="danger">Este enlace de registro no es válido.</Banner>
           </div>
         ) : done ? (
-          <div className="flex flex-col items-center gap-3 p-8 text-center">
-            {(loadingLogo || logoUrl) && (
-              <AsyncImage src={logoUrl} loading={loadingLogo} alt={businessName ?? ""} className="h-14 w-14 rounded-lg p-1" />
-            )}
+          <div className="relative flex flex-col items-center gap-3 p-8 text-center">
+            <button
+              type="button"
+              onClick={resetForm}
+              className="absolute right-3 top-3 rounded p-1 text-(--text-muted) transition-colors hover:text-(--text-primary)"
+              aria-label="Cerrar"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            {logoBlock}
             <CheckCircle2 className="h-8 w-8 text-(--color-success-text)" />
             <div className="flex flex-col gap-1">
               <p className="text-sm font-semibold text-(--text-primary)">¡Listo!</p>
               <p className="text-xs text-(--text-secondary)">
                 Quedaste registrado — {businessName} ya puede facturarte electrónicamente.
               </p>
+            </div>
+          </div>
+        ) : confirming ? (
+          <div className="flex flex-col items-center gap-4 p-8 text-center">
+            {logoBlock}
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-semibold text-(--text-primary)">¿Estás seguro de registrarte?</p>
+              <p className="text-xs text-(--text-secondary)">
+                Se guardará tu información como cliente de <strong>{businessName}</strong>.
+              </p>
+            </div>
+            {error && <Banner tone="danger">{error}</Banner>}
+            <div className="flex w-full gap-3">
+              <Button type="button" variant="secondary" className="flex-1" onClick={() => setConfirming(false)} disabled={submitting}>
+                Volver
+              </Button>
+              <Button type="button" icon={<UserPlus className="h-3.5 w-3.5" />} loading={submitting} className="flex-1" onClick={doRegister}>
+                Sí, registrarme
+              </Button>
             </div>
           </div>
         ) : (
@@ -127,15 +158,13 @@ export function PublicCustomerRegisterPage() {
                 <h1 className="text-base font-semibold text-(--text-primary)">{businessName}</h1>
               </div>
             </div>
-            <form className="flex flex-col gap-3 p-5" onSubmit={handleSubmit}>
+            <form className="flex flex-col gap-3 p-5" onSubmit={handleFormSubmit}>
               {error && <Banner tone="danger">{error}</Banner>}
               <div className="grid grid-cols-12 gap-3">
                 <div className="col-span-5">
                   <Select label="Tipo de identificación" required value={typeCode} onChange={(e) => setTypeCode(e.target.value)}>
                     {IDENTIFICATION_TYPES.map((t) => (
-                      <option key={t.code} value={t.code}>
-                        {t.name}
-                      </option>
+                      <option key={t.code} value={t.code}>{t.name}</option>
                     ))}
                   </Select>
                 </div>
@@ -146,13 +175,13 @@ export function PublicCustomerRegisterPage() {
                   <Input label="Nombre completo" required value={name} onChange={(e) => setName(e.target.value)} />
                 </div>
                 <div className="col-span-6">
-                  <Input label="Correo (opcional)" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                  <Input label="Correo electrónico" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
                 <div className="col-span-6">
                   <Input label="Teléfono (opcional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
                 </div>
               </div>
-              <Button type="submit" icon={<UserPlus className="h-3.5 w-3.5" />} loading={submitting} className="w-full">
+              <Button type="submit" icon={<UserPlus className="h-3.5 w-3.5" />} className="w-full">
                 Registrarme
               </Button>
             </form>
