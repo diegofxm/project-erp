@@ -687,11 +687,12 @@ Implementación:
 El usuario pidió reemplazar el sidebar con grupos expandibles/flyouts (confuso al colapsar) por
 un patrón más limpio y escalable:
 
-**Sidebar plano** (`components/Sidebar.tsx`): solo 5 ítems de primer nivel — Inicio, Documentos,
-Clientes, Productos, Configuración. Sin grupos, sin flyouts, sin chevrons, sin `expandedGroups`
-en localStorage. "Documentos" apunta a `/documents/invoices` pero queda activo para cualquier
-ruta `/documents/*` (campo `activePrefix` en la definición del ítem, leído desde `useLocation()`
-en el render — no depende del `isActive` de NavLink). El toggle de colapso se mantiene igual.
+**Sidebar plano** (`components/Sidebar.tsx`): 6 ítems de primer nivel — Inicio, Documentos,
+Clientes, Productos, Proveedores, Configuración. Sin grupos, sin flyouts, sin chevrons, sin
+`expandedGroups` en localStorage. "Documentos" apunta a `/documents/invoices` pero queda activo
+para cualquier ruta `/documents/*` (campo `activePrefix` en la definición del ítem, leído desde
+`useLocation()` en el render — no depende del `isActive` de NavLink). El toggle de colapso se
+mantiene igual. "Proveedores" (`/vendors`) se agregó junto con el DS (ver sección Vendors/DS).
 
 **`components/SubNav.tsx`** (nuevo): barra de pestañas contextual, `h-10`, justo debajo del
 navbar. Lee `useLocation().pathname`, busca el primer prefijo en un array de configuración, y si
@@ -701,7 +702,7 @@ tape el borde inferior del contenedor. Tab inactiva: `border-transparent text-(-
 
 Configuración de sub-navegación actual en `SUB_NAVS`:
 ```ts
-{ prefix: "/documents", items: [Factura Electrónica, Nota Crédito, Nota Débito] }
+{ prefix: "/documents", items: [Factura Electrónica, Nota Crédito, Nota Débito, Documento Soporte] }
 { prefix: "/settings",  items: [General, Mi cuenta, Empresa] }
 ```
 Para agregar sub-páginas a una sección futura, solo se agrega una entrada a `SUB_NAVS` sin
@@ -721,7 +722,7 @@ estaba — al recargar siempre volvía a "General". Reemplazado por rutas propia
 |---|---|---|
 | `/settings` | `<Navigate to="/settings/general" replace />` | Redirige |
 | `/settings/general` | `SettingsGeneralPage` | Toggle de tema |
-| `/settings/account` | `SettingsAccountPage` | Nombre y correo (solo lectura) |
+| `/settings/account` | `SettingsAccountPage` | Nombre y correo — formulario editable (`PUT /auth/me`) |
 | `/settings/company` | `SettingsCompanyPage` | Software, certificado, logo, rangos |
 
 El SubNav maneja la navegación entre sub-páginas (mismo patrón que `/documents/*`). Recargar la
@@ -831,8 +832,113 @@ a `getDocumentPdfBlobUrl` y `sendDocumentEmail` — los endpoints `/documents/{i
 
 El ciclo completo (borrador → confirmar → PDF → correo) queda parejo entre Factura, NC y ND.
 
+## Perfil de empresa (`CompanyProfileForm`) y edición de cuenta (2026-07-13)
+
+`SettingsAccountPage` pasó de solo lectura a formulario editable: nombre y correo del usuario
+se actualizan vía `PUT /auth/me`. Al guardar, el `AuthContext` actualiza el `user` en memoria
+y en `localStorage` sin necesidad de re-login.
+
+`SettingsCompanyPage` incorporó `CompanyProfileForm` — formulario separado para los campos
+públicos del emisor: razón social, dirección, teléfono, CIIU codes, régimen. Se envía vía
+`PATCH /issuers/me/profile`. Los datos de credenciales DIAN (software, certificado) siguen en
+la sección existente de `PUT /issuers/me`.
+
+## Catálogo de Proveedores (Vendors) (2026-07-15)
+
+Paralelo completo al catálogo de clientes, para los proveedores no obligados a facturar que
+aparecen como SNO en Documentos Soporte.
+
+**Rutas y páginas:**
+
+| Ruta | Componente | Función |
+|---|---|---|
+| `/vendors` | `VendorsPage` | Lista de proveedores del emisor + botón "Nuevo Proveedor" |
+| `/vendors/new` | `VendorForm` | Formulario de creación |
+| `/vendors/:id` | `VendorForm` | Formulario de edición |
+
+**Sidebar:** ítem "Proveedores" con `BuildingIcon`, entre Productos y Configuración.
+
+**`VendorSection`** — componente de selector reutilizable (igual patrón que `CustomerSection`):
+búsqueda en tiempo real, carga del catálogo de `/vendors`, selección y pre-llenado en
+`SupportDocumentForm`. Cuando el proveedor se selecciona, sus datos se copian al formulario del
+DS (mismo snapshot pattern que customers en FE).
+
+## Documento Soporte (DS tipo 05) (2026-07-15)
+
+Cuarto tipo de documento del SubNav de `/documents`.
+
+**Rutas y páginas:**
+
+| Ruta | Componente | Función |
+|---|---|---|
+| `/documents/support-documents` | `SupportDocumentsPage` | Lista de DS del emisor |
+| `/documents/support-documents/new` | `SupportDocumentEditorPage` | Editor/visor de DS |
+| `/documents/support-documents/:id` | `SupportDocumentEditorPage` | Editor/visor de DS existente |
+
+**`SupportDocumentForm`** — formulario equivalente a `InvoiceForm` para el DS:
+- `VendorSection` (selector de proveedor/SNO) — igual a `CustomerSection` en InvoiceForm
+- Líneas de ítems (mismo `LinesEditor`)
+- `HeaderTaxesEditor` — en DS solo se usa el primer impuesto (HeaderTaxes[0]) para el CUDS
+- Selector de rango de numeración filtrado a `dian_document_type_code = "05"`
+- Sin `PaymentTerms` (no aplica en DS)
+
+El flujo de confirmación es idéntico al de FE: borrador → `POST /support-documents/{id}/confirm`
+→ si el rango tiene `test_set_id` usa SendTestSetAsync (habilitación), si no usa SendBillSync
+(producción). PDF y reenvío por correo disponibles una vez confirmado.
+
+**Alineación con InvoiceForm:** `SupportDocumentForm` sigue la misma estructura de grilla
+`grid-cols-12` y los mismos componentes de UI que `InvoiceForm` — decisión explícita para
+mantener paridad visual y facilitar mantenimiento futuro.
+
+## Notificaciones en tiempo real (`NotificationContext`, `NotificationBell`) (2026-07-11)
+
+Sistema de notificaciones tipo inbox, persistido en `localStorage` bajo
+`apidian.notifications.<issuer_id>`.
+
+**`NotificationContext.tsx`** — provider global montado en `App.tsx`, expone:
+- `notifications: Notification[]` — lista de notificaciones del emisor activo
+- `unreadCount: number`
+- `markAllRead()`, `dismiss(id)`, `addNotification(n)` (para pruebas/futuro)
+
+Al cambiar de empresa activa (nuevo `activeIssuer`), el contexto carga las notificaciones del
+nuevo emisor desde `localStorage` y descarta las del anterior — sin mezclar datos entre tenants.
+
+**`NotificationBell`** — icono de campana en el Navbar con badge numérico cuando hay no leídas.
+Click despliega un dropdown con las notificaciones más recientes. Las notificaciones se generan
+internamente cuando un documento cambia de estado (confirmado, rechazado por la DIAN, etc.) —
+no hay websocket ni polling al backend, todo es local al browser hasta que se implemente un
+canal push real.
+
+## Filtros en lista de documentos (2026-07-12)
+
+`InvoicesPage`, `CreditNotesPage`, `DebitNotesPage` y `SupportDocumentsPage` tienen filtros
+activos:
+- **Por estado** (`draft`, `accepted`, `rejected`)
+- **Por fecha** (rango desde/hasta)
+- **Búsqueda libre** (número de documento, nombre del cliente/proveedor)
+
+Los filtros se envían como query params a `GET /documents` (`?status=&from=&to=&q=`).
+El backend aplica los filtros en SQL — no hay filtrado en memoria en el frontend.
+
+## Selector de formato PDF (full_a4 / half_a4) (2026-07-13)
+
+El botón "Ver PDF" de los editores abre un pequeño selector antes de solicitar el PDF:
+
+- **Hoja completa (A4)** — formato estándar, una factura por hoja
+- **Media hoja (A4)** — formato compacto, dos facturas por hoja (útil para impresoras de
+  tiquetes o ahorro de papel)
+
+El formato se envía como query param: `GET /documents/{id}/pdf?format=full_a4` o `half_a4`.
+El default (sin param) es `full_a4`.
+
 ## Pendiente para próximas fases
 
-- Endpoint para editar perfil de usuario (nombre/correo) — `SettingsAccountPage` sigue siendo
-  solo lectura porque no existe endpoint en el backend.
-- Filtros en la lista de facturas (por estado, fecha, cliente).
+- Sidebar: sincronizar expansión del grupo "Documentos" con la ruta activa — si el usuario
+  navega a Clientes, el grupo debería cerrarse solo (actualmente requiere click manual).
+- Modal de confirmación propio — los 7 sitios con `window.confirm` (eliminar borrador/logo/
+  cliente/producto/rango) deberían usar un modal UI en lugar del diálogo nativo del navegador.
+- Toast system — los mensajes de éxito/error de acciones (`Banner` fijo) deberían ser toasts
+  con auto-cierre en lugar de banners permanentes.
+- Banner "sin conexión" — si el backend no responde al cargar, mostrar aviso claro en lugar de
+  renderizar el dashboard silenciosamente con datos de `localStorage`.
+- Nota de Ajuste (95) para DS — depende de que el backend implemente el tipo 95 (DS ya está).

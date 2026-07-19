@@ -127,8 +127,8 @@ Invoice Model (con Issuer + Party + Items embebidos)
 
 ## 4. Estructura del Proyecto APIDIAN
 
-> Igual que en la sección 2: esto refleja lo que ya existe (Fase 2.1-2.2), no solo el plan
-> original. Mismos patrones que `core-bank` (config/logger/database/server), sin `cache` ni
+> Refleja el estado actual (Fase 2 completa hasta 2.15+), no solo el plan original.
+> Mismos patrones que `core-bank` (config/logger/database/server), sin `cache` ni
 > `telemetry` — no hacen falta todavía aquí.
 
 ```
@@ -149,8 +149,8 @@ apidian/
 │   ├── server/                      # http.Server, routes(), /health
 │   ├── issuers/                      # emisor/tenant: datos + credenciales DIAN cifradas
 │   ├── numbering/                      # rangos de numeración + ClaimNext atómico (UPDATE de una fila)
-│   ├── documents/                      # orquesta cofacture (Invoice/CreditNote/DebitNote) —
-│   │                                    # el único paquete que lo importa directamente
+│   ├── documents/                      # orquesta cofacture (FE/NC/ND/DS) — el único paquete
+│   │                                    # que importa cofacture directamente; usa pdf+email+nit
 │   ├── auth/                            # usuarios + login + JWT — multi-empresa (ver 9.32):
 │   │   │                                  # un usuario puede tener 0, 1, o varias empresas
 │   │   ├── service.go                     # Register (solo usuario) / CreateIssuerForUser /
@@ -161,15 +161,25 @@ apidian/
 │   ├── customers/                       # catálogo de adquirientes — conveniencia, no la
 │   │                                      # fuente de verdad del documento (ver 4.2/9.21)
 │   ├── products/                        # catálogo de ítems/servicios — misma lógica
-│   └── api/                             # capa HTTP — primera vez que esto se expone por red
-│       ├── api.go                        # New()/NewFromServices(), Handler(), rutas
+│   ├── vendors/                         # catálogo de proveedores no obligados (SNO para DS) —
+│   │                                      # mismo patrón que customers; ver 9.53/9.56
+│   ├── pdf/                             # generación PDF en memoria con maroto v2 (ver 9.39);
+│   │                                      # recibe domain.Invoice + IssuerForDocument, devuelve []byte
+│   ├── email/                           # cliente SMTP con go-mail (ver 9.40); SMTPSender
+│   │                                      # satisface documents.EmailPort sin que email importe documents
+│   ├── nit/                             # ComputeCheckDigit — módulo 11, dígito verificador NIT
+│   └── api/                             # capa HTTP — 66 rutas (ver sección 6)
+│       ├── api.go                        # New()/NewFromServices(), Handler(), registerRoutes()
 │       ├── dto.go                         # contrato JSON, independiente de domain.* de cofacture
-│       ├── handler_auth.go                 # register/login (únicas rutas públicas)
-│       ├── handler_issuers.go              # issuers/me + numbering-ranges (protegidas)
-│       ├── handler_documents.go             # invoices/credit-notes/debit-notes/documents
+│       ├── handler_auth.go                 # register/login/PUT me
+│       ├── handler_public.go               # rutas públicas sin auth: GET /public/issuers/*, POST /public/issuers/{id}/customers
+│       ├── handler_issuers.go              # issuers/me + numbering-ranges + PATCH profile + logo + software
+│       ├── handler_documents.go             # invoices/credit-notes/debit-notes/documents + pdf/xml/email
+│       ├── handler_support_documents.go     # POST/PUT /support-documents (DS — CUDS-SHA384, ver 9.55)
 │       ├── handler_customers.go              # CRUD de customers
 │       ├── handler_products.go                # CRUD de products
-│       ├── middleware/                       # RequestID/Logging/Recovery/Auth
+│       ├── handler_vendors.go                 # CRUD de vendors (para DS, ver 9.56)
+│       ├── middleware/                       # RequestID/Logging/Recovery/Auth/LoginRateLimit
 │       └── response/                          # WriteJSON/WriteError/classify()
 ```
 
@@ -194,18 +204,20 @@ config, logger, cryptutil      (sin dependencias entre sí — cryptutil es la �
    ┌────┴────┐
  issuers   numbering            (ambos usan database+cryptutil; independientes entre sí)
    └────┬────┘
-        ├──────────────┬──────────────┐
-        ↓              ↓              ↓
-       auth        customers       products    (customers/products solo usan database —
-        ↓              ↓              ↓         ninguno depende de issuers en Go, solo
-        │              ↓              │         issuer_id como FK a nivel de tabla)
-        │          documents ←────────┘         (documents usa issuers+numbering+cofacture+
-        │              ↓                         customers — CustomerPort, ver 9.23: solo para
-        └──────┬───────┘                         validar que un CustomerID opcional pertenezca
-               ↓                                 al mismo emisor, nunca para construir el XML)
-              api          (usa los seis servicios; expone HTTP — middleware.Auth
-                ↓           protege todo excepto /auth/register y /auth/login)
-             server          (conecta todo + /health — ya existe desde la Fase 2.1)
+        ├──────────────┬──────────────┬──────────────┐
+        ↓              ↓              ↓              ↓
+       auth        customers       products       vendors    (todos usan solo database;
+        ↓              ↓              ↓              ↓        issuer_id es FK de tabla,
+        │              │              │              │        no dependencia Go a issuers)
+        │         nit  pdf  email     │              │
+        │              ↓              │              │
+        │          documents ←────────┴──────────────┘       (documents usa issuers+numbering+
+        │              ↓                                       cofacture+customers+vendors+
+        └──────┬───────┘                                       pdf+email+nit; ver 9.23/9.55)
+               ↓
+              api          (usa todos los servicios; expone HTTP — middleware.Auth
+                ↓           protege todo excepto /auth/*, /public/*, /health)
+             server          (conecta todo + /health)
 ```
 
 **Regla de naming**: ninguna tabla ni paquete compartido por varios tipos de documento se
@@ -268,34 +280,85 @@ HTTP → Handler → Service → Repository → COFACTURE → DIAN
 > sirven para conseguir una); el resto responde `409` sin ella (`middleware.RequireTenant`).
 
 ```
-POST /api/v1/auth/register                        # crea SOLO el usuario, sin empresa (público, ver 9.32)
-POST /api/v1/auth/login                           # inicia sesión, devuelve el token (público) — autoselecciona
-                                                   # la empresa activa solo si hay exactamente una vinculada
+# ── Públicas (sin autenticación) ────────────────────────────────────────────────────────────
+POST /api/v1/auth/register                        # crea SOLO el usuario, sin empresa (ver 9.32)
+POST /api/v1/auth/login                           # inicia sesión; autoselecciona empresa si hay exactamente una
+GET  /api/v1/public/issuers/{id}                  # datos públicos del emisor (nombre, logo, NIT) — para widget externo
+GET  /api/v1/public/issuers/{id}/logo             # logo del emisor en binario
+POST /api/v1/public/issuers/{id}/customers        # crear cliente desde portal público (sin auth)
 
-POST /api/v1/issuers                              # crear una empresa nueva y vincularla (rol owner), activa de una
+# ── Autenticadas sin empresa activa (solo JWT válido) ───────────────────────────────────────
+PUT  /api/v1/auth/me                              # actualizar nombre/email/contraseña del usuario autenticado
+POST /api/v1/issuers                              # crear empresa nueva y vincularla (rol owner)
 GET  /api/v1/issuers                              # listar las empresas a las que el usuario tiene acceso
 POST /api/v1/issuers/{id}/select                  # reemitir el token con esa empresa como activa
 
-GET  /api/v1/issuers/me                           # consultar la empresa activa (nunca expone secretos)
-PUT  /api/v1/issuers/me                           # completar software/PIN/certificado, parcial (ver 9.25)
-POST /api/v1/numbering-ranges                     # registrar rango de la empresa activa
-GET  /api/v1/numbering-ranges                     # listar mis rangos (?dian_document_type_code=, sin paginar)
-GET  /api/v1/numbering-ranges/{id}                # consultar rango (debe ser del emisor propio; si no, 404)
-POST /api/v1/invoices                             # crear borrador (sin reclamar número)
-PUT  /api/v1/invoices/{id}                        # reemplazar un borrador
-POST /api/v1/credit-notes
-PUT  /api/v1/credit-notes/{id}
-POST /api/v1/debit-notes
-PUT  /api/v1/debit-notes/{id}
-POST /api/v1/documents/{id}/confirm               # reclamar número + firmar + enviar si aplica (ver 9.25)
-DELETE /api/v1/documents/{id}                     # eliminar un borrador (404 si no es del emisor, 409 si ya no es borrador)
-GET  /api/v1/documents                            # listar mis documentos (filtros + ?limit=&offset=)
-GET  /api/v1/documents/{id}                       # documento (debe ser del emisor propio; si no, 404)
+GET  /api/v1/catalogs/departments                 # catálogos DIAN/DANE — iguales para cualquier usuario
+GET  /api/v1/catalogs/municipalities              # acepta ?department_code= para filtrar
+GET  /api/v1/catalogs/identification-types
+GET  /api/v1/catalogs/tax-types
+GET  /api/v1/catalogs/payment-methods
+GET  /api/v1/catalogs/payment-terms
+GET  /api/v1/catalogs/unit-measures
+GET  /api/v1/catalogs/tax-regimes
+GET  /api/v1/catalogs/liability-codes
+GET  /api/v1/catalogs/dian-document-types
+GET  /api/v1/catalogs/currencies
+GET  /api/v1/catalogs/item-standards
+GET  /api/v1/catalogs/ciiu-codes
 
-POST/GET     /api/v1/customers[/{id}]             # catálogo de adquirientes (conveniencia, ver 9.21)
-PUT/DELETE   /api/v1/customers/{id}
-POST/GET     /api/v1/products[/{id}]              # catálogo de ítems/servicios (conveniencia, ver 9.21)
-PUT/DELETE   /api/v1/products/{id}
+# ── Autenticadas con empresa activa (JWT + RequireTenant) ───────────────────────────────────
+GET    /api/v1/issuers/me                         # datos del emisor activo (nunca expone secretos)
+PUT    /api/v1/issuers/me                         # actualizar credenciales DIAN, logo (base64), software
+PATCH  /api/v1/issuers/me/profile                 # actualizar perfil público: razón social, dirección, CIIU, etc.
+GET    /api/v1/issuers/me/logo                    # logo del emisor autenticado en binario (Content-Type real)
+DELETE /api/v1/issuers/me/logo                    # quitar el logo del emisor
+DELETE /api/v1/issuers/me/software                # quitar credenciales de software DIAN
+DELETE /api/v1/issuers/me/ne-software             # quitar credenciales de software de Nómina Electrónica
+DELETE /api/v1/issuers/me/certificate             # quitar certificado digital
+
+POST   /api/v1/numbering-ranges                   # registrar resolución de numeración del emisor activo
+GET    /api/v1/numbering-ranges                   # listar rangos del emisor (?dian_document_type_code=)
+GET    /api/v1/numbering-ranges/{id}              # consultar rango (404 si no es del emisor)
+DELETE /api/v1/numbering-ranges/{id}              # desactivar rango (no destruye consecutivos ya emitidos)
+PUT    /api/v1/numbering-ranges/{id}/activate     # reactivar rango desactivado
+
+GET    /api/v1/dian/verify-acquirer               # consultar NIT en RUES/DIAN (adquiriente antes de facturar)
+
+POST   /api/v1/invoices                           # crear borrador FE (sin reclamar número, sin firmar)
+PUT    /api/v1/invoices/{id}                      # reemplazar borrador FE
+POST   /api/v1/credit-notes                       # crear borrador NC
+PUT    /api/v1/credit-notes/{id}                  # reemplazar borrador NC
+POST   /api/v1/debit-notes                        # crear borrador ND
+PUT    /api/v1/debit-notes/{id}                   # reemplazar borrador ND
+POST   /api/v1/support-documents                  # crear borrador DS (CUDS-SHA384, ver 9.55)
+PUT    /api/v1/support-documents/{id}             # reemplazar borrador DS
+
+POST   /api/v1/documents/{id}/confirm             # reclamar número + firmar + enviar (SendTestSetAsync o SendBillSync)
+DELETE /api/v1/documents/{id}                     # eliminar borrador (409 si ya fue confirmado)
+GET    /api/v1/documents                          # listar documentos del emisor (filtros: tipo, estado, fecha, ?limit=&offset=)
+GET    /api/v1/documents/{id}                     # consultar documento (404 si no es del emisor)
+GET    /api/v1/documents/{id}/pdf                 # PDF en memoria — nunca escribe a disco (ver 9.39)
+GET    /api/v1/documents/{id}/xml                 # XML firmado original del documento
+POST   /api/v1/documents/{id}/send-email          # reenviar por correo al adquiriente (ver 9.40)
+
+POST   /api/v1/customers                          # catálogo de adquirientes (conveniencia, ver 9.21)
+GET    /api/v1/customers
+GET    /api/v1/customers/{id}
+PUT    /api/v1/customers/{id}
+DELETE /api/v1/customers/{id}
+
+POST   /api/v1/products                           # catálogo de ítems/servicios (conveniencia, ver 9.21)
+GET    /api/v1/products
+GET    /api/v1/products/{id}
+PUT    /api/v1/products/{id}
+DELETE /api/v1/products/{id}
+
+POST   /api/v1/vendors                            # catálogo de proveedores no obligados para DS (ver 9.56)
+GET    /api/v1/vendors
+GET    /api/v1/vendors/{id}
+PUT    /api/v1/vendors/{id}
+DELETE /api/v1/vendors/{id}
 
 GET  /health
 ```
@@ -325,11 +388,11 @@ Decisión consciente, no descuido — si se necesitan, se integran como servicio
 | ~~Catálogo de Customers (autocompletar, sin retipear)~~ | **Ya no aplica — construido en `internal/customers` (Fase 2.11, sección 9.21)**. Sigue NO siendo CRM (sin KYC) ni la fuente de verdad del documento (eso sigue siendo el snapshot pass-through) |
 | ~~Catálogo de Products (ítems/servicios reutilizables)~~ | **Ya no aplica — construido en `internal/products` (Fase 2.11, sección 9.21)**. Sin inventario/stock — solo los datos DIAN del ítem para no retipearlos |
 | ~~Usuarios, roles, multi-tenant auth~~ | **Ya no aplica — construido en `internal/auth` (Fase 2.9)**. Replanteo de 2026-06-21: APIDIAN es el backend completo, no hay servicio de identidad externo en esta topología |
-| PDF / representación gráfica | No es parte del esquema XML del anexo técnico; servicio de render aparte si se necesita |
-| Notificaciones (email/SMS al receptor) | Servicio de notificaciones externo |
+| ~~PDF / representación gráfica~~ | **Ya no aplica — construido en `internal/pdf` con maroto v2 (sección 9.39)**. Generación en memoria, sin disco, servida por `GET /documents/{id}/pdf` |
+| ~~Notificaciones (email al receptor)~~ | **Ya no aplica — construido en `internal/email` con go-mail (sección 9.40)**. SMTP propio; `POST /documents/{id}/send-email` reenvía con AttachedDocument UBL |
 | ~~Listados de documentos/rangos~~ | **Ya no aplica — `GET /numbering-ranges` y `GET /documents` construidos (Fase 2.9, sección 9.19)**. Esto es CRUD básico del propio orquestador, no analítica — no era delegable a otro servicio |
 | Reportes / Dashboard / Analítica (agregaciones, gráficas) | Sigue siendo trabajo de un servicio de BI que consume los datos emitidos — los listados de arriba son consulta simple, no agregación |
-| Documento Soporte (CUDS) | Anexo técnico distinto, familia de documento separada — candidato a fase futura |
+| ~~Documento Soporte (CUDS)~~ | **Ya no aplica — construido en `internal/documents` y `cofacture` (sección 9.55)**. DS (tipo 05, CUDS-SHA384) autorizado por la DIAN en habilitación real (StatusCode 00) |
 | Eventos RADIAN (Acuse de recibo, Reclamo, ApplicationResponse) | Solo obligatorio si la factura se negocia como título valor — fase futura explícita |
 | Nómina Electrónica (CUNE) | Esquema XML distinto al UBL, webservice distinto — proyecto separado, no este |
 
@@ -353,7 +416,7 @@ El pipeline completo (build → CUFE/CUDE → `SoftwareSecurityCode` → QR → 
 | Pendiente | Por qué importa | Prioridad sugerida |
 |---|---|---|
 | ~~`AttachedDocument` completo (UBL con `ApplicationResponse` embebido) para los tres tipos~~ | **✅ Implementado** — ver sección 9.51. `application_response_xml` se persiste desde la DIAN; `email.go:buildAttachedDocumentXML` construye el sobre UBL firmado cuando el campo está presente, con fallback a XML crudo para documentos anteriores a la migración. | — |
-| Documento Soporte (05, CUDS) | Compras a no obligados a facturar — caso de uso frecuente | Media-alta, según necesidad real |
+| ~~Documento Soporte (05, CUDS)~~ | **✅ Implementado** — ver sección 9.55. CUDS-SHA384, roles invertidos (SNO=proveedor/ABS=emisor), autorizado por la DIAN en habilitación real (StatusCode 00). | — |
 | Eventos RADIAN (Acuse de recibo, Reclamo) | Solo si la factura se negocia como título valor | Baja, opcional |
 | Factura exportación (02) / importación (04) / contingencia (03) | Comercio exterior / caída de los sistemas DIAN | Baja, según necesidad |
 | Documento Equivalente Electrónico (tiquete POS) | Ventas al detal de bajo valor | Baja, según necesidad |
@@ -407,6 +470,11 @@ DIAN/la base de datos, no el ruteo HTTP.
 | 2.9 | `internal/auth` — usuarios, login, JWT, aislamiento entre tenants | ✅ Verificado con servidor real + curl, ver 9.17 |
 | 2.10 | Listados (`GET /numbering-ranges`, `GET /documents`) | ✅ Verificado con servidor real + curl, ver 9.19 |
 | 2.11 | `internal/customers`/`internal/products` — catálogos de conveniencia | ✅ Verificado con servidor real + curl, ver 9.21 |
+| 2.12 | `internal/pdf` — generación PDF en memoria con maroto v2 | ✅ Verificado, ver 9.39 |
+| 2.13 | `internal/email` — SMTP con go-mail, AttachedDocument UBL al receptor | ✅ Verificado, ver 9.40 |
+| 2.14 | `internal/nit` — dígito verificador módulo 11 | ✅ Implementado, ver 9.42 |
+| 2.15 | Documento Soporte (DS tipo 05, CUDS-SHA384) de punta a punta | ✅ Autorizado por la DIAN en habilitación real (StatusCode 00), ver 9.55 |
+| 2.16 | `internal/vendors` — catálogo de proveedores no obligados para DS | ✅ Implementado, ver 9.56 |
 
 **Catálogos cargados en 2.2** (`internal/database/seed/*.csv`, idempotente vía `ON CONFLICT`):
 currencies, departments, identification_types (códigos numéricos oficiales DIAN: 13 cédula,
@@ -2616,7 +2684,7 @@ esos son CRMs primero; aquí el core es el pipeline DIAN, no un CRM.
 |---|---|---|
 | `issuers` | Tenant / emisor (la empresa) | Implementado |
 | `customers` | Adquirientes (directorio por emisor) | Implementado |
-| `vendors` | Vendedores no obligados (para Documento Soporte) | Pendiente — se agrega al implementar DS |
+| `vendors` | Vendedores no obligados (para Documento Soporte) | ✅ Implementado — ver sección 9.56 |
 | `employees` | Trabajadores (para Nómina Electrónica) | Pendiente — se agrega al implementar nómina |
 
 ---
@@ -2634,12 +2702,8 @@ esos son CRMs primero; aquí el core es el pipeline DIAN, no un CRM.
 | Factura electrónica (01) | ✅ Autorizada en habilitación real |
 | Nota Crédito (91) | ✅ Aceptada en habilitación real |
 | Nota Débito (92) | ✅ Aceptada en habilitación real |
-| Documento Soporte (05) | ⏳ Pendiente de implementar |
-| Nota de Ajuste (95) | ⏳ Pendiente (depende de DS) |
-
-**Documento Soporte NO es requisito para ir a producción.** FE + NC + ND cubre el 95% del
-mercado. DS es nicho (empresas que compran a agricultores, trabajadores informales, etc.) y
-se implementa en una fase posterior sin bloquear el lanzamiento comercial.
+| Documento Soporte (05) | ✅ Autorizado en habilitación real (CUDS-SHA384, StatusCode 00), ver 9.55 |
+| Nota de Ajuste (95) | ⏳ Pendiente (depende de DS — DS ya implementado, NA es el siguiente paso) |
 
 #### Modelo de precios elegido
 
@@ -2754,3 +2818,84 @@ Cliente recibe correo "Tu cuenta en Cofacture está lista"
 - **Suscripciones recurrentes automáticas con ePayco** (`Plans`/`Subscriptions`): la primera
   versión cobra manualmente o vía checkout al vencer la suscripción. Se puede automatizar
   con `epayco-go`'s `Plans`/`Subscriptions` una vez se tenga el volumen que lo justifique.
+
+---
+
+### 9.55 Documento Soporte (DS tipo 05, CUDS-SHA384) — implementado (2026-07-18)
+
+El DS es el mecanismo por el que una empresa registra ante la DIAN una compra hecha a un
+proveedor **no obligado a facturar** (agricultor, persona natural sin RUT activo, etc.). A
+diferencia de la FE, el emisor del documento es el **comprador** (ABS), y el proveedor actúa
+como Supplier (SNO).
+
+#### Diferencias técnicas clave respecto a FE/NC/ND
+
+| Aspecto | FE/NC/ND | DS (tipo 05) |
+|---|---|---|
+| Hash del documento | CUFE/CUDE (SHA256) | CUDS (SHA384) — algoritmo diferente |
+| Rol Supplier en UBL | Emisor (empresa) | SNO — proveedor no obligado |
+| Rol Customer en UBL | Adquiriente | ABS — empresa compradora (emisor del DS) |
+| `schemeName` en CompanyID | Según tipo real | Siempre `"31"` (NIT) para el SNO |
+| `TaxLevelCode` | Con o sin `listName` | **Sin `listName`** — la DIAN rechaza si está presente |
+| `PostalZone` en Address | Opcional | **Obligatorio** — `"000000"` si no se conoce el real |
+| `ProfileID` | `"DIAN 2.1: Factura…"` | `"DIAN 2.1: documento soporte en adquisiciones…"` |
+
+#### Fórmula CUDS
+
+A diferencia del CUFE (que usa tres slots fijos IVA+INC+ICA acumulados), el CUDS usa un único
+par tomado de `HeaderTaxes[0]`:
+
+```
+seed = Prefix + Number + IssueDate + IssueTime +
+       FormatCents(LineExtension) +
+       HeaderTaxes[0].TypeCode + FormatCents(HeaderTaxes[0].TaxAmountCents) +
+       FormatCents(Payable) +
+       SNO.Identification.Number + ABS.Identification.Number +
+       softwarePIN + EnvironmentCode
+CUDS = hex(SHA384(seed))
+```
+
+Implementado en `cofacture/cuds/cuds.go` → `Compute()`. El orden es SNO+ABS (igual que CUFE
+tiene OFE+ADQ). Verificado contra el CUDS oficial del ejemplo del Anexo Técnico de DS.
+
+#### Flujo en apidian
+
+`confirmSupportDocument` (en `internal/documents/service.go`):
+
+1. `vendorAsNIT()` — convierte el proveedor a estructura SNO: fuerza `schemeName="31"`,
+   recalcula el DV si el tipo original no era NIT, y rellena `PostalZone="000000"` si vacío.
+2. `partyFromIssuerAsNIT()` — convierte el emisor al ABS: mismo tratamiento.
+3. `cuds.Compute(inv, pin)` — calcula el hash.
+4. `builder.BuildSupportDocument(inv)` — construye el XML UBL.
+5. `finalizeAndSend(zip.KindSupportDocument)` — envía con `SendTestSetAsync` si hay `TestSetID`
+   en el rango (habilitación), o con `SendBillSync` si no (producción). Mismo flujo que FE.
+
+El DS de habilitación requiere un `test_set_id` **distinto** al de FE — la DIAN asigna uno
+por tipo de documento.
+
+#### Validación real
+
+`cofacture/soap/realsend_support_document_test.go` envía un DS real al ambiente de
+habilitación de la DIAN. Resultado: `IsValid=true`, `StatusCode=00` (autorizado).
+
+**Fuente canónica**: `docs/reference/DS-real.xml` — DS de producción aceptado por la DIAN.
+La **Caja de Herramientas DS v1.1 está DESACTUALIZADA** en party structure — no usarla.
+
+---
+
+### 9.56 Catálogo de Proveedores (`internal/vendors`) — implementado (2026-07-18)
+
+`vendors` es el directorio de proveedores no obligados a facturar que aparecen como SNO en
+los Documentos Soporte. Mismo patrón arquitectónico que `internal/customers`:
+
+- Tabla `vendors` en Postgres (migración `000014_vendors.up.sql`)
+- JSONB `party` column — mismo snapshot pattern que customers
+- 5 endpoints: `POST /vendors`, `GET /vendors`, `GET /vendors/{id}`, `PUT /vendors/{id}`,
+  `DELETE /vendors/{id}`
+- `VendorSection` en `SupportDocumentForm` del frontend — selector con búsqueda, igual que
+  `CustomerSection` en `InvoiceForm`
+
+La relación vendors–DS es solo de conveniencia: al confirmar un DS, `documents.Service`
+extrae los datos del proveedor del snapshot del documento (no de la tabla `vendors`) — mismo
+principio que clientes en FE. La tabla sirve para no retipear los datos del proveedor en
+cada DS.
