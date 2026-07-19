@@ -10,13 +10,13 @@ import {
   getDocumentXmlBlobUrl,
   sendDocumentEmail,
   updateAdjustmentNoteDraft,
-  type PDFFormat,
 } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
+import { usePdfFormat } from "../lib/usePdfFormat";
 import type { Document, IssueAdjustmentNotePayload } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { DianStatusBlock } from "../components/DianStatusBlock";
@@ -44,7 +44,7 @@ export function AdjustmentNoteEditorPage() {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingXml, setLoadingXml] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
-  const [pdfFormat, setPdfFormat] = useState<PDFFormat>("full_a4");
+  const [pdfFormat] = usePdfFormat();
 
   useEffect(() => {
     if (isNew || !id) return;
@@ -179,16 +179,6 @@ export function AdjustmentNoteEditorPage() {
         </h1>
         <div className="flex items-center gap-2">
           {doc && <StatusBadge status={doc.status} />}
-          {!isNew && doc && (
-            <select
-              value={pdfFormat}
-              onChange={(e) => setPdfFormat(e.target.value as PDFFormat)}
-              className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
-            >
-              <option value="full_a4">PDF A4 completo</option>
-              <option value="half_a4">PDF media página (2 copias)</option>
-            </select>
-          )}
           {!isNew && doc && (
             <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
               Ver PDF

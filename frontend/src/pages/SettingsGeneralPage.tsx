@@ -2,9 +2,11 @@ import { SlidersHorizontal } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { Card } from "../components/ui/Card";
 import { useTheme } from "../context/ThemeContext";
+import { usePdfFormat } from "../lib/usePdfFormat";
 
 export function SettingsGeneralPage() {
   const { theme } = useTheme();
+  const [pdfFormat, setPdfFormat] = usePdfFormat();
 
   return (
     <div className="p-4">
@@ -13,12 +15,27 @@ export function SettingsGeneralPage() {
         General
       </h1>
       <div className="flex flex-wrap gap-3">
-        <Card className="flex items-center gap-6 p-3">
+        <Card className="flex items-center justify-between gap-6 p-3">
           <div>
             <p className="text-xs font-medium text-(--text-primary)">Tema de la interfaz</p>
             <p className="text-xs text-(--text-secondary)">{theme === "light" ? "Claro" : "Oscuro"}</p>
           </div>
           <ThemeToggle />
+        </Card>
+
+        <Card className="flex items-center justify-between gap-6 p-3">
+          <div>
+            <p className="text-xs font-medium text-(--text-primary)">Formato de PDF predeterminado</p>
+            <p className="text-xs text-(--text-secondary)">Se aplica al generar y enviar documentos</p>
+          </div>
+          <select
+            value={pdfFormat}
+            onChange={(e) => setPdfFormat(e.target.value as "full_a4" | "half_a4")}
+            className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
+          >
+            <option value="full_a4">A4 completo</option>
+            <option value="half_a4">Media página (2 copias)</option>
+          </select>
         </Card>
       </div>
     </div>
