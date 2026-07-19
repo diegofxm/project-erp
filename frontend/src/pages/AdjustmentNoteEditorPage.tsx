@@ -13,6 +13,7 @@ import {
 } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { idTypeLabel } from "../lib/idTypes";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
@@ -259,7 +260,9 @@ export function AdjustmentNoteEditorPage() {
             <div className="col-span-3">
               <span className="text-(--text-secondary)">Tercero (vendedor)</span>
               <p className="text-(--text-primary)">{doc.vendor?.name ?? "—"}</p>
-              <p className="text-(--text-muted)">{doc.vendor?.identification.number ?? ""}</p>
+              <p className="text-(--text-muted)">
+                {doc.vendor ? `${idTypeLabel(doc.vendor.identification.type_code)} ${doc.vendor.identification.number}` : ""}
+              </p>
             </div>
             <div className="col-span-3">
               <span className="text-(--text-secondary)">Tipo de operación</span>

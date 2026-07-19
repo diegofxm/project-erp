@@ -14,6 +14,7 @@ import {
 } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { idTypeLabel } from "../lib/idTypes";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
@@ -261,6 +262,7 @@ export function InvoiceEditorPage() {
             <div className="col-span-3">
               <span className="text-(--text-secondary)">Cliente</span>
               <p className="text-(--text-primary)">{doc.customer.name}</p>
+              <p className="text-(--text-muted)">{idTypeLabel(doc.customer.identification.type_code)} {doc.customer.identification.number}</p>
             </div>
             <div className="col-span-3">
               <span className="text-(--text-secondary)">Total</span>
@@ -354,6 +356,12 @@ export function InvoiceEditorPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="flex justify-end gap-4 text-xs text-(--text-secondary)">
+            <span>Subtotal: <span className="font-mono text-(--text-primary)">{formatCOP.format(doc.totals.line_extension_cents / 100)}</span></span>
+            <span>Impuestos: <span className="font-mono text-(--text-primary)">{formatCOP.format((doc.totals.tax_inclusive_cents - doc.totals.line_extension_cents) / 100)}</span></span>
+            <span className="font-semibold">A pagar: <span className="font-mono text-(--text-primary)">{formatCOP.format(doc.totals.payable_cents / 100)}</span></span>
           </div>
         </Card>
       ) : null}
