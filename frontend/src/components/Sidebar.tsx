@@ -1,8 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router";
-import { Files, Home, Menu, Package, Settings, Truck, Users } from "lucide-react";
-
-const COLLAPSED_KEY = "apidian.sidebarCollapsed";
+import { Files, Home, Package, Settings, Truck, Users } from "lucide-react";
 
 interface NavItem {
   to: string;
@@ -21,35 +19,20 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/settings", label: "Configuración", icon: <Settings className="h-3.5 w-3.5" />, activePrefix: "/settings" },
 ];
 
-export function Sidebar() {
-  const location = useLocation();
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "true");
+interface SidebarProps {
+  collapsed: boolean;
+}
 
-  function toggleCollapsed() {
-    setCollapsed((current) => {
-      const next = !current;
-      localStorage.setItem(COLLAPSED_KEY, String(next));
-      return next;
-    });
-  }
+export function Sidebar({ collapsed }: SidebarProps) {
+  const location = useLocation();
 
   return (
     <aside
-      className={`flex h-full flex-col overflow-hidden border-r border-(--border-color) bg-(--bg-secondary) transition-all duration-200 ${
+      className={`flex h-full flex-col overflow-hidden border-r border-(--border-color) bg-(--bg-secondary) transition-[width] duration-200 ${
         collapsed ? "w-10" : "w-48"
       }`}
     >
-      <div className="flex h-10 shrink-0 items-center border-b border-(--border-light) px-2">
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          className="rounded p-1.5 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)"
-          title={collapsed ? "Expandir menú" : "Colapsar menú"}
-        >
-          <Menu className="h-4 w-4" />
-        </button>
-      </div>
-      <nav className="flex flex-col gap-0.5 p-1.5">
+      <nav className="flex flex-col gap-0.5 p-1.5 pt-2">
         {NAV_ITEMS.map((item) => {
           const active = item.activePrefix
             ? location.pathname.startsWith(item.activePrefix)
@@ -61,16 +44,20 @@ export function Sidebar() {
               key={item.to}
               to={item.to}
               title={collapsed ? item.label : undefined}
-              className={`flex items-center rounded py-1.5 text-xs font-medium transition-colors ${
-                collapsed ? "justify-center" : "gap-2 px-2"
-              } ${
+              className={`flex items-center rounded py-1.5 pl-1.75 pr-2 text-xs font-medium transition-colors ${
                 active
                   ? "bg-(--bg-selected) text-(--accent-primary)"
                   : "text-(--text-secondary) hover:bg-(--bg-hover)"
               }`}
             >
-              {item.icon}
-              {!collapsed && <span className="whitespace-nowrap">{item.label}</span>}
+              <span className="shrink-0">{item.icon}</span>
+              <span
+                className={`whitespace-nowrap overflow-hidden transition-[max-width,opacity,margin-left] duration-200 ${
+                  collapsed ? "max-w-0 opacity-0 ml-0" : "max-w-30 opacity-100 ml-2"
+                }`}
+              >
+                {item.label}
+              </span>
             </NavLink>
           );
         })}

@@ -1,8 +1,10 @@
 import { NavLink, useLocation } from "react-router";
+import { DOC_COLORS } from "../lib/docColors";
 
 interface SubNavItem {
   to: string;
   label: string;
+  color?: string;
 }
 
 interface SubNavConfig {
@@ -10,17 +12,15 @@ interface SubNavConfig {
   items: SubNavItem[];
 }
 
-// Mapa de prefijos → pestañas. Agregar aquí cuando una sección necesite sub-navegación
-// (ej. /settings con sus propias sub-páginas a futuro) sin tocar el Sidebar.
 const SUB_NAVS: SubNavConfig[] = [
   {
     prefix: "/documents",
     items: [
-      { to: "/documents/invoices", label: "Factura Electrónica" },
-      { to: "/documents/credit-notes", label: "Nota Crédito" },
-      { to: "/documents/debit-notes", label: "Nota Débito" },
-      { to: "/documents/support-documents", label: "Documento Soporte" },
-      { to: "/documents/adjustment-notes", label: "Nota de Ajuste" },
+      { to: "/documents/invoices",          label: "Factura Electrónica", color: DOC_COLORS["/documents/invoices"] },
+      { to: "/documents/credit-notes",      label: "Nota Crédito",        color: DOC_COLORS["/documents/credit-notes"] },
+      { to: "/documents/debit-notes",       label: "Nota Débito",         color: DOC_COLORS["/documents/debit-notes"] },
+      { to: "/documents/support-documents", label: "Documento Soporte",   color: DOC_COLORS["/documents/support-documents"] },
+      { to: "/documents/adjustment-notes",  label: "Nota de Ajuste",      color: DOC_COLORS["/documents/adjustment-notes"] },
     ],
   },
   {
@@ -45,11 +45,14 @@ export function SubNav() {
           key={item.to}
           to={item.to}
           className={({ isActive }) =>
-            `inline-flex h-full items-center border-b-2 px-3 text-xs font-medium transition-colors ${
+            `inline-flex h-full items-center gap-1.5 border-b-2 px-3 text-xs font-medium transition-colors ${
               isActive
-                ? "-mb-px border-(--accent-primary) text-(--accent-primary)"
+                ? `-mb-px ${item.color ? "border-current" : "border-(--accent-primary) text-(--accent-primary)"}`
                 : "border-transparent text-(--text-secondary) hover:text-(--text-primary)"
             }`
+          }
+          style={({ isActive }) =>
+            item.color && isActive ? { color: item.color } : undefined
           }
         >
           {item.label}

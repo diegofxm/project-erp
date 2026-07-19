@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BookCopy, Plus, X } from "lucide-react";
 import { useNavigate } from "react-router";
 import { listDocuments } from "../lib/documents";
+import { DOC_COLORS } from "../lib/docColors";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
 import type { Document, DocumentStatus } from "../lib/types";
@@ -69,7 +70,7 @@ export function SupportDocumentsPage() {
           <BookCopy className="h-4 w-4 shrink-0 text-(--accent-primary)" />
           Documento Soporte
         </h1>
-        <Button type="button" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => navigate("/documents/support-documents/new")}>
+        <Button type="button" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => navigate("/documents/support-documents/new")} style={{ backgroundColor: DOC_COLORS["/documents/support-documents"] }}>
           Nuevo Documento Soporte
         </Button>
       </div>

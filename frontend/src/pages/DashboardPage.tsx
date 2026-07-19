@@ -16,7 +16,7 @@ import {
   FileText,
   CheckCircle2,
   Clock,
-  BarChart2,
+  LayoutDashboard,
   ArrowRight,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -215,7 +215,7 @@ export function DashboardPage() {
     <div className="p-4 flex flex-col gap-6">
       {/* Encabezado */}
       <div className="flex items-center gap-2">
-        <BarChart2 className="h-4 w-4 shrink-0 text-(--accent-primary)" />
+        <LayoutDashboard className="h-4 w-4 shrink-0 text-(--accent-primary)" />
         <h1 className="text-sm font-semibold text-(--text-primary)">Panel de Control</h1>
         {activeIssuer && (
           <span className="ml-auto text-xs text-(--text-muted)">
