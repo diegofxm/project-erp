@@ -25,6 +25,8 @@ import { DebitNotesPage } from "./pages/DebitNotesPage";
 import { DebitNoteEditorPage } from "./pages/DebitNoteEditorPage";
 import { SupportDocumentsPage } from "./pages/SupportDocumentsPage";
 import { SupportDocumentEditorPage } from "./pages/SupportDocumentEditorPage";
+import { AdjustmentNotesPage } from "./pages/AdjustmentNotesPage";
+import { AdjustmentNoteEditorPage } from "./pages/AdjustmentNoteEditorPage";
 import { PublicCustomerRegisterPage } from "./pages/PublicCustomerRegisterPage";
 
 function App() {
@@ -59,6 +61,8 @@ function App() {
                     <Route path="/documents/debit-notes/:id" element={<DebitNoteEditorPage />} />
                     <Route path="/documents/support-documents" element={<SupportDocumentsPage />} />
                     <Route path="/documents/support-documents/:id" element={<SupportDocumentEditorPage />} />
+                    <Route path="/documents/adjustment-notes" element={<AdjustmentNotesPage />} />
+                    <Route path="/documents/adjustment-notes/:id" element={<AdjustmentNoteEditorPage />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />

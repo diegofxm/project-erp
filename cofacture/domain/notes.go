@@ -47,3 +47,15 @@ type DebitNote struct {
 	BillingReference    BillingReference
 	DiscrepancyResponse *DiscrepancyResponse
 }
+
+// AdjustmentNote es la Nota de Ajuste al Documento Soporte (InvoiceTypeCode "95").
+// Es al DS (tipo 05) lo que NC/ND son a la Factura: permite corregir o anular un DS emitido.
+// Los roles son los mismos que en DS: Supplier = tercero no obligado (SNO),
+// Customer = empresa compradora/emisora (ABS). Usa CUDS-SHA384 (misma fórmula que DS).
+// El campo heredado CUFE guarda el CUDS de esta nota (schemeName "CUDS-SHA384").
+type AdjustmentNote struct {
+	Invoice
+
+	BillingReference    BillingReference    // Referencia al DS original (UUID con schemeName CUDS-SHA384)
+	DiscrepancyResponse *DiscrepancyResponse
+}

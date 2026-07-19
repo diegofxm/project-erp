@@ -1,0 +1,177 @@
+import { useEffect, useState } from "react";
+import { FileDiff, Plus, X } from "lucide-react";
+import { useNavigate } from "react-router";
+import { listDocuments } from "../lib/documents";
+import { ApiError } from "../lib/apiClient";
+import { formatCOP } from "../lib/currency";
+import type { Document, DocumentStatus } from "../lib/types";
+import { Banner } from "../components/ui/Banner";
+import { Button } from "../components/ui/Button";
+import { Spinner } from "../components/ui/Spinner";
+import { Pagination } from "../components/ui/Pagination";
+import { StatusBadge } from "../components/invoice-form/StatusBadge";
+
+const ADJUSTMENT_NOTE_DIAN_TYPE = "95";
+const PAGE_SIZE = 10;
+
+const STATUS_OPTIONS: { value: DocumentStatus | ""; label: string }[] = [
+  { value: "", label: "Todos los estados" },
+  { value: "draft", label: "Borrador" },
+  { value: "accepted", label: "Aceptado" },
+  { value: "sent", label: "Enviado" },
+  { value: "rejected", label: "Rechazado" },
+  { value: "send_error", label: "Error de envío" },
+];
+
+const OPERATION_LABELS: Record<string, string> = { "10": "Residente", "11": "No Residente" };
+
+export function AdjustmentNotesPage() {
+  const [documents, setDocuments] = useState<Document[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [loadingPage, setLoadingPage] = useState(false);
+  const [status, setStatus] = useState<DocumentStatus | "">("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const navigate = useNavigate();
+
+  const hasFilters = !!status || !!from || !!to;
+
+  function resetFilters() {
+    setStatus("");
+    setFrom("");
+    setTo("");
+    setOffset(0);
+  }
+
+  useEffect(() => {
+    setLoadingPage(true);
+    listDocuments({
+      dian_document_type_code: ADJUSTMENT_NOTE_DIAN_TYPE,
+      limit: PAGE_SIZE + 1,
+      offset,
+      ...(status && { status }),
+      ...(from && { from }),
+      ...(to && { to }),
+    })
+      .then(setDocuments)
+      .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar las notas de ajuste"))
+      .finally(() => setLoadingPage(false));
+  }, [offset, status, from, to]);
+
+  const hasNext = (documents?.length ?? 0) > PAGE_SIZE;
+  const page = documents?.slice(0, PAGE_SIZE) ?? null;
+
+  return (
+    <div className="p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
+          <FileDiff className="h-4 w-4 shrink-0 text-(--accent-primary)" />
+          Nota de Ajuste
+        </h1>
+        <Button type="button" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => navigate("/documents/adjustment-notes/new")}>
+          Nueva Nota de Ajuste
+        </Button>
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <select
+          value={status}
+          onChange={(e) => { setStatus(e.target.value as DocumentStatus | ""); setOffset(0); }}
+          className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
+        >
+          {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <input
+          type="date"
+          value={from}
+          onChange={(e) => { setFrom(e.target.value); setOffset(0); }}
+          title="Desde"
+          className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
+        />
+        <input
+          type="date"
+          value={to}
+          onChange={(e) => { setTo(e.target.value); setOffset(0); }}
+          title="Hasta"
+          className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
+        />
+        {hasFilters && (
+          <button type="button" onClick={resetFilters} className="flex items-center gap-1 text-xs text-(--text-muted) hover:text-(--text-primary) transition-colors">
+            <X className="h-3 w-3" /> Limpiar
+          </button>
+        )}
+      </div>
+
+      {error && <Banner tone="danger">{error}</Banner>}
+
+      {page === null ? (
+        <div className="flex min-h-32 items-center justify-center">
+          <Spinner className="h-5 w-5 text-(--text-muted)" />
+        </div>
+      ) : page.length === 0 ? (
+        <p className="text-xs text-(--text-secondary)">
+          {hasFilters ? "No hay notas de ajuste que coincidan con los filtros." : "Todavía no has creado ninguna nota de ajuste."}
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded border border-(--border-color)">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
+              <tr>
+                <th className="px-3 py-2 font-medium">Número</th>
+                <th className="px-3 py-2 font-medium">DS ajustado</th>
+                <th className="px-3 py-2 font-medium">Tercero</th>
+                <th className="px-3 py-2 font-medium">Operación</th>
+                <th className="px-3 py-2 font-medium">A pagar</th>
+                <th className="px-3 py-2 font-medium">Estado</th>
+                <th className="px-3 py-2 font-medium">Fecha</th>
+              </tr>
+            </thead>
+            <tbody>
+              {page.map((d, i) => {
+                const withholdingTotal = d.withholding_taxes?.reduce((s, t) => s + t.tax_amount_cents, 0) ?? 0;
+                const netPayable = d.totals.payable_cents - withholdingTotal;
+                return (
+                  <tr
+                    key={d.id}
+                    className={`cursor-pointer hover:bg-(--bg-hover) ${i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}`}
+                    onClick={() => navigate(`/documents/adjustment-notes/${d.id}`)}
+                  >
+                    <td className="px-3 py-2 font-mono text-(--text-primary)">
+                      {d.prefix && d.number ? `${d.prefix}${d.number}` : "Borrador"}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-(--text-muted)">
+                      {d.billing_reference
+                        ? `${d.billing_reference.prefix}${d.billing_reference.number}`
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-(--text-secondary)">
+                      {d.vendor?.name ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 text-(--text-secondary)">
+                      {d.operation_type_code ? OPERATION_LABELS[d.operation_type_code] ?? d.operation_type_code : "—"}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-(--text-secondary)">{formatCOP.format(netPayable / 100)}</td>
+                    <td className="px-3 py-2"><StatusBadge status={d.status} /></td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{new Date(d.created_at).toLocaleDateString("es-CO")}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {page !== null && (
+        <Pagination
+          offset={offset}
+          count={page.length}
+          hasNext={hasNext}
+          loading={loadingPage}
+          onPrev={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+          onNext={() => setOffset((o) => o + PAGE_SIZE)}
+        />
+      )}
+    </div>
+  );
+}

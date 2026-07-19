@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { Document, DocumentLine, DocumentLineInput, IssueCreditNotePayload, IssueDebitNotePayload, IssueInvoicePayload, IssueSupportDocumentPayload, ListDocumentsFilter, ListDocumentsResult } from "./types";
+import type { Document, DocumentLine, DocumentLineInput, IssueAdjustmentNotePayload, IssueCreditNotePayload, IssueDebitNotePayload, IssueInvoicePayload, IssueSupportDocumentPayload, ListDocumentsFilter, ListDocumentsResult } from "./types";
 
 export async function listDocuments(filter?: ListDocumentsFilter): Promise<Document[]> {
   const params = new URLSearchParams();
@@ -70,6 +70,14 @@ export function createSupportDocumentDraft(payload: IssueSupportDocumentPayload)
 
 export function updateSupportDocumentDraft(id: string, payload: IssueSupportDocumentPayload): Promise<Document> {
   return apiClient.put<Document>(`/support-documents/${id}`, payload);
+}
+
+export function createAdjustmentNoteDraft(payload: IssueAdjustmentNotePayload): Promise<Document> {
+  return apiClient.post<Document>("/adjustment-notes", payload);
+}
+
+export function updateAdjustmentNoteDraft(id: string, payload: IssueAdjustmentNotePayload): Promise<Document> {
+  return apiClient.put<Document>(`/adjustment-notes/${id}`, payload);
 }
 
 export function deleteDraft(id: string): Promise<void> {

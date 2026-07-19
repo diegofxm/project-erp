@@ -20,6 +20,7 @@ const SUB_NAVS: SubNavConfig[] = [
       { to: "/documents/credit-notes", label: "Nota Crédito" },
       { to: "/documents/debit-notes", label: "Nota Débito" },
       { to: "/documents/support-documents", label: "Documento Soporte" },
+      { to: "/documents/adjustment-notes", label: "Nota de Ajuste" },
     ],
   },
   {

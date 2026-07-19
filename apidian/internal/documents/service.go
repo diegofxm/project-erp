@@ -50,6 +50,10 @@ const (
 	supportDocumentProfileID    = "DIAN 2.1: documento soporte en adquisiciones efectuadas a no obligados a facturar."
 	supportDocumentHashType     = "CUDS-SHA384"
 	supportDocumentDianDocType  = "05"
+
+	adjustmentNoteProfileID   = "DIAN 2.1: nota de ajuste al documento soporte en adquisiciones efectuadas a no obligados a facturar."
+	adjustmentNoteHashType    = "CUDS-SHA384"
+	adjustmentNoteDianDocType = "95"
 )
 
 // Service orquesta el ciclo de vida de documentos DIAN: crear borradores, editarlos,
@@ -119,6 +123,24 @@ type IssueNoteRequest struct {
 type IssueCreditNoteRequest struct {
 	IssueNoteRequest
 	CreditNoteTypeCode string
+}
+
+// IssueAdjustmentNoteRequest es el payload de una Nota de Ajuste al Documento Soporte
+// (InvoiceTypeCode "95"). Combina los campos del DS (roles invertidos, vendor, retenciones)
+// con BillingReference obligatoria que apunta al DS original y DiscrepancyResponse opcional.
+type IssueAdjustmentNoteRequest struct {
+	IssuerID            uuid.UUID
+	NumberingRangeID    uuid.UUID
+	Vendor              domain.Party
+	Lines               []LineInput
+	PaymentMeans        []domain.PaymentMean
+	Note                string
+	CurrencyCode        string
+	OperationTypeCode   string    // "10" Residente, "11" No Residente (mismo que DS)
+	WithholdingTaxes    []domain.Tax
+	VendorID            *uuid.UUID
+	BillingReference    BillingReferenceInput   // Referencia al DS original (CUDS)
+	DiscrepancyResponse *DiscrepancyResponseInput
 }
 
 // IssueSupportDocumentRequest es el payload de un Documento Soporte (InvoiceTypeCode "05").
@@ -413,6 +435,116 @@ func (s *Service) validateSupportDocumentRequest(ctx context.Context, req IssueS
 	return nil
 }
 
+// ── Nota de Ajuste al Documento Soporte (tipo 95) ─────────────────────────────────────────
+
+// CreateAdjustmentNoteDraft valida y persiste un borrador de Nota de Ajuste al DS.
+func (s *Service) CreateAdjustmentNoteDraft(ctx context.Context, req IssueAdjustmentNoteRequest) (*Document, error) {
+	if err := s.validateAdjustmentNoteRequest(ctx, req); err != nil {
+		return nil, err
+	}
+	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, adjustmentNoteDianDocType, nil); err != nil {
+		return nil, err
+	}
+	if err := s.validateVendorID(ctx, req.IssuerID, req.VendorID); err != nil {
+		return nil, err
+	}
+	applyVendorDefaults(&req.Vendor)
+	lines, err := s.linesFromInput(ctx, req.Lines)
+	if err != nil {
+		return nil, err
+	}
+	draft := s.adjustmentNoteDraftFromRequest(req, lines)
+	return s.repo.Create(ctx, draft)
+}
+
+// UpdateAdjustmentNoteDraft reemplaza los datos de un borrador de Nota de Ajuste existente.
+func (s *Service) UpdateAdjustmentNoteDraft(ctx context.Context, id uuid.UUID, req IssueAdjustmentNoteRequest) (*Document, error) {
+	if err := s.validateAdjustmentNoteRequest(ctx, req); err != nil {
+		return nil, err
+	}
+	if err := s.requireOwnDraft(ctx, req.IssuerID, id); err != nil {
+		return nil, err
+	}
+	if _, err := s.validateForIssuance(ctx, req.IssuerID, req.NumberingRangeID, adjustmentNoteDianDocType, nil); err != nil {
+		return nil, err
+	}
+	if err := s.validateVendorID(ctx, req.IssuerID, req.VendorID); err != nil {
+		return nil, err
+	}
+	applyVendorDefaults(&req.Vendor)
+	lines, err := s.linesFromInput(ctx, req.Lines)
+	if err != nil {
+		return nil, err
+	}
+	draft := s.adjustmentNoteDraftFromRequest(req, lines)
+	draft.ID = id
+	return s.repo.UpdateDraft(ctx, draft)
+}
+
+func (s *Service) adjustmentNoteDraftFromRequest(req IssueAdjustmentNoteRequest, lines []domain.Line) Document {
+	vendor := req.Vendor
+	d := Document{
+		IssuerID:             req.IssuerID,
+		NumberingRangeID:     req.NumberingRangeID,
+		DianDocumentTypeCode: adjustmentNoteDianDocType,
+		CurrencyCode:         defaultCurrency(req.CurrencyCode),
+		Note:                 req.Note,
+		Lines:                lines,
+		PaymentMeans:         req.PaymentMeans,
+		Totals:               computeTotalsForDS(lines, req.WithholdingTaxes),
+		Vendor:               &vendor,
+		VendorID:             req.VendorID,
+		OperationTypeCode:    req.OperationTypeCode,
+		WithholdingTaxes:     req.WithholdingTaxes,
+		Status:               StatusDraft,
+	}
+	billingRef := billingReferenceInputCopy(req.BillingReference)
+	d.BillingReference = &billingRef
+	d.DiscrepancyResponse = req.DiscrepancyResponse
+	return d
+}
+
+func (s *Service) validateAdjustmentNoteRequest(ctx context.Context, req IssueAdjustmentNoteRequest) error {
+	if req.IssuerID == uuid.Nil {
+		return ErrMissingIssuer
+	}
+	if req.NumberingRangeID == uuid.Nil {
+		return ErrMissingNumberingRange
+	}
+	if len(req.Lines) == 0 {
+		return ErrEmptyLines
+	}
+	if req.Vendor.Identification.Number == "" {
+		return ErrMissingCustomer
+	}
+	if req.OperationTypeCode != "10" && req.OperationTypeCode != "11" {
+		return fmt.Errorf("%w: operation_type_code debe ser '10' (Residente) o '11' (No Residente)", ErrInvalidPaymentTerm)
+	}
+	if len(req.PaymentMeans) == 0 {
+		return ErrMissingPaymentMeans
+	}
+	for _, pm := range req.PaymentMeans {
+		ok, err := s.catalogs.IsValidPaymentTerm(ctx, pm.Code)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%w: %q", ErrInvalidPaymentTerm, pm.Code)
+		}
+		ok, err = s.catalogs.IsValidPaymentMethod(ctx, pm.PaymentMethodCode)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%w: %q", ErrInvalidPaymentMethod, pm.PaymentMethodCode)
+		}
+	}
+	if req.BillingReference.CUFE == "" {
+		return ErrMissingBillingReference
+	}
+	return nil
+}
+
 // applyVendorDefaults completa los campos que la mayoría de terceros no obligados no
 // personalizan — persona natural sin obligación de facturar (código O-49).
 func applyVendorDefaults(p *domain.Party) {
@@ -546,6 +678,8 @@ func (s *Service) ConfirmDocument(ctx context.Context, issuerID, id uuid.UUID) (
 		return s.confirmDebitNote(ctx, d)
 	case supportDocumentDianDocType:
 		return s.confirmSupportDocument(ctx, d)
+	case adjustmentNoteDianDocType:
+		return s.confirmAdjustmentNote(ctx, d)
 	default:
 		return nil, fmt.Errorf("documents: tipo de documento desconocido %q", d.DianDocumentTypeCode)
 	}
@@ -721,6 +855,71 @@ func (s *Service) confirmSupportDocument(ctx context.Context, d *Document) (*Doc
 	d.QRURL = qr.SupportDocumentURL(inv.EnvironmentCode, inv.CUFE)
 
 	return s.finalizeAndSend(ctx, xmlDoc, p, d, zip.KindSupportDocument)
+}
+
+func (s *Service) confirmAdjustmentNote(ctx context.Context, d *Document) (*Document, error) {
+	if d.Vendor == nil {
+		return nil, fmt.Errorf("documents: nota de ajuste sin vendor")
+	}
+	if d.BillingReference == nil {
+		return nil, ErrMissingBillingReference
+	}
+	p, err := s.claimAndLoadCert(ctx, d)
+	if err != nil {
+		return nil, err
+	}
+
+	headerTaxes := aggregateTaxes(d.Lines)
+	inv := domain.Invoice{
+		ProfileID:         adjustmentNoteProfileID,
+		EnvironmentCode:   string(p.iss.Environment),
+		OperationTypeCode: d.OperationTypeCode,
+		DocumentTypeCode:  adjustmentNoteDianDocType,
+		HashType:          adjustmentNoteHashType,
+
+		Prefix: p.nr.Prefix,
+		Number: strconv.FormatInt(p.number, 10),
+
+		IssueDate: p.now.Format("2006-01-02"),
+		IssueTime: p.now.Format("15:04:05-07:00"),
+
+		CurrencyCode: d.CurrencyCode,
+		Note:         d.Note,
+
+		Supplier: vendorAsNIT(*d.Vendor),
+		Customer: partyFromIssuerAsNIT(p.iss),
+
+		PaymentMeans:     d.PaymentMeans,
+		HeaderTaxes:      headerTaxes,
+		WithholdingTaxes: d.WithholdingTaxes,
+		Totals:           d.Totals,
+		Lines:            d.Lines,
+
+		NumberingRange:   numberingRangeFromRange(p.nr),
+		SoftwareProvider: softwareProviderFromIssuer(p.iss),
+	}
+
+	an := domain.AdjustmentNote{
+		Invoice:             inv,
+		BillingReference:    billingReferenceFromInput(*d.BillingReference),
+		DiscrepancyResponse: discrepancyResponseFromInput(d.DiscrepancyResponse),
+	}
+
+	an.CUFE = cuds.Compute(an.Invoice, p.iss.SoftwarePIN)
+	an.SoftwareSecurityCode = securitycode.Compute(p.iss.SoftwareID, p.iss.SoftwarePIN, an.Prefix+an.Number)
+	an.QRURL = qr.AdjustmentNoteContent(an.Invoice, an.CUFE, p.iss.SoftwarePIN)
+
+	xmlDoc, err := builder.BuildAdjustmentNote(an)
+	if err != nil {
+		_ = s.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, p.number)
+		return nil, fmt.Errorf("construir XML: %w", err)
+	}
+
+	d.Prefix, d.Number, d.DocumentKey = an.Prefix, p.number, an.CUFE
+	d.IssueDate, d.IssueTime = p.now, an.IssueTime
+	d.QRURL = qr.SupportDocumentURL(an.EnvironmentCode, an.CUFE)
+
+	return s.finalizeAndSend(ctx, xmlDoc, p, d, zip.KindAdjustmentNote)
 }
 
 // noteBaseFromDraft construye el domain.Invoice embebido que comparten CreditNote y

@@ -449,9 +449,26 @@ export interface IssueSupportDocumentPayload {
   withholding_taxes?: Tax[];
 }
 
-// Espejo de documentResponse — cubre Factura, Nota Crédito, Nota Débito y Documento Soporte.
-// billing_reference/discrepancy_response/note_type_code son null en Factura y DS; presentes en NC/ND.
-// vendor/operation_type_code/withholding_taxes solo en DS.
+// Espejo de issueAdjustmentNoteRequest (apidian/internal/api/handler_adjustment_notes.go).
+// Igual que IssueSupportDocumentPayload pero con billing_reference obligatoria al DS original
+// (usa CUDS en vez de CUFE) y discrepancy_response opcional para el motivo del ajuste.
+export interface IssueAdjustmentNotePayload {
+  numbering_range_id: string;
+  vendor_id?: string;
+  vendor: VendorPayload;
+  lines: DocumentLineInput[];
+  payment_means?: PaymentMean[];
+  note?: string;
+  currency_code?: string;
+  operation_type_code: string;
+  withholding_taxes?: Tax[];
+  billing_reference: BillingReference;
+  discrepancy_response?: DiscrepancyResponse;
+}
+
+// Espejo de documentResponse — cubre Factura, NC, ND, DS y NA (Nota de Ajuste DS).
+// billing_reference/discrepancy_response presentes en NC/ND/NA; vendor/operation_type_code/
+// withholding_taxes presentes en DS/NA.
 export interface Document {
   id: string;
   issuer_id: string;

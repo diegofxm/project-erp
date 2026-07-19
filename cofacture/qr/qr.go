@@ -32,6 +32,54 @@ func SupportDocumentURL(environmentCode, cuds string) string {
 	return URL(environmentCode, cuds)
 }
 
+// AdjustmentNoteContent construye el contenido completo del QR de la Nota de Ajuste al DS
+// (InvoiceTypeCode "95"). Sigue el mismo patrón que SupportDocumentContent (bloque de texto
+// multilinea seguido de la URL), adaptado para el tipo de documento NA.
+func AdjustmentNoteContent(inv domain.Invoice, cuds, softwarePIN string) string {
+	var codImp, valImp string
+	for _, t := range inv.HeaderTaxes {
+		if t.TypeCode == "01" {
+			codImp = t.TypeCode
+			valImp = domain.FormatCents(t.TaxAmountCents)
+			break
+		}
+	}
+	if codImp == "" && len(inv.HeaderTaxes) > 0 {
+		codImp = inv.HeaderTaxes[0].TypeCode
+		valImp = domain.FormatCents(inv.HeaderTaxes[0].TaxAmountCents)
+	}
+	if codImp == "" {
+		codImp = "01"
+		valImp = "0.00"
+	}
+
+	url := URL(inv.EnvironmentCode, cuds)
+
+	ambLabel := strconv.Itoa(func() int {
+		if inv.EnvironmentCode == "2" {
+			return 2
+		}
+		return 1
+	}())
+
+	return fmt.Sprintf(
+		"N°NotaAjuste=%s\nFecha=%s\nHora=%s\nValNA=%s\nCodImp=%s\nValImp=%s\nValTot=%s\nNumSNO=%s\nNITABS=%s\nPIN:%s\nAmb:%s\nCUDS=%s\nURL=%s",
+		inv.Prefix+inv.Number,
+		inv.IssueDate,
+		inv.IssueTime,
+		domain.FormatCents(inv.Totals.LineExtensionCents),
+		codImp,
+		valImp,
+		domain.FormatCents(inv.Totals.PayableCents),
+		inv.Supplier.Identification.Number,
+		inv.Customer.Identification.Number,
+		softwarePIN,
+		ambLabel,
+		cuds,
+		url,
+	)
+}
+
 // SupportDocumentContent construye el contenido completo del QR del Documento Soporte
 // (InvoiceTypeCode "05"). A diferencia de la Factura/NC/ND cuyo QR es solo una URL, el DS
 // exige un bloque de texto multilinea seguido de la URL (Anexo Técnico 1.9, sección 11.7.1).
