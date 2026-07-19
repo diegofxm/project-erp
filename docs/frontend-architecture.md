@@ -931,6 +931,38 @@ El botón "Ver PDF" de los editores abre un pequeño selector antes de solicitar
 El formato se envía como query param: `GET /documents/{id}/pdf?format=full_a4` o `half_a4`.
 El default (sin param) es `full_a4`.
 
+## Dashboard de métricas de facturación (`DashboardPage`) (2026-07-19)
+
+Rediseño completo de la página de inicio (`/`) con métricas reales de facturación. Usa
+**Recharts** (`npm install recharts`) — librería SVG pura en React, sin dependencias nativas.
+
+**Peticiones al cargar** (paralelas, re-ejecutan cuando cambia `activeIssuer?.id`):
+- `getBillingStats()` → `GET /api/v1/stats/billing` (definida en `src/lib/stats.ts`)
+- `listDocuments({ limit: 6 })` → últimos 6 documentos para la tabla de actividad reciente
+
+**Layout** (de arriba a abajo):
+
+1. **4 KPI cards** (grid 4 columnas): documentos emitidos este mes, ingresos este mes,
+   tasa de aceptación, e ingresos en el año. Cada card muestra delta vs. período anterior
+   con flecha coloreada (`--color-success` / `--color-danger`).
+2. **Fila de gráficas** (2/3 área + 1/3 barras):
+   - `AreaChart` de 12 meses (`series`) con gradiente `url(#revenueGradient)` y tooltip
+     personalizado que usa los CSS vars del design system.
+   - `BarChart` horizontal por tipo (`by_type`), cada barra con `Cell` coloreada según
+     el tipo: FE=#3498db, NC=#f39c12, ND=#27ae60, DS=#9b59b6.
+3. **Banda YTD** (condicional — solo si hay datos) con resumen de ingresos, documentos y
+   aceptación acumulados en el año.
+4. **Tabla de actividad reciente** — últimos 6 documentos con `StatusBadge`, enlace al
+   editor, nombre de cliente/proveedor y monto formateado con `formatCOP`.
+
+**Helpers**: `monthLabel("2025-08") → "Ago '25"`, `pctDelta(actual, anterior) → "+12%"`,
+`formatRevenueTick(1_500_000) → "$1.5M"`. Colores de tick/grid hardcodeados en hex que
+coinciden con `--border-color` y `--text-secondary` del design system (Recharts SVG no
+tiene acceso a CSS vars en los ticks).
+
+**Archivo**: `src/pages/DashboardPage.tsx` (reescritura completa).
+**Tipos**: `src/lib/stats.ts` — `BillingStats`, `PeriodStats`, `TypeStats`, `MonthSeries`.
+
 ## Pendiente para próximas fases
 
 - Sidebar: sincronizar expansión del grupo "Documentos" con la ruta activa — si el usuario

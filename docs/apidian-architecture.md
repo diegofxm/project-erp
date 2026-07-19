@@ -360,6 +360,8 @@ GET    /api/v1/vendors/{id}
 PUT    /api/v1/vendors/{id}
 DELETE /api/v1/vendors/{id}
 
+GET  /api/v1/stats/billing                         # métricas de facturación del emisor activo (ver 9.57)
+
 GET  /health
 ```
 
@@ -391,7 +393,7 @@ Decisión consciente, no descuido — si se necesitan, se integran como servicio
 | ~~PDF / representación gráfica~~ | **Ya no aplica — construido en `internal/pdf` con maroto v2 (sección 9.39)**. Generación en memoria, sin disco, servida por `GET /documents/{id}/pdf` |
 | ~~Notificaciones (email al receptor)~~ | **Ya no aplica — construido en `internal/email` con go-mail (sección 9.40)**. SMTP propio; `POST /documents/{id}/send-email` reenvía con AttachedDocument UBL |
 | ~~Listados de documentos/rangos~~ | **Ya no aplica — `GET /numbering-ranges` y `GET /documents` construidos (Fase 2.9, sección 9.19)**. Esto es CRUD básico del propio orquestador, no analítica — no era delegable a otro servicio |
-| Reportes / Dashboard / Analítica (agregaciones, gráficas) | Sigue siendo trabajo de un servicio de BI que consume los datos emitidos — los listados de arriba son consulta simple, no agregación |
+| ~~Reportes / Dashboard / Analítica (agregaciones, gráficas)~~ | **Ya no aplica — construido en `GET /api/v1/stats/billing` (sección 9.57)**. Tres SQL (`FILTER WHERE` para períodos, `GROUP BY` tipo y mes) con timezone `America/Bogota`. El dashboard en React usa Recharts (series de área 12 meses + barras por tipo). |
 | ~~Documento Soporte (CUDS)~~ | **Ya no aplica — construido en `internal/documents` y `cofacture` (sección 9.55)**. DS (tipo 05, CUDS-SHA384) autorizado por la DIAN en habilitación real (StatusCode 00) |
 | Eventos RADIAN (Acuse de recibo, Reclamo, ApplicationResponse) | Solo obligatorio si la factura se negocia como título valor — fase futura explícita |
 | Nómina Electrónica (CUNE) | Esquema XML distinto al UBL, webservice distinto — proyecto separado, no este |
@@ -475,6 +477,7 @@ DIAN/la base de datos, no el ruteo HTTP.
 | 2.14 | `internal/nit` — dígito verificador módulo 11 | ✅ Implementado, ver 9.42 |
 | 2.15 | Documento Soporte (DS tipo 05, CUDS-SHA384) de punta a punta | ✅ Autorizado por la DIAN en habilitación real (StatusCode 00), ver 9.55 |
 | 2.16 | `internal/vendors` — catálogo de proveedores no obligados para DS | ✅ Implementado, ver 9.56 |
+| 2.17 | `GET /stats/billing` — métricas de facturación del emisor (KPIs, serie 12m, por tipo) | ✅ Implementado, ver 9.57 |
 
 **Catálogos cargados en 2.2** (`internal/database/seed/*.csv`, idempotente vía `ON CONFLICT`):
 currencies, departments, identification_types (códigos numéricos oficiales DIAN: 13 cédula,
@@ -2899,3 +2902,54 @@ La relación vendors–DS es solo de conveniencia: al confirmar un DS, `document
 extrae los datos del proveedor del snapshot del documento (no de la tabla `vendors`) — mismo
 principio que clientes en FE. La tabla sirve para no retipear los datos del proveedor en
 cada DS.
+
+---
+
+### 9.57 Dashboard de métricas de facturación (`GET /api/v1/stats/billing`) — implementado (2026-07-19)
+
+**Endpoint**: `GET /api/v1/stats/billing` — requiere auth + tenant activo. Devuelve `BillingStats`.
+
+**Estructura de respuesta** (todo en centavos de COP):
+
+```json
+{
+  "current_month":  { "revenue_cents": 0, "document_count": 0, "accepted_count": 0, "rejected_count": 0, "draft_count": 0 },
+  "previous_month": { ... },
+  "ytd":            { ... },
+  "by_type": [{ "type_code": "01", "type_name": "Factura Electrónica", "count": 0, "revenue_cents": 0 }],
+  "series":   [{ "month": "2025-08", "revenue_cents": 0, "count": 0, "accepted_count": 0 }]
+}
+```
+
+**Implementación SQL** (`internal/documents/postgres.go:GetBillingStats`, 3 queries):
+
+1. **Períodos** — una sola query con `FILTER WHERE` para mes actual, mes anterior y YTD:
+   ```sql
+   SELECT
+     COUNT(*) FILTER (WHERE date_trunc('month', issue_date AT TIME ZONE 'America/Bogota') = date_trunc('month', NOW() AT TIME ZONE 'America/Bogota')) AS current_count,
+     SUM(payable_amount_cents) FILTER (...) AS current_revenue,
+     ...
+   FROM documents WHERE issuer_id = $1 AND status != 'draft'
+   ```
+2. **Por tipo** — `GROUP BY dian_document_type_code` del mes actual.
+3. **Serie mensual** — `GROUP BY date_trunc('month', issue_date)` últimos 12 meses.
+
+Todas las queries usan `AT TIME ZONE 'America/Bogota'` para acotar correctamente el "mes
+actual" en horario colombiano (UTC-5, sin DST).
+
+**Archivos involucrados**:
+- `internal/documents/stats.go` — structs `BillingStats`, `PeriodStats`, `TypeStats`, `MonthSeries`
+- `internal/documents/repository.go` — interfaz `GetBillingStats`
+- `internal/documents/postgres.go` — implementación SQL
+- `internal/documents/memory_repository.go` — stub para tests (devuelve slices vacíos)
+- `internal/api/handler_stats.go` — handler `handleGetBillingStats`
+- `internal/api/api.go` — ruta `GET /api/v1/stats/billing`
+
+**Frontend** (`DashboardPage.tsx`): usa Recharts (instalado vía `npm install recharts`).
+- 4 KPI cards: documentos mes actual, ingresos mes actual, tasa de aceptación, ingresos YTD.
+- Gráfica de área (12 meses) con gradiente `url(#revenueGradient)`.
+- Gráfica de barras horizontales por tipo de documento (colores por tipo: FE=#3498db,
+  NC=#f39c12, ND=#27ae60, DS=#9b59b6).
+- Tabla de actividad reciente: últimos 6 documentos con `StatusBadge`.
+- Peticiones en paralelo (`getBillingStats()` + `listDocuments({limit:6})`) en un `useEffect`
+  que se re-ejecuta cuando cambia `activeIssuer?.id`.
