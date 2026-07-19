@@ -187,7 +187,7 @@ export function InvoiceEditorPage() {
             <FileText className="h-4 w-4 shrink-0 text-(--accent-primary)" />
             {isNew ? "Nueva factura" : doc ? `Factura ${doc.prefix ?? ""}${doc.number ?? "(borrador)"}` : "Factura"}
           </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {doc && <StatusBadge status={doc.status} />}
           {!isNew && doc && (
             <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
@@ -259,22 +259,22 @@ export function InvoiceEditorPage() {
       ) : doc ? (
         <Card className="mt-3 flex flex-col gap-4 p-4">
           <div className="grid grid-cols-12 gap-3 text-xs">
-            <div className="col-span-3">
+            <div className="col-span-6 sm:col-span-3">
               <span className="text-(--text-secondary)">Cliente</span>
               <p className="text-(--text-primary)">{doc.customer.name}</p>
               <p className="text-(--text-muted)">{idTypeLabel(doc.customer.identification.type_code)} {doc.customer.identification.number}</p>
             </div>
-            <div className="col-span-3">
+            <div className="col-span-6 sm:col-span-3">
               <span className="text-(--text-secondary)">Total</span>
               <p className="font-mono text-(--text-primary)">{formatCOP.format(doc.totals.payable_cents / 100)}</p>
             </div>
-            <div className="col-span-3">
+            <div className="col-span-6 sm:col-span-3">
               <span className="text-(--text-secondary)">Impuestos</span>
               <p className="font-mono text-(--text-primary)">
                 {formatCOP.format((doc.totals.tax_inclusive_cents - doc.totals.tax_exclusive_cents) / 100)}
               </p>
             </div>
-            <div className="col-span-3">
+            <div className="col-span-6 sm:col-span-3">
               <span className="text-(--text-secondary)">Fecha de emisión</span>
               <p className="text-(--text-primary)">{doc.issue_date ? new Date(doc.issue_date).toLocaleDateString("es-CO") : "—"}</p>
             </div>
@@ -333,7 +333,7 @@ export function InvoiceEditorPage() {
             </div>
           )}
 
-          <div className="overflow-hidden rounded border border-(--border-color)">
+          <div className="overflow-x-auto rounded border border-(--border-color)">
             <table className="w-full text-left text-xs">
               <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
                 <tr>
@@ -358,7 +358,7 @@ export function InvoiceEditorPage() {
             </table>
           </div>
 
-          <div className="flex justify-end gap-4 text-xs text-(--text-secondary)">
+          <div className="flex flex-wrap justify-end gap-4 text-xs text-(--text-secondary)">
             <span>Subtotal: <span className="font-mono text-(--text-primary)">{formatCOP.format(doc.totals.line_extension_cents / 100)}</span></span>
             <span>Impuestos: <span className="font-mono text-(--text-primary)">{formatCOP.format((doc.totals.tax_inclusive_cents - doc.totals.line_extension_cents) / 100)}</span></span>
             <span className="font-semibold">A pagar: <span className="font-mono text-(--text-primary)">{formatCOP.format(doc.totals.payable_cents / 100)}</span></span>

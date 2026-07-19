@@ -46,18 +46,18 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
 
       {/* Resto del navbar */}
       <div className="flex flex-1 items-center justify-between px-3">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link to="/" className="flex shrink-0 items-center gap-2">
             <img src="/logo.svg" alt="cofacture" className="h-5 w-5" />
-            <span className="text-base font-semibold">cofacture</span>
+            <span className="hidden text-base font-semibold sm:inline">cofacture</span>
           </Link>
           {activeIssuer && (
             <>
-              <span className="h-4 w-px bg-(--navbar-text) opacity-30" />
-              <div className="flex items-center gap-1.5 text-xs opacity-70">
-                <Server className="h-3.5 w-3.5" />
-                <span>Empresa:</span>
-                <span className="font-mono">{activeIssuer.business_name}</span>
+              <span className="hidden h-4 w-px bg-(--navbar-text) opacity-30 sm:block" />
+              <div className="hidden min-w-0 items-center gap-1.5 text-xs opacity-70 sm:flex">
+                <Server className="h-3.5 w-3.5 shrink-0" />
+                <span className="shrink-0">Empresa:</span>
+                <span className="truncate font-mono">{activeIssuer.business_name}</span>
               </div>
             </>
           )}

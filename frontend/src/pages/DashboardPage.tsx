@@ -379,7 +379,7 @@ export function DashboardPage() {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-(--text-muted) mb-3">
             Acumulado del año
           </h2>
-          <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
             <div>
               <div className="text-xl font-bold tabular-nums text-(--text-primary)">
                 {formatCOP.format(stats.ytd.revenue_cents / 100)}

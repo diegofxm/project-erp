@@ -42,7 +42,7 @@ export function SettingsAccountPage() {
         <User className="h-4 w-4 shrink-0 text-(--accent-primary)" />
         Mi cuenta
       </h1>
-      <Card className="max-w-sm p-4">
+      <Card className="w-full max-w-sm p-4">
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-(--text-secondary)">Nombre</label>

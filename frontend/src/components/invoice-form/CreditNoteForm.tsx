@@ -153,7 +153,7 @@ export function CreditNoteForm({ initial, prefill, billingReference, onSubmit, o
       </div>
 
       <div className="grid grid-cols-12 gap-3">
-        <div className="col-span-6">
+        <div className="col-span-12 sm:col-span-6">
           <Select
             label="Concepto de Nota Crédito"
             required
@@ -168,7 +168,7 @@ export function CreditNoteForm({ initial, prefill, billingReference, onSubmit, o
             ))}
           </Select>
         </div>
-        <div className="col-span-6">
+        <div className="col-span-12 sm:col-span-6">
           <Select label="Rango de numeración" required value={numberingRangeId} onChange={(e) => setNumberingRangeId(e.target.value)} disabled={loadingRanges}>
             {loadingRanges ? (
               <option>Cargando…</option>
@@ -194,7 +194,7 @@ export function CreditNoteForm({ initial, prefill, billingReference, onSubmit, o
             </p>
           )}
         </div>
-        <div className="col-span-3">
+        <div className="col-span-6 sm:col-span-3">
           <Select label="Moneda" disabled={loadingCurrencies} value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)}>
             {loadingCurrencies ? (
               <option>Cargando…</option>
@@ -228,7 +228,7 @@ export function CreditNoteForm({ initial, prefill, billingReference, onSubmit, o
       </section>
 
       <section className="grid grid-cols-12 gap-3 border-t border-(--border-color) pt-3">
-        <div className="col-span-4 col-start-9">
+        <div className="col-span-12 sm:col-span-4 sm:col-start-9">
           <TotalsSummary lines={lines} />
         </div>
       </section>
@@ -242,14 +242,14 @@ export function CreditNoteForm({ initial, prefill, billingReference, onSubmit, o
           Se envía junto con la nota — se llena automáticamente al seleccionar el concepto.
         </p>
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-4">
+          <div className="col-span-12 sm:col-span-4">
             <Input
               label="ID de referencia (número de la factura)"
               value={discrepancy.reference_id}
               onChange={(e) => setDiscrepancy((d) => ({ ...d, reference_id: e.target.value }))}
             />
           </div>
-          <div className="col-span-4">
+          <div className="col-span-12 sm:col-span-4">
             <Select
               label="Código de respuesta"
               value={discrepancy.response_code}

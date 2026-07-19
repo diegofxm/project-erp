@@ -60,7 +60,7 @@ export function WithholdingTaxesEditor({ taxes, onChange }: WithholdingTaxesEdit
     <div className="flex flex-col gap-3">
       {/* Tabla de retenciones agregadas */}
       {taxes.length > 0 && (
-        <div className="overflow-hidden rounded border border-(--border-color)">
+        <div className="overflow-x-auto rounded border border-(--border-color)">
           <table className="w-full text-left text-xs">
             <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
               <tr>
@@ -119,7 +119,7 @@ export function WithholdingTaxesEditor({ taxes, onChange }: WithholdingTaxesEdit
       ) : (
         <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3">
           <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-3">
+            <div className="col-span-12 sm:col-span-3">
               <Select
                 label="Tipo de retención"
                 value={draft.typeCode}
@@ -132,7 +132,7 @@ export function WithholdingTaxesEditor({ taxes, onChange }: WithholdingTaxesEdit
                 ))}
               </Select>
             </div>
-            <div className="col-span-3">
+            <div className="col-span-12 sm:col-span-3">
               <Input
                 label="Base imponible (COP)"
                 type="number"
@@ -142,7 +142,7 @@ export function WithholdingTaxesEditor({ taxes, onChange }: WithholdingTaxesEdit
                 onChange={(e) => setDraft({ ...draft, taxableAmount: e.target.value })}
               />
             </div>
-            <div className="col-span-3">
+            <div className="col-span-12 sm:col-span-3">
               <Input
                 label="Valor retención (COP)"
                 type="number"
@@ -152,7 +152,7 @@ export function WithholdingTaxesEditor({ taxes, onChange }: WithholdingTaxesEdit
                 onChange={(e) => setDraft({ ...draft, taxAmount: e.target.value })}
               />
             </div>
-            <div className="col-span-3">
+            <div className="col-span-12 sm:col-span-3">
               <Input
                 label="Porcentaje (%)"
                 type="number"

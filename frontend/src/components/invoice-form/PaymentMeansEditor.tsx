@@ -64,7 +64,7 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
     <div className="flex flex-col gap-3">
       {/* Tabla de medios agregados */}
       {paymentMeans.length > 0 && (
-        <div className="overflow-hidden rounded border border-(--border-color)">
+        <div className="overflow-x-auto rounded border border-(--border-color)">
           <table className="w-full text-left text-xs">
             <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
               <tr>
@@ -121,7 +121,7 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
       ) : (
         <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3">
           <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-4">
+            <div className="col-span-12 sm:col-span-4">
               <Select
                 label="Forma de pago"
                 required
@@ -143,7 +143,7 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
                 )}
               </Select>
             </div>
-            <div className="col-span-4">
+            <div className="col-span-12 sm:col-span-4">
               <Combobox
                 label="Medio de pago"
                 value={draft.paymentMethodCode}
@@ -154,7 +154,7 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
               />
             </div>
             {isCredit && (
-              <div className="col-span-2">
+              <div className="col-span-6 sm:col-span-2">
                 <Input
                   label="Vencimiento"
                   type="date"
@@ -163,7 +163,7 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
                 />
               </div>
             )}
-            <div className={isCredit ? "col-span-2" : "col-span-4"}>
+            <div className={isCredit ? "col-span-6 sm:col-span-2" : "col-span-12 sm:col-span-4"}>
               <Input
                 label="Referencia (opcional)"
                 value={draft.reference}

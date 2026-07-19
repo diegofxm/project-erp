@@ -96,7 +96,7 @@ export function SupportDocumentForm({ initial, onSubmit, onCancel, loading }: Su
     <div className="flex flex-col gap-4 p-4">
       {/* Cabecera: rango, tipo operación, moneda, nota */}
       <div className="grid grid-cols-12 gap-3">
-        <div className="col-span-6">
+        <div className="col-span-12 sm:col-span-6">
           <Select
             label="Rango de numeración"
             required
@@ -128,7 +128,7 @@ export function SupportDocumentForm({ initial, onSubmit, onCancel, loading }: Su
             </p>
           )}
         </div>
-        <div className="col-span-3">
+        <div className="col-span-6 sm:col-span-3">
           <Select
             label="Tipo de operación"
             value={operationTypeCode}
@@ -139,7 +139,7 @@ export function SupportDocumentForm({ initial, onSubmit, onCancel, loading }: Su
             ))}
           </Select>
         </div>
-        <div className="col-span-3">
+        <div className="col-span-6 sm:col-span-3">
           <Select
             label="Moneda"
             disabled={loadingCurrencies}
@@ -188,7 +188,7 @@ export function SupportDocumentForm({ initial, onSubmit, onCancel, loading }: Su
 
       {/* Totales alineados a la derecha */}
       <section className="grid grid-cols-12 gap-3 border-t border-(--border-color) pt-3">
-        <div className="col-span-4 col-start-9">
+        <div className="col-span-12 sm:col-span-4 sm:col-start-9">
           <TotalsSummary lines={lines} withholdingTaxes={withholdingTaxes} />
         </div>
       </section>

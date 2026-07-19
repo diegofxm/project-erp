@@ -141,7 +141,7 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
     <div className="flex flex-col gap-4 p-4">
       {/* Cabecera: rango, tipo operación, moneda, nota */}
       <div className="grid grid-cols-12 gap-3">
-        <div className="col-span-6">
+        <div className="col-span-12 sm:col-span-6">
           <Select
             label="Rango de numeración"
             required
@@ -173,7 +173,7 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
             </p>
           )}
         </div>
-        <div className="col-span-3">
+        <div className="col-span-6 sm:col-span-3">
           <Select
             label="Tipo de operación"
             value={operationTypeCode}
@@ -184,7 +184,7 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
             ))}
           </Select>
         </div>
-        <div className="col-span-3">
+        <div className="col-span-6 sm:col-span-3">
           <Select
             label="Moneda"
             disabled={loadingCurrencies}
@@ -212,7 +212,7 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
         <h2 className="text-xs font-semibold text-(--text-primary)">Documento Soporte de referencia</h2>
         <p className="text-xs text-(--text-muted)">El DS que esta nota ajusta o anula.</p>
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-3">
+          <div className="col-span-6 sm:col-span-3">
             <Input
               label="Prefijo DS"
               value={billingRef.prefix}
@@ -220,7 +220,7 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
               placeholder="SEDS"
             />
           </div>
-          <div className="col-span-3">
+          <div className="col-span-6 sm:col-span-3">
             <Input
               label="Número DS"
               required
@@ -229,7 +229,7 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
               placeholder="984000000"
             />
           </div>
-          <div className="col-span-3">
+          <div className="col-span-6 sm:col-span-3">
             <Input
               label="Fecha DS"
               type="date"
@@ -266,7 +266,7 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
         </div>
         {hasDiscrepancy && (
           <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-3">
+            <div className="col-span-6 sm:col-span-3">
               <Select
                 label="Código"
                 value={discrepancy.response_code}
@@ -277,7 +277,7 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
                 ))}
               </Select>
             </div>
-            <div className="col-span-5">
+            <div className="col-span-6 sm:col-span-5">
               <Input
                 label="Referencia"
                 value={discrepancy.reference_id}
@@ -323,7 +323,7 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
 
       {/* Totales */}
       <section className="grid grid-cols-12 gap-3 border-t border-(--border-color) pt-3">
-        <div className="col-span-4 col-start-9">
+        <div className="col-span-12 sm:col-span-4 sm:col-start-9">
           <TotalsSummary lines={lines} withholdingTaxes={withholdingTaxes} />
         </div>
       </section>

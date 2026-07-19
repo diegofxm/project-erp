@@ -121,7 +121,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
     <div className="flex flex-col gap-3">
       {/* Tabla de líneas agregadas */}
       {lines.length > 0 && (
-        <div className="overflow-hidden rounded border border-(--border-color)">
+        <div className="overflow-x-auto rounded border border-(--border-color)">
           <table className="w-full text-left text-xs">
             <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
               <tr>
@@ -181,7 +181,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
       ) : (
         <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3">
           <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-5">
+            <div className="col-span-12 sm:col-span-5">
               <Combobox
                 label="Buscar producto"
                 value={draft.productId}
@@ -191,7 +191,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
                 placeholder={loadingProducts ? "Cargando…" : "Buscar por nombre…"}
               />
             </div>
-            <div className="col-span-7">
+            <div className="col-span-12 sm:col-span-7">
               <Input
                 label="Descripción"
                 required
@@ -199,7 +199,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
                 onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               />
             </div>
-            <div className="col-span-3">
+            <div className="col-span-12 sm:col-span-3">
               <Combobox
                 label="Unidad de medida"
                 disabled={loadingUnitMeasures}
@@ -209,7 +209,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
                 placeholder={loadingUnitMeasures ? "Cargando…" : "Buscar unidad…"}
               />
             </div>
-            <div className="col-span-2">
+            <div className="col-span-6 sm:col-span-2">
               <Input
                 label="Cantidad"
                 type="number"
@@ -219,7 +219,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
                 onChange={(e) => setDraft({ ...draft, quantity: e.target.value })}
               />
             </div>
-            <div className="col-span-3">
+            <div className="col-span-6 sm:col-span-3">
               <Input
                 label="Precio unitario (COP)"
                 type="number"
@@ -229,7 +229,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
                 onChange={(e) => setDraft({ ...draft, unitPrice: e.target.value })}
               />
             </div>
-            <div className="col-span-4">
+            <div className="col-span-12 sm:col-span-4">
               <Select
                 label="Impuesto"
                 disabled={loadingTaxTypes}
@@ -251,7 +251,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
               </Select>
             </div>
             {draft.taxTypeCode && (
-              <div className="col-span-3">
+              <div className="col-span-12 sm:col-span-3">
                 <Input
                   label="Porcentaje (%)"
                   type="number"

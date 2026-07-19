@@ -39,13 +39,13 @@ export function SubNav() {
   if (!config) return null;
 
   return (
-    <nav className="flex h-10 shrink-0 border-b border-(--border-color) bg-(--bg-secondary) px-3">
+    <nav className="flex h-10 shrink-0 overflow-x-auto border-b border-(--border-color) bg-(--bg-secondary) px-1">
       {config.items.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
           className={({ isActive }) =>
-            `inline-flex h-full items-center gap-1.5 border-b-2 px-3 text-xs font-medium transition-colors ${
+            `inline-flex h-full shrink-0 items-center gap-1.5 border-b-2 px-3 text-xs font-medium transition-colors ${
               isActive
                 ? `-mb-px ${item.color ? "border-current" : "border-(--accent-primary) text-(--accent-primary)"}`
                 : "border-transparent text-(--text-secondary) hover:text-(--text-primary)"

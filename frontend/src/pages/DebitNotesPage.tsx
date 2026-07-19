@@ -100,7 +100,7 @@ export function DebitNotesPage() {
             : "Todavía no has emitido ninguna nota débito. Para crear una, abre una factura confirmada y usa el botón \"Emitir Nota Débito\"."}
         </p>
       ) : (
-        <div className="overflow-hidden rounded border border-(--border-color)">
+        <div className="overflow-x-auto rounded border border-(--border-color)">
           <table className="w-full text-left text-xs">
             <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
               <tr>

@@ -133,7 +133,7 @@ export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, on
       </div>
 
       <div className="grid grid-cols-12 gap-3">
-        <div className="col-span-6">
+        <div className="col-span-12 sm:col-span-6">
           <Select
             label="Rango de numeración"
             required
@@ -165,7 +165,7 @@ export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, on
             </p>
           )}
         </div>
-        <div className="col-span-3">
+        <div className="col-span-6 sm:col-span-3">
           <Select
             label="Moneda"
             disabled={loadingCurrencies}
@@ -204,7 +204,7 @@ export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, on
       </section>
 
       <section className="grid grid-cols-12 gap-3 border-t border-(--border-color) pt-3">
-        <div className="col-span-4 col-start-9">
+        <div className="col-span-12 sm:col-span-4 sm:col-start-9">
           <TotalsSummary lines={lines} />
         </div>
       </section>
@@ -215,14 +215,14 @@ export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, on
           Se envía junto con la nota — se llena automáticamente al seleccionar el concepto.
         </p>
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-4">
+          <div className="col-span-12 sm:col-span-4">
             <Input
               label="ID de referencia (número de la factura)"
               value={discrepancy.reference_id}
               onChange={(e) => setDiscrepancy((d) => ({ ...d, reference_id: e.target.value }))}
             />
           </div>
-          <div className="col-span-4">
+          <div className="col-span-12 sm:col-span-4">
             <Select
               label="Concepto de Nota Débito"
               required

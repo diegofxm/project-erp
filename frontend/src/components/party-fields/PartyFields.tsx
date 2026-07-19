@@ -16,11 +16,6 @@ interface PartyFieldsProps {
   onChange: (next: PartyPayload) => void;
 }
 
-// Campos de un CustomerPayload (identificación, nombre, tipo de entidad, contacto, dirección
-// departamento→municipio, información tributaria, responsabilidades fiscales) como componente
-// controlado, sin chrome de guardar/cancelar — extraído de CustomerForm para reusarlo también
-// en la sección de cliente de Factura Electrónica (ver docs/frontend-architecture.md). Misma
-// grilla fija de 12 columnas que el resto del frontend.
 export function PartyFields({ value, onChange }: PartyFieldsProps) {
   const { data: identificationTypes, loading: loadingIdentificationTypes } = useCatalog(listIdentificationTypes);
   const { data: departments, loading: loadingDepartments } = useCatalog(listDepartments);
@@ -38,8 +33,6 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<string | null>(null);
 
-  // Verificación opcional contra la DIAN (GetAcquirer, sección 9.41) — solo aplica a NIT, solo
-  // a pedido del usuario, nunca bloquea ni autocompleta nada.
   async function handleVerify() {
     setVerifying(true);
     setVerifyResult(null);
@@ -90,7 +83,8 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
 
   return (
     <div className="grid grid-cols-12 gap-3">
-      <div className="col-span-3">
+      {/* Fila 1: tipo, DV, número, nombre */}
+      <div className="col-span-12 sm:col-span-4">
         <Select
           label="Tipo de identificación"
           required
@@ -109,14 +103,14 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           )}
         </Select>
       </div>
-      <div className="col-span-1">
+      <div className="col-span-3 sm:col-span-1">
         <Input
           label="DV"
           value={value.identification.verification_code ?? ""}
           onChange={(e) => onChange({ ...value, identification: { ...value.identification, verification_code: e.target.value || undefined } })}
         />
       </div>
-      <div className="col-span-4">
+      <div className="col-span-9 sm:col-span-3">
         <Input
           label="Número de identificación"
           required
@@ -124,7 +118,7 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           onChange={(e) => onChange({ ...value, identification: { ...value.identification, number: e.target.value } })}
         />
       </div>
-      <div className="col-span-4">
+      <div className="col-span-12 sm:col-span-4">
         <Input label="Nombre / Razón social" required value={value.name} onChange={(e) => onChange({ ...value, name: e.target.value })} />
       </div>
 
@@ -145,7 +139,8 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
         </div>
       )}
 
-      <div className="col-span-4">
+      {/* Fila 2: tipo entidad, correo, teléfono */}
+      <div className="col-span-12 sm:col-span-4">
         <Select
           label="Tipo de entidad"
           value={value.entity_type_code ?? ""}
@@ -156,7 +151,7 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           <option value="2">Persona natural</option>
         </Select>
       </div>
-      <div className="col-span-4">
+      <div className="col-span-12 sm:col-span-4">
         <Input
           label="Correo"
           type="email"
@@ -164,11 +159,12 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           onChange={(e) => onChange({ ...value, email: e.target.value || undefined })}
         />
       </div>
-      <div className="col-span-4">
+      <div className="col-span-12 sm:col-span-4">
         <Input label="Teléfono" value={value.phone ?? ""} onChange={(e) => onChange({ ...value, phone: e.target.value || undefined })} />
       </div>
 
-      <div className="col-span-3">
+      {/* Fila 3: departamento, municipio, dirección */}
+      <div className="col-span-12 sm:col-span-3">
         <Select label="Departamento" disabled={loadingDepartments} value={departmentCode} onChange={(e) => handleDepartmentChange(e.target.value)}>
           {loadingDepartments ? (
             <option>Cargando…</option>
@@ -184,7 +180,7 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           )}
         </Select>
       </div>
-      <div className="col-span-5">
+      <div className="col-span-12 sm:col-span-5">
         <Select
           label="Municipio"
           disabled={!departmentCode || loadingMunicipalities}
@@ -205,7 +201,7 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           )}
         </Select>
       </div>
-      <div className="col-span-4">
+      <div className="col-span-12 sm:col-span-4">
         <Input
           label="Dirección"
           value={value.address?.line ?? ""}
@@ -213,7 +209,8 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
         />
       </div>
 
-      <div className="col-span-6">
+      {/* Fila 4: régimen tributario */}
+      <div className="col-span-12 sm:col-span-6">
         <Select
           label="Tipo de impuesto del régimen"
           disabled={loadingTaxTypes}
@@ -231,7 +228,7 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           )}
         </Select>
       </div>
-      <div className="col-span-6">
+      <div className="col-span-12 sm:col-span-6">
         <Select
           label="Tipo de régimen"
           disabled={loadingTaxRegimes}
@@ -253,9 +250,10 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
         </Select>
       </div>
 
+      {/* Responsabilidades fiscales */}
       <div className="col-span-12 flex flex-col gap-1">
         <span className="text-xs font-medium text-(--text-secondary)">Responsabilidades fiscales</span>
-        <div className="grid grid-cols-2 gap-1 rounded border border-(--border-color) bg-(--bg-primary) p-2">
+        <div className="grid grid-cols-1 gap-1 rounded border border-(--border-color) bg-(--bg-primary) p-2 sm:grid-cols-2">
           {loadingLiabilityCodes ? (
             <div className="col-span-2 flex min-h-16 items-center justify-center">
               <span className="text-xs text-(--text-muted)">Cargando…</span>

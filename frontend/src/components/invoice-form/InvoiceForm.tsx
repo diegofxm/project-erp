@@ -75,7 +75,7 @@ export function InvoiceForm({ initial, onSubmit, onCancel, loading }: InvoiceFor
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="grid grid-cols-12 gap-3">
-        <div className="col-span-6">
+        <div className="col-span-12 sm:col-span-6">
           <Select label="Rango de numeración" required value={numberingRangeId} onChange={(e) => setNumberingRangeId(e.target.value)} disabled={loadingRanges}>
             {loadingRanges ? (
               <option>Cargando…</option>
@@ -99,7 +99,7 @@ export function InvoiceForm({ initial, onSubmit, onCancel, loading }: InvoiceFor
             </p>
           )}
         </div>
-        <div className="col-span-3">
+        <div className="col-span-6 sm:col-span-3">
           <Select label="Moneda" disabled={loadingCurrencies} value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)}>
             {loadingCurrencies ? (
               <option>Cargando…</option>
@@ -133,7 +133,7 @@ export function InvoiceForm({ initial, onSubmit, onCancel, loading }: InvoiceFor
       </section>
 
       <section className="grid grid-cols-12 gap-3 border-t border-(--border-color) pt-3">
-        <div className="col-span-4 col-start-9">
+        <div className="col-span-12 sm:col-span-4 sm:col-start-9">
           <TotalsSummary lines={lines} />
         </div>
       </section>

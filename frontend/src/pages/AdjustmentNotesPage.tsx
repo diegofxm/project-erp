@@ -115,7 +115,7 @@ export function AdjustmentNotesPage() {
           {hasFilters ? "No hay notas de ajuste que coincidan con los filtros." : "Todavía no has creado ninguna nota de ajuste."}
         </p>
       ) : (
-        <div className="overflow-hidden rounded border border-(--border-color)">
+        <div className="overflow-x-auto rounded border border-(--border-color)">
           <table className="w-full text-left text-xs">
             <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
               <tr>
