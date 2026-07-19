@@ -278,11 +278,60 @@ table.s-taxes th.r, table.s-taxes td.r { text-align: right; }
 .s-footer-cufe .k { font-weight: 700; color: var(--ink); }
 .s-footer-cufe .v { color: var(--ink); word-break: break-all; }
 
+/* ── Marca cofacture (borde derecho) ─────── */
+.cfbrand {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5.5mm;
+  background: #14345C;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+.cfbrand-text {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: rgba(255,255,255,0.5);
+  font-size: 5.5pt;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+/* ── Sello SIN VALOR FISCAL (DS) ─────────── */
+.svf-wrap {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 5;
+}
+.svf-stamp {
+  font-size: 28pt;
+  font-weight: 900;
+  color: rgba(192,57,43,0.13);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transform: rotate(-30deg);
+  white-space: nowrap;
+  border: 2.5pt solid rgba(192,57,43,0.18);
+  padding: 3mm 6mm;
+}
+
 </style>
 </head>
 <body>
 
 <div class="page">
+
+  <div class="cfbrand"><span class="cfbrand-text">cofacture</span></div>
+  {{if .Copy1.IsDS}}<div class="svf-wrap"><span class="svf-stamp">Sin Valor Fiscal</span></div>{{end}}
 
   {{template "slip" .Copy1}}
 
@@ -320,7 +369,7 @@ table.s-taxes th.r, table.s-taxes td.r { text-align: right; }
 
   <div class="s-idbox">
     <div class="col">
-      <div class="s-bar">Adquiriente</div>
+      <div class="s-bar">{{if .IsDS}}Proveedor{{else}}Adquiriente{{end}}</div>
       <div class="s-kv-block">
         <div class="s-kv-row"><span class="k">Nombre:</span><span class="v">{{.CustomerName}}</span></div>
         <div class="s-kv-row"><span class="k">{{.CustomerIDType}}:</span><span class="v">{{.CustomerID}}</span></div>

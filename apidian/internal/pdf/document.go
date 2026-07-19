@@ -94,6 +94,9 @@ type InvoiceInput struct {
 	// HashLabel es la etiqueta del código de unicidad: "CUFE" para Factura, "CUDE" para NC/ND.
 	// Vacío → "CUFE".
 	HashLabel string
+	// IsDS indica que el documento es un Documento Soporte (tipo 05). Activa la marca
+	// "SIN VALOR FISCAL" y cambia la etiqueta "Adquiriente" por "Proveedor" en el PDF.
+	IsDS bool
 
 	// Información fiscal del emisor para el pie del documento (por norma — Resolución DIAN 042).
 	IssuerTaxRegime        string // ej. "Responsable de IVA"
@@ -149,7 +152,8 @@ type docTemplateData struct {
 	Email        string
 	LogoDataURL  template.URL
 
-	IsDraft   bool
+	IsDraft bool
+	IsDS    bool
 	DocNumber string
 	CUFE      string
 	QR        template.URL
@@ -254,6 +258,8 @@ func buildTemplateData(in InvoiceInput) (docTemplateData, error) {
 		numLabel = "N° de Nota Crédito"
 	case strings.Contains(docTitle, "DÉBITO"):
 		numLabel = "N° de Nota Débito"
+	case strings.Contains(docTitle, "SOPORTE"):
+		numLabel = "N° de Doc. Soporte"
 	default:
 		numLabel = "N° de Factura"
 	}
@@ -306,6 +312,7 @@ func buildTemplateData(in InvoiceInput) (docTemplateData, error) {
 		LogoDataURL:  logoURL,
 
 		IsDraft:   in.IsDraft,
+		IsDS:      in.IsDS,
 		DocNumber: docNumber,
 		CUFE:      in.CUFE,
 		QR:        qrURL,

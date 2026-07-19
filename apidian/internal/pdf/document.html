@@ -332,11 +332,62 @@ table.taxes th.r, table.taxes td.r { text-align: right; }
   word-break: break-all;
 }
 
+/* ── Marca cofacture (borde derecho) ─────── */
+.cfbrand {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5.5mm;
+  background: #14345C;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+.cfbrand-text {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: rgba(255,255,255,0.5);
+  font-size: 5.5pt;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+/* ── Sello SIN VALOR FISCAL (DS) ─────────── */
+.svf-wrap {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 5;
+}
+.svf-stamp {
+  font-size: 36pt;
+  font-weight: 900;
+  color: rgba(192,57,43,0.13);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transform: rotate(-30deg);
+  white-space: nowrap;
+  border: 3pt solid rgba(192,57,43,0.18);
+  padding: 4mm 8mm;
+}
+
 </style>
 </head>
 <body>
 
 <div class="page">
+
+  <!-- Marca cofacture — borde derecho de todas las páginas -->
+  <div class="cfbrand"><span class="cfbrand-text">cofacture</span></div>
+  <!-- Sello SIN VALOR FISCAL — solo en Documento Soporte -->
+  {{if .IsDS}}<div class="svf-wrap"><span class="svf-stamp">Sin Valor Fiscal</span></div>{{end}}
 
   <!-- CABECERA ──────────────────────────────── -->
   <div class="header">
@@ -371,7 +422,7 @@ table.taxes th.r, table.taxes td.r { text-align: right; }
   <!-- ADQUIRIENTE / N° + QR ──────────────────── -->
   <div class="idbox">
     <div class="col">
-      <div class="bar">Adquiriente</div>
+      <div class="bar">{{if .IsDS}}Proveedor{{else}}Adquiriente{{end}}</div>
       <div class="kv-block">
         <div class="kv-row"><span class="k">Nombre:</span><span class="v">{{.CustomerName}}</span></div>
         <div class="kv-row"><span class="k">{{.CustomerIDType}}:</span><span class="v">{{.CustomerID}}</span></div>

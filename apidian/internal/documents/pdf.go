@@ -177,6 +177,27 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 	}
 	econActivity := strings.Join(econParts, ", ")
 
+	isDS := d.DianDocumentTypeCode == supportDocumentDianDocType
+
+	// En DS los datos del "tercero" (proveedor) están en d.Vendor, no en d.Customer.
+	// Para FE/NC/ND el cliente es d.Customer.
+	var custName, custIDType, custID, custAddr, custPhone, custEmail string
+	if isDS && d.Vendor != nil {
+		custName = d.Vendor.Name
+		custIDType = identTypeAbbrev(d.Vendor.Identification.TypeCode)
+		custID = d.Vendor.Identification.Number
+		custAddr = d.Vendor.Address.Line
+		custPhone = d.Vendor.Phone
+		custEmail = d.Vendor.Email
+	} else {
+		custName = d.Customer.Name
+		custIDType = identTypeAbbrev(d.Customer.Identification.TypeCode)
+		custID = d.Customer.Identification.Number
+		custAddr = d.Customer.Address.Line
+		custPhone = d.Customer.Phone
+		custEmail = d.Customer.Email
+	}
+
 	return pdf.InvoiceInput{
 		IssuerBusinessName: iss.BusinessName,
 		IssuerNIT:          iss.NIT,
@@ -190,6 +211,7 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		IssuerLogoExt:      iss.LogoContentType,
 
 		IsDraft:      d.Status == StatusDraft,
+		IsDS:         isDS,
 		Prefix:       d.Prefix,
 		Number:       d.Number,
 		CUFE:         d.DocumentKey,
@@ -198,12 +220,12 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		IssueDate:    issueDate,
 		CurrencyCode: d.CurrencyCode,
 
-		CustomerName:               d.Customer.Name,
-		CustomerIdentificationType: identTypeAbbrev(d.Customer.Identification.TypeCode),
-		CustomerIdentification:     d.Customer.Identification.Number,
-		CustomerAddressLine:        d.Customer.Address.Line,
-		CustomerPhone:              d.Customer.Phone,
-		CustomerEmail:              d.Customer.Email,
+		CustomerName:               custName,
+		CustomerIdentificationType: custIDType,
+		CustomerIdentification:     custID,
+		CustomerAddressLine:        custAddr,
+		CustomerPhone:              custPhone,
+		CustomerEmail:              custEmail,
 
 		PaymentTermName:   paymentTermName,
 		PaymentMethodName: paymentMethodName,
