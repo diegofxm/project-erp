@@ -108,6 +108,17 @@ type InvoiceInput struct {
 	ValidTo          string
 }
 
+// chromePath almacena la ruta al binario Chrome/Chromium configurada en arranque.
+// Vacío = chromedp busca en PATH automáticamente (funciona en local; falla en VPS sin Chrome).
+var chromePath string
+
+// SetChromePath fija la ruta al binario Chrome/Chromium para el generador de PDF.
+// Debe llamarse una sola vez al arrancar el servidor (antes de cualquier petición de PDF).
+// Vacío restablece la búsqueda automática en PATH.
+func SetChromePath(path string) {
+	chromePath = path
+}
+
 // BuildInvoicePDF construye la representación gráfica en memoria usando chromedp.
 func BuildInvoicePDF(in InvoiceInput) ([]byte, error) {
 	data, err := buildTemplateData(in)
@@ -341,6 +352,9 @@ func htmlToPDF(html string) ([]byte, error) {
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("disable-web-security", true),
 	)
+	if chromePath != "" {
+		opts = append(opts, chromedp.ExecPath(chromePath))
+	}
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
 

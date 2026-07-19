@@ -13,6 +13,7 @@ import (
 	"github.com/diegofxm/apidian/internal/config"
 	"github.com/diegofxm/apidian/internal/database"
 	"github.com/diegofxm/apidian/internal/logger"
+	"github.com/diegofxm/apidian/internal/pdf"
 	"github.com/diegofxm/apidian/internal/server"
 )
 
@@ -37,7 +38,10 @@ func run() error {
 		return err
 	}
 
-	// 2. Logger
+	// 2. PDF: ruta a Chrome/Chromium (configurable vía CHROME_PATH; vacío = auto-detect en PATH)
+	pdf.SetChromePath(cfg.ChromePath)
+
+	// 3. Logger
 	log, err := logger.New(cfg.LogLevel, cfg.IsProduction())
 	if err != nil {
 		return err
@@ -50,7 +54,7 @@ func run() error {
 		zap.String("addr", cfg.Addr()),
 	)
 
-	// 3. Base de datos
+	// 4. Base de datos
 	db, err := database.New(ctx, database.Config{
 		URL:     cfg.DatabaseURL,
 		MaxConn: cfg.DatabaseMaxConn,
@@ -75,7 +79,7 @@ func run() error {
 
 	log.Info("catalogs seeded")
 
-	// 4. Servidor HTTP
+	// 5. Servidor HTTP
 	srv := server.New(server.Options{
 		Config: cfg,
 		Logger: log,

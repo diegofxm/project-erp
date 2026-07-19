@@ -60,6 +60,12 @@ type Config struct {
 	SMTPPassword    string
 	SMTPFromAddress string
 	SMTPFromName    string
+
+	// ChromePath es la ruta absoluta al binario Chrome/Chromium que usa el generador de PDF
+	// (internal/pdf, vía chromedp). Vacío = chromedp busca en PATH automáticamente.
+	// En un VPS Linux donde Chrome no está en PATH (p.ej. instalado como chromium en
+	// /usr/bin/chromium) se debe poner la ruta exacta: CHROME_PATH=/usr/bin/chromium
+	ChromePath string
 }
 
 func Load() (*Config, error) {
@@ -90,6 +96,7 @@ func Load() (*Config, error) {
 		SMTPPassword:       getEnv("SMTP_PASSWORD", ""),
 		SMTPFromAddress:    getEnv("SMTP_FROM_ADDRESS", ""),
 		SMTPFromName:       getEnv("SMTP_FROM_NAME", ""),
+		ChromePath:         getEnv("CHROME_PATH", ""),
 	}
 
 	if err := cfg.validate(); err != nil {
