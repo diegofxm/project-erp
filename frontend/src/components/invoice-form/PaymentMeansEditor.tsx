@@ -26,6 +26,7 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
   const { data: paymentTerms, loading: loadingPaymentTerms } = useCatalog(listPaymentTerms);
   const { data: paymentMethods, loading: loadingPaymentMethods } = useCatalog(listPaymentMethods);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const [showForm, setShowForm] = useState(false);
 
   const isCredit = draft.code === "2";
 
@@ -40,6 +41,12 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
       },
     ]);
     setDraft(EMPTY_DRAFT);
+    setShowForm(false);
+  }
+
+  function handleCancel() {
+    setDraft(EMPTY_DRAFT);
+    setShowForm(false);
   }
 
   function handleRemove(index: number) {
@@ -55,6 +62,7 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Tabla de medios agregados */}
       {paymentMeans.length > 0 && (
         <div className="overflow-hidden rounded border border-(--border-color)">
           <table className="w-full text-left text-xs">
@@ -95,75 +103,91 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
         </div>
       )}
 
-      <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3">
-        <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-4">
-            <Select
-              label="Forma de pago"
-              required
-              disabled={loadingPaymentTerms}
-              value={draft.code}
-              onChange={(e) => setDraft({ ...draft, code: e.target.value })}
-            >
-              {loadingPaymentTerms ? (
-                <option>Cargando…</option>
-              ) : (
-                <>
-                  <option value="">Selecciona…</option>
-                  {paymentTerms.map((t) => (
-                    <option key={t.code} value={t.code}>
-                      {t.name}
-                    </option>
-                  ))}
-                </>
-              )}
-            </Select>
-          </div>
-          <div className="col-span-4">
-            <Combobox
-              label="Medio de pago"
-              value={draft.paymentMethodCode}
-              onChange={(code) => setDraft({ ...draft, paymentMethodCode: code })}
-              options={paymentMethodOptions}
-              disabled={loadingPaymentMethods}
-              placeholder={loadingPaymentMethods ? "Cargando…" : "Buscar medio de pago…"}
-            />
-          </div>
-          {isCredit && (
-            <div className="col-span-2">
-              <Input
-                label="Vencimiento"
-                type="date"
-                value={draft.dueDate}
-                onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })}
+      {/* Estado vacío */}
+      {paymentMeans.length === 0 && !showForm && (
+        <p className="text-xs text-(--text-muted)">Aún no hay medios de pago — agrega al menos uno para continuar.</p>
+      )}
+
+      {/* Botón o formulario */}
+      {!showForm ? (
+        <Button
+          type="button"
+          variant="secondary"
+          icon={<Plus className="h-3.5 w-3.5" />}
+          onClick={() => setShowForm(true)}
+        >
+          Agregar medio de pago
+        </Button>
+      ) : (
+        <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3">
+          <div className="grid grid-cols-12 gap-3">
+            <div className="col-span-4">
+              <Select
+                label="Forma de pago"
+                required
+                disabled={loadingPaymentTerms}
+                value={draft.code}
+                onChange={(e) => setDraft({ ...draft, code: e.target.value })}
+              >
+                {loadingPaymentTerms ? (
+                  <option>Cargando…</option>
+                ) : (
+                  <>
+                    <option value="">Selecciona…</option>
+                    {paymentTerms.map((t) => (
+                      <option key={t.code} value={t.code}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </>
+                )}
+              </Select>
+            </div>
+            <div className="col-span-4">
+              <Combobox
+                label="Medio de pago"
+                value={draft.paymentMethodCode}
+                onChange={(code) => setDraft({ ...draft, paymentMethodCode: code })}
+                options={paymentMethodOptions}
+                disabled={loadingPaymentMethods}
+                placeholder={loadingPaymentMethods ? "Cargando…" : "Buscar medio de pago…"}
               />
             </div>
-          )}
-          <div className={isCredit ? "col-span-2" : "col-span-4"}>
-            <Input
-              label="Referencia (opcional)"
-              value={draft.reference}
-              onChange={(e) => setDraft({ ...draft, reference: e.target.value })}
-            />
-          </div>
-          <div className="col-span-12 flex items-center justify-between">
-            {isDuplicate ? (
-              <span className="text-xs text-(--text-muted)">Esa combinación ya está agregada.</span>
-            ) : (
-              <span />
+            {isCredit && (
+              <div className="col-span-2">
+                <Input
+                  label="Vencimiento"
+                  type="date"
+                  value={draft.dueDate}
+                  onChange={(e) => setDraft({ ...draft, dueDate: e.target.value })}
+                />
+              </div>
             )}
-            <Button
-              type="button"
-              variant="secondary"
-              icon={<Plus className="h-3.5 w-3.5" />}
-              disabled={!canAdd}
-              onClick={handleAdd}
-            >
-              Agregar
-            </Button>
+            <div className={isCredit ? "col-span-2" : "col-span-4"}>
+              <Input
+                label="Referencia (opcional)"
+                value={draft.reference}
+                onChange={(e) => setDraft({ ...draft, reference: e.target.value })}
+              />
+            </div>
+            <div className="col-span-12 flex items-center justify-between pt-1">
+              {isDuplicate ? (
+                <span className="text-xs text-(--text-muted)">Esa combinación ya está agregada.</span>
+              ) : (
+                <span />
+              )}
+              <div className="flex gap-2">
+                <Button type="button" variant="ghost" onClick={handleCancel}>
+                  Cancelar
+                </Button>
+                <Button type="button" icon={<Plus className="h-3.5 w-3.5" />} disabled={!canAdd} onClick={handleAdd}>
+                  Agregar
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

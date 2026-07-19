@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
 import { listCurrencies } from "../../lib/catalogs";
 import { lineToInput } from "../../lib/documents";
 import { listNumberingRanges } from "../../lib/numberingRanges";
@@ -21,6 +20,7 @@ import { Select } from "../ui/Select";
 import { VendorSection } from "./VendorSection";
 import { LineItemsEditor } from "./LineItemsEditor";
 import { PaymentMeansEditor } from "./PaymentMeansEditor";
+import { WithholdingTaxesEditor } from "./WithholdingTaxesEditor";
 import { TotalsSummary } from "./TotalsSummary";
 
 const ADJUSTMENT_NOTE_DIAN_TYPE = "95";
@@ -28,11 +28,6 @@ const ADJUSTMENT_NOTE_DIAN_TYPE = "95";
 const OPERATION_TYPE_OPTIONS = [
   { code: "10", label: "Residente (10)" },
   { code: "11", label: "No Residente (11)" },
-];
-
-const WITHHOLDING_TYPE_OPTIONS = [
-  { code: "05", name: "ReteIVA", label: "ReteIVA (05)" },
-  { code: "06", name: "ReteRenta", label: "ReteRenta (06)" },
 ];
 
 // Códigos de motivo para Nota de Ajuste al DS (análogos a los de NC/ND para FE).
@@ -50,14 +45,6 @@ const NEW_VENDOR: VendorPayload = {
   tax_scheme_code: "ZZ",
   tax_regime_code: "49",
   liability_codes: ["O-49"],
-};
-
-const EMPTY_WITHHOLDING: Tax = {
-  taxable_amount_cents: 0,
-  tax_amount_cents: 0,
-  percent: 0,
-  type_code: "06",
-  type_name: "ReteRenta",
 };
 
 const EMPTY_BILLING_REFERENCE: BillingReference = {
@@ -106,35 +93,6 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
       .catch(() => setRanges([]))
       .finally(() => setLoadingRanges(false));
   }, []);
-
-  function addWithholding() {
-    setWithholdingTaxes((prev) => [...prev, { ...EMPTY_WITHHOLDING }]);
-  }
-
-  function removeWithholding(index: number) {
-    setWithholdingTaxes((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  function updateWithholding(index: number, field: keyof Tax, raw: string) {
-    setWithholdingTaxes((prev) =>
-      prev.map((t, i) => {
-        if (i !== index) return t;
-        if (field === "type_code") {
-          const opt = WITHHOLDING_TYPE_OPTIONS.find((o) => o.code === raw);
-          return { ...t, type_code: raw, type_name: opt?.name ?? raw };
-        }
-        const num = parseInt(raw, 10);
-        if (field === "taxable_amount_cents" || field === "tax_amount_cents") {
-          return { ...t, [field]: isNaN(num) ? 0 : num };
-        }
-        if (field === "percent") {
-          const f = parseFloat(raw);
-          return { ...t, percent: isNaN(f) ? 0 : f };
-        }
-        return t;
-      })
-    );
-  }
 
   function handleVendorChange(next: VendorPayload, nextVendorId: string) {
     setVendor(next);
@@ -359,56 +317,8 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
 
       {/* Retenciones */}
       <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold text-(--text-primary)">Retenciones</h2>
-          <Button type="button" variant="secondary" onClick={addWithholding}>
-            + Agregar retención
-          </Button>
-        </div>
-        {withholdingTaxes.length === 0 ? (
-          <p className="text-xs text-(--text-muted)">Sin retenciones — opcional.</p>
-        ) : (
-          <div className="overflow-x-auto rounded border border-(--border-color)">
-            <table className="w-full text-xs">
-              <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
-                <tr>
-                  <th className="px-2 py-1.5 text-left font-medium">Tipo</th>
-                  <th className="px-2 py-1.5 text-left font-medium">Base (centavos)</th>
-                  <th className="px-2 py-1.5 text-left font-medium">Retención (centavos)</th>
-                  <th className="px-2 py-1.5 text-left font-medium">%</th>
-                  <th className="px-2 py-1.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {withholdingTaxes.map((t, i) => (
-                  <tr key={i} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
-                    <td className="px-2 py-1">
-                      <Select value={t.type_code} onChange={(e) => updateWithholding(i, "type_code", e.target.value)}>
-                        {WITHHOLDING_TYPE_OPTIONS.map((o) => (
-                          <option key={o.code} value={o.code}>{o.label}</option>
-                        ))}
-                      </Select>
-                    </td>
-                    <td className="px-2 py-1">
-                      <Input type="number" min="0" value={t.taxable_amount_cents} onChange={(e) => updateWithholding(i, "taxable_amount_cents", e.target.value)} />
-                    </td>
-                    <td className="px-2 py-1">
-                      <Input type="number" min="0" value={t.tax_amount_cents} onChange={(e) => updateWithholding(i, "tax_amount_cents", e.target.value)} />
-                    </td>
-                    <td className="px-2 py-1">
-                      <Input type="number" min="0" step="0.01" value={t.percent} onChange={(e) => updateWithholding(i, "percent", e.target.value)} />
-                    </td>
-                    <td className="px-2 py-1">
-                      <button type="button" onClick={() => removeWithholding(i)} className="rounded p-0.5 text-(--text-muted) hover:text-(--danger) transition-colors">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <h2 className="text-xs font-semibold text-(--text-primary)">Retenciones</h2>
+        <WithholdingTaxesEditor taxes={withholdingTaxes} onChange={setWithholdingTaxes} />
       </section>
 
       {/* Totales */}

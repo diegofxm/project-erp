@@ -119,6 +119,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Tabla de líneas agregadas */}
       {lines.length > 0 && (
         <div className="overflow-hidden rounded border border-(--border-color)">
           <table className="w-full text-left text-xs">
@@ -162,17 +163,21 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
         </div>
       )}
 
+      {/* Estado vacío */}
+      {lines.length === 0 && !showForm && (
+        <p className="text-xs text-(--text-muted)">Aún no hay líneas — agrega al menos una para continuar.</p>
+      )}
+
+      {/* Botón o formulario */}
       {!showForm ? (
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="secondary"
-            icon={<Plus className="h-3.5 w-3.5" />}
-            onClick={() => setShowForm(true)}
-          >
-            Agregar línea
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          icon={<Plus className="h-3.5 w-3.5" />}
+          onClick={() => setShowForm(true)}
+        >
+          Agregar línea
+        </Button>
       ) : (
         <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3">
           <div className="grid grid-cols-12 gap-3">
@@ -194,7 +199,6 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
                 onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               />
             </div>
-
             <div className="col-span-3">
               <Combobox
                 label="Unidad de medida"
@@ -246,7 +250,6 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
                 )}
               </Select>
             </div>
-
             {draft.taxTypeCode && (
               <div className="col-span-3">
                 <Input
@@ -259,8 +262,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
                 />
               </div>
             )}
-
-            <div className="col-span-12 flex items-center justify-between">
+            <div className="col-span-12 flex items-center justify-between pt-1">
               <span className="text-xs text-(--text-secondary)">
                 Total de la línea:{" "}
                 <span className="font-mono text-(--text-primary)">{formatCOP.format(draftPreview.totalCents / 100)}</span>
