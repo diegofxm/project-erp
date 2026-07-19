@@ -52,4 +52,7 @@ type Repository interface {
 	// ListByIssuer devuelve los documentos de un emisor que cumplan filter, más recientes
 	// primero (por fecha de emisión, luego por creación).
 	ListByIssuer(ctx context.Context, issuerID uuid.UUID, filter ListFilter) ([]*Document, error)
+
+	// GetBillingStats devuelve métricas de facturación para el dashboard del emisor.
+	GetBillingStats(ctx context.Context, issuerID uuid.UUID) (*BillingStats, error)
 }

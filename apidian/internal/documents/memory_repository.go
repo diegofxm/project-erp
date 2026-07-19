@@ -197,3 +197,11 @@ func (r *MemoryRepository) ListByIssuer(_ context.Context, issuerID uuid.UUID, f
 
 	return result, nil
 }
+
+// GetBillingStats devuelve métricas vacías en el repositorio en memoria (solo para tests).
+func (r *MemoryRepository) GetBillingStats(_ context.Context, _ uuid.UUID) (*BillingStats, error) {
+	return &BillingStats{
+		ByType: []TypeStats{},
+		Series: []MonthSeries{},
+	}, nil
+}

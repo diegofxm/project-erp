@@ -203,6 +203,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("GET /api/v1/documents/{id}/xml", a.handleGetDocumentXML)
 	handle("POST /api/v1/documents/{id}/send-email", a.handleSendDocumentEmail)
 	handle("GET /api/v1/dian/verify-acquirer", a.handleVerifyAcquirer)
+	handle("GET /api/v1/stats/billing", a.handleGetBillingStats)
 
 	handle("POST /api/v1/customers", a.handleCreateCustomer)
 	handle("GET /api/v1/customers", a.handleListCustomers)
