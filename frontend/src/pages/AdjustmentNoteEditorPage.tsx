@@ -283,6 +283,14 @@ export function AdjustmentNoteEditorPage() {
             </div>
           </div>
 
+          {doc.qr_url && (
+            <p className="text-xs">
+              <a href={doc.qr_url} target="_blank" rel="noreferrer" className="text-(--accent-primary) hover:underline">
+                Ver representación gráfica en el portal de la DIAN
+              </a>
+            </p>
+          )}
+
           <DianStatusBlock statusCode={doc.dian_status_code} description={doc.dian_status_description} message={doc.dian_status_message} />
 
           {doc.withholding_taxes && doc.withholding_taxes.length > 0 && (
