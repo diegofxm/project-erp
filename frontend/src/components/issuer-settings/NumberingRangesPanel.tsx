@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Archive, Ban, Plus, RotateCcw } from "lucide-react";
+import { Archive, Ban, ChevronDown, ChevronRight, Plus, RotateCcw } from "lucide-react";
 import { Pagination } from "../ui/Pagination";
 import { listDianDocumentTypes } from "../../lib/catalogs";
 import { activateNumberingRange, createNumberingRange, deactivateNumberingRange, listNumberingRanges } from "../../lib/numberingRanges";
@@ -210,6 +210,8 @@ export function NumberingRangesPanel() {
     }
   }
 
+  const [showInactive, setShowInactive] = useState(false);
+
   const activeRanges = ranges?.filter((r) => r.status === "active") ?? [];
   const inactiveRanges = ranges?.filter((r) => r.status !== "active") ?? [];
 
@@ -247,14 +249,25 @@ export function NumberingRangesPanel() {
         </div>
       )}
 
-      {activeRanges.length > 0 && inactiveRanges.length > 0 && (
+      {inactiveRanges.length > 0 && (
         <div className="border-t border-(--border-light)" />
       )}
 
       {inactiveRanges.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <p className="text-xs font-medium text-(--text-muted)">Inactivos y vencidos</p>
-          <RangesTable rows={inactiveRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} onArchive={handleArchive} onActivate={handleActivate} />
+          <button
+            type="button"
+            onClick={() => setShowInactive((v) => !v)}
+            className="flex items-center gap-1 text-xs font-medium text-(--text-muted) transition-colors hover:text-(--text-secondary) w-fit"
+          >
+            {showInactive
+              ? <ChevronDown className="h-3.5 w-3.5" />
+              : <ChevronRight className="h-3.5 w-3.5" />}
+            Inactivos y vencidos ({inactiveRanges.length})
+          </button>
+          {showInactive && (
+            <RangesTable rows={inactiveRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} onArchive={handleArchive} onActivate={handleActivate} />
+          )}
         </div>
       )}
     </Card>
