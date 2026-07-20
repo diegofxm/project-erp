@@ -110,6 +110,7 @@ func (r *MemoryRepository) UpdateProfile(_ context.Context, iss Issuer) (*Issuer
 	existing.TaxRegimeCode = iss.TaxRegimeCode
 	existing.IndustryClassificationCodes = iss.IndustryClassificationCodes
 	existing.MerchantRegistrationNumber = iss.MerchantRegistrationNumber
+	existing.Environment = iss.Environment
 	existing.UpdatedAt = time.Now().UTC()
 
 	cp := *existing

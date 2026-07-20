@@ -319,6 +319,7 @@ type updateIssuerProfileRequest struct {
 	TaxRegimeCode               *string  `json:"tax_regime_code"`
 	IndustryClassificationCodes []string `json:"industry_classification_codes"`
 	MerchantRegistrationNumber  *string  `json:"merchant_registration_number"`
+	Environment                 string   `json:"environment"`
 }
 
 // handleUpdateMyIssuerProfile actualiza los campos de perfil del emisor autenticado
@@ -345,6 +346,7 @@ func (a *API) handleUpdateMyIssuerProfile(w http.ResponseWriter, r *http.Request
 		TaxRegimeCode:               req.TaxRegimeCode,
 		IndustryClassificationCodes: req.IndustryClassificationCodes,
 		MerchantRegistrationNumber:  req.MerchantRegistrationNumber,
+		Environment:                 issuers.Environment(req.Environment),
 	})
 	if err != nil {
 		response.WriteError(w, err)

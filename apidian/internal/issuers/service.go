@@ -165,24 +165,25 @@ func (s *Service) UpdateIssuer(ctx context.Context, id uuid.UUID, req UpdateIssu
 // Todos los campos de texto son requeridos en la llamada (no punteros): el handler del API
 // siempre los envía completos desde el formulario — nil no ocurre en la práctica.
 type UpdateProfileRequest struct {
-	BusinessName               string
-	TradeName                  string   // "" = borrar nombre comercial
-	DepartmentCode             string
-	MunicipalityCode           string
-	AddressLine                string
-	Email                      string
-	Phone                      string   // "" = borrar teléfono
-	EntityTypeCode             string
-	TaxSchemeCode              string
-	LiabilityCodes             []string // slice vacío = borrar todos
-	TaxRegimeCode              *string  // nil = borrar; "code" = asignar
+	BusinessName                string
+	TradeName                   string      // "" = borrar nombre comercial
+	DepartmentCode              string
+	MunicipalityCode            string
+	AddressLine                 string
+	Email                       string
+	Phone                       string      // "" = borrar teléfono
+	EntityTypeCode              string
+	TaxSchemeCode               string
+	LiabilityCodes              []string    // slice vacío = borrar todos
+	TaxRegimeCode               *string     // nil = borrar; "code" = asignar
 	IndustryClassificationCodes []string
-	MerchantRegistrationNumber *string  // nil = borrar; "XYZ" = asignar
+	MerchantRegistrationNumber  *string     // nil = borrar; "XYZ" = asignar
+	Environment                 Environment // "1" producción, "2" habilitación
 }
 
 // UpdateProfile actualiza los campos de perfil del emisor — razón social, dirección, datos
-// fiscales. NIT/ambiente/tipo_identificación son inmutables. Los secretos (software/cert) no
-// se tocan. TaxSchemeName se re-deriva del catálogo a partir de TaxSchemeCode para que nombre
+// fiscales y ambiente DIAN. NIT/tipo_identificación son inmutables. Los secretos (software/cert)
+// no se tocan. TaxSchemeName se re-deriva del catálogo a partir de TaxSchemeCode para que nombre
 // y código nunca queden desincronizados.
 func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, req UpdateProfileRequest) (*Issuer, error) {
 	if strings.TrimSpace(req.BusinessName) == "" {
@@ -219,6 +220,9 @@ func (s *Service) UpdateProfile(ctx context.Context, id uuid.UUID, req UpdatePro
 	iss.TaxRegimeCode = req.TaxRegimeCode
 	iss.IndustryClassificationCodes = req.IndustryClassificationCodes
 	iss.MerchantRegistrationNumber = req.MerchantRegistrationNumber
+	if req.Environment == EnvironmentProduccion || req.Environment == EnvironmentHabilitacion {
+		iss.Environment = req.Environment
+	}
 
 	if err := s.resolveTaxSchemeName(ctx, iss); err != nil {
 		return nil, err

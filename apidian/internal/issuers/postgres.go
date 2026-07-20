@@ -171,15 +171,15 @@ func (r *PostgresRepository) UpdateProfile(ctx context.Context, iss Issuer) (*Is
 			entity_type_code = $8, tax_scheme_code = $9, tax_scheme_name = $10,
 			liability_codes = $11, tax_regime_code = $12,
 			industry_classification_codes = $13, merchant_registration_number = $14,
-			updated_at = $15
-		WHERE id = $16`,
+			environment = $15, updated_at = $16
+		WHERE id = $17`,
 		iss.BusinessName, iss.TradeName,
 		iss.DepartmentCode, iss.MunicipalityCode, iss.AddressLine,
 		iss.Email, iss.Phone,
 		iss.EntityTypeCode, iss.TaxSchemeCode, iss.TaxSchemeName,
 		liabilityCodes, iss.TaxRegimeCode,
 		industryClassificationCodes, iss.MerchantRegistrationNumber,
-		time.Now().UTC(), iss.ID,
+		string(iss.Environment), time.Now().UTC(), iss.ID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update issuer profile: %w", err)

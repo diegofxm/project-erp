@@ -12,9 +12,10 @@ import {
 } from "../../lib/catalogs";
 import { listCiiuOptions } from "../../lib/ciiu";
 import { useCatalog } from "../../lib/useCatalog";
-import type { CatalogEntry, UpdateIssuerProfilePayload } from "../../lib/types";
+import type { CatalogEntry, IssuerEnvironment, UpdateIssuerProfilePayload } from "../../lib/types";
 import { Card } from "../ui/Card";
 import { Input } from "../ui/Input";
+import { Select } from "../ui/Select";
 import { Button } from "../ui/Button";
 import { Combobox } from "../ui/Combobox";
 
@@ -66,6 +67,7 @@ export function CompanyProfileForm() {
     tax_regime_code: null,
     industry_classification_codes: [],
     merchant_registration_number: null,
+    environment: "2",
   });
 
   // Al abrir el formulario, copiar los valores actuales del emisor
@@ -85,6 +87,7 @@ export function CompanyProfileForm() {
       tax_regime_code: activeIssuer.tax_regime_code ?? null,
       industry_classification_codes: activeIssuer.industry_classification_codes ?? [],
       merchant_registration_number: activeIssuer.merchant_registration_number ?? null,
+      environment: activeIssuer.environment,
     });
     setCiiuPicker("");
     setEditing(true);
@@ -286,6 +289,16 @@ export function CompanyProfileForm() {
                   {ENTITY_TYPE_OPTIONS.map((o) => <option key={o.code} value={o.code}>{o.code} – {o.name}</option>)}
                 </select>
               </label>
+            </div>
+            <div className="col-span-4">
+              <Select
+                label="Ambiente DIAN"
+                value={form.environment}
+                onChange={(e) => setField("environment", e.target.value as IssuerEnvironment)}
+              >
+                <option value="2">Habilitación (pruebas)</option>
+                <option value="1">Producción</option>
+              </Select>
             </div>
             <div className="col-span-8">
               <Input label="Correo" type="email" value={form.email} onChange={(e) => setField("email", e.target.value)} required />

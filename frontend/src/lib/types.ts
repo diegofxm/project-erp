@@ -141,6 +141,7 @@ export interface UpdateIssuerProfilePayload {
   tax_regime_code: string | null;
   industry_classification_codes: string[];
   merchant_registration_number: string | null;
+  environment: IssuerEnvironment;
 }
 
 // Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.
