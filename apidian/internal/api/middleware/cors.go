@@ -6,7 +6,7 @@ import "net/http"
 // expone — GET/POST/PUT/DELETE en las rutas, y Content-Type/Authorization son los únicos dos
 // headers no triviales que cualquier cliente de esta API necesita mandar.
 const (
-	allowedMethods = "GET, POST, PUT, DELETE, OPTIONS"
+	allowedMethods = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
 	allowedHeaders = "Content-Type, Authorization"
 )
 
