@@ -224,6 +224,17 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("GET /api/v1/issuers/me/settings", a.handleGetMySettings)
 	handle("PATCH /api/v1/issuers/me/settings", a.handleUpdateMySettings)
 
+	// Rutas de superadministrador — exigen is_superadmin=true además de estar autenticado.
+	handleSA := func(pattern string, h http.HandlerFunc) {
+		mux.Handle(pattern, protect(a.requireSuperAdmin(h)))
+	}
+	handleSA("GET /api/v1/admin/plans", a.handleAdminListPlans)
+	handleSA("POST /api/v1/admin/plans", a.handleAdminCreatePlan)
+	handleSA("PATCH /api/v1/admin/plans/{id}", a.handleAdminUpdatePlan)
+	handleSA("GET /api/v1/admin/issuers/{id}", a.handleAdminGetIssuer)
+	handleSA("GET /api/v1/admin/issuers/{id}/subscription", a.handleAdminGetIssuerSubscription)
+	handleSA("POST /api/v1/admin/issuers/{id}/subscription", a.handleAdminAssignPlan)
+
 	handle("POST /api/v1/customers", a.handleCreateCustomer)
 	handle("GET /api/v1/customers", a.handleListCustomers)
 	handle("GET /api/v1/customers/{id}", a.handleGetCustomer)

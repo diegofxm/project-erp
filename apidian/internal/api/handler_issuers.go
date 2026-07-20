@@ -188,6 +188,14 @@ func (a *API) handleCreateIssuer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Auto-asignar plan Gratis al crear empresa. Best-effort: si falla (p.ej. la tabla planes
+	// aún no tiene datos, o subscriptions no está configurado) no bloquea la respuesta.
+	if a.subscriptions != nil && a.plans != nil && result.ActiveIssuer != nil {
+		if free, ferr := a.plans.GetFree(r.Context()); ferr == nil {
+			_, _ = a.subscriptions.Assign(r.Context(), result.ActiveIssuer.ID, free.ID)
+		}
+	}
+
 	writeAuthResponse(w, http.StatusCreated, result)
 }
 

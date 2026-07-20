@@ -6,6 +6,7 @@ export interface User {
   email: string;
   name: string;
   role: string;
+  is_superadmin: boolean;
 }
 
 export type IssuerEnvironment = "1" | "2"; // 1 = producción, 2 = habilitación
@@ -142,6 +143,33 @@ export interface UpdateIssuerProfilePayload {
   industry_classification_codes: string[];
   merchant_registration_number: string | null;
   environment: IssuerEnvironment;
+}
+
+// Plan de suscripción — GET /admin/plans.
+export interface Plan {
+  id: string;
+  name: string;
+  description: string;
+  max_documents_per_month: number | null; // null = ilimitado
+  max_issuers: number;
+  price_cop: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Suscripción activa de un emisor — GET /admin/issuers/{id}/subscription.
+export interface Subscription {
+  id: string;
+  issuer_id: string;
+  plan_id: string;
+  plan_name: string;
+  max_documents_per_month: number | null;
+  status: "active" | "cancelled" | "suspended";
+  started_at: string;
+  ends_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // Configuración de personalización del emisor — GET/PATCH /issuers/me/settings.

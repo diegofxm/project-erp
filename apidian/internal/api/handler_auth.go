@@ -36,14 +36,15 @@ type authResponse struct {
 }
 
 type userResponse struct {
-	ID    uuid.UUID `json:"id"`
-	Email string    `json:"email"`
-	Name  string    `json:"name"`
-	Role  string    `json:"role"`
+	ID           uuid.UUID `json:"id"`
+	Email        string    `json:"email"`
+	Name         string    `json:"name"`
+	Role         string    `json:"role"`
+	IsSuperAdmin bool      `json:"is_superadmin"`
 }
 
 func userToResponse(u *auth.User) userResponse {
-	return userResponse{ID: u.ID, Email: u.Email, Name: u.Name, Role: u.Role}
+	return userResponse{ID: u.ID, Email: u.Email, Name: u.Name, Role: u.Role, IsSuperAdmin: u.IsSuperAdmin}
 }
 
 func (a *API) handleRegister(w http.ResponseWriter, r *http.Request) {

@@ -177,6 +177,15 @@ func (s *Service) SelectIssuer(ctx context.Context, userID, issuerID uuid.UUID) 
 	return s.issueResult(u, iss)
 }
 
+// IsSuperAdmin devuelve si el usuario es superadministrador del sistema.
+func (s *Service) IsSuperAdmin(ctx context.Context, userID uuid.UUID) (bool, error) {
+	u, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	return u.IsSuperAdmin, nil
+}
+
 // UpdateProfile actualiza el nombre y/o correo del usuario autenticado. No toca contraseña ni rol.
 func (s *Service) UpdateProfile(ctx context.Context, userID uuid.UUID, name, email string) (*User, error) {
 	name = strings.TrimSpace(name)

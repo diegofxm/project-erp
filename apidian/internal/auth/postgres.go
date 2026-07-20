@@ -25,7 +25,7 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{pool: pool}
 }
 
-const userColumns = `id, email, password_hash, name, role, is_active, created_at, updated_at`
+const userColumns = `id, email, password_hash, name, role, is_superadmin, is_active, created_at, updated_at`
 
 const userSelect = `SELECT ` + userColumns + ` FROM users`
 
@@ -37,7 +37,7 @@ func (r *PostgresRepository) Create(ctx context.Context, u User) (*User, error) 
 	u.CreatedAt = now
 	u.UpdatedAt = now
 
-	args := []any{u.ID, u.Email, u.PasswordHash, u.Name, u.Role, u.IsActive, u.CreatedAt, u.UpdatedAt}
+	args := []any{u.ID, u.Email, u.PasswordHash, u.Name, u.Role, u.IsSuperAdmin, u.IsActive, u.CreatedAt, u.UpdatedAt}
 	_, err := r.pool.Exec(ctx, `INSERT INTO users (`+userColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
 	if err != nil {
 		if isDuplicateKey(err) {
@@ -76,7 +76,7 @@ func (r *PostgresRepository) Update(ctx context.Context, u User) (*User, error) 
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Role, &u.IsActive, &u.CreatedAt, &u.UpdatedAt)
+	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Role, &u.IsSuperAdmin, &u.IsActive, &u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}

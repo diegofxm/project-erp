@@ -28,6 +28,7 @@ type User struct {
 	PasswordHash string
 	Name         string
 	Role         string
+	IsSuperAdmin bool
 	IsActive     bool
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
