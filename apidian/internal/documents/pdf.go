@@ -177,6 +177,11 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 	}
 	econActivity := strings.Join(econParts, ", ")
 
+	var brandColor string
+	if s.settings != nil {
+		brandColor = s.settings.GetBrandColor(ctx, iss.ID)
+	}
+
 	isDS := d.DianDocumentTypeCode == supportDocumentDianDocType
 
 	// En DS los datos del "tercero" (proveedor) están en d.Vendor, no en d.Customer.
@@ -253,6 +258,8 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		RangeTo:          nr.RangeTo,
 		ValidFrom:        nr.ValidFrom.Format("2006-01-02"),
 		ValidTo:          nr.ValidTo.Format("2006-01-02"),
+
+		BrandColor: brandColor,
 	}, nil
 }
 

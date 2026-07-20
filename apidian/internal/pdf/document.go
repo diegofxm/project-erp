@@ -109,6 +109,9 @@ type InvoiceInput struct {
 	RangeTo          *int64
 	ValidFrom        string
 	ValidTo          string
+
+	// BrandColor es el color de acento del PDF (#RRGGBB). Vacío usa el default del template.
+	BrandColor string
 }
 
 // chromePath almacena la ruta al binario Chrome/Chromium configurada en arranque.
@@ -185,6 +188,8 @@ type docTemplateData struct {
 	TaxRegime        string
 	Liabilities      string
 	EconomicActivity string
+
+	BrandColor string // "" → usa el default del template (#14345C)
 }
 
 type docLineData struct {
@@ -344,6 +349,8 @@ func buildTemplateData(in InvoiceInput) (docTemplateData, error) {
 		TaxRegime:        in.IssuerTaxRegime,
 		Liabilities:      in.IssuerLiabilities,
 		EconomicActivity: in.IssuerEconomicActivity,
+
+		BrandColor: in.BrandColor,
 	}, nil
 }
 

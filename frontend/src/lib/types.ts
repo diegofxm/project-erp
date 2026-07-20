@@ -144,6 +144,13 @@ export interface UpdateIssuerProfilePayload {
   environment: IssuerEnvironment;
 }
 
+// Configuración de personalización del emisor — GET/PATCH /issuers/me/settings.
+export interface IssuerSettings {
+  issuer_id: string;
+  brand_color: string; // hex #RRGGBB
+  updated_at: string;
+}
+
 // Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.
 export interface CatalogEntry {
   code: string;

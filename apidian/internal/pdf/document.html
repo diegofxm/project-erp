@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>{{.DocumentTitle}} · {{.DocNumber}}</title>
+{{if .BrandColor}}<style>:root { --accent: {{.BrandColor}}; --line: {{.BrandColor}}; --accent-tint: color-mix(in srgb, {{.BrandColor}} 12%, white); }</style>{{end}}
 <style>
 
 /* ── Reset ───────────────────────────────────── */

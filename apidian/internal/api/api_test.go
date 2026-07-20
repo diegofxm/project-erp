@@ -80,7 +80,7 @@ func newTestEnvWithOrigins(t *testing.T, allowedOrigins []string) *testEnv {
 	tokens := auth.NewTokenIssuer([]byte("clave-de-prueba-no-usar-en-produccion"))
 	authSvc := auth.New(auth.NewMemoryRepository(), issuerSvc, tokens)
 
-	a := api.NewFromServices(log, issuerSvc, numberingSvc, docsSvc, authSvc, tokens, customersSvc, productsSvc, vendorsSvc, catalogsRepo, allowedOrigins)
+	a := api.NewFromServices(log, issuerSvc, numberingSvc, docsSvc, authSvc, tokens, customersSvc, productsSvc, vendorsSvc, nil, nil, nil, catalogsRepo, allowedOrigins)
 
 	return &testEnv{handler: a.Handler()}
 }

@@ -158,6 +158,63 @@ func buildUpsertQuery(table string, cols []string) string {
 	)
 }
 
+// SeedPlans inserta los planes iniciales del SaaS si no existen todavía. Es idempotente:
+// ON CONFLICT (name) DO UPDATE actualiza descripción/límites sin cambiar el UUID ni romper
+// suscripciones existentes. Los UUIDs son generados por Postgres, no hardcodeados aquí.
+func (d *DB) SeedPlans(ctx context.Context) error {
+	type plan struct {
+		name        string
+		description string
+		maxDocs     *int  // nil = ilimitado
+		maxIssuers  int
+		priceCOP    int
+	}
+
+	maxDocs100 := 100
+	maxDocs500 := 500
+
+	plans := []plan{
+		{
+			name:        "Gratis",
+			description: "Plan de prueba — hasta 100 documentos por mes y 1 empresa",
+			maxDocs:     &maxDocs100,
+			maxIssuers:  1,
+			priceCOP:    0,
+		},
+		{
+			name:        "Básico",
+			description: "Hasta 500 documentos por mes y 1 empresa",
+			maxDocs:     &maxDocs500,
+			maxIssuers:  1,
+			priceCOP:    49900,
+		},
+		{
+			name:        "Pro",
+			description: "Documentos ilimitados y hasta 5 empresas",
+			maxDocs:     nil,
+			maxIssuers:  5,
+			priceCOP:    149900,
+		},
+	}
+
+	for _, p := range plans {
+		_, err := d.Pool.Exec(ctx, `
+			INSERT INTO plans (name, description, max_documents_per_month, max_issuers, price_cop)
+			VALUES ($1, $2, $3, $4, $5)
+			ON CONFLICT (name) DO UPDATE SET
+				description               = EXCLUDED.description,
+				max_documents_per_month   = EXCLUDED.max_documents_per_month,
+				max_issuers               = EXCLUDED.max_issuers,
+				price_cop                 = EXCLUDED.price_cop,
+				updated_at                = NOW()
+		`, p.name, p.description, p.maxDocs, p.maxIssuers, p.priceCOP)
+		if err != nil {
+			return fmt.Errorf("seed plan %q: %w", p.name, err)
+		}
+	}
+	return nil
+}
+
 func joinCols(cols []string) string {
 	out := ""
 	for i, c := range cols {

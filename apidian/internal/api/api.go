@@ -16,7 +16,10 @@ import (
 	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
+	"github.com/diegofxm/apidian/internal/plans"
 	"github.com/diegofxm/apidian/internal/products"
+	"github.com/diegofxm/apidian/internal/settings"
+	"github.com/diegofxm/apidian/internal/subscriptions"
 	"github.com/diegofxm/apidian/internal/vendors"
 )
 
@@ -31,6 +34,9 @@ type API struct {
 	customers      *customers.Service
 	products       *products.Service
 	vendors        *vendors.Service
+	plans          *plans.Service
+	subscriptions  *subscriptions.Service
+	settings       *settings.Service
 	catalogs       catalogs.Repository
 	allowedOrigins []string
 }
@@ -42,21 +48,24 @@ type API struct {
 // envío de correo al cliente (ver docs/apidian-architecture.md sección 9.42) — vacío es válido,
 // SendInvoiceEmail simplemente falla con un mensaje claro si nunca se configuró.
 func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byte, allowedOrigins []string, smtpCfg email.Config) *API {
-	// catalogsRepo va primero: issuers/customers/documents lo necesitan para validar
-	// liability_codes/payment_terms/payment_methods (catálogos sin FK posible, ver
-	// docs/apidian-architecture.md sección 9.34).
 	catalogsRepo := catalogs.NewPostgresRepository(db.Pool)
 	issuerSvc := issuers.New(issuers.NewPostgresRepository(db.Pool, issuerSecretsKey), documents.ValidateCertificate, documents.ParseCertificate, catalogsRepo)
 	numberingSvc := numbering.New(numbering.NewPostgresRepository(db.Pool, issuerSecretsKey))
 	customersSvc := customers.New(customers.NewPostgresRepository(db.Pool), catalogsRepo)
 	productsSvc := products.New(products.NewPostgresRepository(db.Pool), catalogsRepo)
 	vendorsSvc := vendors.New(vendors.NewPostgresRepository(db.Pool), catalogsRepo)
+	plansSvc := plans.NewService(plans.NewPostgresRepository(db.Pool))
+	subsSvc := subscriptions.NewService(subscriptions.NewPostgresRepository(db.Pool))
+	settingsSvc := settings.NewService(settings.NewPostgresRepository(db.Pool))
 	emailSender := email.NewSMTPSender(smtpCfg)
-	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc, customersSvc, catalogsRepo, emailSender).WithVendors(vendorsSvc)
+	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc, customersSvc, catalogsRepo, emailSender).
+		WithVendors(vendorsSvc).
+		WithSubscriptions(subsSvc).
+		WithSettings(settingsSvc)
 	tokens := auth.NewTokenIssuer(authJWTSecret)
 	authSvc := auth.New(auth.NewPostgresRepository(db.Pool), issuerSvc, tokens)
 
-	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, vendorsSvc, catalogsRepo, allowedOrigins)
+	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, vendorsSvc, plansSvc, subsSvc, settingsSvc, catalogsRepo, allowedOrigins)
 }
 
 // NewFromServices crea una API a partir de servicios ya construidos — útil para tests que
@@ -71,14 +80,17 @@ func NewFromServices(
 	customersSvc *customers.Service,
 	productsSvc *products.Service,
 	vendorsSvc *vendors.Service,
+	plansSvc *plans.Service,
+	subsSvc *subscriptions.Service,
+	settingsSvc *settings.Service,
 	catalogsRepo catalogs.Repository,
 	allowedOrigins []string,
 ) *API {
 	return &API{
 		log: log, issuers: issuerSvc, numbering: numberingSvc, documents: documentsSvc,
 		auth: authSvc, tokens: tokens, customers: customersSvc, products: productsSvc,
-		vendors: vendorsSvc, catalogs: catalogsRepo,
-		allowedOrigins: allowedOrigins,
+		vendors: vendorsSvc, plans: plansSvc, subscriptions: subsSvc, settings: settingsSvc,
+		catalogs: catalogsRepo, allowedOrigins: allowedOrigins,
 	}
 }
 
@@ -125,6 +137,8 @@ func (a *API) Handler() http.Handler {
 //	PATCH  /api/v1/issuers/me/profile                   → editar perfil (razón social, dirección, datos fiscales) — no toca secretos
 //	GET    /api/v1/issuers/me/logo                       → logo en crudo de la empresa activa (404 si no tiene, ver 9.39)
 //	DELETE /api/v1/issuers/me/logo                       → quitar el logo de la empresa activa
+//	GET    /api/v1/issuers/me/settings                   → configuración de personalización (brand_color)
+//	PATCH  /api/v1/issuers/me/settings                   → actualizar brand_color
 //	POST   /api/v1/numbering-ranges                      → registrar rango de numeración de la empresa activa
 //	GET    /api/v1/numbering-ranges                      → listar rangos de la empresa activa (?dian_document_type_code=)
 //	GET    /api/v1/numbering-ranges/{id}                  → consultar rango (debe ser de la empresa activa)
@@ -206,6 +220,9 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("POST /api/v1/documents/{id}/send-email", a.handleSendDocumentEmail)
 	handle("GET /api/v1/dian/verify-acquirer", a.handleVerifyAcquirer)
 	handle("GET /api/v1/stats/billing", a.handleGetBillingStats)
+
+	handle("GET /api/v1/issuers/me/settings", a.handleGetMySettings)
+	handle("PATCH /api/v1/issuers/me/settings", a.handleUpdateMySettings)
 
 	handle("POST /api/v1/customers", a.handleCreateCustomer)
 	handle("GET /api/v1/customers", a.handleListCustomers)

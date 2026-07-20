@@ -30,9 +30,29 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
 
   return (
     <header className="flex h-10 items-stretch bg-(--navbar-bg) text-(--navbar-text)">
-      {/* Celda de hamburguesa: w-10 fija, h-full, border-r continúa visualmente el sidebar */}
+      {/* Desktop: celda de marca w-48 fija — hamburguesa con su border-r, logo llena el resto */}
+      <div className="hidden md:flex w-48 shrink-0 items-center">
+        {onToggleSidebar && (
+          <div className="flex w-10 shrink-0 items-center justify-center border-r border-white/15 self-stretch">
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="rounded p-1.5 opacity-70 transition-colors hover:bg-white/10 hover:opacity-100"
+              title="Menú"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+        <Link to="/" className="flex items-center gap-2 px-3">
+          <img src="/logo.svg" alt="cofacture" className="h-5 w-5 shrink-0" />
+          <span className="text-base font-semibold">cofacture</span>
+        </Link>
+      </div>
+
+      {/* Móvil: hamburguesa sola */}
       {onToggleSidebar && (
-        <div className="flex w-10 shrink-0 items-center justify-center border-r border-white/15">
+        <div className="flex md:hidden w-10 shrink-0 items-center justify-center border-r border-white/15">
           <button
             type="button"
             onClick={onToggleSidebar}
@@ -44,22 +64,25 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
         </div>
       )}
 
+      {/* Separador corto alineado exactamente con el borde de la celda de marca (w-48) */}
+      {activeIssuer && (
+        <span className="hidden md:block h-4 w-px bg-(--navbar-text) opacity-30 self-center" />
+      )}
+
       {/* Resto del navbar */}
       <div className="flex flex-1 items-center justify-between px-3">
         <div className="flex min-w-0 items-center gap-3">
-          <Link to="/" className="flex shrink-0 items-center gap-2">
+          {/* Logo solo en móvil */}
+          <Link to="/" className="flex md:hidden shrink-0 items-center gap-2">
             <img src="/logo.svg" alt="cofacture" className="h-5 w-5" />
-            <span className="hidden text-base font-semibold sm:inline">cofacture</span>
+            <span className="text-base font-semibold">cofacture</span>
           </Link>
           {activeIssuer && (
-            <>
-              <span className="hidden h-4 w-px bg-(--navbar-text) opacity-30 sm:block" />
-              <div className="hidden min-w-0 items-center gap-1.5 text-xs opacity-70 sm:flex">
-                <Server className="h-3.5 w-3.5 shrink-0" />
-                <span className="shrink-0">Empresa:</span>
-                <span className="truncate font-mono">{activeIssuer.business_name}</span>
-              </div>
-            </>
+            <div className="hidden min-w-0 items-center gap-1.5 text-xs opacity-70 sm:flex">
+              <Server className="h-3.5 w-3.5 shrink-0" />
+              <span className="shrink-0">Empresa:</span>
+              <span className="truncate font-mono">{activeIssuer.business_name}</span>
+            </div>
           )}
         </div>
 

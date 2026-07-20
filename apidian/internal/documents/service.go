@@ -63,13 +63,20 @@ const (
 // Es el ÚNICO paquete de apidian que importa cofacture directamente — ver
 // docs/apidian-architecture.md sección 4.1.
 type Service struct {
-	repo      Repository
-	issuers   IssuerPort
-	numbering NumberingPort
-	customers CustomerPort
-	vendors   VendorPort // opcional; nil si no se configuró el catálogo de proveedores
-	catalogs  CatalogPort
-	email     EmailPort
+	repo          Repository
+	issuers       IssuerPort
+	numbering     NumberingPort
+	customers     CustomerPort
+	vendors       VendorPort       // opcional; nil si no se configuró el catálogo de proveedores
+	subscriptions SubscriptionPort // opcional; nil = sin enforcement de límite de plan
+	settings      SettingsPort     // opcional; nil = PDF usa color por defecto
+	catalogs      CatalogPort
+	email         EmailPort
+}
+
+// SubscriptionPort verifica si el emisor puede confirmar un documento más este mes.
+type SubscriptionPort interface {
+	CheckLimit(ctx context.Context, issuerID uuid.UUID) error
 }
 
 // New crea el servicio de documentos.
@@ -81,6 +88,18 @@ func New(repo Repository, issuerPort IssuerPort, numberingPort NumberingPort, cu
 // Se llama en cadena sobre New() desde api.go; los tests que no necesitan vendors lo omiten.
 func (s *Service) WithVendors(p VendorPort) *Service {
 	s.vendors = p
+	return s
+}
+
+// WithSubscriptions activa el enforcement de límite mensual de documentos según el plan.
+func (s *Service) WithSubscriptions(p SubscriptionPort) *Service {
+	s.subscriptions = p
+	return s
+}
+
+// WithSettings activa la inyección del color de marca del emisor en el PDF.
+func (s *Service) WithSettings(p SettingsPort) *Service {
+	s.settings = p
 	return s
 }
 
@@ -667,6 +686,13 @@ func (s *Service) ConfirmDocument(ctx context.Context, issuerID, id uuid.UUID) (
 	}
 	if d.Status != StatusDraft {
 		return nil, ErrDocumentNotDraft
+	}
+
+	// Verificar límite mensual del plan antes de gastar un número real
+	if s.subscriptions != nil {
+		if err := s.subscriptions.CheckLimit(ctx, issuerID); err != nil {
+			return nil, err
+		}
 	}
 
 	switch d.DianDocumentTypeCode {

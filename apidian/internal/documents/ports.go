@@ -99,6 +99,12 @@ type CatalogPort interface {
 	GetCiiuDescription(ctx context.Context, code string) (description string, found bool, err error)
 }
 
+// SettingsPort devuelve el color de marca del emisor para el PDF. La interfaz es angosta a
+// propósito: documents no necesita leer ni escribir configuraciones completas.
+type SettingsPort interface {
+	GetBrandColor(ctx context.Context, issuerID uuid.UUID) string
+}
+
 // EmailPort define lo que documents necesita para enviar correo — ver
 // docs/apidian-architecture.md sección 9.42. Angosta a propósito (no *email.SMTPSender
 // directamente) para poder fakear el envío en tests, mismo motivo que el resto de los puertos

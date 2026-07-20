@@ -1,4 +1,5 @@
 import { Building2 } from "lucide-react";
+import { BrandColorForm } from "../components/issuer-settings/BrandColorForm";
 import { CompanyProfileForm } from "../components/issuer-settings/CompanyProfileForm";
 import { LogoForm } from "../components/issuer-settings/LogoForm";
 import { NumberingRangesPanel } from "../components/issuer-settings/NumberingRangesPanel";
@@ -16,6 +17,7 @@ export function SettingsCompanyPage() {
         <CompanyProfileForm />
         <SoftwareCertificateForm />
         <LogoForm />
+        <BrandColorForm />
         <PublicRegistrationPanel />
         <NumberingRangesPanel />
       </div>

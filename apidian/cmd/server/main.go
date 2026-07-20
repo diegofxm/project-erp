@@ -79,6 +79,12 @@ func run() error {
 
 	log.Info("catalogs seeded")
 
+	if err := db.SeedPlans(ctx); err != nil {
+		return err
+	}
+
+	log.Info("plans seeded")
+
 	// 5. Servidor HTTP
 	srv := server.New(server.Options{
 		Config: cfg,

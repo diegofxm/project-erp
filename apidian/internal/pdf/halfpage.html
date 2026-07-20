@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>{{.Copy1.DocumentTitle}} · {{.Copy1.DocNumber}}</title>
+{{if .Copy1.BrandColor}}<style>:root { --accent: {{.Copy1.BrandColor}}; --line: {{.Copy1.BrandColor}}; --accent-tint: color-mix(in srgb, {{.Copy1.BrandColor}} 12%, white); }</style>{{end}}
 <style>
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
