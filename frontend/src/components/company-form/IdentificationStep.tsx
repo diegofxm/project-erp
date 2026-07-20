@@ -12,48 +12,34 @@ export interface StepProps {
 export function IdentificationStep({ form, setField }: StepProps) {
   const { data: identificationTypes, loading: loadingIdentificationTypes } = useCatalog(listIdentificationTypes);
 
-  // Grilla de 12 columnas fijas (ver docs/frontend-architecture.md, regla de ancho): cada campo
-  // tiene un ancho proporcional fijo (col-span-N) — al colapsar/expandir el Sidebar los campos
-  // se agrandan o achican con el espacio disponible, pero NUNCA cambian de fila ni de posición
-  // (a diferencia de una grilla auto-fit, que recalcula cuántas columnas entran y reordena).
+  const isJuridica = form.entity_type_code === "1" || form.identification_type_code === "31";
+
+  function handleEntityTypeChange(val: string) {
+    setField("entity_type_code", val);
+    if (val === "1" && form.identification_type_code !== "31") {
+      setField("identification_type_code", "31");
+    } else if (val === "2" && form.identification_type_code === "31") {
+      setField("identification_type_code", "13");
+    }
+  }
+
+  function handleIdentificationTypeChange(val: string) {
+    setField("identification_type_code", val);
+    if (val === "31") {
+      setField("entity_type_code", "1");
+    } else if (form.entity_type_code === "1") {
+      setField("entity_type_code", "2");
+    }
+  }
+
   return (
     <div className="grid grid-cols-12 gap-3 p-4">
-      <div className="col-span-3">
-        <Input label="NIT" required value={form.nit} onChange={(e) => setField("nit", e.target.value)} />
-      </div>
-      <div className="col-span-1">
-        <Input label="DV" required value={form.check_digit} onChange={(e) => setField("check_digit", e.target.value)} />
-      </div>
-      <div className="col-span-4">
-        <Select
-          label="Tipo de identificación"
-          required
-          disabled={loadingIdentificationTypes}
-          value={form.identification_type_code}
-          onChange={(e) => setField("identification_type_code", e.target.value)}
-        >
-          {loadingIdentificationTypes ? (
-            <option>Cargando…</option>
-          ) : (
-            identificationTypes.map((t) => (
-              <option key={t.code} value={t.code}>
-                {t.name}
-              </option>
-            ))
-          )}
-        </Select>
-      </div>
-      <div className="col-span-4">
-        <Input label="Razón social" required value={form.business_name} onChange={(e) => setField("business_name", e.target.value)} />
-      </div>
-      <div className="col-span-3">
-        <Input label="Nombre comercial" value={form.trade_name ?? ""} onChange={(e) => setField("trade_name", e.target.value)} />
-      </div>
+      {/* Tipo de persona + ambiente — arriba del todo */}
       <div className="col-span-6">
         <Select
-          label="Tipo de entidad"
+          label="Tipo de persona"
           value={form.entity_type_code ?? ""}
-          onChange={(e) => setField("entity_type_code", e.target.value)}
+          onChange={(e) => handleEntityTypeChange(e.target.value)}
         >
           <option value="">Automático según el tipo de identificación</option>
           <option value="1">Persona jurídica</option>
@@ -70,6 +56,60 @@ export function IdentificationStep({ form, setField }: StepProps) {
           <option value="2">Habilitación</option>
           <option value="1">Producción</option>
         </Select>
+      </div>
+
+      {/* Tipo de identificación | NIT/número | DV (solo jurídica) | Razón social */}
+      <div className="col-span-12 sm:col-span-4">
+        <Select
+          label="Tipo de identificación"
+          required
+          disabled={loadingIdentificationTypes}
+          value={form.identification_type_code}
+          onChange={(e) => handleIdentificationTypeChange(e.target.value)}
+        >
+          {loadingIdentificationTypes ? (
+            <option>Cargando…</option>
+          ) : (
+            identificationTypes.map((t) => (
+              <option key={t.code} value={t.code}>{t.name}</option>
+            ))
+          )}
+        </Select>
+      </div>
+      <div className={isJuridica ? "col-span-9 sm:col-span-3" : "col-span-12 sm:col-span-4"}>
+        <Input
+          label={isJuridica ? "NIT" : "Número de identificación"}
+          required
+          value={form.nit}
+          onChange={(e) => setField("nit", e.target.value)}
+        />
+      </div>
+      {isJuridica && (
+        <div className="col-span-3 sm:col-span-1">
+          <Input
+            label="DV"
+            required
+            value={form.check_digit}
+            onChange={(e) => setField("check_digit", e.target.value)}
+          />
+        </div>
+      )}
+      <div className="col-span-12 sm:col-span-4">
+        <Input
+          label={isJuridica ? "Razón social" : "Nombre"}
+          required
+          value={form.business_name}
+          onChange={(e) => setField("business_name", e.target.value)}
+        />
+      </div>
+
+      {/* Nombre comercial */}
+      <div className="col-span-6">
+        <Input
+          label="Nombre comercial (opcional)"
+          value={form.trade_name ?? ""}
+          onChange={(e) => setField("trade_name", e.target.value)}
+        />
       </div>
     </div>
   );

@@ -29,9 +29,36 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
 
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [loadingMunicipalities, setLoadingMunicipalities] = useState(false);
-
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<string | null>(null);
+
+  // Jurídica = entity_type "1" O tipo NIT "31" — cualquiera de los dos activa DV + razón social
+  const isJuridica = value.entity_type_code === "1" || value.identification.type_code === "31";
+
+  // Cambiar tipo de persona sincroniza el tipo de identificación más habitual
+  function handleEntityTypeChange(code: string) {
+    const next: PartyPayload = { ...value, entity_type_code: code || undefined };
+    if (code === "1" && value.identification.type_code !== "31") {
+      next.identification = { ...value.identification, type_code: "31", verification_code: undefined };
+    } else if (code === "2" && value.identification.type_code === "31") {
+      next.identification = { ...value.identification, type_code: "13", verification_code: undefined };
+    }
+    onChange(next);
+  }
+
+  // Cambiar tipo de identificación sincroniza el tipo de persona
+  function handleIdentificationTypeChange(typeCode: string) {
+    const next: PartyPayload = {
+      ...value,
+      identification: { ...value.identification, type_code: typeCode, verification_code: undefined },
+    };
+    if (typeCode === "31") {
+      next.entity_type_code = "1";
+    } else if (value.entity_type_code === "1") {
+      next.entity_type_code = "2";
+    }
+    onChange(next);
+  }
 
   async function handleVerify() {
     setVerifying(true);
@@ -51,10 +78,7 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
   }
 
   useEffect(() => {
-    if (!departmentCode) {
-      setMunicipalities([]);
-      return;
-    }
+    if (!departmentCode) { setMunicipalities([]); return; }
     setLoadingMunicipalities(true);
     listMunicipalities(departmentCode)
       .then(setMunicipalities)
@@ -83,34 +107,36 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
 
   return (
     <div className="grid grid-cols-12 gap-3">
-      {/* Fila 1: tipo, DV, número, nombre */}
+      {/* Fila 1: tipo de persona | tipo de identificación | número | DV (solo jurídica) */}
+      <div className="col-span-12 sm:col-span-4">
+        <Select
+          label="Tipo de persona"
+          value={value.entity_type_code ?? ""}
+          onChange={(e) => handleEntityTypeChange(e.target.value)}
+        >
+          <option value="">Sin especificar</option>
+          <option value="1">Persona jurídica</option>
+          <option value="2">Persona natural</option>
+        </Select>
+      </div>
       <div className="col-span-12 sm:col-span-4">
         <Select
           label="Tipo de identificación"
           required
           disabled={loadingIdentificationTypes}
           value={value.identification.type_code}
-          onChange={(e) => onChange({ ...value, identification: { ...value.identification, type_code: e.target.value } })}
+          onChange={(e) => handleIdentificationTypeChange(e.target.value)}
         >
           {loadingIdentificationTypes ? (
             <option>Cargando…</option>
           ) : (
             identificationTypes.map((t) => (
-              <option key={t.code} value={t.code}>
-                {t.name}
-              </option>
+              <option key={t.code} value={t.code}>{t.name}</option>
             ))
           )}
         </Select>
       </div>
-      <div className="col-span-3 sm:col-span-1">
-        <Input
-          label="DV"
-          value={value.identification.verification_code ?? ""}
-          onChange={(e) => onChange({ ...value, identification: { ...value.identification, verification_code: e.target.value || undefined } })}
-        />
-      </div>
-      <div className="col-span-9 sm:col-span-3">
+      <div className={isJuridica ? "col-span-9 sm:col-span-3" : "col-span-12 sm:col-span-4"}>
         <Input
           label="Número de identificación"
           required
@@ -118,10 +144,27 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           onChange={(e) => onChange({ ...value, identification: { ...value.identification, number: e.target.value } })}
         />
       </div>
-      <div className="col-span-12 sm:col-span-4">
-        <Input label="Nombre / Razón social" required value={value.name} onChange={(e) => onChange({ ...value, name: e.target.value })} />
+      {isJuridica && (
+        <div className="col-span-3 sm:col-span-1">
+          <Input
+            label="DV"
+            value={value.identification.verification_code ?? ""}
+            onChange={(e) => onChange({ ...value, identification: { ...value.identification, verification_code: e.target.value || undefined } })}
+          />
+        </div>
+      )}
+
+      {/* Nombre / Razón social */}
+      <div className="col-span-12">
+        <Input
+          label={isJuridica ? "Razón social" : "Nombre"}
+          required
+          value={value.name}
+          onChange={(e) => onChange({ ...value, name: e.target.value })}
+        />
       </div>
 
+      {/* Verificar en DIAN — solo NIT */}
       {value.identification.type_code === "31" && (
         <div className="col-span-12 flex flex-col gap-1">
           <Button
@@ -139,19 +182,8 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
         </div>
       )}
 
-      {/* Fila 2: tipo entidad, correo, teléfono */}
-      <div className="col-span-12 sm:col-span-4">
-        <Select
-          label="Tipo de entidad"
-          value={value.entity_type_code ?? ""}
-          onChange={(e) => onChange({ ...value, entity_type_code: e.target.value || undefined })}
-        >
-          <option value="">Sin especificar</option>
-          <option value="1">Persona jurídica</option>
-          <option value="2">Persona natural</option>
-        </Select>
-      </div>
-      <div className="col-span-12 sm:col-span-4">
+      {/* Correo | Teléfono */}
+      <div className="col-span-12 sm:col-span-6">
         <Input
           label="Correo"
           type="email"
@@ -159,23 +191,21 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           onChange={(e) => onChange({ ...value, email: e.target.value || undefined })}
         />
       </div>
-      <div className="col-span-12 sm:col-span-4">
-        <Input label="Teléfono" value={value.phone ?? ""} onChange={(e) => onChange({ ...value, phone: e.target.value || undefined })} />
+      <div className="col-span-12 sm:col-span-6">
+        <Input
+          label="Teléfono"
+          value={value.phone ?? ""}
+          onChange={(e) => onChange({ ...value, phone: e.target.value || undefined })}
+        />
       </div>
 
-      {/* Fila 3: departamento, municipio, dirección */}
+      {/* Departamento | Municipio | Dirección */}
       <div className="col-span-12 sm:col-span-3">
         <Select label="Departamento" disabled={loadingDepartments} value={departmentCode} onChange={(e) => handleDepartmentChange(e.target.value)}>
-          {loadingDepartments ? (
-            <option>Cargando…</option>
-          ) : (
+          {loadingDepartments ? <option>Cargando…</option> : (
             <>
               <option value="">Selecciona…</option>
-              {departments.map((d) => (
-                <option key={d.code} value={d.code}>
-                  {d.name}
-                </option>
-              ))}
+              {departments.map((d) => <option key={d.code} value={d.code}>{d.name}</option>)}
             </>
           )}
         </Select>
@@ -187,16 +217,10 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           value={municipalityCode}
           onChange={(e) => handleMunicipalityChange(e.target.value)}
         >
-          {loadingMunicipalities ? (
-            <option>Cargando…</option>
-          ) : (
+          {loadingMunicipalities ? <option>Cargando…</option> : (
             <>
               <option value="">{departmentCode ? "Selecciona…" : "Elige un departamento primero"}</option>
-              {municipalities.map((m) => (
-                <option key={m.code} value={m.code}>
-                  {m.name}
-                </option>
-              ))}
+              {municipalities.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
             </>
           )}
         </Select>
@@ -209,7 +233,7 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
         />
       </div>
 
-      {/* Fila 4: régimen tributario */}
+      {/* Régimen tributario */}
       <div className="col-span-12 sm:col-span-6">
         <Select
           label="Tipo de impuesto del régimen"
@@ -217,14 +241,8 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           value={value.tax_scheme_code ?? "ZZ"}
           onChange={(e) => onChange({ ...value, tax_scheme_code: e.target.value })}
         >
-          {loadingTaxTypes ? (
-            <option>Cargando…</option>
-          ) : (
-            taxTypes.map((t) => (
-              <option key={t.code} value={t.code}>
-                {t.code} — {t.name}
-              </option>
-            ))
+          {loadingTaxTypes ? <option>Cargando…</option> : (
+            taxTypes.map((t) => <option key={t.code} value={t.code}>{t.code} — {t.name}</option>)
           )}
         </Select>
       </div>
@@ -235,16 +253,10 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           value={value.tax_regime_code ?? ""}
           onChange={(e) => onChange({ ...value, tax_regime_code: e.target.value || undefined })}
         >
-          {loadingTaxRegimes ? (
-            <option>Cargando…</option>
-          ) : (
+          {loadingTaxRegimes ? <option>Cargando…</option> : (
             <>
               <option value="">No aplica</option>
-              {taxRegimes.map((t) => (
-                <option key={t.code} value={t.code}>
-                  {t.code} — {t.name}
-                </option>
-              ))}
+              {taxRegimes.map((t) => <option key={t.code} value={t.code}>{t.code} — {t.name}</option>)}
             </>
           )}
         </Select>
