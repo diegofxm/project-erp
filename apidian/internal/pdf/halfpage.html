@@ -278,14 +278,15 @@ table.s-taxes th.r, table.s-taxes td.r { text-align: right; }
 .s-footer-cufe .k { font-weight: 700; color: var(--ink); }
 .s-footer-cufe .v { color: var(--ink); word-break: break-all; }
 
-/* ── Marca cofacture (borde derecho) ─────── */
+/* ── Franja proveedor tecnológico (borde derecho) ─── */
 .cfbrand {
   position: fixed;
   right: 0;
   top: 0;
   bottom: 0;
-  width: 5.5mm;
-  background: #14345C;
+  width: 5mm;
+  background: #fff;
+  border-left: 0.4pt solid #CCCCCC;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -294,11 +295,10 @@ table.s-taxes th.r, table.s-taxes td.r { text-align: right; }
 .cfbrand-text {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  color: rgba(255,255,255,0.5);
-  font-size: 5.5pt;
-  font-weight: 700;
-  letter-spacing: 0.35em;
-  text-transform: lowercase;
+  color: #888888;
+  font-size: 5pt;
+  font-weight: 400;
+  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
@@ -330,7 +330,7 @@ table.s-taxes th.r, table.s-taxes td.r { text-align: right; }
 
 <div class="page">
 
-  <div class="cfbrand"><span class="cfbrand-text">cofacture</span></div>
+  <div class="cfbrand"><span class="cfbrand-text">Proveedor tecnológico: cofacture · Firma electrónica: ver en el XML</span></div>
   {{if .Copy1.IsDS}}<div class="svf-wrap"><span class="svf-stamp">Sin Valor Fiscal</span></div>{{end}}
 
   {{template "slip" .Copy1}}
