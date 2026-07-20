@@ -24,7 +24,6 @@ func (a *API) handleUpdateMySettings(w http.ResponseWriter, r *http.Request) {
 	a.patchSettings(w, r, issuerID)
 }
 
-// handleAdminGetIssuerSettings permite al superadmin leer la configuración de cualquier emisor.
 func (a *API) handleAdminGetIssuerSettings(w http.ResponseWriter, r *http.Request) {
 	issuerID, ok := parseUUID(w, r.PathValue("id"))
 	if !ok {
@@ -38,7 +37,6 @@ func (a *API) handleAdminGetIssuerSettings(w http.ResponseWriter, r *http.Reques
 	response.WriteJSON(w, http.StatusOK, st)
 }
 
-// handleAdminUpdateIssuerSettings permite al superadmin actualizar la configuración de cualquier emisor.
 func (a *API) handleAdminUpdateIssuerSettings(w http.ResponseWriter, r *http.Request) {
 	issuerID, ok := parseUUID(w, r.PathValue("id"))
 	if !ok {
@@ -47,34 +45,44 @@ func (a *API) handleAdminUpdateIssuerSettings(w http.ResponseWriter, r *http.Req
 	a.patchSettings(w, r, issuerID)
 }
 
-// patchSettings es la lógica compartida de PATCH settings — acepta brand_color y/o price_per_document_cop.
+// patchSettings es la lógica compartida de PATCH settings — acepta brand_color, tarifas y precio por documento.
+// Las fechas de afiliación/renovación se gestionan por los endpoints /affiliate y /renew.
 func (a *API) patchSettings(w http.ResponseWriter, r *http.Request, issuerID uuid.UUID) {
 	var body struct {
 		BrandColor          string `json:"brand_color"`
 		PricePerDocumentCOP *int   `json:"price_per_document_cop"`
+		AffiliationFeeCOP   *int   `json:"affiliation_fee_cop"`
+		RenewalFeeCOP       *int   `json:"renewal_fee_cop"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
 		return
 	}
 
-	// Leer estado actual para no pisar campos no enviados.
 	current, err := a.settings.Get(r.Context(), issuerID)
 	if err != nil {
 		response.WriteError(w, err)
 		return
 	}
 
-	price := current.PricePerDocumentCOP
-	if body.PricePerDocumentCOP != nil {
-		price = *body.PricePerDocumentCOP
-	}
 	color := current.BrandColor
 	if body.BrandColor != "" {
 		color = body.BrandColor
 	}
+	price := current.PricePerDocumentCOP
+	if body.PricePerDocumentCOP != nil {
+		price = *body.PricePerDocumentCOP
+	}
+	affFee := current.AffiliationFeeCOP
+	if body.AffiliationFeeCOP != nil {
+		affFee = *body.AffiliationFeeCOP
+	}
+	renFee := current.RenewalFeeCOP
+	if body.RenewalFeeCOP != nil {
+		renFee = *body.RenewalFeeCOP
+	}
 
-	st, err := a.settings.Update(r.Context(), issuerID, color, price)
+	st, err := a.settings.Update(r.Context(), issuerID, color, price, affFee, renFee)
 	if err != nil {
 		response.WriteError(w, err)
 		return

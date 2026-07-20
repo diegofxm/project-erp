@@ -124,6 +124,54 @@ func (r *PostgresRepository) CountDocumentsThisMonth(ctx context.Context, issuer
 	return count, err
 }
 
+// RenewalEntry es una fila del listado de renovaciones próximas (vencen en ≤ 90 días).
+type RenewalEntry struct {
+	IssuerID         uuid.UUID
+	BusinessName     string
+	NIT              string
+	AffiliatedAt     *time.Time
+	RenewalDueAt     *time.Time
+	RenewalFeeCOP    int
+	DaysUntilRenewal int // 0 si ya venció
+}
+
+// RenewalsSummary devuelve los emisores cuya renovación vence en los próximos 90 días (o ya venció),
+// ordenados por fecha de vencimiento ascendente — útil para hacer seguimiento de cobros pendientes.
+func (r *PostgresRepository) RenewalsSummary(ctx context.Context) ([]RenewalEntry, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			i.id,
+			i.business_name,
+			i.nit,
+			s.affiliated_at,
+			s.renewal_due_at,
+			s.renewal_fee_cop,
+			GREATEST(0, EXTRACT(DAY FROM s.renewal_due_at - NOW())::int) AS days_until_renewal
+		FROM issuers i
+		JOIN issuer_settings s ON s.issuer_id = i.id
+		WHERE s.renewal_due_at IS NOT NULL
+		  AND s.renewal_due_at <= NOW() + INTERVAL '90 days'
+		ORDER BY s.renewal_due_at ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []RenewalEntry
+	for rows.Next() {
+		var e RenewalEntry
+		if err := rows.Scan(
+			&e.IssuerID, &e.BusinessName, &e.NIT,
+			&e.AffiliatedAt, &e.RenewalDueAt, &e.RenewalFeeCOP, &e.DaysUntilRenewal,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
 // BillingEntry es una fila del resumen de facturación mensual por emisor.
 type BillingEntry struct {
 	IssuerID            uuid.UUID

@@ -16,9 +16,10 @@ const SUB_NAVS: SubNavConfig[] = [
   {
     prefix: "/admin",
     items: [
-      { to: "/admin/billing", label: "Facturación" },
-      { to: "/admin/issuer",  label: "Por emisor" },
-      { to: "/admin/plans",   label: "Planes" },
+      { to: "/admin/billing",   label: "Facturación" },
+      { to: "/admin/renewals",  label: "Renovaciones" },
+      { to: "/admin/issuer",    label: "Por emisor" },
+      { to: "/admin/plans",     label: "Planes" },
     ],
   },
   {

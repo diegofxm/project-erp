@@ -28,7 +28,7 @@ import { SupportDocumentEditorPage } from "./pages/SupportDocumentEditorPage";
 import { AdjustmentNotesPage } from "./pages/AdjustmentNotesPage";
 import { AdjustmentNoteEditorPage } from "./pages/AdjustmentNoteEditorPage";
 import { PublicCustomerRegisterPage } from "./pages/PublicCustomerRegisterPage";
-import { AdminBillingPage, AdminIssuerPage, AdminPlansPage } from "./pages/AdminPage";
+import { AdminBillingPage, AdminRenewalsPage, AdminIssuerPage, AdminPlansPage } from "./pages/AdminPage";
 
 function App() {
   return (
@@ -66,6 +66,7 @@ function App() {
                     <Route path="/documents/adjustment-notes/:id" element={<AdjustmentNoteEditorPage />} />
                     <Route path="/admin" element={<Navigate to="/admin/billing" replace />} />
                     <Route path="/admin/billing" element={<AdminBillingPage />} />
+                    <Route path="/admin/renewals" element={<AdminRenewalsPage />} />
                     <Route path="/admin/issuer" element={<AdminIssuerPage />} />
                     <Route path="/admin/plans" element={<AdminPlansPage />} />
                   </Route>

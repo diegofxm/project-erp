@@ -153,6 +153,9 @@ export interface Plan {
   max_documents_per_month: number | null; // null = ilimitado
   max_issuers: number;
   price_cop: number;
+  affiliation_fee_cop: number;  // tarifa única de afiliación inicial
+  renewal_fee_cop: number;      // tarifa de renovación anual
+  annual_increment_pct: number; // porcentaje de incremento anual (ej. 5.5 = 5.5%)
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -172,11 +175,15 @@ export interface Subscription {
   updated_at: string;
 }
 
-// Configuración de personalización del emisor — GET/PATCH /issuers/me/settings.
+// Configuración de personalización y tarifas del emisor — GET/PATCH /issuers/me/settings.
 export interface IssuerSettings {
   issuer_id: string;
-  brand_color: string;           // hex #RRGGBB
-  price_per_document_cop: number; // precio por documento emitido (COP)
+  brand_color: string;
+  price_per_document_cop: number;
+  affiliation_fee_cop: number;
+  renewal_fee_cop: number;
+  affiliated_at: string | null;   // ISO 8601 o null si aún no está afiliado
+  renewal_due_at: string | null;  // ISO 8601 o null si no aplica
   updated_at: string;
 }
 
@@ -190,6 +197,17 @@ export interface BillingEntry {
   SubtotalCOP: number;
   IVA: number;
   TotalCOP: number;
+}
+
+// Entrada de renovaciones próximas — GET /admin/billing/renewals.
+export interface RenewalEntry {
+  IssuerID: string;
+  BusinessName: string;
+  NIT: string;
+  AffiliatedAt: string | null;
+  RenewalDueAt: string | null;
+  RenewalFeeCOP: number;
+  DaysUntilRenewal: number; // 0 si ya venció
 }
 
 // Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.

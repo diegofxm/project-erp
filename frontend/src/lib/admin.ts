@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { BillingEntry, Issuer, IssuerSettings, Plan, Subscription } from "./types";
+import type { BillingEntry, Issuer, IssuerSettings, Plan, RenewalEntry, Subscription } from "./types";
 
 export async function adminListPlans(): Promise<Plan[]> {
   const res = await apiClient.get<{ plans: Plan[]; count: number }>("/admin/plans");
@@ -12,6 +12,10 @@ export async function adminCreatePlan(data: Omit<Plan, "id" | "created_at" | "up
 
 export async function adminUpdatePlan(id: string, data: Partial<Plan>): Promise<Plan> {
   return apiClient.patch<Plan>(`/admin/plans/${id}`, data);
+}
+
+export async function adminApplyPlanIncrement(planId: string): Promise<Plan> {
+  return apiClient.post<Plan>(`/admin/plans/${planId}/apply-increment`, {});
 }
 
 export async function adminGetIssuer(id: string): Promise<Issuer> {
@@ -34,7 +38,20 @@ export async function adminUpdateIssuerSettings(issuerId: string, data: Partial<
   return apiClient.patch<IssuerSettings>(`/admin/issuers/${issuerId}/settings`, data);
 }
 
+export async function adminAffiliateIssuer(issuerId: string, feePaidCOP: number): Promise<IssuerSettings> {
+  return apiClient.post<IssuerSettings>(`/admin/issuers/${issuerId}/affiliate`, { fee_paid_cop: feePaidCOP });
+}
+
+export async function adminRenewIssuer(issuerId: string, feePaidCOP: number): Promise<IssuerSettings> {
+  return apiClient.post<IssuerSettings>(`/admin/issuers/${issuerId}/renew`, { fee_paid_cop: feePaidCOP });
+}
+
 export async function adminGetBillingSummary(): Promise<BillingEntry[]> {
   const res = await apiClient.get<{ entries: BillingEntry[]; count: number }>("/admin/billing/summary");
+  return res.entries;
+}
+
+export async function adminGetRenewalsSummary(): Promise<RenewalEntry[]> {
+  const res = await apiClient.get<{ entries: RenewalEntry[]; count: number }>("/admin/billing/renewals");
   return res.entries;
 }

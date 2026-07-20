@@ -34,6 +34,10 @@ func (s *Service) BillingSummary(ctx context.Context) ([]BillingEntry, error) {
 	return s.repo.BillingSummary(ctx)
 }
 
+func (s *Service) RenewalsSummary(ctx context.Context) ([]RenewalEntry, error) {
+	return s.repo.RenewalsSummary(ctx)
+}
+
 // CheckLimit verifica si el emisor puede crear un documento más este mes.
 // Si no tiene suscripción activa se permite (graceful: sin plan = sin límite).
 // Si el plan es ilimitado (MaxDocumentsPerMonth nil) se permite siempre.
