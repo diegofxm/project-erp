@@ -487,7 +487,7 @@ func TestConfirmDocument_BuildsSignsAndPersists(t *testing.T) {
 	assert.NotEmpty(t, doc.QRURL)
 	assert.NotEmpty(t, doc.SignedXML)
 	assert.Contains(t, doc.SignedXML, "<ds:Signature", "el XML persistido debe estar firmado")
-	// iss.Environment es Producción en este fixture → no se intenta enviar, queda en "built".
+	// iss=Producción ("1") y nr=Habilitación ("2") → mismatch → guard retorna sin enviar → "built".
 	assert.Equal(t, documents.StatusBuilt, doc.Status)
 	assert.Equal(t, int64(10000), doc.Totals.LineExtensionCents)
 	assert.Equal(t, int64(10000), doc.Totals.PayableCents)

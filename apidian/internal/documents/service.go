@@ -1097,26 +1097,24 @@ func (s *Service) finalizeAndSend(ctx context.Context, doc *etree.Document, p *p
 		return nil, err
 	}
 
-	// Producción real: pendiente de decisión explícita del usuario (ver sección 9.11 del
-	// architecture doc) — se construye y firma, pero no se envía todavía. Se exige que TANTO
-	// el emisor COMO el rango estén marcados en habilitación — doble candado a propósito,
-	// dado que ahora se envía de verdad incluso sin TestSetID (ver 9.14).
-	if p.iss.Environment != issuers.EnvironmentHabilitacion || p.nr.Environment != numbering.EnvironmentHabilitacion {
+	// Emisor y rango deben estar en el mismo ambiente — mezclar produce XMLs con
+	// EnvironmentCode inconsistente que la DIAN rechaza.
+	if p.iss.Environment != issuers.Environment(p.nr.Environment) {
 		return created, nil
 	}
 
-	// Con TestSetID: el flujo de certificación (SendTestSetAsync), asíncrono. Sin TestSetID:
-	// habilitación sigue aceptando envíos normales aun con el set de pruebas ya cerrado (ver
-	// sección 9.14) — SendBillSync, síncrono, un documento a la vez.
-	if p.nr.TestSetID != "" {
-		return s.sendAndUpdate(ctx, created, p.cert, p.key, p.iss, xmlBytes, p.number, p.now, p.nr.TestSetID, kind)
+	// Producción: siempre SendBillSync (no existe TestSetID en producción).
+	// Habilitación con TestSetID: SendTestSetAsync (flujo de certificación, asíncrono).
+	// Habilitación sin TestSetID: SendBillSync (habilitación libre, síncrono, ver 9.14).
+	if p.iss.Environment == issuers.EnvironmentProduccion || p.nr.TestSetID == "" {
+		return s.sendSyncAndUpdate(ctx, created, p.cert, p.key, p.iss, xmlBytes, p.number, p.now, kind)
 	}
-	return s.sendSyncAndUpdate(ctx, created, p.cert, p.key, p.iss, xmlBytes, p.number, p.now, kind)
+	return s.sendAndUpdate(ctx, created, p.cert, p.key, p.iss, xmlBytes, p.number, p.now, p.nr.TestSetID, kind)
 }
 
-// sendAndUpdate envía el documento ya firmado a la DIAN (habilitación), sondea el resultado,
-// y actualiza el estado persistido. Errores de transporte se reportan como StatusSendError
-// (no se pierde el documento ya construido y numerado).
+// sendAndUpdate envía el documento ya firmado a la DIAN vía SendTestSetAsync (habilitación
+// con TestSetID de certificación), sondea el resultado, y actualiza el estado persistido.
+// Errores de transporte se reportan como StatusSendError (no se pierde el documento).
 func (s *Service) sendAndUpdate(
 	ctx context.Context,
 	d *Document,
@@ -1135,7 +1133,11 @@ func (s *Service) sendAndUpdate(
 	}
 	zipFileName := zip.PackageFileName(iss.NIT, zip.SoftwarePropioCode, now.Year(), uint32(number))
 
-	client := soap.New(soap.HabilitacionURL, cert, key)
+	soapURL := soap.HabilitacionURL
+	if iss.Environment == issuers.EnvironmentProduccion {
+		soapURL = soap.ProduccionURL
+	}
+	client := soap.New(soapURL, cert, key)
 	result, err := client.SendTestSetAsync(zipFileName, zipBytes, testSetID)
 	if err != nil {
 		return s.markSendError(ctx, d, fmt.Errorf("enviar a la DIAN: %w", err))
@@ -1189,9 +1191,7 @@ func (s *Service) sendAndUpdate(
 
 // sendSyncAndUpdate envía el documento por SendBillSync — un solo documento, síncrono, sin
 // ZipKey ni sondeo posterior: la DIAN responde con el resultado final en la misma llamada.
-// Confirmado contra la DIAN real (cofacture/soap/realsend_sync_test.go) que esto sigue
-// disponible en habilitación incluso con el set de pruebas oficial ya cerrado — ver
-// docs/apidian-architecture.md sección 9.14.
+// Usado tanto en producción (siempre) como en habilitación libre (sin TestSetID, ver 9.14).
 func (s *Service) sendSyncAndUpdate(
 	ctx context.Context,
 	d *Document,
@@ -1209,7 +1209,11 @@ func (s *Service) sendSyncAndUpdate(
 	}
 	zipFileName := zip.PackageFileName(iss.NIT, zip.SoftwarePropioCode, now.Year(), uint32(number))
 
-	client := soap.New(soap.HabilitacionURL, cert, key)
+	soapURL := soap.HabilitacionURL
+	if iss.Environment == issuers.EnvironmentProduccion {
+		soapURL = soap.ProduccionURL
+	}
+	client := soap.New(soapURL, cert, key)
 	resp, err := client.SendBillSync(zipFileName, zipBytes)
 	if err != nil {
 		return s.markSendError(ctx, d, fmt.Errorf("enviar a la DIAN: %w", err))

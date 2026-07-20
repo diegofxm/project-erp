@@ -672,7 +672,10 @@ func TestAPI_ConfirmDocument_OK(t *testing.T) {
 
 	got := issueInvoiceViaAPI(t, env, token, rangeID)
 	assert.Equal(t, "SETP", got["prefix"])
-	assert.Equal(t, "built", got["status"])
+	// Emisor y rango están en producción → intenta enviar a soap.ProduccionURL → no hay red real
+	// en httptest → send_error es el estado final esperado. El documento SÍ queda construido
+	// (tiene CUFE, XML firmado y número reservado).
+	assert.Equal(t, "send_error", got["status"])
 	assert.NotEmpty(t, got["document_key"])
 	// signed_xml ya no viaja en el JSON — se descarga por GET /documents/{id}/xml.
 	assert.Nil(t, got["signed_xml"], "signed_xml no debe aparecer en la respuesta JSON")
@@ -973,7 +976,9 @@ func TestAPI_IssueCreditNote_OK(t *testing.T) {
 	var confirmed map[string]any
 	decode(t, confirmRw, &confirmed)
 	assert.Equal(t, "SETPNC", confirmed["prefix"])
-	assert.Equal(t, "built", confirmed["status"])
+	// Mismo criterio que TestAPI_ConfirmDocument_OK: rango en producción → intenta enviar →
+	// sin red real en httptest → send_error esperado.
+	assert.Equal(t, "send_error", confirmed["status"])
 }
 
 func TestAPI_IssueCreditNote_MissingBillingReference(t *testing.T) {
