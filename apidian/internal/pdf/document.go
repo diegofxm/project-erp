@@ -413,9 +413,9 @@ func makeQR(content string) (template.URL, error) {
 // resolutionDisclaimer construye el texto de autorización DIAN. RangeTo nil omite "hasta ..."
 // (rango sin tope).
 func resolutionDisclaimer(in InvoiceInput) string {
-	rangeClause := fmt.Sprintf("desde %s%d", in.RangePrefix, in.RangeFrom)
+	rangeClause := fmt.Sprintf("con prefijo %s, desde %d", in.RangePrefix, in.RangeFrom)
 	if in.RangeTo != nil {
-		rangeClause += fmt.Sprintf(" hasta %s%d", in.RangePrefix, *in.RangeTo)
+		rangeClause += fmt.Sprintf(" hasta %d", *in.RangeTo)
 	}
 	return fmt.Sprintf(
 		"Autorización de numeración No. %s vigente desde %s hasta %s. Rango autorizado %s.",

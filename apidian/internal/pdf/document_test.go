@@ -108,7 +108,7 @@ func TestResolutionDisclaimer_NoUpperBound(t *testing.T) {
 	in.RangeFrom = 1
 
 	got := resolutionDisclaimer(in)
-	if want := "Rango autorizado desde QAPDF1."; !bytes.Contains([]byte(got), []byte(want)) {
+	if want := "Rango autorizado con prefijo QAPDF, desde 1."; !bytes.Contains([]byte(got), []byte(want)) {
 		t.Errorf("resolutionDisclaimer() = %q, esperaba que contuviera %q", got, want)
 	}
 	if bytes.Contains([]byte(got), []byte("QAPDF0")) {
@@ -120,7 +120,7 @@ func TestResolutionDisclaimer_WithUpperBound(t *testing.T) {
 	in := sampleInput()
 
 	got := resolutionDisclaimer(in)
-	want := "Rango autorizado desde SETP990000000 hasta SETP995000000."
+	want := "Rango autorizado con prefijo SETP, desde 990000000 hasta 995000000."
 	if !bytes.Contains([]byte(got), []byte(want)) {
 		t.Errorf("resolutionDisclaimer() = %q, esperaba que contuviera %q", got, want)
 	}
