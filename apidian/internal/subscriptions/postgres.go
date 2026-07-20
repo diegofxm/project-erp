@@ -123,3 +123,53 @@ func (r *PostgresRepository) CountDocumentsThisMonth(ctx context.Context, issuer
 	`, issuerID).Scan(&count)
 	return count, err
 }
+
+// BillingEntry es una fila del resumen de facturación mensual por emisor.
+type BillingEntry struct {
+	IssuerID            uuid.UUID
+	BusinessName        string
+	NIT                 string
+	DocsThisMonth       int
+	PricePerDocumentCOP int
+	SubtotalCOP         int // DocsThisMonth × PricePerDocumentCOP
+	IVA                 int // SubtotalCOP × 19%
+	TotalCOP            int // SubtotalCOP + IVA
+}
+
+// BillingSummary devuelve el resumen de facturación del mes actual para todos los emisores
+// que hayan emitido al menos un documento — útil para el panel de superadmin.
+func (r *PostgresRepository) BillingSummary(ctx context.Context) ([]BillingEntry, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			i.id,
+			i.business_name,
+			i.nit,
+			COUNT(d.id)                                                AS docs_this_month,
+			COALESCE(s.price_per_document_cop, 150)                    AS price_per_doc,
+			COUNT(d.id) * COALESCE(s.price_per_document_cop, 150)      AS subtotal,
+			ROUND(COUNT(d.id) * COALESCE(s.price_per_document_cop, 150) * 0.19)::INT AS iva,
+			ROUND(COUNT(d.id) * COALESCE(s.price_per_document_cop, 150) * 1.19)::INT AS total
+		FROM issuers i
+		LEFT JOIN issuer_settings s ON s.issuer_id = i.id
+		LEFT JOIN documents d ON d.issuer_id = i.id
+			AND d.status NOT IN ('draft', 'rejected', 'send_error')
+			AND DATE_TRUNC('month', d.issue_date) = DATE_TRUNC('month', CURRENT_DATE)
+		GROUP BY i.id, i.business_name, i.nit, s.price_per_document_cop
+		HAVING COUNT(d.id) > 0
+		ORDER BY total DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []BillingEntry
+	for rows.Next() {
+		var e BillingEntry
+		if err := rows.Scan(&e.IssuerID, &e.BusinessName, &e.NIT, &e.DocsThisMonth, &e.PricePerDocumentCOP, &e.SubtotalCOP, &e.IVA, &e.TotalCOP); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}

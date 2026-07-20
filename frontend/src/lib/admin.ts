@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { Issuer, Plan, Subscription } from "./types";
+import type { BillingEntry, Issuer, IssuerSettings, Plan, Subscription } from "./types";
 
 export async function adminListPlans(): Promise<Plan[]> {
   const res = await apiClient.get<{ plans: Plan[]; count: number }>("/admin/plans");
@@ -24,4 +24,17 @@ export async function adminGetSubscription(issuerId: string): Promise<Subscripti
 
 export async function adminAssignPlan(issuerId: string, planId: string): Promise<Subscription> {
   return apiClient.post<Subscription>(`/admin/issuers/${issuerId}/subscription`, { plan_id: planId });
+}
+
+export async function adminGetIssuerSettings(issuerId: string): Promise<IssuerSettings> {
+  return apiClient.get<IssuerSettings>(`/admin/issuers/${issuerId}/settings`);
+}
+
+export async function adminUpdateIssuerSettings(issuerId: string, data: Partial<IssuerSettings>): Promise<IssuerSettings> {
+  return apiClient.patch<IssuerSettings>(`/admin/issuers/${issuerId}/settings`, data);
+}
+
+export async function adminGetBillingSummary(): Promise<BillingEntry[]> {
+  const res = await apiClient.get<{ entries: BillingEntry[]; count: number }>("/admin/billing/summary");
+  return res.entries;
 }

@@ -30,6 +30,10 @@ func (s *Service) Assign(ctx context.Context, issuerID, planID uuid.UUID) (*Subs
 	return s.repo.Assign(ctx, issuerID, planID)
 }
 
+func (s *Service) BillingSummary(ctx context.Context) ([]BillingEntry, error) {
+	return s.repo.BillingSummary(ctx)
+}
+
 // CheckLimit verifica si el emisor puede crear un documento más este mes.
 // Si no tiene suscripción activa se permite (graceful: sin plan = sin límite).
 // Si el plan es ilimitado (MaxDocumentsPerMonth nil) se permite siempre.

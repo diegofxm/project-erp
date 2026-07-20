@@ -23,15 +23,16 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 func (r *PostgresRepository) Get(ctx context.Context, issuerID uuid.UUID) (*IssuerSettings, error) {
 	var s IssuerSettings
 	err := r.pool.QueryRow(ctx, `
-		SELECT issuer_id, brand_color, updated_at
+		SELECT issuer_id, brand_color, price_per_document_cop, updated_at
 		FROM issuer_settings WHERE issuer_id = $1
-	`, issuerID).Scan(&s.IssuerID, &s.BrandColor, &s.UpdatedAt)
+	`, issuerID).Scan(&s.IssuerID, &s.BrandColor, &s.PricePerDocumentCOP, &s.UpdatedAt)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return &IssuerSettings{
-			IssuerID:   issuerID,
-			BrandColor: DefaultBrandColor,
-			UpdatedAt:  time.Now().UTC(),
+			IssuerID:            issuerID,
+			BrandColor:          DefaultBrandColor,
+			PricePerDocumentCOP: DefaultPricePerDocumentCOP,
+			UpdatedAt:           time.Now().UTC(),
 		}, nil
 	}
 	if err != nil {
@@ -44,12 +45,13 @@ func (r *PostgresRepository) Get(ctx context.Context, issuerID uuid.UUID) (*Issu
 func (r *PostgresRepository) Save(ctx context.Context, s IssuerSettings) (*IssuerSettings, error) {
 	now := time.Now().UTC()
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO issuer_settings (issuer_id, brand_color, updated_at)
-		VALUES ($1, $2, $3)
+		INSERT INTO issuer_settings (issuer_id, brand_color, price_per_document_cop, updated_at)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (issuer_id) DO UPDATE SET
-			brand_color = EXCLUDED.brand_color,
-			updated_at  = EXCLUDED.updated_at
-	`, s.IssuerID, s.BrandColor, now)
+			brand_color           = EXCLUDED.brand_color,
+			price_per_document_cop = EXCLUDED.price_per_document_cop,
+			updated_at            = EXCLUDED.updated_at
+	`, s.IssuerID, s.BrandColor, s.PricePerDocumentCOP, now)
 	if err != nil {
 		return nil, err
 	}

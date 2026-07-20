@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Palette } from "lucide-react";
 import { useToast } from "../../context/ToastContext";
 import { ApiError } from "../../lib/apiClient";
-import { getMySettings, updateBrandColor } from "../../lib/settings";
+import { getMySettings, updateMySettings } from "../../lib/settings";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 
@@ -25,7 +25,7 @@ export function BrandColorForm() {
     e.preventDefault();
     setLoading(true);
     try {
-      const updated = await updateBrandColor(color);
+      const updated = await updateMySettings({ brand_color: color });
       setColor(updated.brand_color);
       toast.success("Color de marca guardado.");
     } catch (err) {

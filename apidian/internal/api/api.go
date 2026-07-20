@@ -232,8 +232,11 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handleSA("POST /api/v1/admin/plans", a.handleAdminCreatePlan)
 	handleSA("PATCH /api/v1/admin/plans/{id}", a.handleAdminUpdatePlan)
 	handleSA("GET /api/v1/admin/issuers/{id}", a.handleAdminGetIssuer)
+	handleSA("GET /api/v1/admin/issuers/{id}/settings", a.handleAdminGetIssuerSettings)
+	handleSA("PATCH /api/v1/admin/issuers/{id}/settings", a.handleAdminUpdateIssuerSettings)
 	handleSA("GET /api/v1/admin/issuers/{id}/subscription", a.handleAdminGetIssuerSubscription)
 	handleSA("POST /api/v1/admin/issuers/{id}/subscription", a.handleAdminAssignPlan)
+	handleSA("GET /api/v1/admin/billing/summary", a.handleAdminBillingSummary)
 
 	handle("POST /api/v1/customers", a.handleCreateCustomer)
 	handle("GET /api/v1/customers", a.handleListCustomers)

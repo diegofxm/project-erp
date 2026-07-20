@@ -175,8 +175,21 @@ export interface Subscription {
 // Configuración de personalización del emisor — GET/PATCH /issuers/me/settings.
 export interface IssuerSettings {
   issuer_id: string;
-  brand_color: string; // hex #RRGGBB
+  brand_color: string;           // hex #RRGGBB
+  price_per_document_cop: number; // precio por documento emitido (COP)
   updated_at: string;
+}
+
+// Entrada del resumen de facturación mensual — GET /admin/billing/summary.
+export interface BillingEntry {
+  IssuerID: string;
+  BusinessName: string;
+  NIT: string;
+  DocsThisMonth: number;
+  PricePerDocumentCOP: number;
+  SubtotalCOP: number;
+  IVA: number;
+  TotalCOP: number;
 }
 
 // Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.

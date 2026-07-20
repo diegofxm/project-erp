@@ -8,6 +8,7 @@ import (
 	"github.com/diegofxm/apidian/internal/api/middleware"
 	"github.com/diegofxm/apidian/internal/api/response"
 	"github.com/diegofxm/apidian/internal/plans"
+	"github.com/diegofxm/apidian/internal/subscriptions"
 	"github.com/google/uuid"
 )
 
@@ -198,4 +199,17 @@ func (a *API) handleAdminGetIssuer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.WriteJSON(w, http.StatusOK, issuerToResponse(iss))
+}
+
+// handleAdminBillingSummary devuelve el resumen de facturación del mes actual por emisor.
+func (a *API) handleAdminBillingSummary(w http.ResponseWriter, r *http.Request) {
+	entries, err := a.subscriptions.BillingSummary(r.Context())
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	if entries == nil {
+		entries = []subscriptions.BillingEntry{}
+	}
+	response.WriteJSON(w, http.StatusOK, map[string]any{"entries": entries, "count": len(entries)})
 }

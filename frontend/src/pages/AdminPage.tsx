@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Shield, RefreshCw, ChevronRight } from "lucide-react";
+import { Shield, RefreshCw, ChevronRight, Receipt } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { ApiError } from "../lib/apiClient";
@@ -7,20 +7,96 @@ import {
   adminListPlans,
   adminGetIssuer,
   adminGetSubscription,
+  adminGetIssuerSettings,
   adminAssignPlan,
   adminUpdatePlan,
+  adminUpdateIssuerSettings,
+  adminGetBillingSummary,
 } from "../lib/admin";
-import type { Plan, Subscription, Issuer } from "../lib/types";
+import type { BillingEntry, Plan, Subscription, Issuer } from "../lib/types";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 
-function formatCOP(cents: number) {
-  return `$ ${(cents / 100).toLocaleString("es-CO")}`;
+type Tab = "billing" | "plans" | "issuer";
+
+function formatCOP(pesos: number) {
+  return `$ ${pesos.toLocaleString("es-CO")}`;
 }
 
-// ── Planes ────────────────────────────────────────────────────────────────────
-function PlansPanel() {
+// ── Pestaña: Resumen de facturación ─────────────────────────────────────────
+function BillingTab() {
+  const [entries, setEntries] = useState<BillingEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  function load() {
+    setLoading(true);
+    adminGetBillingSummary()
+      .then(setEntries)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(load, []);
+
+  const totalDocs = entries.reduce((s, e) => s + e.DocsThisMonth, 0);
+  const totalCOP = entries.reduce((s, e) => s + e.TotalCOP, 0);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-(--text-secondary)">Documentos emitidos en el mes actual por todos los emisores.</p>
+        <Button variant="secondary" onClick={load} icon={<RefreshCw className="h-3.5 w-3.5" />}>Actualizar</Button>
+      </div>
+
+      {loading ? (
+        <p className="text-xs text-(--text-secondary)">Cargando…</p>
+      ) : entries.length === 0 ? (
+        <p className="text-xs text-(--text-secondary)">Ningún emisor ha emitido documentos este mes.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-(--border-color) text-left text-(--text-secondary)">
+                <th className="py-1.5 pr-3 font-medium">Empresa</th>
+                <th className="py-1.5 pr-3 font-medium">NIT</th>
+                <th className="py-1.5 pr-3 text-right font-medium">Docs</th>
+                <th className="py-1.5 pr-3 text-right font-medium">$/doc</th>
+                <th className="py-1.5 pr-3 text-right font-medium">Subtotal</th>
+                <th className="py-1.5 pr-3 text-right font-medium">IVA (19%)</th>
+                <th className="py-1.5 text-right font-medium">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.IssuerID} className="border-b border-(--border-color) last:border-0">
+                  <td className="py-1.5 pr-3 text-(--text-primary)">{e.BusinessName}</td>
+                  <td className="py-1.5 pr-3 font-mono text-(--text-secondary)">{e.NIT}</td>
+                  <td className="py-1.5 pr-3 text-right text-(--text-primary)">{e.DocsThisMonth}</td>
+                  <td className="py-1.5 pr-3 text-right text-(--text-secondary)">{formatCOP(e.PricePerDocumentCOP)}</td>
+                  <td className="py-1.5 pr-3 text-right text-(--text-secondary)">{formatCOP(e.SubtotalCOP)}</td>
+                  <td className="py-1.5 pr-3 text-right text-(--text-secondary)">{formatCOP(e.IVA)}</td>
+                  <td className="py-1.5 text-right font-semibold text-(--text-primary)">{formatCOP(e.TotalCOP)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-(--border-color) font-semibold text-(--text-primary)">
+                <td colSpan={2} className="py-2 pr-3">Total ({entries.length} empresas)</td>
+                <td className="py-2 pr-3 text-right">{totalDocs}</td>
+                <td colSpan={3} />
+                <td className="py-2 text-right">{formatCOP(totalCOP)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Pestaña: Planes ──────────────────────────────────────────────────────────
+function PlansTab() {
   const toast = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +128,7 @@ function PlansPanel() {
             <span className="text-xs font-semibold text-(--text-primary)">{p.name}</span>
             <span className="text-xs text-(--text-secondary)">
               {p.max_documents_per_month == null ? "Ilimitado" : `${p.max_documents_per_month} docs/mes`}
-              {p.price_cop > 0 ? ` · ${formatCOP(p.price_cop * 100)}/mes` : " · Gratis"}
+              {p.price_cop > 0 ? ` · ${formatCOP(p.price_cop)}/mes` : " · Gratis"}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -69,16 +145,18 @@ function PlansPanel() {
   );
 }
 
-// ── Suscripciones por emisor ──────────────────────────────────────────────────
-function SubscriptionPanel() {
+// ── Pestaña: Gestión por emisor ──────────────────────────────────────────────
+function IssuerTab() {
   const toast = useToast();
   const [issuerId, setIssuerId] = useState("");
   const [issuer, setIssuer] = useState<Issuer | null>(null);
   const [sub, setSub] = useState<Subscription | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [priceInput, setPriceInput] = useState("");
   const [searching, setSearching] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const [savingPrice, setSavingPrice] = useState(false);
 
   useEffect(() => {
     adminListPlans().then(setPlans).catch(() => {});
@@ -89,17 +167,23 @@ function SubscriptionPanel() {
     setSearching(true);
     setIssuer(null);
     setSub(null);
+    setPriceInput("");
     try {
-      const [iss, s] = await Promise.allSettled([
+      const [issRes, subRes] = await Promise.allSettled([
         adminGetIssuer(issuerId.trim()),
         adminGetSubscription(issuerId.trim()),
       ]);
-      if (iss.status === "fulfilled") setIssuer(iss.value);
-      if (s.status === "fulfilled") {
-        setSub(s.value);
-        setSelectedPlanId(s.value.plan_id);
+      if (issRes.status === "fulfilled") {
+        setIssuer(issRes.value);
+        const st = await adminGetIssuerSettings(issRes.value.id).catch(() => null);
+        if (st) setPriceInput(String(st.price_per_document_cop));
+      } else {
+        toast.error("No se encontró el emisor");
       }
-      if (iss.status === "rejected") toast.error("No se encontró el emisor");
+      if (subRes.status === "fulfilled") {
+        setSub(subRes.value);
+        setSelectedPlanId(subRes.value.plan_id);
+      }
     } finally {
       setSearching(false);
     }
@@ -119,8 +203,27 @@ function SubscriptionPanel() {
     }
   }
 
+  async function handleSavePrice() {
+    if (!issuer) return;
+    const price = parseInt(priceInput, 10);
+    if (isNaN(price) || price < 0) {
+      toast.error("El precio debe ser un número positivo.");
+      return;
+    }
+    setSavingPrice(true);
+    try {
+      await adminUpdateIssuerSettings(issuer.id, { price_per_document_cop: price });
+      toast.success(`Precio actualizado: ${formatCOP(price)} por documento.`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo actualizar el precio");
+    } finally {
+      setSavingPrice(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3">
+      <p className="text-xs text-(--text-secondary)">Busca un emisor por su UUID para gestionar su plan y precio por documento.</p>
       <div className="flex items-end gap-2">
         <Input
           label="ID del emisor (UUID)"
@@ -135,20 +238,33 @@ function SubscriptionPanel() {
       </div>
 
       {issuer && (
-        <div className="rounded border border-(--border-color) bg-(--bg-primary) p-3">
-          <p className="text-xs font-semibold text-(--text-primary)">{issuer.business_name}</p>
-          <p className="text-xs text-(--text-secondary)">NIT {issuer.nit}-{issuer.check_digit}</p>
-          {sub && (
-            <p className="mt-1 text-xs text-(--text-secondary)">
-              Plan actual: <strong className="text-(--text-primary)">{sub.plan_name}</strong>
-              {sub.max_documents_per_month != null ? ` (${sub.max_documents_per_month} docs/mes)` : " (ilimitado)"}
-            </p>
-          )}
-          {!sub && <p className="mt-1 text-xs text-(--text-secondary)">Sin suscripción activa</p>}
+        <div className="flex flex-col gap-3 rounded border border-(--border-color) bg-(--bg-primary) p-3">
+          <div>
+            <p className="text-xs font-semibold text-(--text-primary)">{issuer.business_name}</p>
+            <p className="text-xs text-(--text-secondary)">NIT {issuer.nit}-{issuer.check_digit}</p>
+            {sub
+              ? <p className="mt-0.5 text-xs text-(--text-secondary)">Plan: <strong className="text-(--text-primary)">{sub.plan_name}</strong></p>
+              : <p className="mt-0.5 text-xs text-(--text-secondary)">Sin suscripción activa</p>
+            }
+          </div>
 
-          <div className="mt-3 flex items-end gap-2">
+          {/* Precio por documento */}
+          <div className="flex items-end gap-2 border-t border-(--border-color) pt-3">
+            <Input
+              label="Precio por documento (COP)"
+              type="number"
+              min="0"
+              value={priceInput}
+              onChange={(e) => setPriceInput(e.target.value)}
+              className="w-40"
+            />
+            <Button loading={savingPrice} onClick={handleSavePrice}>Guardar precio</Button>
+          </div>
+
+          {/* Asignar plan */}
+          <div className="flex items-end gap-2 border-t border-(--border-color) pt-3">
             <label className="flex flex-col gap-1 flex-1">
-              <span className="text-xs font-medium text-(--text-secondary)">Asignar plan</span>
+              <span className="text-xs font-medium text-(--text-secondary)">Cambiar plan</span>
               <select
                 value={selectedPlanId}
                 onChange={(e) => setSelectedPlanId(e.target.value)}
@@ -173,6 +289,7 @@ function SubscriptionPanel() {
 // ── Página principal ─────────────────────────────────────────────────────────
 export function AdminPage() {
   const { user } = useAuth();
+  const [tab, setTab] = useState<Tab>("billing");
 
   if (!user?.is_superadmin) {
     return (
@@ -183,23 +300,41 @@ export function AdminPage() {
     );
   }
 
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "billing", label: "Facturación" },
+    { id: "issuer", label: "Por emisor" },
+    { id: "plans", label: "Planes" },
+  ];
+
   return (
     <div className="p-4">
       <h1 className="mb-3 flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
-        <Shield className="h-4 w-4 shrink-0 text-(--accent-primary)" />
+        <Receipt className="h-4 w-4 shrink-0 text-(--accent-primary)" />
         Panel de administración
       </h1>
-      <div className="flex flex-col gap-4">
-        <Card className="flex flex-col gap-3 p-4">
-          <h2 className="text-xs font-semibold text-(--text-primary)">Planes</h2>
-          <PlansPanel />
-        </Card>
-        <Card className="flex flex-col gap-3 p-4">
-          <h2 className="text-xs font-semibold text-(--text-primary)">Suscripción por emisor</h2>
-          <p className="text-xs text-(--text-secondary)">Busca un emisor por su UUID para consultar o cambiar su plan activo.</p>
-          <SubscriptionPanel />
-        </Card>
+
+      {/* Tabs */}
+      <div className="mb-4 flex gap-1 border-b border-(--border-color)">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              tab === t.id
+                ? "border-b-2 border-(--accent-primary) text-(--accent-primary)"
+                : "text-(--text-secondary) hover:text-(--text-primary)"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      <Card className="p-4">
+        {tab === "billing" && <BillingTab />}
+        {tab === "plans" && <PlansTab />}
+        {tab === "issuer" && <IssuerTab />}
+      </Card>
     </div>
   );
 }
