@@ -14,6 +14,14 @@ interface SubNavConfig {
 
 const SUB_NAVS: SubNavConfig[] = [
   {
+    prefix: "/admin",
+    items: [
+      { to: "/admin/billing", label: "Facturación" },
+      { to: "/admin/issuer",  label: "Por emisor" },
+      { to: "/admin/plans",   label: "Planes" },
+    ],
+  },
+  {
     prefix: "/documents",
     items: [
       { to: "/documents/invoices",          label: "Factura Electrónica", color: DOC_COLORS["/documents/invoices"] },

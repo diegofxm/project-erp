@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router";
-import { Files, Home, Package, Settings, Truck, Users } from "lucide-react";
+import { Crown, Files, Home, Package, Settings, Truck, Users } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 interface NavItem {
   to: string;
@@ -8,6 +9,7 @@ interface NavItem {
   icon: ReactNode;
   activePrefix?: string;
   end?: boolean;
+  superAdminOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -17,6 +19,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/vendors", label: "Proveedores", icon: <Truck className="h-3.5 w-3.5" />, activePrefix: "/vendors" },
   { to: "/products", label: "Productos", icon: <Package className="h-3.5 w-3.5" />, activePrefix: "/products" },
   { to: "/settings", label: "Configuración", icon: <Settings className="h-3.5 w-3.5" />, activePrefix: "/settings" },
+  { to: "/admin", label: "Comando", icon: <Crown className="h-3.5 w-3.5" />, activePrefix: "/admin", superAdminOnly: true },
 ];
 
 interface SidebarProps {
@@ -25,6 +28,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed }: SidebarProps) {
   const location = useLocation();
+  const { user } = useAuth();
 
   return (
     <aside
@@ -34,6 +38,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
     >
       <nav className="flex flex-col gap-0.5 p-1.5 pt-2">
         {NAV_ITEMS.map((item) => {
+          if (item.superAdminOnly && !user?.is_superadmin) return null;
           const active = item.activePrefix
             ? location.pathname.startsWith(item.activePrefix)
             : item.end

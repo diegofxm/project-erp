@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Shield, RefreshCw, ChevronRight, Receipt } from "lucide-react";
+import { RefreshCw, ChevronRight } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { ApiError } from "../lib/apiClient";
@@ -18,14 +18,28 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 
-type Tab = "billing" | "plans" | "issuer";
-
 function formatCOP(pesos: number) {
-  return `$ ${pesos.toLocaleString("es-CO")}`;
+  return `$ ${pesos.toLocaleString("es-CO")}`;
 }
 
-// ── Pestaña: Resumen de facturación ─────────────────────────────────────────
-function BillingTab() {
+function AccessDenied() {
+  return (
+    <div className="flex h-full items-center justify-center p-8 text-center">
+      <p className="text-sm text-(--text-secondary)">Acceso restringido a superadministradores.</p>
+    </div>
+  );
+}
+
+function withSuperAdmin<P extends object>(Component: React.ComponentType<P>) {
+  return function SuperAdminGuard(props: P) {
+    const { user } = useAuth();
+    if (!user?.is_superadmin) return <AccessDenied />;
+    return <Component {...props} />;
+  };
+}
+
+// ── Facturación ──────────────────────────────────────────────────────────────
+function BillingContent() {
   const [entries, setEntries] = useState<BillingEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,7 +57,7 @@ function BillingTab() {
   const totalCOP = entries.reduce((s, e) => s + e.TotalCOP, 0);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 p-4">
       <div className="flex items-center justify-between">
         <p className="text-xs text-(--text-secondary)">Documentos emitidos en el mes actual por todos los emisores.</p>
         <Button variant="secondary" onClick={load} icon={<RefreshCw className="h-3.5 w-3.5" />}>Actualizar</Button>
@@ -95,58 +109,8 @@ function BillingTab() {
   );
 }
 
-// ── Pestaña: Planes ──────────────────────────────────────────────────────────
-function PlansTab() {
-  const toast = useToast();
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    adminListPlans()
-      .then(setPlans)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  async function toggleActive(plan: Plan) {
-    try {
-      const updated = await adminUpdatePlan(plan.id, { ...plan, is_active: !plan.is_active });
-      setPlans((ps) => ps.map((p) => (p.id === updated.id ? updated : p)));
-      toast.success(`Plan "${updated.name}" ${updated.is_active ? "activado" : "desactivado"}.`);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo actualizar el plan");
-    }
-  }
-
-  if (loading) return <p className="text-xs text-(--text-secondary)">Cargando planes…</p>;
-
-  return (
-    <div className="flex flex-col gap-2">
-      {plans.map((p) => (
-        <div key={p.id} className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-semibold text-(--text-primary)">{p.name}</span>
-            <span className="text-xs text-(--text-secondary)">
-              {p.max_documents_per_month == null ? "Ilimitado" : `${p.max_documents_per_month} docs/mes`}
-              {p.price_cop > 0 ? ` · ${formatCOP(p.price_cop)}/mes` : " · Gratis"}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${p.is_active ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
-              {p.is_active ? "Activo" : "Inactivo"}
-            </span>
-            <Button variant="secondary" onClick={() => toggleActive(p)}>
-              {p.is_active ? "Desactivar" : "Activar"}
-            </Button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Pestaña: Gestión por emisor ──────────────────────────────────────────────
-function IssuerTab() {
+// ── Por emisor ───────────────────────────────────────────────────────────────
+function IssuerContent() {
   const toast = useToast();
   const [issuerId, setIssuerId] = useState("");
   const [issuer, setIssuer] = useState<Issuer | null>(null);
@@ -222,7 +186,7 @@ function IssuerTab() {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 p-4">
       <p className="text-xs text-(--text-secondary)">Busca un emisor por su UUID para gestionar su plan y precio por documento.</p>
       <div className="flex items-end gap-2">
         <Input
@@ -248,7 +212,6 @@ function IssuerTab() {
             }
           </div>
 
-          {/* Precio por documento */}
           <div className="flex items-end gap-2 border-t border-(--border-color) pt-3">
             <Input
               label="Precio por documento (COP)"
@@ -261,7 +224,6 @@ function IssuerTab() {
             <Button loading={savingPrice} onClick={handleSavePrice}>Guardar precio</Button>
           </div>
 
-          {/* Asignar plan */}
           <div className="flex items-end gap-2 border-t border-(--border-color) pt-3">
             <label className="flex flex-col gap-1 flex-1">
               <span className="text-xs font-medium text-(--text-secondary)">Cambiar plan</span>
@@ -286,55 +248,65 @@ function IssuerTab() {
   );
 }
 
-// ── Página principal ─────────────────────────────────────────────────────────
-export function AdminPage() {
-  const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>("billing");
+// ── Planes ───────────────────────────────────────────────────────────────────
+function PlansContent() {
+  const toast = useToast();
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!user?.is_superadmin) {
-    return (
-      <div className="p-8 text-center">
-        <Shield className="mx-auto mb-2 h-8 w-8 text-(--text-secondary)" />
-        <p className="text-sm text-(--text-secondary)">Acceso restringido a superadministradores.</p>
-      </div>
-    );
+  useEffect(() => {
+    adminListPlans()
+      .then(setPlans)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function toggleActive(plan: Plan) {
+    try {
+      const updated = await adminUpdatePlan(plan.id, { ...plan, is_active: !plan.is_active });
+      setPlans((ps) => ps.map((p) => (p.id === updated.id ? updated : p)));
+      toast.success(`Plan "${updated.name}" ${updated.is_active ? "activado" : "desactivado"}.`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo actualizar el plan");
+    }
   }
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "billing", label: "Facturación" },
-    { id: "issuer", label: "Por emisor" },
-    { id: "plans", label: "Planes" },
-  ];
+  if (loading) return <p className="p-4 text-xs text-(--text-secondary)">Cargando planes…</p>;
 
   return (
-    <div className="p-4">
-      <h1 className="mb-3 flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
-        <Receipt className="h-4 w-4 shrink-0 text-(--accent-primary)" />
-        Panel de administración
-      </h1>
-
-      {/* Tabs */}
-      <div className="mb-4 flex gap-1 border-b border-(--border-color)">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-              tab === t.id
-                ? "border-b-2 border-(--accent-primary) text-(--accent-primary)"
-                : "text-(--text-secondary) hover:text-(--text-primary)"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <Card className="p-4">
-        {tab === "billing" && <BillingTab />}
-        {tab === "plans" && <PlansTab />}
-        {tab === "issuer" && <IssuerTab />}
-      </Card>
+    <div className="flex flex-col gap-2 p-4">
+      {plans.map((p) => (
+        <div key={p.id} className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-semibold text-(--text-primary)">{p.name}</span>
+            <span className="text-xs text-(--text-secondary)">
+              {p.max_documents_per_month == null ? "Ilimitado" : `${p.max_documents_per_month} docs/mes`}
+              {p.price_cop > 0 ? ` · ${formatCOP(p.price_cop)}/mes` : " · Gratis"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${p.is_active ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
+              {p.is_active ? "Activo" : "Inactivo"}
+            </span>
+            <Button variant="secondary" onClick={() => toggleActive(p)}>
+              {p.is_active ? "Desactivar" : "Activar"}
+            </Button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
+
+// ── Exports de página ────────────────────────────────────────────────────────
+export const AdminBillingPage = withSuperAdmin(function AdminBillingPage() {
+  return <Card className="m-4"><BillingContent /></Card>;
+});
+
+export const AdminIssuerPage = withSuperAdmin(function AdminIssuerPage() {
+  return <Card className="m-4"><IssuerContent /></Card>;
+});
+
+export const AdminPlansPage = withSuperAdmin(function AdminPlansPage() {
+  return <Card className="m-4"><PlansContent /></Card>;
+});
