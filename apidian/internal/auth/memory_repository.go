@@ -118,3 +118,41 @@ func (r *MemoryRepository) HasAccess(_ context.Context, userID, issuerID uuid.UU
 	_, ok := r.memberships[userID][issuerID]
 	return ok, nil
 }
+
+func (r *MemoryRepository) GetByInviteToken(_ context.Context, token uuid.UUID) (*User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, u := range r.byID {
+		if u.InviteToken != nil && *u.InviteToken == token {
+			cp := *u
+			return &cp, nil
+		}
+	}
+	return nil, ErrUserNotFound
+}
+
+func (r *MemoryRepository) SetPassword(_ context.Context, userID uuid.UUID, passwordHash string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	u, ok := r.byID[userID]
+	if !ok {
+		return ErrUserNotFound
+	}
+	now := time.Now().UTC()
+	u.PasswordHash = passwordHash
+	u.InviteToken = nil
+	u.InviteTokenExpiresAt = nil
+	u.InviteAcceptedAt = &now
+	u.UpdatedAt = now
+	return nil
+}
+
+func (r *MemoryRepository) ListAll(_ context.Context) ([]User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	users := make([]User, 0, len(r.byID))
+	for _, u := range r.byID {
+		users = append(users, *u)
+	}
+	return users, nil
+}

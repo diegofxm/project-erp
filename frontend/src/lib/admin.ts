@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { BillingEntry, Issuer, IssuerSettings, Plan, RenewalEntry, Subscription } from "./types";
+import type { AdminUser, BillingEntry, Issuer, IssuerSettings, Payment, Plan, RenewalEntry, Subscription } from "./types";
 
 export async function adminListPlans(): Promise<Plan[]> {
   const res = await apiClient.get<{ plans: Plan[]; count: number }>("/admin/plans");
@@ -54,4 +54,18 @@ export async function adminGetBillingSummary(): Promise<BillingEntry[]> {
 export async function adminGetRenewalsSummary(): Promise<RenewalEntry[]> {
   const res = await apiClient.get<{ entries: RenewalEntry[]; count: number }>("/admin/billing/renewals");
   return res.entries;
+}
+
+export async function adminListUsers(): Promise<AdminUser[]> {
+  const res = await apiClient.get<{ users: AdminUser[]; count: number }>("/admin/users");
+  return res.users;
+}
+
+export async function adminCreateUser(data: { email: string; name: string }): Promise<AdminUser> {
+  return apiClient.post<AdminUser>("/admin/users", data);
+}
+
+export async function adminListIssuerPayments(issuerId: string): Promise<Payment[]> {
+  const res = await apiClient.get<{ payments: Payment[]; count: number }>(`/admin/issuers/${issuerId}/payments`);
+  return res.payments;
 }

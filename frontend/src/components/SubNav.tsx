@@ -20,6 +20,7 @@ const SUB_NAVS: SubNavConfig[] = [
       { to: "/admin/renewals",  label: "Renovaciones" },
       { to: "/admin/issuer",    label: "Por emisor" },
       { to: "/admin/plans",     label: "Planes" },
+      { to: "/admin/users",     label: "Usuarios" },
     ],
   },
   {

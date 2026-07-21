@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { BarChart2, Building2, CalendarClock, Layers, RefreshCw, ChevronRight } from "lucide-react";
+import { Navigate } from "react-router";
+import { BarChart2, Building2, CalendarClock, Layers, RefreshCw, ChevronRight, Users, Plus } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { ApiError } from "../lib/apiClient";
@@ -16,8 +17,11 @@ import {
   adminRenewIssuer,
   adminGetBillingSummary,
   adminGetRenewalsSummary,
+  adminListUsers,
+  adminCreateUser,
+  adminListIssuerPayments,
 } from "../lib/admin";
-import type { BillingEntry, IssuerSettings, Plan, RenewalEntry, Subscription, Issuer } from "../lib/types";
+import type { AdminUser, BillingEntry, IssuerSettings, Payment, Plan, RenewalEntry, Subscription, Issuer } from "../lib/types";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 
@@ -25,23 +29,21 @@ function formatCOP(pesos: number) {
   return `$ ${pesos.toLocaleString("es-CO")}`;
 }
 
+const PAYMENT_TYPE_LABEL: Record<string, string> = {
+  affiliation: "Afiliación",
+  renewal:     "Renovación",
+  documents:   "Documentos",
+};
+
 function formatDate(iso: string | null | undefined) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function AccessDenied() {
-  return (
-    <div className="flex h-full items-center justify-center p-8 text-center">
-      <p className="text-sm text-(--text-secondary)">Acceso restringido a superadministradores.</p>
-    </div>
-  );
-}
-
 function withSuperAdmin<P extends object>(Component: React.ComponentType<P>) {
   return function SuperAdminGuard(props: P) {
     const { user } = useAuth();
-    if (!user?.is_superadmin) return <AccessDenied />;
+    if (!user?.is_superadmin) return <Navigate to="/" replace />;
     return <Component {...props} />;
   };
 }
@@ -206,6 +208,7 @@ function IssuerContent() {
   const [priceInput, setPriceInput] = useState("");
   const [affFeeInput, setAffFeeInput] = useState("");
   const [renFeeInput, setRenFeeInput] = useState("");
+  const [paymentsHistory, setPaymentsHistory] = useState<Payment[]>([]);
   const [searching, setSearching] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -220,6 +223,7 @@ function IssuerContent() {
     setIssuer(null);
     setSub(null);
     setSettings(null);
+    setPaymentsHistory([]);
     try {
       const [issRes, subRes] = await Promise.allSettled([
         adminGetIssuer(issuerId.trim()),
@@ -227,13 +231,17 @@ function IssuerContent() {
       ]);
       if (issRes.status === "fulfilled") {
         setIssuer(issRes.value);
-        const st = await adminGetIssuerSettings(issRes.value.id).catch(() => null);
+        const [st, pmts] = await Promise.all([
+          adminGetIssuerSettings(issRes.value.id).catch(() => null),
+          adminListIssuerPayments(issRes.value.id).catch(() => []),
+        ]);
         if (st) {
           setSettings(st);
           setPriceInput(String(st.price_per_document_cop));
           setAffFeeInput(String(st.affiliation_fee_cop));
           setRenFeeInput(String(st.renewal_fee_cop));
         }
+        setPaymentsHistory(pmts);
       } else {
         toast.error("No se encontró el emisor");
       }
@@ -279,6 +287,7 @@ function IssuerContent() {
     try {
       const st = await adminAffiliateIssuer(issuer.id, fee);
       setSettings(st);
+      adminListIssuerPayments(issuer.id).then(setPaymentsHistory).catch(() => {});
       toast.success(`Afiliación registrada. Vigente hasta ${formatDate(st.renewal_due_at)}.`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo registrar la afiliación");
@@ -295,6 +304,7 @@ function IssuerContent() {
     try {
       const st = await adminRenewIssuer(issuer.id, fee);
       setSettings(st);
+      adminListIssuerPayments(issuer.id).then(setPaymentsHistory).catch(() => {});
       toast.success(`Renovación registrada. Nueva vigencia hasta ${formatDate(st.renewal_due_at)}.`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo registrar la renovación");
@@ -343,6 +353,7 @@ function IssuerContent() {
       </div>
 
       {issuer && (
+        <>
         <div className="rounded border border-(--border-color) overflow-hidden">
           {/* Cabecera del emisor */}
           <div className="bg-(--bg-tertiary) px-3 py-2 border-b border-(--border-color)">
@@ -408,6 +419,38 @@ function IssuerContent() {
             </Button>
           </div>
         </div>
+
+        {/* Historial de pagos */}
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-medium text-(--text-secondary)">Historial de pagos</p>
+          {paymentsHistory.length === 0 ? (
+            <p className="text-xs text-(--text-secondary)">Sin pagos registrados.</p>
+          ) : (
+            <div className="overflow-hidden rounded border border-(--border-color)">
+              <table className="w-full text-xs">
+                <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">Tipo</th>
+                    <th className="px-3 py-2 text-right font-medium">Valor (COP)</th>
+                    <th className="px-3 py-2 text-left font-medium">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paymentsHistory.map((p, i) => (
+                    <tr key={p.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
+                      <td className="px-3 py-2 text-(--text-primary)">
+                        {PAYMENT_TYPE_LABEL[p.type] ?? p.type}
+                      </td>
+                      <td className="px-3 py-2 text-right font-medium text-(--text-primary)">{formatCOP(p.amount_cop)}</td>
+                      <td className="px-3 py-2 text-(--text-secondary)">{formatDate(p.paid_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        </>
       )}
     </>
   );
@@ -505,6 +548,98 @@ function PlansContent() {
   );
 }
 
+// ── Usuarios ─────────────────────────────────────────────────────────────────
+function UsersContent() {
+  const toast = useToast();
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  function load() {
+    setLoading(true);
+    adminListUsers().then(setUsers).catch(() => {}).finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      const u = await adminCreateUser({ email, name });
+      setUsers((prev) => [u, ...prev]);
+      setEmail("");
+      setName("");
+      toast.success(`Invitación enviada a ${u.email}.`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo crear el usuario");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="mb-3 flex items-center justify-between">
+        <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
+          <Users className="h-4 w-4 shrink-0 text-(--accent-primary)" />
+          Usuarios
+        </h1>
+      </div>
+
+      {/* Formulario para crear usuario invitado */}
+      <form onSubmit={handleCreate} className="mb-4 flex flex-wrap items-end gap-2 rounded border border-(--border-color) bg-(--bg-secondary) p-3">
+        <Input label="Nombre" value={name} onChange={(e) => setName(e.target.value)} required className="w-44" />
+        <Input label="Correo" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-56" />
+        <Button type="submit" loading={creating} icon={<Plus className="h-3.5 w-3.5" />}>
+          Invitar usuario
+        </Button>
+      </form>
+
+      {loading ? (
+        <p className="text-xs text-(--text-secondary)">Cargando usuarios…</p>
+      ) : (
+        <div className="overflow-hidden rounded border border-(--border-color)">
+          <table className="w-full text-xs">
+            <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium">Nombre</th>
+                <th className="px-3 py-2 text-left font-medium">Correo</th>
+                <th className="px-3 py-2 text-left font-medium">Estado</th>
+                <th className="px-3 py-2 text-left font-medium">Creado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u, i) => (
+                <tr key={u.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
+                  <td className="px-3 py-2 font-medium text-(--text-primary)">
+                    {u.name}
+                    {u.is_superadmin && <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Super</span>}
+                  </td>
+                  <td className="px-3 py-2 text-(--text-secondary)">{u.email}</td>
+                  <td className="px-3 py-2">
+                    {u.invite_accepted_at ? (
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">Activo</span>
+                    ) : (
+                      <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">Invitación pendiente</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-(--text-secondary)">{formatDate(u.created_at)}</td>
+                </tr>
+              ))}
+              {users.length === 0 && (
+                <tr><td colSpan={4} className="px-3 py-4 text-center text-(--text-secondary)">No hay usuarios.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── Exports de página ────────────────────────────────────────────────────────
 export const AdminBillingPage = withSuperAdmin(function AdminBillingPage() {
   return <div className="p-4"><BillingContent /></div>;
@@ -520,4 +655,8 @@ export const AdminIssuerPage = withSuperAdmin(function AdminIssuerPage() {
 
 export const AdminPlansPage = withSuperAdmin(function AdminPlansPage() {
   return <div className="p-4"><PlansContent /></div>;
+});
+
+export const AdminUsersPage = withSuperAdmin(function AdminUsersPage() {
+  return <div className="p-4"><UsersContent /></div>;
 });

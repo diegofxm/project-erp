@@ -25,7 +25,7 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 	return &PostgresRepository{pool: pool}
 }
 
-const userColumns = `id, email, password_hash, name, role, is_superadmin, is_active, created_at, updated_at`
+const userColumns = `id, email, password_hash, name, role, is_superadmin, is_active, invite_token, invite_token_expires_at, invite_accepted_at, created_at, updated_at`
 
 const userSelect = `SELECT ` + userColumns + ` FROM users`
 
@@ -37,7 +37,15 @@ func (r *PostgresRepository) Create(ctx context.Context, u User) (*User, error) 
 	u.CreatedAt = now
 	u.UpdatedAt = now
 
-	args := []any{u.ID, u.Email, u.PasswordHash, u.Name, u.Role, u.IsSuperAdmin, u.IsActive, u.CreatedAt, u.UpdatedAt}
+	var hash *string
+	if u.PasswordHash != "" {
+		hash = &u.PasswordHash
+	}
+	args := []any{
+		u.ID, u.Email, hash, u.Name, u.Role, u.IsSuperAdmin, u.IsActive,
+		u.InviteToken, u.InviteTokenExpiresAt, u.InviteAcceptedAt,
+		u.CreatedAt, u.UpdatedAt,
+	}
 	_, err := r.pool.Exec(ctx, `INSERT INTO users (`+userColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
 	if err != nil {
 		if isDuplicateKey(err) {
@@ -76,14 +84,59 @@ func (r *PostgresRepository) Update(ctx context.Context, u User) (*User, error) 
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Role, &u.IsSuperAdmin, &u.IsActive, &u.CreatedAt, &u.UpdatedAt)
+	var hash *string
+	err := row.Scan(
+		&u.ID, &u.Email, &hash, &u.Name, &u.Role, &u.IsSuperAdmin, &u.IsActive,
+		&u.InviteToken, &u.InviteTokenExpiresAt, &u.InviteAcceptedAt,
+		&u.CreatedAt, &u.UpdatedAt,
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("scan user: %w", err)
 	}
+	if hash != nil {
+		u.PasswordHash = *hash
+	}
 	return &u, nil
+}
+
+func (r *PostgresRepository) GetByInviteToken(ctx context.Context, token uuid.UUID) (*User, error) {
+	row := r.pool.QueryRow(ctx, userSelect+` WHERE invite_token = $1`, token)
+	return scanUser(row)
+}
+
+func (r *PostgresRepository) SetPassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE users
+		SET password_hash = $1, invite_token = NULL, invite_token_expires_at = NULL,
+		    invite_accepted_at = NOW(), updated_at = NOW()
+		WHERE id = $2`,
+		passwordHash, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("set password: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresRepository) ListAll(ctx context.Context) ([]User, error) {
+	rows, err := r.pool.Query(ctx, userSelect+` ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		u, err := scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, *u)
+	}
+	return users, rows.Err()
 }
 
 // LinkIssuer es idempotente (ON CONFLICT DO NOTHING sobre la PK compuesta) — vincular dos

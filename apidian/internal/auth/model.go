@@ -22,16 +22,22 @@ const RoleOwner = "owner"
 // sucursales), ver user_issuers y docs/apidian-architecture.md sección 9.32. Cuál empresa
 // está "activa" en un momento dado es contextual (vive en el token, no en este struct) — ver
 // TokenIssuer.Issue.
+//
+// PasswordHash vacío significa que el usuario fue creado por invitación y aún no ha
+// configurado su contraseña — no puede iniciar sesión hasta aceptar la invitación.
 type User struct {
-	ID           uuid.UUID
-	Email        string
-	PasswordHash string
-	Name         string
-	Role         string
-	IsSuperAdmin bool
-	IsActive     bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                   uuid.UUID
+	Email                string
+	PasswordHash         string // vacío = sin contraseña (usuario invitado)
+	Name                 string
+	Role                 string
+	IsSuperAdmin         bool
+	IsActive             bool
+	InviteToken          *uuid.UUID
+	InviteTokenExpiresAt *time.Time
+	InviteAcceptedAt     *time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // IssuerMembership es una fila de user_issuers — el vínculo entre un usuario y una empresa

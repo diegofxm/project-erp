@@ -48,7 +48,8 @@ func classify(err error) (int, string) {
 
 	// ── 401 ──────────────────────────────────────────────────────────────────
 	case errors.Is(err, auth.ErrInvalidCredentials),
-		errors.Is(err, auth.ErrUserInactive):
+		errors.Is(err, auth.ErrUserInactive),
+		errors.Is(err, auth.ErrInvalidInviteToken):
 		return http.StatusUnauthorized, err.Error()
 
 	// ── 409 ──────────────────────────────────────────────────────────────────
@@ -96,6 +97,9 @@ func classify(err error) (int, string) {
 		errors.Is(err, auth.ErrEmptyPassword),
 		errors.Is(err, auth.ErrPasswordTooShort),
 		errors.Is(err, auth.ErrEmptyName),
+		errors.Is(err, auth.ErrNoEmailSender),
+		errors.Is(err, auth.ErrInviteTokenExpired),
+		errors.Is(err, auth.ErrInviteAlreadyUsed),
 		errors.Is(err, customers.ErrEmptyName),
 		errors.Is(err, customers.ErrEmptyIdentification),
 		errors.Is(err, customers.ErrInvalidLiabilityCode),

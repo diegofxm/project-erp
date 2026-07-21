@@ -16,6 +16,7 @@ import (
 	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
+	"github.com/diegofxm/apidian/internal/payments"
 	"github.com/diegofxm/apidian/internal/plans"
 	"github.com/diegofxm/apidian/internal/products"
 	"github.com/diegofxm/apidian/internal/settings"
@@ -37,8 +38,10 @@ type API struct {
 	plans          *plans.Service
 	subscriptions  *subscriptions.Service
 	settings       *settings.Service
+	payments       *payments.Service
 	catalogs       catalogs.Repository
 	allowedOrigins []string
+	appBaseURL     string
 }
 
 // New conecta los siete dominios sobre una sola base de datos y devuelve la API.
@@ -47,7 +50,7 @@ type API struct {
 // orígenes permitidos por CORS (ver internal/api/middleware/cors.go). smtpCfg configura el
 // envío de correo al cliente (ver docs/apidian-architecture.md sección 9.42) — vacío es válido,
 // SendInvoiceEmail simplemente falla con un mensaje claro si nunca se configuró.
-func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byte, allowedOrigins []string, smtpCfg email.Config) *API {
+func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byte, allowedOrigins []string, smtpCfg email.Config, appBaseURL string) *API {
 	catalogsRepo := catalogs.NewPostgresRepository(db.Pool)
 	issuerSvc := issuers.New(issuers.NewPostgresRepository(db.Pool, issuerSecretsKey), documents.ValidateCertificate, documents.ParseCertificate, catalogsRepo)
 	numberingSvc := numbering.New(numbering.NewPostgresRepository(db.Pool, issuerSecretsKey))
@@ -57,15 +60,17 @@ func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byt
 	plansSvc := plans.NewService(plans.NewPostgresRepository(db.Pool))
 	subsSvc := subscriptions.NewService(subscriptions.NewPostgresRepository(db.Pool))
 	settingsSvc := settings.NewService(settings.NewPostgresRepository(db.Pool))
+	paymentsSvc := payments.NewService(payments.NewPostgresRepository(db.Pool))
 	emailSender := email.NewSMTPSender(smtpCfg)
 	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc, customersSvc, catalogsRepo, emailSender).
 		WithVendors(vendorsSvc).
 		WithSubscriptions(subsSvc).
 		WithSettings(settingsSvc)
 	tokens := auth.NewTokenIssuer(authJWTSecret)
-	authSvc := auth.New(auth.NewPostgresRepository(db.Pool), issuerSvc, tokens)
+	authSvc := auth.New(auth.NewPostgresRepository(db.Pool), issuerSvc, tokens).
+		WithEmail(emailSender, appBaseURL)
 
-	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, vendorsSvc, plansSvc, subsSvc, settingsSvc, catalogsRepo, allowedOrigins)
+	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, vendorsSvc, plansSvc, subsSvc, settingsSvc, paymentsSvc, catalogsRepo, allowedOrigins, appBaseURL)
 }
 
 // NewFromServices crea una API a partir de servicios ya construidos — útil para tests que
@@ -83,14 +88,16 @@ func NewFromServices(
 	plansSvc *plans.Service,
 	subsSvc *subscriptions.Service,
 	settingsSvc *settings.Service,
+	paymentsSvc *payments.Service,
 	catalogsRepo catalogs.Repository,
 	allowedOrigins []string,
+	appBaseURL string,
 ) *API {
 	return &API{
 		log: log, issuers: issuerSvc, numbering: numberingSvc, documents: documentsSvc,
 		auth: authSvc, tokens: tokens, customers: customersSvc, products: productsSvc,
 		vendors: vendorsSvc, plans: plansSvc, subscriptions: subsSvc, settings: settingsSvc,
-		catalogs: catalogsRepo, allowedOrigins: allowedOrigins,
+		payments: paymentsSvc, catalogs: catalogsRepo, allowedOrigins: allowedOrigins, appBaseURL: appBaseURL,
 	}
 }
 
@@ -171,6 +178,7 @@ func (a *API) Handler() http.Handler {
 func (a *API) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/register", a.handleRegister)
 	mux.Handle("POST /api/v1/auth/login", middleware.LoginRateLimit(http.HandlerFunc(a.handleLogin)))
+	mux.HandleFunc("POST /api/v1/auth/accept-invite", a.handleAcceptInvite)
 	mux.HandleFunc("GET /api/v1/public/issuers/{id}", a.handleGetPublicIssuer)
 	mux.HandleFunc("GET /api/v1/public/issuers/{id}/logo", a.handleGetPublicIssuerLogo)
 	mux.HandleFunc("POST /api/v1/public/issuers/{id}/customers", a.handleCreatePublicCustomer)
@@ -228,6 +236,8 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handleSA := func(pattern string, h http.HandlerFunc) {
 		mux.Handle(pattern, protect(a.requireSuperAdmin(h)))
 	}
+	handleSA("GET /api/v1/admin/users", a.handleAdminListUsers)
+	handleSA("POST /api/v1/admin/users", a.handleAdminCreateUser)
 	handleSA("GET /api/v1/admin/plans", a.handleAdminListPlans)
 	handleSA("POST /api/v1/admin/plans", a.handleAdminCreatePlan)
 	handleSA("PATCH /api/v1/admin/plans/{id}", a.handleAdminUpdatePlan)
@@ -241,6 +251,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handleSA("GET /api/v1/admin/billing/renewals", a.handleAdminRenewalsSummary)
 	handleSA("POST /api/v1/admin/issuers/{id}/affiliate", a.handleAdminAffiliateIssuer)
 	handleSA("POST /api/v1/admin/issuers/{id}/renew", a.handleAdminRenewIssuer)
+	handleSA("GET /api/v1/admin/issuers/{id}/payments", a.handleAdminListIssuerPayments)
 
 	handle("POST /api/v1/customers", a.handleCreateCustomer)
 	handle("GET /api/v1/customers", a.handleListCustomers)

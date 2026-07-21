@@ -7,6 +7,7 @@ import (
 
 	"github.com/diegofxm/apidian/internal/api/middleware"
 	"github.com/diegofxm/apidian/internal/api/response"
+	"github.com/diegofxm/apidian/internal/payments"
 	"github.com/diegofxm/apidian/internal/plans"
 	"github.com/diegofxm/apidian/internal/subscriptions"
 	"github.com/google/uuid"
@@ -229,6 +230,9 @@ func (a *API) handleAdminAffiliateIssuer(w http.ResponseWriter, r *http.Request)
 		response.WriteError(w, err)
 		return
 	}
+	if a.payments != nil && body.FeePaidCOP > 0 {
+		_, _ = a.payments.Record(r.Context(), issuerID, payments.TypeAffiliation, body.FeePaidCOP, "")
+	}
 	response.WriteJSON(w, http.StatusOK, st)
 }
 
@@ -249,6 +253,9 @@ func (a *API) handleAdminRenewIssuer(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		response.WriteError(w, err)
 		return
+	}
+	if a.payments != nil && body.FeePaidCOP > 0 {
+		_, _ = a.payments.Record(r.Context(), issuerID, payments.TypeRenewal, body.FeePaidCOP, "")
 	}
 	response.WriteJSON(w, http.StatusOK, st)
 }
@@ -290,4 +297,77 @@ func (a *API) handleAdminRenewalsSummary(w http.ResponseWriter, r *http.Request)
 		entries = []subscriptions.RenewalEntry{}
 	}
 	response.WriteJSON(w, http.StatusOK, map[string]any{"entries": entries, "count": len(entries)})
+}
+
+// ── Pagos ─────────────────────────────────────────────────────────────────────
+
+func (a *API) handleAdminListIssuerPayments(w http.ResponseWriter, r *http.Request) {
+	issuerID, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+	ps, err := a.payments.ListByIssuer(r.Context(), issuerID)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	if ps == nil {
+		ps = []payments.Payment{}
+	}
+	response.WriteJSON(w, http.StatusOK, map[string]any{"payments": ps, "count": len(ps)})
+}
+
+// ── Gestión de usuarios (superadmin) ─────────────────────────────────────────
+
+type adminUserResponse struct {
+	ID               uuid.UUID  `json:"id"`
+	Email            string     `json:"email"`
+	Name             string     `json:"name"`
+	Role             string     `json:"role"`
+	IsSuperAdmin     bool       `json:"is_superadmin"`
+	IsActive         bool       `json:"is_active"`
+	InviteAcceptedAt *time.Time `json:"invite_accepted_at"`
+	CreatedAt        time.Time  `json:"created_at"`
+}
+
+type createInvitedUserRequest struct {
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+
+func (a *API) handleAdminListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := a.auth.ListUsers(r.Context())
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	out := make([]adminUserResponse, len(users))
+	for i, u := range users {
+		out[i] = adminUserResponse{
+			ID: u.ID, Email: u.Email, Name: u.Name, Role: u.Role,
+			IsSuperAdmin: u.IsSuperAdmin, IsActive: u.IsActive,
+			InviteAcceptedAt: u.InviteAcceptedAt, CreatedAt: u.CreatedAt,
+		}
+	}
+	response.WriteJSON(w, http.StatusOK, map[string]any{"users": out, "count": len(out)})
+}
+
+func (a *API) handleAdminCreateUser(w http.ResponseWriter, r *http.Request) {
+	var req createInvitedUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
+		return
+	}
+
+	u, err := a.auth.CreateInvited(r.Context(), req.Email, req.Name)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	response.WriteJSON(w, http.StatusCreated, adminUserResponse{
+		ID: u.ID, Email: u.Email, Name: u.Name, Role: u.Role,
+		IsSuperAdmin: u.IsSuperAdmin, IsActive: u.IsActive,
+		InviteAcceptedAt: u.InviteAcceptedAt, CreatedAt: u.CreatedAt,
+	})
 }

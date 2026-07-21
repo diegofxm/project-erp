@@ -106,6 +106,31 @@ func (a *API) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, http.StatusOK, userToResponse(u))
 }
 
+type acceptInviteRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+func (a *API) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
+	var req acceptInviteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "JSON inválido"})
+		return
+	}
+	if req.Token == "" {
+		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "el token es obligatorio"})
+		return
+	}
+
+	result, err := a.auth.AcceptInvite(r.Context(), req.Token, req.Password)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	writeAuthResponse(w, http.StatusOK, result)
+}
+
 // writeAuthResponse arma la respuesta a partir de un auth.AuthResult ya resuelto — no vuelve a
 // consultar el emisor (a.auth ya lo trae en ActiveIssuer, si hay uno activo), a diferencia de
 // como funcionaba antes de la Fase 9.32 (un usuario siempre tenía exactamente un emisor fijo).

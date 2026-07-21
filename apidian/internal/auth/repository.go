@@ -28,4 +28,15 @@ type Repository interface {
 	// token con ese tenant activo (POST /issuers/{id}/select), nunca confiar en que el cliente
 	// realmente tiene acceso al ID que mandó.
 	HasAccess(ctx context.Context, userID, issuerID uuid.UUID) (bool, error)
+
+	// GetByInviteToken busca un usuario por su token de invitación — usado para validar el link
+	// del correo de bienvenida antes de que el usuario configure su contraseña.
+	GetByInviteToken(ctx context.Context, token uuid.UUID) (*User, error)
+
+	// SetPassword establece la contraseña, limpia el token de invitación y registra
+	// invite_accepted_at=NOW() en una sola operación atómica.
+	SetPassword(ctx context.Context, userID uuid.UUID, passwordHash string) error
+
+	// ListAll devuelve todos los usuarios del sistema — solo para el panel de superadmin.
+	ListAll(ctx context.Context) ([]User, error)
 }

@@ -22,4 +22,9 @@ var (
 	// "ID válido pero no es tuyo" se tratan igual), aunque acá se distingue porque no hay un
 	// recurso al que devolverle un 404 propiamente.
 	ErrIssuerAccessDenied = errors.New("auth: no tienes acceso a esa empresa")
+
+	ErrInvalidInviteToken  = errors.New("auth: el link de invitación es inválido o no existe")
+	ErrInviteTokenExpired  = errors.New("auth: el link de invitación ha expirado, solicita uno nuevo al administrador")
+	ErrInviteAlreadyUsed   = errors.New("auth: esta invitación ya fue aceptada")
+	ErrNoEmailSender       = errors.New("auth: el servidor de correo no está configurado")
 )

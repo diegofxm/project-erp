@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/google/uuid"
 )
@@ -15,14 +17,24 @@ import (
 // existir sin ninguna empresa vinculada, y puede crear/vincularse a varias (multi-empresa/
 // sucursales) — ver docs/apidian-architecture.md sección 9.32.
 type Service struct {
-	repo    Repository
-	issuers IssuerPort
-	tokens  *TokenIssuer
+	repo       Repository
+	issuers    IssuerPort
+	tokens     *TokenIssuer
+	emailSvc   EmailPort
+	appBaseURL string
 }
 
 // New crea el servicio de autenticación.
 func New(repo Repository, issuerPort IssuerPort, tokens *TokenIssuer) *Service {
 	return &Service{repo: repo, issuers: issuerPort, tokens: tokens}
+}
+
+// WithEmail habilita el envío de correos de invitación. appBaseURL es la URL raíz del
+// frontend (ej. https://app.cofacture.co) — se usa para construir el link del correo.
+func (s *Service) WithEmail(sender EmailPort, appBaseURL string) *Service {
+	s.emailSvc = sender
+	s.appBaseURL = appBaseURL
+	return s
 }
 
 // RegisterRequest son los datos del usuario nuevo — ya NO incluye una empresa (eso es
@@ -215,6 +227,121 @@ func (s *Service) issueResult(u *User, activeIssuer *issuers.Issuer) (*AuthResul
 		return nil, fmt.Errorf("emitir token: %w", err)
 	}
 	return &AuthResult{User: *u, Token: token, ActiveIssuer: activeIssuer}, nil
+}
+
+// ListUsers devuelve todos los usuarios del sistema — solo para el panel de superadmin.
+func (s *Service) ListUsers(ctx context.Context) ([]User, error) {
+	return s.repo.ListAll(ctx)
+}
+
+// CreateInvited crea un usuario sin contraseña y le envía un correo de invitación con un link
+// mágico de un solo uso. El usuario completa su cuenta al hacer clic y configurar su contraseña
+// (ver AcceptInvite). Requiere que WithEmail haya sido llamado; retorna ErrNoEmailSender si no.
+func (s *Service) CreateInvited(ctx context.Context, userEmail, name string) (*User, error) {
+	if s.emailSvc == nil {
+		return nil, ErrNoEmailSender
+	}
+	userEmail = normalizeEmail(userEmail)
+	name = strings.TrimSpace(name)
+	if userEmail == "" {
+		return nil, ErrEmptyEmail
+	}
+	if name == "" {
+		return nil, ErrEmptyName
+	}
+
+	if _, err := s.repo.GetByEmail(ctx, userEmail); err == nil {
+		return nil, ErrEmailAlreadyExists
+	} else if !errors.Is(err, ErrUserNotFound) {
+		return nil, err
+	}
+
+	token := uuid.New()
+	expiry := time.Now().UTC().Add(72 * time.Hour)
+	u, err := s.repo.Create(ctx, User{
+		Email:                userEmail,
+		Name:                 name,
+		Role:                 RoleAdmin,
+		IsActive:             true,
+		InviteToken:          &token,
+		InviteTokenExpiresAt: &expiry,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	link := s.appBaseURL + "/setup-password?token=" + token.String()
+	msg := email.Message{
+		To:      userEmail,
+		Subject: "Bienvenido a Cofacture — configura tu contraseña",
+		BodyText: fmt.Sprintf(
+			"Hola %s,\n\nEl administrador de Cofacture ha creado tu cuenta. "+
+				"Haz clic en el siguiente link para configurar tu contraseña "+
+				"(válido por 72 horas):\n\n%s\n\nSi no solicitaste esta cuenta, ignora este correo.",
+			name, link,
+		),
+		BodyHTML: fmt.Sprintf(`<!DOCTYPE html>
+<html lang="es"><body style="font-family:sans-serif;color:#1a1a1a;max-width:480px;margin:auto;padding:24px">
+<h2 style="color:#14345C">Bienvenido a Cofacture</h2>
+<p>Hola <strong>%s</strong>,</p>
+<p>El administrador ha creado tu cuenta de facturación electrónica.
+Haz clic en el botón para configurar tu contraseña:</p>
+<p style="text-align:center;margin:32px 0">
+  <a href="%s" style="background:#14345C;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600">
+    Configurar contraseña
+  </a>
+</p>
+<p style="color:#666;font-size:13px">El link es válido por 72 horas. Si no puedes hacer clic,
+copia y pega esta URL: <br><a href="%s">%s</a></p>
+<p style="color:#999;font-size:12px">Si no solicitaste esta cuenta, ignora este correo.</p>
+</body></html>`, name, link, link, link),
+	}
+	if err := s.emailSvc.Send(ctx, msg); err != nil {
+		return nil, fmt.Errorf("enviar correo de invitación: %w", err)
+	}
+	return u, nil
+}
+
+// AcceptInvite valida el token de invitación, establece la contraseña y devuelve un token de
+// sesión listo para usar — el usuario queda autenticado de inmediato tras configurar su cuenta.
+func (s *Service) AcceptInvite(ctx context.Context, rawToken, password string) (*AuthResult, error) {
+	if len(password) < 8 {
+		return nil, ErrPasswordTooShort
+	}
+
+	token, err := uuid.Parse(rawToken)
+	if err != nil {
+		return nil, ErrInvalidInviteToken
+	}
+
+	u, err := s.repo.GetByInviteToken(ctx, token)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return nil, ErrInvalidInviteToken
+		}
+		return nil, err
+	}
+	if u.InviteAcceptedAt != nil {
+		return nil, ErrInviteAlreadyUsed
+	}
+	if u.InviteTokenExpiresAt != nil && time.Now().UTC().After(*u.InviteTokenExpiresAt) {
+		return nil, ErrInviteTokenExpired
+	}
+
+	hash, err := hashPassword(password)
+	if err != nil {
+		return nil, fmt.Errorf("cifrar contraseña: %w", err)
+	}
+	if err := s.repo.SetPassword(ctx, u.ID, hash); err != nil {
+		return nil, err
+	}
+
+	// Releer el usuario con el estado actualizado para emitir el token correcto.
+	updated, err := s.repo.GetByID(ctx, u.ID)
+	if err != nil {
+		return nil, err
+	}
+	return s.issueResult(updated, nil)
 }
 
 func normalizeEmail(email string) string {

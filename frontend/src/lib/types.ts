@@ -210,6 +210,30 @@ export interface RenewalEntry {
   DaysUntilRenewal: number; // 0 si ya venció
 }
 
+// Espejo de payments.Payment (apidian/internal/payments/model.go).
+export interface Payment {
+  id: string;
+  issuer_id: string;
+  type: "affiliation" | "renewal" | "documents";
+  amount_cop: number;
+  note: string;
+  paid_at: string;
+  created_at: string;
+}
+
+// Espejo de adminUserResponse (apidian/internal/api/handler_admin.go).
+// invite_accepted_at null = usuario invitado que aún no ha configurado su contraseña.
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  is_superadmin: boolean;
+  is_active: boolean;
+  invite_accepted_at: string | null;
+  created_at: string;
+}
+
 // Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.
 export interface CatalogEntry {
   code: string;

@@ -31,6 +31,7 @@ interface AuthContextValue {
   connectionError: boolean;
   retryConnection: () => Promise<void>;
   login: (payload: LoginPayload) => Promise<void>;
+  acceptInvite: (token: string, password: string) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
   listIssuers: () => Promise<Issuer[]>;
@@ -78,6 +79,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (payload: LoginPayload) => {
       const result = await apiClient.post<AuthResult>("/auth/login", payload);
+      applyAuthResult(result);
+    },
+    [applyAuthResult],
+  );
+
+  const acceptInvite = useCallback(
+    async (token: string, password: string) => {
+      const result = await apiClient.post<AuthResult>("/auth/accept-invite", { token, password });
       applyAuthResult(result);
     },
     [applyAuthResult],
@@ -238,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       connectionError,
       retryConnection,
       login,
+      acceptInvite,
       register,
       logout,
       listIssuers,
@@ -258,6 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       connectionError,
       retryConnection,
       login,
+      acceptInvite,
       register,
       logout,
       listIssuers,

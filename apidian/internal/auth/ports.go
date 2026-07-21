@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 
+	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/google/uuid"
 )
@@ -14,4 +15,10 @@ import (
 type IssuerPort interface {
 	RegisterIssuer(ctx context.Context, iss issuers.Issuer) (*issuers.Issuer, error)
 	GetIssuer(ctx context.Context, id uuid.UUID) (*issuers.Issuer, error)
+}
+
+// EmailPort define lo que auth necesita para enviar correos de invitación. Satisfecha
+// estructuralmente por *email.SMTPSender — interfaz angosta para poder usar un fake en tests.
+type EmailPort interface {
+	Send(ctx context.Context, msg email.Message) error
 }

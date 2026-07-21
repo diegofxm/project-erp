@@ -66,7 +66,7 @@ func (s *Server) routes() http.Handler {
 			FromAddress: s.cfg.SMTPFromAddress,
 			FromName:    s.cfg.SMTPFromName,
 		}
-		mux.Handle("/api/", api.New(s.log, s.db, s.cfg.IssuerSecretsKey, s.cfg.AuthJWTSecret, s.cfg.CORSAllowedOrigins, smtpCfg).Handler())
+		mux.Handle("/api/", api.New(s.log, s.db, s.cfg.IssuerSecretsKey, s.cfg.AuthJWTSecret, s.cfg.CORSAllowedOrigins, smtpCfg, s.cfg.AppBaseURL).Handler())
 	}
 
 	return mux

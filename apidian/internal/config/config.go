@@ -61,6 +61,10 @@ type Config struct {
 	SMTPFromAddress string
 	SMTPFromName    string
 
+	// AppBaseURL es la URL base del frontend, usada para construir links en correos de
+	// invitación. Ejemplo: https://app.cofacture.co. Default: http://localhost:5173
+	AppBaseURL string
+
 	// ChromePath es la ruta absoluta al binario Chrome/Chromium que usa el generador de PDF
 	// (internal/pdf, vía chromedp). Vacío = chromedp busca en PATH automáticamente.
 	// En un VPS Linux donde Chrome no está en PATH (p.ej. instalado como chromium en
@@ -97,6 +101,7 @@ func Load() (*Config, error) {
 		SMTPFromAddress:    getEnv("SMTP_FROM_ADDRESS", ""),
 		SMTPFromName:       getEnv("SMTP_FROM_NAME", ""),
 		ChromePath:         getEnv("CHROME_PATH", ""),
+		AppBaseURL:         getEnv("APP_BASE_URL", "http://localhost:5173"),
 	}
 
 	if err := cfg.validate(); err != nil {

@@ -9,6 +9,7 @@ import { DashboardLayout } from "./components/DashboardLayout";
 import { ConnectionBanner } from "./components/ConnectionBanner";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { SetupPasswordPage } from "./pages/SetupPasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsGeneralPage } from "./pages/SettingsGeneralPage";
 import { SettingsAccountPage } from "./pages/SettingsAccountPage";
@@ -28,7 +29,7 @@ import { SupportDocumentEditorPage } from "./pages/SupportDocumentEditorPage";
 import { AdjustmentNotesPage } from "./pages/AdjustmentNotesPage";
 import { AdjustmentNoteEditorPage } from "./pages/AdjustmentNoteEditorPage";
 import { PublicCustomerRegisterPage } from "./pages/PublicCustomerRegisterPage";
-import { AdminBillingPage, AdminRenewalsPage, AdminIssuerPage, AdminPlansPage } from "./pages/AdminPage";
+import { AdminBillingPage, AdminRenewalsPage, AdminIssuerPage, AdminPlansPage, AdminUsersPage } from "./pages/AdminPage";
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/setup-password" element={<SetupPasswordPage />} />
                 <Route path="/r/:issuerId" element={<PublicCustomerRegisterPage />} />
                 <Route element={<ProtectedRoute />}>
                   <Route element={<DashboardLayout />}>
@@ -69,6 +71,7 @@ function App() {
                     <Route path="/admin/renewals" element={<AdminRenewalsPage />} />
                     <Route path="/admin/issuer" element={<AdminIssuerPage />} />
                     <Route path="/admin/plans" element={<AdminPlansPage />} />
+                    <Route path="/admin/users" element={<AdminUsersPage />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
