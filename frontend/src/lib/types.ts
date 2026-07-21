@@ -234,6 +234,20 @@ export interface AdminUser {
   created_at: string;
 }
 
+export interface Prospect {
+  id: string;
+  name: string;
+  email: string;
+  nit?: string;
+  has_cedula: boolean;
+  has_rut: boolean;
+  status: "pending" | "approved" | "rejected";
+  notes?: string;
+  reviewed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.
 export interface CatalogEntry {
   code: string;

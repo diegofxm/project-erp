@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { AdminUser, BillingEntry, Issuer, IssuerSettings, Payment, Plan, RenewalEntry, Subscription } from "./types";
+import type { AdminUser, BillingEntry, Issuer, IssuerSettings, Payment, Plan, Prospect, RenewalEntry, Subscription } from "./types";
 
 export async function adminListPlans(): Promise<Plan[]> {
   const res = await apiClient.get<{ plans: Plan[]; count: number }>("/admin/plans");
@@ -68,4 +68,25 @@ export async function adminCreateUser(data: { email: string; name: string }): Pr
 export async function adminListIssuerPayments(issuerId: string): Promise<Payment[]> {
   const res = await apiClient.get<{ payments: Payment[]; count: number }>(`/admin/issuers/${issuerId}/payments`);
   return res.payments;
+}
+
+export async function adminListProspects(): Promise<Prospect[]> {
+  const res = await apiClient.get<{ prospects: Prospect[]; count: number }>("/admin/prospects");
+  return res.prospects;
+}
+
+export async function adminApproveProspect(id: string): Promise<Prospect> {
+  return apiClient.post<Prospect>(`/admin/prospects/${id}/approve`, {});
+}
+
+export async function adminRejectProspect(id: string, notes?: string): Promise<Prospect> {
+  return apiClient.post<Prospect>(`/admin/prospects/${id}/reject`, { notes: notes ?? "" });
+}
+
+export function adminProspectCedulaUrl(id: string): string {
+  return `/admin/prospects/${id}/cedula`;
+}
+
+export function adminProspectRutUrl(id: string): string {
+  return `/admin/prospects/${id}/rut`;
 }

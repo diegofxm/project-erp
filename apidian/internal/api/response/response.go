@@ -11,6 +11,7 @@ import (
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
 	"github.com/diegofxm/apidian/internal/products"
+	"github.com/diegofxm/apidian/internal/prospects"
 	"github.com/diegofxm/apidian/internal/vendors"
 )
 
@@ -43,7 +44,8 @@ func classify(err error) (int, string) {
 		errors.Is(err, products.ErrProductNotFound),
 		errors.Is(err, vendors.ErrVendorNotFound),
 		errors.Is(err, auth.ErrUserNotFound),
-		errors.Is(err, auth.ErrIssuerAccessDenied):
+		errors.Is(err, auth.ErrIssuerAccessDenied),
+		errors.Is(err, prospects.ErrNotFound):
 		return http.StatusNotFound, err.Error()
 
 	// ── 401 ──────────────────────────────────────────────────────────────────
@@ -57,7 +59,9 @@ func classify(err error) (int, string) {
 		errors.Is(err, auth.ErrEmailAlreadyExists),
 		errors.Is(err, documents.ErrDocumentNotDraft),
 		errors.Is(err, documents.ErrDocumentNotSigned),
-		errors.Is(err, products.ErrDuplicateItemCode):
+		errors.Is(err, products.ErrDuplicateItemCode),
+		errors.Is(err, prospects.ErrDuplicateEmail),
+		errors.Is(err, prospects.ErrAlreadyReviewed):
 		return http.StatusConflict, err.Error()
 
 	// ── 400 (validación / datos faltantes) ────────────────────────────────────

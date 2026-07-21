@@ -29,7 +29,7 @@ import { SupportDocumentEditorPage } from "./pages/SupportDocumentEditorPage";
 import { AdjustmentNotesPage } from "./pages/AdjustmentNotesPage";
 import { AdjustmentNoteEditorPage } from "./pages/AdjustmentNoteEditorPage";
 import { PublicCustomerRegisterPage } from "./pages/PublicCustomerRegisterPage";
-import { AdminBillingPage, AdminRenewalsPage, AdminIssuerPage, AdminPlansPage, AdminUsersPage } from "./pages/AdminPage";
+import { AdminBillingPage, AdminRenewalsPage, AdminIssuerPage, AdminPlansPage, AdminUsersPage, AdminProspectsPage } from "./pages/AdminPage";
 
 function App() {
   return (
@@ -72,6 +72,7 @@ function App() {
                     <Route path="/admin/issuer" element={<AdminIssuerPage />} />
                     <Route path="/admin/plans" element={<AdminPlansPage />} />
                     <Route path="/admin/users" element={<AdminUsersPage />} />
+                    <Route path="/admin/prospects" element={<AdminProspectsPage />} />
                   </Route>
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />

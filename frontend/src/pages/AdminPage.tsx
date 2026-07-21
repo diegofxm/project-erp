@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router";
-import { BarChart2, Building2, CalendarClock, Layers, RefreshCw, ChevronRight, Users, Plus } from "lucide-react";
+import { BarChart2, Building2, CalendarClock, ClipboardList, Layers, RefreshCw, ChevronRight, Users, Plus } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
-import { ApiError } from "../lib/apiClient";
+import { apiClient, ApiError } from "../lib/apiClient";
 import {
   adminListPlans,
   adminGetIssuer,
@@ -20,8 +21,13 @@ import {
   adminListUsers,
   adminCreateUser,
   adminListIssuerPayments,
+  adminListProspects,
+  adminApproveProspect,
+  adminRejectProspect,
+  adminProspectCedulaUrl,
+  adminProspectRutUrl,
 } from "../lib/admin";
-import type { AdminUser, BillingEntry, IssuerSettings, Payment, Plan, RenewalEntry, Subscription, Issuer } from "../lib/types";
+import type { AdminUser, BillingEntry, IssuerSettings, Payment, Plan, Prospect, RenewalEntry, Subscription, Issuer } from "../lib/types";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 
@@ -640,6 +646,152 @@ function UsersContent() {
   );
 }
 
+// ── Solicitudes (prospects) ───────────────────────────────────────────────────
+const STATUS_LABEL: Record<string, string> = {
+  pending:  "Pendiente",
+  approved: "Aprobado",
+  rejected: "Rechazado",
+};
+const STATUS_CLASS: Record<string, string> = {
+  pending:  "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+  approved: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  rejected: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+};
+
+function ProspectsContent() {
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [loading, setLoading] = useState(true);
+  const confirm = useConfirm();
+  const toast = useToast();
+
+  function load() {
+    setLoading(true);
+    adminListProspects().then(setProspects).catch(() => {}).finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function openPDF(url: string, filename: string) {
+    try {
+      const blob = await apiClient.getBlob(url);
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.target = "_blank";
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+    } catch {
+      toast.error("No se pudo descargar el documento.");
+    }
+  }
+
+  async function handleApprove(p: Prospect) {
+    if (!(await confirm(`¿Aprobar la solicitud de ${p.name} y enviar invitación a ${p.email}?`, { confirmLabel: "Aprobar y enviar" }))) return;
+    try {
+      const updated = await adminApproveProspect(p.id);
+      setProspects((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      toast.success(`Invitación enviada a ${p.email}.`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo aprobar la solicitud.");
+    }
+  }
+
+  async function handleReject(p: Prospect) {
+    if (!(await confirm(`¿Rechazar la solicitud de ${p.name}?`, { tone: "danger", confirmLabel: "Rechazar" }))) return;
+    try {
+      const updated = await adminRejectProspect(p.id);
+      setProspects((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      toast.success("Solicitud rechazada.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo rechazar la solicitud.");
+    }
+  }
+
+  return (
+    <>
+      <div className="mb-3 flex items-center justify-between">
+        <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
+          <ClipboardList className="h-4 w-4 shrink-0 text-(--accent-primary)" />
+          Solicitudes de acceso
+        </h1>
+        <button onClick={load} className="flex items-center gap-1 rounded px-2 py-1 text-xs text-(--text-secondary) hover:bg-(--bg-hover)" title="Recargar">
+          <RefreshCw className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="text-xs text-(--text-secondary)">Cargando solicitudes…</p>
+      ) : (
+        <div className="overflow-x-auto rounded border border-(--border-color)">
+          <table className="w-full text-xs">
+            <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium">Nombre</th>
+                <th className="px-3 py-2 text-left font-medium">Correo</th>
+                <th className="px-3 py-2 text-left font-medium">NIT</th>
+                <th className="px-3 py-2 text-left font-medium">Documentos</th>
+                <th className="px-3 py-2 text-left font-medium">Estado</th>
+                <th className="px-3 py-2 text-left font-medium">Fecha</th>
+                <th className="px-3 py-2 text-left font-medium">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {prospects.map((p, i) => (
+                <tr key={p.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
+                  <td className="px-3 py-2 font-medium text-(--text-primary)">{p.name}</td>
+                  <td className="px-3 py-2 text-(--text-secondary)">{p.email}</td>
+                  <td className="px-3 py-2 text-(--text-secondary)">{p.nit || "—"}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-1">
+                      {p.has_cedula && (
+                        <button onClick={() => openPDF(adminProspectCedulaUrl(p.id), `cedula-${p.id}.pdf`)}
+                          className="rounded bg-(--bg-hover) px-1.5 py-0.5 text-[10px] font-medium text-(--text-secondary) hover:text-(--text-primary)">
+                          Cédula
+                        </button>
+                      )}
+                      {p.has_rut && (
+                        <button onClick={() => openPDF(adminProspectRutUrl(p.id), `rut-${p.id}.pdf`)}
+                          className="rounded bg-(--bg-hover) px-1.5 py-0.5 text-[10px] font-medium text-(--text-secondary) hover:text-(--text-primary)">
+                          RUT
+                        </button>
+                      )}
+                      {!p.has_cedula && !p.has_rut && <span className="text-(--text-secondary)">—</span>}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_CLASS[p.status]}`}>
+                      {STATUS_LABEL[p.status]}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-(--text-secondary)">{formatDate(p.created_at)}</td>
+                  <td className="px-3 py-2">
+                    {p.status === "pending" && (
+                      <div className="flex gap-1.5">
+                        <button onClick={() => handleApprove(p)}
+                          className="rounded bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50">
+                          Aprobar
+                        </button>
+                        <button onClick={() => handleReject(p)}
+                          className="rounded bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50">
+                          Rechazar
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {prospects.length === 0 && (
+                <tr><td colSpan={7} className="px-3 py-4 text-center text-(--text-secondary)">No hay solicitudes.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── Exports de página ────────────────────────────────────────────────────────
 export const AdminBillingPage = withSuperAdmin(function AdminBillingPage() {
   return <div className="p-4"><BillingContent /></div>;
@@ -659,4 +811,8 @@ export const AdminPlansPage = withSuperAdmin(function AdminPlansPage() {
 
 export const AdminUsersPage = withSuperAdmin(function AdminUsersPage() {
   return <div className="p-4"><UsersContent /></div>;
+});
+
+export const AdminProspectsPage = withSuperAdmin(function AdminProspectsPage() {
+  return <div className="p-4"><ProspectsContent /></div>;
 });

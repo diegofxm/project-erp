@@ -18,6 +18,7 @@ import (
 	"github.com/diegofxm/apidian/internal/numbering"
 	"github.com/diegofxm/apidian/internal/payments"
 	"github.com/diegofxm/apidian/internal/plans"
+	"github.com/diegofxm/apidian/internal/prospects"
 	"github.com/diegofxm/apidian/internal/products"
 	"github.com/diegofxm/apidian/internal/settings"
 	"github.com/diegofxm/apidian/internal/subscriptions"
@@ -39,6 +40,7 @@ type API struct {
 	subscriptions  *subscriptions.Service
 	settings       *settings.Service
 	payments       *payments.Service
+	prospects      *prospects.Service
 	catalogs       catalogs.Repository
 	allowedOrigins []string
 	appBaseURL     string
@@ -61,6 +63,7 @@ func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byt
 	subsSvc := subscriptions.NewService(subscriptions.NewPostgresRepository(db.Pool))
 	settingsSvc := settings.NewService(settings.NewPostgresRepository(db.Pool))
 	paymentsSvc := payments.NewService(payments.NewPostgresRepository(db.Pool))
+	prospectsSvc := prospects.NewService(prospects.NewPostgresRepository(db))
 	emailSender := email.NewSMTPSender(smtpCfg)
 	documentsSvc := documents.New(documents.NewPostgresRepository(db.Pool), issuerSvc, numberingSvc, customersSvc, catalogsRepo, emailSender).
 		WithVendors(vendorsSvc).
@@ -70,7 +73,7 @@ func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byt
 	authSvc := auth.New(auth.NewPostgresRepository(db.Pool), issuerSvc, tokens).
 		WithEmail(emailSender, appBaseURL)
 
-	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, vendorsSvc, plansSvc, subsSvc, settingsSvc, paymentsSvc, catalogsRepo, allowedOrigins, appBaseURL)
+	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, vendorsSvc, plansSvc, subsSvc, settingsSvc, paymentsSvc, prospectsSvc, catalogsRepo, allowedOrigins, appBaseURL)
 }
 
 // NewFromServices crea una API a partir de servicios ya construidos — útil para tests que
@@ -89,6 +92,7 @@ func NewFromServices(
 	subsSvc *subscriptions.Service,
 	settingsSvc *settings.Service,
 	paymentsSvc *payments.Service,
+	prospectsSvc *prospects.Service,
 	catalogsRepo catalogs.Repository,
 	allowedOrigins []string,
 	appBaseURL string,
@@ -97,7 +101,7 @@ func NewFromServices(
 		log: log, issuers: issuerSvc, numbering: numberingSvc, documents: documentsSvc,
 		auth: authSvc, tokens: tokens, customers: customersSvc, products: productsSvc,
 		vendors: vendorsSvc, plans: plansSvc, subscriptions: subsSvc, settings: settingsSvc,
-		payments: paymentsSvc, catalogs: catalogsRepo, allowedOrigins: allowedOrigins, appBaseURL: appBaseURL,
+		payments: paymentsSvc, prospects: prospectsSvc, catalogs: catalogsRepo, allowedOrigins: allowedOrigins, appBaseURL: appBaseURL,
 	}
 }
 
@@ -182,6 +186,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/public/issuers/{id}", a.handleGetPublicIssuer)
 	mux.HandleFunc("GET /api/v1/public/issuers/{id}/logo", a.handleGetPublicIssuerLogo)
 	mux.HandleFunc("POST /api/v1/public/issuers/{id}/customers", a.handleCreatePublicCustomer)
+	mux.HandleFunc("POST /api/v1/public/prospects", a.handleSubmitProspect)
 
 	protect := middleware.Auth(a.tokens)
 	// handle exige una empresa ACTIVA (la mayoría de rutas); handleNoTenant solo exige estar
@@ -252,6 +257,11 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handleSA("POST /api/v1/admin/issuers/{id}/affiliate", a.handleAdminAffiliateIssuer)
 	handleSA("POST /api/v1/admin/issuers/{id}/renew", a.handleAdminRenewIssuer)
 	handleSA("GET /api/v1/admin/issuers/{id}/payments", a.handleAdminListIssuerPayments)
+	handleSA("GET /api/v1/admin/prospects", a.handleAdminListProspects)
+	handleSA("POST /api/v1/admin/prospects/{id}/approve", a.handleAdminApproveProspect)
+	handleSA("POST /api/v1/admin/prospects/{id}/reject", a.handleAdminRejectProspect)
+	handleSA("GET /api/v1/admin/prospects/{id}/cedula", a.handleAdminGetProspectCedula)
+	handleSA("GET /api/v1/admin/prospects/{id}/rut", a.handleAdminGetProspectRut)
 
 	handle("POST /api/v1/customers", a.handleCreateCustomer)
 	handle("GET /api/v1/customers", a.handleListCustomers)
