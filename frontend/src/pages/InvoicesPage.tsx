@@ -142,10 +142,10 @@ export function InvoicesPage() {
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
                         {(d.nc_count ?? 0) > 0 && (
-                          <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-(--color-warning-bg) text-(--color-warning-text)">NC</span>
+                          <span translate="no" className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-(--color-warning-bg) text-(--color-warning-text)">NC</span>
                         )}
                         {(d.nd_count ?? 0) > 0 && (
-                          <span className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-(--color-info-bg) text-(--color-info-text)">ND</span>
+                          <span translate="no" className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-(--color-info-bg) text-(--color-info-text)">ND</span>
                         )}
                       </div>
                     </td>

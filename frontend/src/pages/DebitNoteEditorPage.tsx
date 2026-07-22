@@ -12,6 +12,7 @@ import {
   updateDebitNoteDraft,
 } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
+import { openInNewTab } from "../lib/openInNewTab";
 import { formatCOP } from "../lib/currency";
 import { idTypeLabel } from "../lib/idTypes";
 import { useAuth } from "../context/AuthContext";
@@ -165,7 +166,7 @@ export function DebitNoteEditorPage() {
     setLoadingPdf(true);
     try {
       const url = await getDocumentPdfBlobUrl(id, pdfFormat);
-      window.open(url, "_blank");
+      openInNewTab(url);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo generar el PDF");
     } finally {
