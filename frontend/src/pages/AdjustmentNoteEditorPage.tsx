@@ -281,10 +281,8 @@ export function AdjustmentNoteEditorPage() {
       )}
 
       {loadingSourceDoc && (
-        <div className="mt-3 animate-pulse rounded border border-(--color-info-border) bg-(--color-info-bg) p-3">
-          <div className="mb-2 h-3.5 w-48 rounded bg-(--color-info-border)" />
-          <div className="mb-1 h-3 w-full rounded bg-(--color-info-border)" />
-          <div className="h-3 w-3/4 rounded bg-(--color-info-border)" />
+        <div className="mt-3 flex items-center justify-center rounded border border-(--color-info-border) bg-(--color-info-bg) p-4">
+          <Spinner className="h-4 w-4 text-(--color-info-border)" />
         </div>
       )}
       {!loadingSourceDoc && sourceDoc && (
