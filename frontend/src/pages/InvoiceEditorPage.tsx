@@ -18,6 +18,7 @@ import { idTypeLabel } from "../lib/idTypes";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
+import { SendEmailModal } from "../components/ui/SendEmailModal";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { Document, IssueInvoicePayload } from "../lib/types";
 import { BackLink } from "../components/ui/BackLink";
@@ -52,7 +53,7 @@ export function InvoiceEditorPage() {
   const [confirming, setConfirming] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingXml, setLoadingXml] = useState(false);
-  const [sendingEmail, setSendingEmail] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [pdfFormat] = usePdfFormat();
 
   useEffect(() => {
@@ -146,20 +147,15 @@ export function InvoiceEditorPage() {
     }
   }
 
-  // handleSendEmail envía la Factura ya accepted al correo del cliente con el PDF y el XML
-  // firmados adjuntos (ver docs/apidian-architecture.md sección 9.42) — visible para un
-  // tercero real, por eso pide confirmación igual que eliminar/confirmar.
-  async function handleSendEmail() {
+  async function handleSendEmailConfirm(cc: string[]) {
     if (!id || isNew || !doc) return;
-    if (!(await confirmDialog(`¿Enviar esta factura por correo a ${doc.customer.email || "el cliente"}?`))) return;
-    setSendingEmail(true);
     try {
-      await sendDocumentEmail(id, pdfFormat);
+      await sendDocumentEmail(id, pdfFormat, cc);
       toast.success(`Factura enviada a ${doc.customer.email}`);
+      setShowEmailModal(false);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo enviar la factura por correo");
-    } finally {
-      setSendingEmail(false);
+      throw err;
     }
   }
 
@@ -194,7 +190,7 @@ export function InvoiceEditorPage() {
             </Button>
           )}
           {!isNew && doc?.status === "accepted" && (
-            <Button type="button" variant="secondary" icon={<Mail className="h-3.5 w-3.5" />} loading={sendingEmail} onClick={handleSendEmail}>
+            <Button type="button" variant="secondary" icon={<Mail className="h-3.5 w-3.5" />} onClick={() => setShowEmailModal(true)}>
               Enviar al cliente
             </Button>
           )}
@@ -370,6 +366,13 @@ export function InvoiceEditorPage() {
           </div>
         </Card>
       ) : null}
+      {showEmailModal && doc && (
+        <SendEmailModal
+          toEmail={doc.customer.email ?? ""}
+          onSend={handleSendEmailConfirm}
+          onClose={() => setShowEmailModal(false)}
+        />
+      )}
     </div>
   );
 }

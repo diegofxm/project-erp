@@ -86,6 +86,11 @@ func buildMsg(cfg Config, msg Message) (*gomail.Msg, error) {
 	if err := m.To(msg.To); err != nil {
 		return nil, err
 	}
+	if len(msg.CC) > 0 {
+		if err := m.Cc(msg.CC...); err != nil {
+			return nil, err
+		}
+	}
 	m.Subject(msg.Subject)
 
 	switch {

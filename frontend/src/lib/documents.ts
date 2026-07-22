@@ -95,9 +95,11 @@ export function confirmDocument(id: string): Promise<Document> {
 // sendDocumentEmail envía el documento (debe estar accepted) al correo del cliente con el PDF y
 // el XML firmado adjuntos (ver docs/apidian-architecture.md sección 9.42). Funciona para
 // Factura, NC y ND. El PDF adjunto usa el formato indicado (defecto: full_a4).
-export function sendDocumentEmail(id: string, format: PDFFormat = "full_a4"): Promise<void> {
-  const body = format !== "full_a4" ? { pdf_format: format } : undefined;
-  return apiClient.post<void>(`/documents/${id}/send-email`, body);
+export function sendDocumentEmail(id: string, format: PDFFormat = "full_a4", cc?: string[]): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (format !== "full_a4") body.pdf_format = format;
+  if (cc && cc.length > 0) body.cc = cc;
+  return apiClient.post<void>(`/documents/${id}/send-email`, Object.keys(body).length > 0 ? body : undefined);
 }
 
 // lineToInput es el inverso de lo que calcula el servidor — para editar un borrador ya

@@ -55,7 +55,8 @@ var emailTmpl = htmltmpl.Must(htmltmpl.New("email").Parse(emailTemplateSrc))
 // el ZIP contiene el XML firmado crudo + el PDF (comportamiento anterior).
 //
 // Válido para Factura (01), Nota Crédito (91) y Nota Débito (92). Solo StatusAccepted.
-func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID, format pdf.Format) error {
+// cc es la lista de destinatarios en copia; nil o vacío = sin CC.
+func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID, format pdf.Format, cc []string) error {
 	d, iss, err := s.loadDocumentAndIssuer(ctx, issuerID, id)
 	if err != nil {
 		return err
@@ -126,6 +127,7 @@ func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID,
 
 	msg := email.Message{
 		To:       d.Customer.Email,
+		CC:       cc,
 		Subject:  subject,
 		BodyText: bodyText,
 		BodyHTML: bodyHTML,

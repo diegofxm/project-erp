@@ -646,7 +646,8 @@ func (a *API) handleGetDocumentXML(w http.ResponseWriter, r *http.Request) {
 }
 
 type sendEmailRequest struct {
-	PDFFormat string `json:"pdf_format,omitempty"`
+	PDFFormat string   `json:"pdf_format,omitempty"`
+	CC        []string `json:"cc,omitempty"`
 }
 
 // handleSendDocumentEmail envía el documento accepted al correo del cliente con el PDF y el XML
@@ -667,7 +668,7 @@ func (a *API) handleSendDocumentEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	format := pdf.ParseFormat(req.PDFFormat)
-	if err := a.documents.SendDocumentEmail(r.Context(), middleware.GetTenantID(r.Context()), id, format); err != nil {
+	if err := a.documents.SendDocumentEmail(r.Context(), middleware.GetTenantID(r.Context()), id, format, req.CC); err != nil {
 		response.WriteError(w, err)
 		return
 	}

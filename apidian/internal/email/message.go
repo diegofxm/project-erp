@@ -8,11 +8,10 @@ type Attachment struct {
 	Content     []byte
 }
 
-// Message es un correo a enviar. Un solo destinatario por ahora — el caso real que se viene es
-// un cliente por factura; si alguna vez hace falta CC/BCC/varios destinatarios, se extiende
-// entonces.
+// Message es un correo a enviar.
 type Message struct {
 	To          string
+	CC          []string // destinatarios en copia; nil o vacío = sin CC
 	Subject     string
 	BodyText    string
 	BodyHTML    string

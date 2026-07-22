@@ -18,6 +18,7 @@ import { idTypeLabel } from "../lib/idTypes";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
+import { SendEmailModal } from "../components/ui/SendEmailModal";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { BillingReference, Document, IssueCreditNotePayload } from "../lib/types";
 import { BackLink } from "../components/ui/BackLink";
@@ -71,7 +72,7 @@ export function CreditNoteEditorPage() {
   const [confirming, setConfirming] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingXml, setLoadingXml] = useState(false);
-  const [sendingEmail, setSendingEmail] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [pdfFormat] = usePdfFormat();
 
   useEffect(() => {
@@ -194,17 +195,15 @@ export function CreditNoteEditorPage() {
     }
   }
 
-  async function handleSendEmail() {
+  async function handleSendEmailConfirm(cc: string[]) {
     if (!id || isNew || !doc) return;
-    if (!(await confirmDialog(`¿Enviar esta nota crédito por correo a ${doc.customer.email || "el cliente"}?`))) return;
-    setSendingEmail(true);
     try {
-      await sendDocumentEmail(id, pdfFormat);
+      await sendDocumentEmail(id, pdfFormat, cc);
       toast.success(`Nota Crédito enviada a ${doc.customer.email}`);
+      setShowEmailModal(false);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo enviar la nota crédito por correo");
-    } finally {
-      setSendingEmail(false);
+      throw err;
     }
   }
 
@@ -250,7 +249,7 @@ export function CreditNoteEditorPage() {
             </Button>
           )}
           {!isNew && doc?.status === "accepted" && (
-            <Button type="button" variant="secondary" icon={<Mail className="h-3.5 w-3.5" />} loading={sendingEmail} onClick={handleSendEmail}>
+            <Button type="button" variant="secondary" icon={<Mail className="h-3.5 w-3.5" />} onClick={() => setShowEmailModal(true)}>
               Enviar al cliente
             </Button>
           )}
@@ -394,6 +393,13 @@ export function CreditNoteEditorPage() {
           </div>
         </Card>
       ) : null}
+      {showEmailModal && doc && (
+        <SendEmailModal
+          toEmail={doc.customer.email ?? ""}
+          onSend={handleSendEmailConfirm}
+          onClose={() => setShowEmailModal(false)}
+        />
+      )}
     </div>
   );
 }

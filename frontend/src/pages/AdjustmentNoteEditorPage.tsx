@@ -18,6 +18,7 @@ import { idTypeLabel } from "../lib/idTypes";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
+import { SendEmailModal } from "../components/ui/SendEmailModal";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { BillingReference, Document, IssueAdjustmentNotePayload } from "../lib/types";
 import { BackLink } from "../components/ui/BackLink";
@@ -62,7 +63,7 @@ export function AdjustmentNoteEditorPage() {
   const [confirming, setConfirming] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingXml, setLoadingXml] = useState(false);
-  const [sendingEmail, setSendingEmail] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [pdfFormat] = usePdfFormat();
 
   useEffect(() => {
@@ -168,17 +169,15 @@ export function AdjustmentNoteEditorPage() {
     }
   }
 
-  async function handleSendEmail() {
+  async function handleSendEmailConfirm(cc: string[]) {
     if (!id || isNew || !doc) return;
-    if (!(await confirmDialog(`¿Enviar esta Nota de Ajuste por correo a ${doc.vendor?.email || "el proveedor"}?`))) return;
-    setSendingEmail(true);
     try {
-      await sendDocumentEmail(id, pdfFormat);
+      await sendDocumentEmail(id, pdfFormat, cc);
       toast.success(`Nota de Ajuste enviada a ${doc.vendor?.email}`);
+      setShowEmailModal(false);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo enviar el documento por correo");
-    } finally {
-      setSendingEmail(false);
+      throw err;
     }
   }
 
@@ -244,7 +243,7 @@ export function AdjustmentNoteEditorPage() {
             </Button>
           )}
           {!isNew && doc?.status === "accepted" && (
-            <Button type="button" variant="secondary" icon={<Mail className="h-3.5 w-3.5" />} loading={sendingEmail} onClick={handleSendEmail}>
+            <Button type="button" variant="secondary" icon={<Mail className="h-3.5 w-3.5" />} onClick={() => setShowEmailModal(true)}>
               Enviar al proveedor
             </Button>
           )}
@@ -422,6 +421,13 @@ export function AdjustmentNoteEditorPage() {
           </div>
         </Card>
       ) : null}
+      {showEmailModal && doc && (
+        <SendEmailModal
+          toEmail={doc.vendor?.email ?? ""}
+          onSend={handleSendEmailConfirm}
+          onClose={() => setShowEmailModal(false)}
+        />
+      )}
     </div>
   );
 }
