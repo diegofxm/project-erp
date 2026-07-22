@@ -122,6 +122,7 @@ export function CreditNoteEditorPage() {
         navigate(`/documents/credit-notes/${saved.id}`, { replace: true });
       } else {
         setDoc(saved);
+        if (sourceDoc?.id) getDocument(sourceDoc.id).then(setSourceDoc).catch(() => {});
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo guardar la nota crédito");

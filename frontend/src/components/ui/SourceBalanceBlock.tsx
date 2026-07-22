@@ -62,18 +62,21 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode }: Props
         {/* Notas ya existentes */}
         {notes.map((note) => {
           const label = NOTE_LABELS[note.dian_document_type_code] ?? "Nota";
-          const ident = note.prefix || note.number
-            ? ` ${note.prefix ?? ""}${note.number ?? ""}`
-            : " (borrador)";
+          const hasNumber = note.prefix || note.number;
           const isDebit = note.dian_document_type_code === "92";
           const isAccepted = note.status === "accepted";
+          const ident = hasNumber
+            ? ` ${note.prefix ?? ""}${note.number ?? ""}${!isAccepted ? " (pendiente)" : ""}`
+            : isAccepted
+              ? " (borrador)"
+              : " (borrador pendiente)";
           return (
             <div
               key={note.id}
               className={`flex items-center justify-between ${!isAccepted ? "opacity-50" : ""}`}
             >
               <span className="text-(--color-info-text)">
-                {label}{ident}{!isAccepted ? " (pendiente)" : ""}
+                {label}{ident}
               </span>
               <span className={`font-mono ${isDebit ? "text-(--color-success-text)" : "text-(--color-danger-text)"}`}>
                 {isDebit ? "+" : "−"} {formatCOP.format(note.payable_cents / 100)}
