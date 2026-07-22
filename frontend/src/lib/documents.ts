@@ -10,6 +10,7 @@ export async function listDocuments(filter?: ListDocumentsFilter): Promise<Docum
   if (filter?.limit) params.set("limit", String(filter.limit));
   if (filter?.offset) params.set("offset", String(filter.offset));
   if (filter?.source_document_id) params.set("source_document_id", filter.source_document_id);
+  if (filter?.search) params.set("q", filter.search);
   const query = params.toString();
   const res = await apiClient.get<ListDocumentsResult>(`/documents${query ? `?${query}` : ""}`);
   return res.documents;

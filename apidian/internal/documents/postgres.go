@@ -277,6 +277,14 @@ func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUI
 		args = append(args, filter.To)
 		query += fmt.Sprintf(" AND issue_date <= $%d", len(args))
 	}
+	if filter.Search != "" {
+		args = append(args, "%"+filter.Search+"%")
+		n := len(args)
+		query += fmt.Sprintf(
+			" AND (customer->>'name' ILIKE $%[1]d OR vendor->>'name' ILIKE $%[1]d OR CONCAT(COALESCE(prefix,''), COALESCE(number::text,'')) ILIKE $%[1]d)",
+			n,
+		)
+	}
 
 	args = append(args, filter.Limit, filter.Offset)
 	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", len(args)-1, len(args))

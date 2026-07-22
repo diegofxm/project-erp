@@ -23,6 +23,8 @@ type ListFilter struct {
 	From, To             time.Time
 	Limit, Offset        int
 	SourceDocumentID     *uuid.UUID
+	// Search filtra por nombre de cliente/proveedor o número de documento (ILIKE).
+	Search string
 }
 
 // Repository define las operaciones de persistencia de documentos.

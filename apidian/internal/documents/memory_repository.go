@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -164,6 +165,15 @@ func (r *MemoryRepository) ListByIssuer(_ context.Context, issuerID uuid.UUID, f
 				continue
 			}
 			if d.BillingReference.Prefix != src.Prefix || d.BillingReference.Number != fmt.Sprintf("%d", src.Number) {
+				continue
+			}
+		}
+		if filter.Search != "" {
+			q := strings.ToLower(filter.Search)
+			custName := strings.ToLower(d.Customer.Name)
+			vendName := strings.ToLower(d.Vendor.Name)
+			docNum := strings.ToLower(d.Prefix + fmt.Sprintf("%d", d.Number))
+			if !strings.Contains(custName, q) && !strings.Contains(vendName, q) && !strings.Contains(docNum, q) {
 				continue
 			}
 		}

@@ -495,6 +495,9 @@ func (a *API) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 		filter.SourceDocumentID = &id
 	}
 
+	if s := q.Get("q"); s != "" {
+		filter.Search = s
+	}
 	if s := q.Get("from"); s != "" {
 		from, err := parseDate(s)
 		if err != nil {

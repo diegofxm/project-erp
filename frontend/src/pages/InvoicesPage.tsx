@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileText, Plus, X } from "lucide-react";
+import { FileText, Plus, Search, X } from "lucide-react";
 import { useNavigate } from "react-router";
 import { listDocuments } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
@@ -31,14 +31,22 @@ export function InvoicesPage() {
   const [status, setStatus] = useState<DocumentStatus | "">("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const navigate = useNavigate();
 
-  const hasFilters = !!status || !!from || !!to;
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setOffset(0); }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const hasFilters = !!status || !!from || !!to || !!search;
 
   function resetFilters() {
     setStatus("");
     setFrom("");
     setTo("");
+    setSearch("");
     setOffset(0);
   }
 
@@ -51,11 +59,12 @@ export function InvoicesPage() {
       ...(status && { status }),
       ...(from && { from }),
       ...(to && { to }),
+      ...(debouncedSearch && { search: debouncedSearch }),
     })
       .then(setDocuments)
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar las facturas"))
       .finally(() => setLoadingPage(false));
-  }, [offset, status, from, to]);
+  }, [offset, status, from, to, debouncedSearch]);
 
   const hasNext = (documents?.length ?? 0) > PAGE_SIZE;
   const page = documents?.slice(0, PAGE_SIZE) ?? null;
@@ -74,6 +83,16 @@ export function InvoicesPage() {
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-(--text-muted)" />
+          <input
+            type="search"
+            placeholder="Cliente o número..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="rounded border border-(--border-color) bg-(--bg-primary) py-1 pl-6 pr-2 text-xs text-(--text-primary) transition-colors w-44"
+          />
+        </div>
         <select
           value={status}
           onChange={(e) => { setStatus(e.target.value as DocumentStatus | ""); setOffset(0); }}

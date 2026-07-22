@@ -640,4 +640,5 @@ export interface ListDocumentsFilter {
   limit?: number;
   offset?: number;
   source_document_id?: string; // NC/ND que referencian la factura con este ID
+  search?: string;             // búsqueda libre: nombre cliente/proveedor o número de documento
 }
