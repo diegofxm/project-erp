@@ -60,6 +60,7 @@ export function DebitNoteEditorPage() {
   const [sourceDoc, setSourceDoc] = useState<Document | null>(null);
   const [billingRef, setBillingRef] = useState<BillingReference | null>(null);
   const [pendingCents, setPendingCents] = useState(0);
+  const [loadingSourceDoc, setLoadingSourceDoc] = useState(false);
   const [loadingDocument, setLoadingDocument] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -93,7 +94,11 @@ export function DebitNoteEditorPage() {
           setDoc(d);
           if (d.billing_reference) setBillingRef(d.billing_reference);
           if (d.source_document_id) {
-            getDocument(d.source_document_id).then(setSourceDoc).catch(() => {});
+            setLoadingSourceDoc(true);
+            getDocument(d.source_document_id)
+              .then(setSourceDoc)
+              .catch(() => {})
+              .finally(() => setLoadingSourceDoc(false));
           }
         })
         .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la nota débito"))
@@ -279,7 +284,14 @@ export function DebitNoteEditorPage() {
         </Banner>
       )}
 
-      {sourceDoc && (
+      {loadingSourceDoc && (
+        <div className="mt-3 animate-pulse rounded border border-(--color-info-border) bg-(--color-info-bg) p-3">
+          <div className="mb-2 h-3.5 w-48 rounded bg-(--color-info-border)" />
+          <div className="mb-1 h-3 w-full rounded bg-(--color-info-border)" />
+          <div className="h-3 w-3/4 rounded bg-(--color-info-border)" />
+        </div>
+      )}
+      {!loadingSourceDoc && sourceDoc && (
         <SourceBalanceBlock
           doc={sourceDoc}
           pendingCents={pendingCents > 0 ? pendingCents : undefined}
