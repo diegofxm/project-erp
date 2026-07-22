@@ -297,20 +297,11 @@ export function AdjustmentNoteEditorPage() {
         </Card>
       ) : doc ? (
         <Card className="mt-3 flex flex-col gap-4 p-4">
-          {/* Referencia al DS */}
-          {doc.billing_reference && (
-            <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3">
-              <p className="mb-1 text-xs font-semibold text-(--text-primary)">DS referenciado</p>
-              <p className="font-mono text-xs text-(--text-secondary)">
-                {doc.billing_reference.prefix}{doc.billing_reference.number}
-                {doc.billing_reference.issue_date && ` — ${new Date(doc.billing_reference.issue_date).toLocaleDateString("es-CO")}`}
-              </p>
-              {doc.discrepancy_response && (
-                <p className="mt-1 text-xs text-(--text-muted)">
-                  Motivo {doc.discrepancy_response.response_code}: {doc.discrepancy_response.description}
-                </p>
-              )}
-            </div>
+          {/* Motivo del ajuste */}
+          {doc.discrepancy_response && (
+            <p className="text-xs text-(--text-muted)">
+              Motivo {doc.discrepancy_response.response_code}: {doc.discrepancy_response.description}
+            </p>
           )}
 
           <div className="grid grid-cols-12 gap-3 text-xs">

@@ -301,15 +301,6 @@ export function DebitNoteEditorPage() {
         </Card>
       ) : doc ? (
         <Card className="mt-3 flex flex-col gap-4 p-4">
-          {billingRef && (
-            <div>
-              <span className="text-xs text-(--text-secondary)">Factura referenciada</span>
-              <p className="font-mono text-sm text-(--text-primary)">
-                {billingRef.prefix}{billingRef.number}
-              </p>
-            </div>
-          )}
-
           <div className="grid grid-cols-12 gap-3 text-xs">
             <div className="col-span-6 sm:col-span-3">
               <span className="text-(--text-secondary)">Cliente</span>
