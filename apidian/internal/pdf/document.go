@@ -112,6 +112,18 @@ type InvoiceInput struct {
 
 	// BrandColor es el color de acento del PDF (#RRGGBB). Vacío usa el default del template.
 	BrandColor string
+
+	// Documento afectado — solo aplica a NC, ND y NA.
+	// BillingRefNumber es el número completo del doc. afectado (ej. "FE-1001").
+	// BillingRefDate es la fecha de emisión del doc. afectado.
+	// BillingRefCUFE es el CUFE/CUDS del doc. afectado.
+	// DiscrepancyCode es el código de motivo (ej. "2").
+	// DiscrepancyDesc es la descripción del motivo (ej. "Anulación total").
+	BillingRefNumber string
+	BillingRefDate   string
+	BillingRefCUFE   string
+	DiscrepancyCode  string
+	DiscrepancyDesc  string
 }
 
 // chromePath almacena la ruta al binario Chrome/Chromium configurada en arranque.
@@ -190,6 +202,12 @@ type docTemplateData struct {
 	EconomicActivity string
 
 	BrandColor string // "" → usa el default del template (#14345C)
+
+	BillingRefNumber string
+	BillingRefDate   string
+	BillingRefCUFE   string
+	DiscrepancyCode  string
+	DiscrepancyDesc  string
 }
 
 type docLineData struct {
@@ -351,6 +369,12 @@ func buildTemplateData(in InvoiceInput) (docTemplateData, error) {
 		EconomicActivity: in.IssuerEconomicActivity,
 
 		BrandColor: in.BrandColor,
+
+		BillingRefNumber: in.BillingRefNumber,
+		BillingRefDate:   in.BillingRefDate,
+		BillingRefCUFE:   in.BillingRefCUFE,
+		DiscrepancyCode:  in.DiscrepancyCode,
+		DiscrepancyDesc:  in.DiscrepancyDesc,
 	}, nil
 }
 

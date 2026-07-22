@@ -450,6 +450,19 @@ table.taxes th.r, table.taxes td.r { text-align: right; }
     </div>
   </div>
 
+  <!-- DOCUMENTO AFECTADO (solo NC / ND / NA) ── -->
+  {{if .BillingRefNumber}}
+  <div class="ref-box" style="border:var(--rule) solid var(--line);margin-bottom:3mm;">
+    <div class="bar">Documento Afectado</div>
+    <div class="kv-block">
+      <div class="kv-row"><span class="k">Número:</span><span class="v">{{.BillingRefNumber}}</span></div>
+      {{if .BillingRefDate}}<div class="kv-row"><span class="k">Fecha emisión:</span><span class="v">{{.BillingRefDate}}</span></div>{{end}}
+      {{if .DiscrepancyCode}}<div class="kv-row"><span class="k">Motivo:</span><span class="v">{{.DiscrepancyCode}}{{if .DiscrepancyDesc}} – {{.DiscrepancyDesc}}{{end}}</span></div>{{end}}
+      {{if .BillingRefCUFE}}<div class="kv-row" style="margin-top:0.5mm;"><span class="k" style="min-width:17mm;">CUFE ref.:</span><span class="v" style="word-break:break-all;font-size:6.5pt;color:var(--muted);">{{.BillingRefCUFE}}</span></div>{{end}}
+    </div>
+  </div>
+  {{end}}
+
   <!-- ÍTEMS ─────────────────────────────────── -->
   <div class="bar">Detalle de Productos / Servicios</div>
   <div class="items-frame">

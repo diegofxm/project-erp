@@ -203,6 +203,18 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		custEmail = d.Customer.Email
 	}
 
+	var billingRefNumber, billingRefDate, billingRefCUFE string
+	var discrepancyCode, discrepancyDesc string
+	if d.BillingReference != nil {
+		billingRefNumber = d.BillingReference.Prefix + d.BillingReference.Number
+		billingRefDate = d.BillingReference.IssueDate
+		billingRefCUFE = d.BillingReference.CUFE
+	}
+	if d.DiscrepancyResponse != nil {
+		discrepancyCode = d.DiscrepancyResponse.ResponseCode
+		discrepancyDesc = d.DiscrepancyResponse.Description
+	}
+
 	return pdf.InvoiceInput{
 		IssuerBusinessName: iss.BusinessName,
 		IssuerNIT:          iss.NIT,
@@ -260,6 +272,12 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		ValidTo:          nr.ValidTo.Format("2006-01-02"),
 
 		BrandColor: brandColor,
+
+		BillingRefNumber: billingRefNumber,
+		BillingRefDate:   billingRefDate,
+		BillingRefCUFE:   billingRefCUFE,
+		DiscrepancyCode:  discrepancyCode,
+		DiscrepancyDesc:  discrepancyDesc,
 	}, nil
 }
 
