@@ -1,3 +1,5 @@
+import { ExternalLink } from "lucide-react";
+import { Link } from "react-router";
 import { formatCOP } from "../../lib/currency";
 import type { Document } from "../../lib/types";
 
@@ -19,6 +21,9 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode }: Props
   const notes = doc.related_notes ?? [];
   const docLabel = doc.dian_document_type_code === "05" ? "Documento Soporte" : "Factura";
   const isDebitPending = pendingTypeCode === "92";
+  const docUrl = doc.dian_document_type_code === "05"
+    ? `/documents/support-documents/${doc.id}`
+    : `/documents/invoices/${doc.id}`;
 
   // Saldo efectivo ya reconocido por la DIAN (solo notas accepted).
   const acceptedNet = doc.net_payable_cents ?? doc.totals.payable_cents;
@@ -33,9 +38,18 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode }: Props
 
   return (
     <div className="mt-3 rounded border border-(--color-info-border) bg-(--color-info-bg) p-3 text-xs">
-      <p className="mb-2 font-semibold text-(--color-info-text)">
-        {docLabel} {doc.prefix ?? ""}{doc.number ?? ""}
-      </p>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="font-semibold text-(--color-info-text)">
+          {docLabel} {doc.prefix ?? ""}{doc.number ?? ""}
+        </p>
+        <Link
+          to={docUrl}
+          className="flex items-center gap-1 text-xs text-(--color-info-text) opacity-70 hover:opacity-100 hover:underline"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Ver {docLabel === "Documento Soporte" ? "DS" : "Factura"}
+        </Link>
+      </div>
       <div className="flex flex-col gap-1.5">
         {/* Total original */}
         <div className="flex items-center justify-between">

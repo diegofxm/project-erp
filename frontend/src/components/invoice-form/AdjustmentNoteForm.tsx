@@ -131,22 +131,6 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      {/* Documento Soporte de referencia — solo lectura, viene del DS origen */}
-      <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3">
-        <p className="text-xs font-medium text-(--text-secondary)">Documento Soporte de referencia</p>
-        <p className="mt-1 font-mono text-sm text-(--text-primary)">
-          {billingReference.prefix}{billingReference.number}
-          {billingReference.issue_date && (
-            <span className="ml-2 font-sans text-xs text-(--text-secondary)">
-              — {new Date(billingReference.issue_date + "T00:00:00").toLocaleDateString("es-CO")}
-            </span>
-          )}
-        </p>
-        {billingReference.cufe && (
-          <p className="mt-1 break-all font-mono text-xs text-(--text-muted)">{billingReference.cufe}</p>
-        )}
-      </div>
-
       {/* Cabecera: rango, tipo operación, moneda, nota */}
       <div className="grid grid-cols-12 gap-3">
         <div className="col-span-12 sm:col-span-6">
