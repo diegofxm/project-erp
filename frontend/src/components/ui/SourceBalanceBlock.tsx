@@ -7,6 +7,7 @@ interface Props {
   doc: Document;           // FE o DS de origen
   pendingCents?: number;   // total vivo del formulario (>0 para mostrar)
   pendingTypeCode?: string; // "91" NC | "92" ND | "95" NA
+  editingNoteId?: string;  // ID de la nota existente que se está editando (fusiona las dos filas)
 }
 
 const NOTE_LABELS: Record<string, string> = {
@@ -15,12 +16,9 @@ const NOTE_LABELS: Record<string, string> = {
   "95": "Nota de Ajuste",
 };
 
-// Muestra el saldo disponible de la FE/DS de origen mientras se redacta una NC/ND/NA.
-// Se actualiza en vivo (pendingCents) a medida que el operador edita las líneas del formulario.
-export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode }: Props) {
+export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode, editingNoteId }: Props) {
   const notes = doc.related_notes ?? [];
   const docLabel = doc.dian_document_type_code === "05" ? "Documento Soporte" : "Factura";
-  const isDebitPending = pendingTypeCode === "92";
   const docUrl = doc.dian_document_type_code === "05"
     ? `/documents/support-documents/${doc.id}`
     : `/documents/invoices/${doc.id}`;
@@ -28,13 +26,34 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode }: Props
   // Saldo efectivo ya reconocido por la DIAN (solo notas accepted).
   const acceptedNet = doc.net_payable_cents ?? doc.totals.payable_cents;
 
-  // Saldo proyectado incluyendo la nota que se está redactando.
-  const hasPending = pendingCents !== undefined && pendingCents > 0;
-  const projectedCents = hasPending
-    ? isDebitPending
-      ? acceptedNet + pendingCents
-      : acceptedNet - pendingCents
+  // Cuando se edita una nota existente, sacarla de la lista y fusionarla en una fila unificada.
+  const editingNote = editingNoteId ? notes.find(n => n.id === editingNoteId) : undefined;
+  const displayNotes = editingNote ? notes.filter(n => n.id !== editingNoteId) : notes;
+
+  // Fila unificada de edición: usa el valor vivo del formulario si está disponible,
+  // si no el valor guardado del borrador (fallback hasta que onTotalChange dispare).
+  const editingTypeCode = pendingTypeCode ?? editingNote?.dian_document_type_code;
+  const editingIsDebit = editingTypeCode === "92";
+  const editingLabel = NOTE_LABELS[editingTypeCode ?? ""] ?? "Esta nota";
+  const editingCents = (pendingCents ?? 0) > 0 ? (pendingCents ?? 0) : (editingNote?.payable_cents ?? 0);
+
+  // Hay fila de edición cuando: editamos borrador existente O estamos creando uno nuevo con valor
+  const showEditingRow = !!editingNote || (!editingNoteId && (pendingCents ?? 0) > 0);
+  // Label: "borrador en edición" si viene de nota existente, "(en edición)" si es nueva
+  const editingRowLabel = editingNote
+    ? `${editingLabel} (borrador en edición)`
+    : `${editingLabel} (en edición)`;
+
+  // Saldo proyectado: acceptedNet ± lo que se está editando
+  const projectedCents = showEditingRow && editingCents > 0
+    ? editingIsDebit
+      ? acceptedNet + editingCents
+      : acceptedNet - editingCents
     : null;
+
+  const showFooter =
+    projectedCents !== null ||
+    (doc.net_payable_cents !== undefined && doc.net_payable_cents !== doc.totals.payable_cents);
 
   return (
     <div className="mt-3 rounded border border-(--color-info-border) bg-(--color-info-bg) p-3 text-xs">
@@ -59,8 +78,8 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode }: Props
           </span>
         </div>
 
-        {/* Notas ya existentes */}
-        {notes.map((note) => {
+        {/* Otras notas (aceptadas o borradores que no son el que se edita) */}
+        {displayNotes.map((note) => {
           const label = NOTE_LABELS[note.dian_document_type_code] ?? "Nota";
           const hasNumber = note.prefix || note.number;
           const isDebit = note.dian_document_type_code === "92";
@@ -75,9 +94,7 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode }: Props
               key={note.id}
               className={`flex items-center justify-between ${!isAccepted ? "opacity-50" : ""}`}
             >
-              <span className="text-(--color-info-text)">
-                {label}{ident}
-              </span>
+              <span className="text-(--color-info-text)">{label}{ident}</span>
               <span className={`font-mono ${isDebit ? "text-(--color-success-text)" : "text-(--color-danger-text)"}`}>
                 {isDebit ? "+" : "−"} {formatCOP.format(note.payable_cents / 100)}
               </span>
@@ -85,23 +102,21 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode }: Props
           );
         })}
 
-        {/* Nota que se está redactando ahora */}
-        {hasPending && (
+        {/* Fila unificada: borrador en edición (o nueva nota en edición) */}
+        {showEditingRow && editingCents > 0 && (
           <div className="flex items-center justify-between italic">
-            <span className="text-(--color-info-text)">
-              {NOTE_LABELS[pendingTypeCode ?? ""] ?? "Esta nota"} (en edición)
-            </span>
-            <span className={`font-mono ${isDebitPending ? "text-(--color-success-text)" : "text-(--color-danger-text)"}`}>
-              {isDebitPending ? "+" : "−"} {formatCOP.format(pendingCents / 100)}
+            <span className="text-(--color-info-text)">{editingRowLabel}</span>
+            <span className={`font-mono ${editingIsDebit ? "text-(--color-success-text)" : "text-(--color-danger-text)"}`}>
+              {editingIsDebit ? "+" : "−"} {formatCOP.format(editingCents / 100)}
             </span>
           </div>
         )}
 
-        {/* Saldo proyectado — solo cuando hay algo en edición o notas aceptadas cambian el total */}
-        {(hasPending || (doc.net_payable_cents !== undefined && doc.net_payable_cents !== doc.totals.payable_cents)) && (
+        {/* Saldo */}
+        {showFooter && (
           <div className="flex items-center justify-between border-t border-(--color-info-border) pt-1.5 font-semibold">
             <span className="text-(--color-info-text)">
-              {hasPending ? "Saldo proyectado" : "Saldo efectivo"}
+              {projectedCents !== null ? "Saldo proyectado" : "Saldo efectivo"}
             </span>
             <span className="font-mono text-(--color-info-text)">
               {formatCOP.format((projectedCents ?? acceptedNet) / 100)}

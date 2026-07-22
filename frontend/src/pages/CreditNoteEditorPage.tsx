@@ -298,6 +298,7 @@ export function CreditNoteEditorPage() {
           doc={sourceDoc}
           pendingCents={pendingCents > 0 ? pendingCents : undefined}
           pendingTypeCode="91"
+          editingNoteId={!isNew ? id : undefined}
         />
       )}
 

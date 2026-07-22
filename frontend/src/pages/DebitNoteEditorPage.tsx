@@ -295,6 +295,7 @@ export function DebitNoteEditorPage() {
           doc={sourceDoc}
           pendingCents={pendingCents > 0 ? pendingCents : undefined}
           pendingTypeCode="92"
+          editingNoteId={!isNew ? id : undefined}
         />
       )}
 

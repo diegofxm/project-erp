@@ -291,6 +291,7 @@ export function AdjustmentNoteEditorPage() {
           doc={sourceDoc}
           pendingCents={pendingCents > 0 ? pendingCents : undefined}
           pendingTypeCode="95"
+          editingNoteId={!isNew ? id : undefined}
         />
       )}
 
