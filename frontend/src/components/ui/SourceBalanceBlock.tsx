@@ -28,7 +28,8 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode, editing
 
   // Cuando se edita una nota existente, sacarla de la lista y fusionarla en una fila unificada.
   const editingNote = editingNoteId ? notes.find(n => n.id === editingNoteId) : undefined;
-  const displayNotes = editingNote ? notes.filter(n => n.id !== editingNoteId) : notes;
+  // Solo notas aceptadas (drafts ajenos son especulativos y distorsionan el saldo).
+  const displayNotes = notes.filter(n => n.status === "accepted" && n.id !== editingNoteId);
 
   // Fila unificada de edición: usa el valor vivo del formulario si está disponible,
   // si no el valor guardado del borrador (fallback hasta que onTotalChange dispare).
