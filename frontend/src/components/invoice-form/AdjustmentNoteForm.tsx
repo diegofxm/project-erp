@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { listCurrencies } from "../../lib/catalogs";
 import { lineToInput } from "../../lib/documents";
+import { previewTotals } from "../../lib/invoiceMath";
 import { listNumberingRanges } from "../../lib/numberingRanges";
 import { useCatalog } from "../../lib/useCatalog";
 import type {
@@ -47,44 +48,45 @@ const NEW_VENDOR: VendorPayload = {
   liability_codes: ["O-49"],
 };
 
-const EMPTY_BILLING_REFERENCE: BillingReference = {
-  prefix: "",
-  number: "",
-  cufe: "",
-  issue_date: "",
-};
-
 interface AdjustmentNoteFormProps {
   initial: Document | null;
+  prefill?: Document | null;
+  billingReference: BillingReference;
   onSubmit: (payload: IssueAdjustmentNotePayload) => void;
   onCancel: () => void;
   loading: boolean;
+  onTotalChange?: (cents: number) => void;
 }
 
-export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: AdjustmentNoteFormProps) {
+export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmit, onCancel, loading, onTotalChange }: AdjustmentNoteFormProps) {
   const [ranges, setRanges] = useState<NumberingRange[]>([]);
   const [loadingRanges, setLoadingRanges] = useState(true);
   const { data: currencies, loading: loadingCurrencies } = useCatalog(listCurrencies);
 
   const [numberingRangeId, setNumberingRangeId] = useState(initial?.numbering_range_id ?? "");
-  const [operationTypeCode, setOperationTypeCode] = useState(initial?.operation_type_code ?? "10");
-  const [vendor, setVendor] = useState<VendorPayload>(initial?.vendor ?? NEW_VENDOR);
-  const [vendorId, setVendorId] = useState(initial?.vendor_id ?? "");
-  const [lines, setLines] = useState<DocumentLineInput[]>(initial?.lines.map(lineToInput) ?? []);
-  const [paymentMeans, setPaymentMeans] = useState<PaymentMean[]>(initial?.payment_means ?? []);
-  const [withholdingTaxes, setWithholdingTaxes] = useState<Tax[]>(initial?.withholding_taxes ?? []);
-  const [note, setNote] = useState(initial?.note ?? "");
-  const [currencyCode, setCurrencyCode] = useState(initial?.currency_code ?? "COP");
-
-  // Referencia al DS original
-  const [billingRef, setBillingRef] = useState<BillingReference>(
-    initial?.billing_reference ?? EMPTY_BILLING_REFERENCE
+  const [operationTypeCode, setOperationTypeCode] = useState(initial?.operation_type_code ?? prefill?.operation_type_code ?? "10");
+  const [vendor, setVendor] = useState<VendorPayload>(initial?.vendor ?? prefill?.vendor ?? NEW_VENDOR);
+  const [vendorId, setVendorId] = useState(initial?.vendor_id ?? prefill?.vendor_id ?? "");
+  const [lines, setLines] = useState<DocumentLineInput[]>(
+    initial?.lines.map(lineToInput) ?? prefill?.lines.map(lineToInput) ?? []
   );
+  const [paymentMeans, setPaymentMeans] = useState<PaymentMean[]>(
+    initial?.payment_means ?? prefill?.payment_means ?? []
+  );
+  const [withholdingTaxes, setWithholdingTaxes] = useState<Tax[]>(
+    initial?.withholding_taxes ?? prefill?.withholding_taxes ?? []
+  );
+  const [note, setNote] = useState(initial?.note ?? "");
+  const [currencyCode, setCurrencyCode] = useState(initial?.currency_code ?? prefill?.currency_code ?? "COP");
 
   // Motivo del ajuste (opcional)
   const [hasDiscrepancy, setHasDiscrepancy] = useState(!!initial?.discrepancy_response);
   const [discrepancy, setDiscrepancy] = useState<DiscrepancyResponse>(
-    initial?.discrepancy_response ?? { reference_id: "", response_code: "1", description: "" }
+    initial?.discrepancy_response ?? {
+      reference_id: billingReference.prefix + billingReference.number,
+      response_code: "1",
+      description: "",
+    }
   );
 
   useEffect(() => {
@@ -94,21 +96,13 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
       .finally(() => setLoadingRanges(false));
   }, []);
 
+  useEffect(() => {
+    onTotalChange?.(previewTotals(lines).payableCents);
+  }, [lines]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function handleVendorChange(next: VendorPayload, nextVendorId: string) {
     setVendor(next);
     setVendorId(nextVendorId);
-  }
-
-  // Sincronizar reference_id con el número del DS cuando cambia
-  function handleBillingRefChange(field: keyof BillingReference, value: string) {
-    setBillingRef((prev) => {
-      const next = { ...prev, [field]: value };
-      // Auto-rellenar reference_id del DiscrepancyResponse con prefix+number del DS
-      if ((field === "prefix" || field === "number") && !discrepancy.reference_id) {
-        setDiscrepancy((d) => ({ ...d, reference_id: next.prefix + next.number }));
-      }
-      return next;
-    });
   }
 
   function handleSubmit() {
@@ -122,7 +116,7 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
       currency_code: currencyCode,
       operation_type_code: operationTypeCode,
       withholding_taxes: withholdingTaxes.length > 0 ? withholdingTaxes : undefined,
-      billing_reference: billingRef,
+      billing_reference: billingReference,
       discrepancy_response: hasDiscrepancy ? discrepancy : undefined,
     });
   }
@@ -133,12 +127,26 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
     numberingRangeId !== "" &&
     vendor.identification.number.trim() !== "" &&
     lines.length > 0 &&
-    paymentMeans.length > 0 &&
-    billingRef.cufe.trim() !== "" &&
-    billingRef.number.trim() !== "";
+    paymentMeans.length > 0;
 
   return (
     <div className="flex flex-col gap-4 p-4">
+      {/* Documento Soporte de referencia — solo lectura, viene del DS origen */}
+      <div className="rounded border border-(--border-color) bg-(--bg-secondary) p-3">
+        <p className="text-xs font-medium text-(--text-secondary)">Documento Soporte de referencia</p>
+        <p className="mt-1 font-mono text-sm text-(--text-primary)">
+          {billingReference.prefix}{billingReference.number}
+          {billingReference.issue_date && (
+            <span className="ml-2 font-sans text-xs text-(--text-secondary)">
+              — {new Date(billingReference.issue_date + "T00:00:00").toLocaleDateString("es-CO")}
+            </span>
+          )}
+        </p>
+        {billingReference.cufe && (
+          <p className="mt-1 break-all font-mono text-xs text-(--text-muted)">{billingReference.cufe}</p>
+        )}
+      </div>
+
       {/* Cabecera: rango, tipo operación, moneda, nota */}
       <div className="grid grid-cols-12 gap-3">
         <div className="col-span-12 sm:col-span-6">
@@ -206,49 +214,6 @@ export function AdjustmentNoteForm({ initial, onSubmit, onCancel, loading }: Adj
           <Input label="Nota (opcional)" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
       </div>
-
-      {/* Documento Soporte de referencia */}
-      <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
-        <h2 className="text-xs font-semibold text-(--text-primary)">Documento Soporte de referencia</h2>
-        <p className="text-xs text-(--text-muted)">El DS que esta nota ajusta o anula.</p>
-        <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-6 sm:col-span-3">
-            <Input
-              label="Prefijo DS"
-              value={billingRef.prefix}
-              onChange={(e) => handleBillingRefChange("prefix", e.target.value)}
-              placeholder="SEDS"
-            />
-          </div>
-          <div className="col-span-6 sm:col-span-3">
-            <Input
-              label="Número DS"
-              required
-              value={billingRef.number}
-              onChange={(e) => handleBillingRefChange("number", e.target.value)}
-              placeholder="984000000"
-            />
-          </div>
-          <div className="col-span-6 sm:col-span-3">
-            <Input
-              label="Fecha DS"
-              type="date"
-              value={billingRef.issue_date}
-              onChange={(e) => handleBillingRefChange("issue_date", e.target.value)}
-            />
-          </div>
-          <div className="col-span-12">
-            <Input
-              label="CUDS del DS (requerido)"
-              required
-              value={billingRef.cufe}
-              onChange={(e) => handleBillingRefChange("cufe", e.target.value)}
-              placeholder="11912d46bef0a7b661bb1b736afb2e61…"
-              className="font-mono text-xs"
-            />
-          </div>
-        </div>
-      </section>
 
       {/* Motivo del ajuste */}
       <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">

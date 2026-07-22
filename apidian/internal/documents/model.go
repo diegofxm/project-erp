@@ -121,3 +121,16 @@ type Document struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
+
+// RelatedNote es una vista ligera de un NC/ND (para FE) o NA (para DS) que referencia este
+// documento vía billing_reference. Solo se usa en la respuesta de GET /documents/{id} para
+// calcular el saldo neto — no se persiste por separado.
+type RelatedNote struct {
+	ID                   uuid.UUID
+	DianDocumentTypeCode string
+	Prefix               string
+	Number               int64
+	PayableCents         int64
+	Status               Status
+	IssueDate            *time.Time
+}

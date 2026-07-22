@@ -55,4 +55,13 @@ type Repository interface {
 
 	// GetBillingStats devuelve métricas de facturación para el dashboard del emisor.
 	GetBillingStats(ctx context.Context, issuerID uuid.UUID) (*BillingStats, error)
+
+	// GetRelatedNotes devuelve todos los documentos que referencian (prefix, number) vía
+	// billing_reference — NC/ND para una FE, NA para un DS. Escoped al emisor. Retorna lista
+	// vacía (no error) si no hay ninguno.
+	GetRelatedNotes(ctx context.Context, issuerID uuid.UUID, prefix string, number int64) ([]RelatedNote, error)
+
+	// GetByDocumentKey busca un documento por su CUFE/CUDS (document_key) dentro del emisor.
+	// Retorna ErrDocumentNotFound si no existe.
+	GetByDocumentKey(ctx context.Context, issuerID uuid.UUID, key string) (*Document, error)
 }

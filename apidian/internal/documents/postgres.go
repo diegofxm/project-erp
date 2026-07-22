@@ -136,6 +136,11 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Docume
 	return scanDocument(row)
 }
 
+func (r *PostgresRepository) GetByDocumentKey(ctx context.Context, issuerID uuid.UUID, key string) (*Document, error) {
+	row := r.pool.QueryRow(ctx, `SELECT `+documentColumns+` FROM documents WHERE issuer_id = $1 AND document_key = $2`, issuerID, key)
+	return scanDocument(row)
+}
+
 func (r *PostgresRepository) UpdateDianStatus(ctx context.Context, id uuid.UUID, status Status, trackID, statusCode, statusDescription, statusMessage, applicationResponseXML string) error {
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE documents
@@ -691,4 +696,38 @@ func (r *PostgresRepository) GetBillingStats(ctx context.Context, issuerID uuid.
 	}
 
 	return stats, nil
+}
+
+// GetRelatedNotes devuelve los NC/ND (para una FE) o NA (para un DS) que referencian el
+// documento (prefix, number) vía billing_reference. Escoped al emisor para evitar cross-tenant.
+func (r *PostgresRepository) GetRelatedNotes(ctx context.Context, issuerID uuid.UUID, prefix string, number int64) ([]RelatedNote, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, dian_document_type_code,
+		       COALESCE(prefix, ''), COALESCE(number, 0),
+		       totals_payable_cents, status, issue_date
+		FROM documents
+		WHERE issuer_id = $1
+		  AND billing_reference->>'prefix' = $2
+		  AND billing_reference->>'number' = $3
+		ORDER BY created_at ASC`,
+		issuerID, prefix, fmt.Sprintf("%d", number))
+	if err != nil {
+		return nil, fmt.Errorf("get related notes: %w", err)
+	}
+	defer rows.Close()
+
+	var out []RelatedNote
+	for rows.Next() {
+		var n RelatedNote
+		var status string
+		var issueDate *time.Time
+		if err := rows.Scan(&n.ID, &n.DianDocumentTypeCode, &n.Prefix, &n.Number,
+			&n.PayableCents, &status, &issueDate); err != nil {
+			return nil, fmt.Errorf("scan related note: %w", err)
+		}
+		n.Status = Status(status)
+		n.IssueDate = issueDate
+		out = append(out, n)
+	}
+	return out, rows.Err()
 }

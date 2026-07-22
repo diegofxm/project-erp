@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { listCurrencies } from "../../lib/catalogs";
 import { lineToInput } from "../../lib/documents";
+import { previewTotals } from "../../lib/invoiceMath";
 import { listNumberingRanges } from "../../lib/numberingRanges";
 import { useCatalog } from "../../lib/useCatalog";
 import type {
@@ -48,9 +49,10 @@ interface CreditNoteFormProps {
   onSubmit: (payload: IssueCreditNotePayload) => void;
   onCancel: () => void;
   loading: boolean;
+  onTotalChange?: (cents: number) => void;
 }
 
-export function CreditNoteForm({ initial, prefill, billingReference, onSubmit, onCancel, loading }: CreditNoteFormProps) {
+export function CreditNoteForm({ initial, prefill, billingReference, onSubmit, onCancel, loading, onTotalChange }: CreditNoteFormProps) {
   const [ranges, setRanges] = useState<NumberingRange[]>([]);
   const [loadingRanges, setLoadingRanges] = useState(true);
   const { data: currencies, loading: loadingCurrencies } = useCatalog(listCurrencies);
@@ -102,6 +104,10 @@ export function CreditNoteForm({ initial, prefill, billingReference, onSubmit, o
       .catch(() => setRanges([]))
       .finally(() => setLoadingRanges(false));
   }, []);
+
+  useEffect(() => {
+    onTotalChange?.(previewTotals(lines).payableCents);
+  }, [lines]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleCustomerChange(next: CustomerPayload, nextCustomerId: string) {
     setCustomer(next);

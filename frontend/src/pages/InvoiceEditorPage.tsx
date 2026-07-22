@@ -8,7 +8,6 @@ import {
   getDocument,
   getDocumentPdfBlobUrl,
   getDocumentXmlBlobUrl,
-  listDocuments,
   sendDocumentEmail,
   updateInvoiceDraft,
 } from "../lib/documents";
@@ -32,6 +31,7 @@ import { StatusBadge } from "../components/invoice-form/StatusBadge";
 const NOTE_TYPE_LABEL: Record<string, string> = {
   "91": "Nota Crédito",
   "92": "Nota Débito",
+  "95": "Nota de Ajuste",
 };
 
 // :id es "new" (crear) o un UUID real (editar mientras siga en draft, ver solo lectura en
@@ -45,7 +45,6 @@ export function InvoiceEditorPage() {
   const isNew = id === "new";
 
   const [doc, setDoc] = useState<Document | null>(null);
-  const [relatedNotes, setRelatedNotes] = useState<Document[]>([]);
   const [loadingDocument, setLoadingDocument] = useState(!isNew);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -63,14 +62,6 @@ export function InvoiceEditorPage() {
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la factura"))
       .finally(() => setLoadingDocument(false));
   }, [id, isNew]);
-
-  // Carga las NC/ND emitidas sobre esta factura cuando ya está aceptada.
-  useEffect(() => {
-    if (!id || !doc || doc.status !== "accepted") return;
-    listDocuments({ source_document_id: id })
-      .then(setRelatedNotes)
-      .catch(() => setRelatedNotes([]));
-  }, [id, doc?.status]);
 
   async function handleSubmit(payload: IssueInvoicePayload) {
     if (!id) return;
@@ -296,42 +287,42 @@ export function InvoiceEditorPage() {
 
           <DianStatusBlock statusCode={doc.dian_status_code} description={doc.dian_status_description} message={doc.dian_status_message} />
 
-          {relatedNotes.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <p className="text-xs font-semibold text-(--text-primary)">
-                Notas emitidas sobre esta factura ({relatedNotes.length})
+          {doc.related_notes && doc.related_notes.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold text-(--text-primary)">
+                Notas emitidas ({doc.related_notes.length})
               </p>
-              {relatedNotes.map((note) => {
-                const noteRoute = note.dian_document_type_code === "91"
-                  ? `/documents/credit-notes/${note.id}`
-                  : `/documents/debit-notes/${note.id}`;
-                const typeLabel = NOTE_TYPE_LABEL[note.dian_document_type_code] ?? "Nota";
-                const motivo = note.discrepancy_response?.description ?? note.note_type_code ?? "—";
-                return (
-                  <div
-                    key={note.id}
-                    className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-secondary) px-3 py-2 text-xs"
-                  >
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-medium text-(--text-primary)">
-                        {typeLabel} {note.prefix}{note.number}
-                      </span>
-                      <span className="text-(--text-secondary)">{motivo}</span>
+              <div className="flex flex-col gap-1">
+                {doc.related_notes.map((note) => {
+                  const route = note.dian_document_type_code === "91"
+                    ? `/documents/credit-notes/${note.id}`
+                    : `/documents/debit-notes/${note.id}`;
+                  const typeLabel = NOTE_TYPE_LABEL[note.dian_document_type_code] ?? "Nota";
+                  const ident = note.prefix || note.number ? ` ${note.prefix ?? ""}${note.number ?? ""}` : " (borrador)";
+                  return (
+                    <div
+                      key={note.id}
+                      className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-secondary) px-3 py-2 text-xs"
+                    >
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium text-(--text-primary)">{typeLabel}{ident}</span>
+                        <span className="font-mono text-(--text-secondary)">{formatCOP.format(note.payable_cents / 100)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={note.status} />
+                        <button
+                          type="button"
+                          onClick={() => navigate(route)}
+                          className="flex items-center gap-1 text-(--accent-primary) hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Ver
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge status={note.status} />
-                      <button
-                        type="button"
-                        onClick={() => navigate(noteRoute)}
-                        className="flex items-center gap-1 text-(--accent-primary) hover:underline"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        Ver
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -364,6 +355,11 @@ export function InvoiceEditorPage() {
             <span>Subtotal: <span className="font-mono text-(--text-primary)">{formatCOP.format(doc.totals.line_extension_cents / 100)}</span></span>
             <span>Impuestos: <span className="font-mono text-(--text-primary)">{formatCOP.format((doc.totals.tax_inclusive_cents - doc.totals.line_extension_cents) / 100)}</span></span>
             <span className="font-semibold">A pagar: <span className="font-mono text-(--text-primary)">{formatCOP.format(doc.totals.payable_cents / 100)}</span></span>
+            {doc.net_payable_cents !== undefined && doc.net_payable_cents !== doc.totals.payable_cents && (
+              <span className="font-semibold text-(--accent-primary)">
+                Saldo efectivo: <span className="font-mono">{formatCOP.format(doc.net_payable_cents / 100)}</span>
+              </span>
+            )}
           </div>
         </Card>
       ) : null}

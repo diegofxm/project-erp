@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
-import { FileDiff, Plus, X } from "lucide-react";
+import { FileDiff, X } from "lucide-react";
 import { useNavigate } from "react-router";
 import { listDocuments } from "../lib/documents";
-import { DOC_COLORS } from "../lib/docColors";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
 import type { Document, DocumentStatus } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
-import { Button } from "../components/ui/Button";
 import { Spinner } from "../components/ui/Spinner";
 import { Pagination } from "../components/ui/Pagination";
 import { StatusBadge } from "../components/invoice-form/StatusBadge";
@@ -70,9 +68,6 @@ export function AdjustmentNotesPage() {
           <FileDiff className="h-4 w-4 shrink-0 text-(--accent-primary)" />
           Nota de Ajuste
         </h1>
-        <Button type="button" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => navigate("/documents/adjustment-notes/new")} style={{ backgroundColor: DOC_COLORS["/documents/adjustment-notes"] }}>
-          Nueva Nota de Ajuste
-        </Button>
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -112,7 +107,9 @@ export function AdjustmentNotesPage() {
         </div>
       ) : page.length === 0 ? (
         <p className="text-xs text-(--text-secondary)">
-          {hasFilters ? "No hay notas de ajuste que coincidan con los filtros." : "Todavía no has creado ninguna nota de ajuste."}
+          {hasFilters
+            ? "No hay notas de ajuste que coincidan con los filtros."
+            : "Todavía no has emitido ninguna nota de ajuste. Para crear una, abre un Documento Soporte confirmado y usa el botón \"Emitir Nota de Ajuste\"."}
         </p>
       ) : (
         <div className="overflow-x-auto rounded border border-(--border-color)">

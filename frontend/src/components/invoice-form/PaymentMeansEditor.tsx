@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { listPaymentMethods, listPaymentTerms } from "../../lib/catalogs";
 import { useCatalog } from "../../lib/useCatalog";
 import type { PaymentMean } from "../../lib/types";
@@ -27,34 +27,57 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
   const { data: paymentMethods, loading: loadingPaymentMethods } = useCatalog(listPaymentMethods);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [showForm, setShowForm] = useState(false);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   const isCredit = draft.code === "2";
 
-  function handleAdd() {
-    onChange([
-      ...paymentMeans,
-      {
-        code: draft.code,
-        payment_method_code: draft.paymentMethodCode,
-        due_date: isCredit && draft.dueDate ? draft.dueDate : undefined,
-        payment_reference: draft.reference || undefined,
-      },
-    ]);
+  function handleStartEdit(index: number) {
+    const pm = paymentMeans[index];
+    setEditingIdx(index);
+    setDraft({
+      code: pm.code,
+      paymentMethodCode: pm.payment_method_code,
+      dueDate: pm.due_date ?? "",
+      reference: pm.payment_reference ?? "",
+    });
+    setShowForm(true);
+  }
+
+  function handleSave() {
+    const item = {
+      code: draft.code,
+      payment_method_code: draft.paymentMethodCode,
+      due_date: isCredit && draft.dueDate ? draft.dueDate : undefined,
+      payment_reference: draft.reference || undefined,
+    };
+    if (editingIdx !== null) {
+      onChange(paymentMeans.map((pm, i) => (i === editingIdx ? item : pm)));
+    } else {
+      onChange([...paymentMeans, item]);
+    }
     setDraft(EMPTY_DRAFT);
     setShowForm(false);
+    setEditingIdx(null);
   }
 
   function handleCancel() {
     setDraft(EMPTY_DRAFT);
     setShowForm(false);
+    setEditingIdx(null);
   }
 
   function handleRemove(index: number) {
     onChange(paymentMeans.filter((_, i) => i !== index));
+    if (editingIdx === index) {
+      setDraft(EMPTY_DRAFT);
+      setShowForm(false);
+      setEditingIdx(null);
+    }
   }
 
+  // Al editar, excluir la propia fila del chequeo de duplicado
   const isDuplicate = paymentMeans.some(
-    (pm) => pm.code === draft.code && pm.payment_method_code === draft.paymentMethodCode,
+    (pm, i) => i !== editingIdx && pm.code === draft.code && pm.payment_method_code === draft.paymentMethodCode,
   );
   const canAdd = draft.code !== "" && draft.paymentMethodCode !== "" && !isDuplicate;
 
@@ -76,28 +99,41 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
               </tr>
             </thead>
             <tbody>
-              {paymentMeans.map((pm, i) => (
-                <tr key={i} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
-                  <td className="px-3 py-2 text-(--text-primary)">
-                    {paymentTerms.find((t) => t.code === pm.code)?.name ?? pm.code}
-                  </td>
-                  <td className="px-3 py-2 text-(--text-secondary)">
-                    {paymentMethods.find((m) => m.code === pm.payment_method_code)?.name ?? pm.payment_method_code}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-(--text-secondary)">{pm.due_date || "—"}</td>
-                  <td className="px-3 py-2 text-(--text-secondary)">{pm.payment_reference || "—"}</td>
-                  <td className="px-3 py-2">
-                    <button
-                      type="button"
-                      title="Quitar"
-                      onClick={() => handleRemove(i)}
-                      className="rounded p-1 text-(--color-danger) hover:bg-(--bg-hover)"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {paymentMeans.map((pm, i) => {
+                const isEditing = editingIdx === i;
+                return (
+                  <tr key={i} className={isEditing ? "bg-(--color-info-bg) outline-1 outline-(--color-info-border)" : i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
+                    <td className="px-3 py-2 text-(--text-primary)">
+                      {paymentTerms.find((t) => t.code === pm.code)?.name ?? pm.code}
+                    </td>
+                    <td className="px-3 py-2 text-(--text-secondary)">
+                      {paymentMethods.find((m) => m.code === pm.payment_method_code)?.name ?? pm.payment_method_code}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-(--text-secondary)">{pm.due_date || "—"}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{pm.payment_reference || "—"}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          title="Editar"
+                          onClick={() => handleStartEdit(i)}
+                          className="rounded p-1 text-(--text-muted) hover:bg-(--bg-hover) hover:text-(--accent-primary)"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Quitar"
+                          onClick={() => handleRemove(i)}
+                          className="rounded p-1 text-(--color-danger) hover:bg-(--bg-hover)"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -114,7 +150,7 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
           type="button"
           variant="secondary"
           icon={<Plus className="h-3.5 w-3.5" />}
-          onClick={() => setShowForm(true)}
+          onClick={() => { setEditingIdx(null); setShowForm(true); }}
         >
           Agregar medio de pago
         </Button>
@@ -180,8 +216,13 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
                 <Button type="button" variant="ghost" onClick={handleCancel}>
                   Cancelar
                 </Button>
-                <Button type="button" icon={<Plus className="h-3.5 w-3.5" />} disabled={!canAdd} onClick={handleAdd}>
-                  Agregar
+                <Button
+                  type="button"
+                  icon={editingIdx !== null ? <Pencil className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                  disabled={!canAdd}
+                  onClick={handleSave}
+                >
+                  {editingIdx !== null ? "Guardar cambios" : "Agregar"}
                 </Button>
               </div>
             </div>

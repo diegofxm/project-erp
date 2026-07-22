@@ -987,6 +987,17 @@ func (s *Service) GetDocument(ctx context.Context, id uuid.UUID) (*Document, err
 	return s.repo.GetByID(ctx, id)
 }
 
+// GetRelatedNotes devuelve los NC/ND (para una FE) o NA (para un DS) que referencian el
+// documento (prefix, number) del emisor dado.
+func (s *Service) GetRelatedNotes(ctx context.Context, issuerID uuid.UUID, prefix string, number int64) ([]RelatedNote, error) {
+	return s.repo.GetRelatedNotes(ctx, issuerID, prefix, number)
+}
+
+// GetDocumentByDocumentKey busca una FE/DS por su CUFE/CUDS dentro del emisor.
+func (s *Service) GetDocumentByDocumentKey(ctx context.Context, issuerID uuid.UUID, key string) (*Document, error) {
+	return s.repo.GetByDocumentKey(ctx, issuerID, key)
+}
+
 // DefaultListLimit/MaxListLimit acotan ListDocuments — ningún llamador (HTTP o futuro) puede
 // pedir una página sin límite.
 const (

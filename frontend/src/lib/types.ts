@@ -571,6 +571,18 @@ export interface IssueAdjustmentNotePayload {
   discrepancy_response?: DiscrepancyResponse;
 }
 
+// Espejo de relatedNoteDTO — NC/ND relacionadas con una FE, o NA relacionada con un DS.
+// Solo presente en GET /documents/{id} para documentos confirmados (FE y DS).
+export interface RelatedNote {
+  id: string;
+  dian_document_type_code: string;
+  prefix?: string;
+  number?: number;
+  payable_cents: number;
+  status: DocumentStatus;
+  issue_date?: string;
+}
+
 // Espejo de documentResponse — cubre Factura, NC, ND, DS y NA (Nota de Ajuste DS).
 // billing_reference/discrepancy_response presentes en NC/ND/NA; vendor/operation_type_code/
 // withholding_taxes presentes en DS/NA.
@@ -606,6 +618,11 @@ export interface Document {
   vendor_id?: string; // trazabilidad DS — nil si no se creó desde vendor guardado
   nc_count?: number; // cuántas NC referencian esta factura — solo en el listado
   nd_count?: number; // cuántas ND referencian esta factura — solo en el listado
+  // Solo en GET /documents/{id} para FE (01) y DS (05) confirmados.
+  related_notes?: RelatedNote[];
+  net_payable_cents?: number; // saldo neto = total − NC aceptadas + ND aceptadas (FE) o − NA (DS)
+  // Solo en GET /documents/{id} para NC (91), ND (92) y NA (95).
+  source_document_id?: string; // ID del FE o DS al que esta nota hace referencia
   created_at: string;
   updated_at: string;
 }

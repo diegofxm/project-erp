@@ -21,6 +21,7 @@ import { usePdfFormat } from "../lib/usePdfFormat";
 import type { BillingReference, Document, IssueCreditNotePayload } from "../lib/types";
 import { BackLink } from "../components/ui/BackLink";
 import { Banner } from "../components/ui/Banner";
+import { SourceBalanceBlock } from "../components/ui/SourceBalanceBlock";
 import { DianStatusBlock } from "../components/DianStatusBlock";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -61,6 +62,7 @@ export function CreditNoteEditorPage() {
   const [doc, setDoc] = useState<Document | null>(null);
   const [sourceDoc, setSourceDoc] = useState<Document | null>(null); // factura de origen (solo cuando isNew)
   const [billingRef, setBillingRef] = useState<BillingReference | null>(null);
+  const [pendingCents, setPendingCents] = useState(0);
   const [loadingDocument, setLoadingDocument] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -93,6 +95,9 @@ export function CreditNoteEditorPage() {
         .then((d) => {
           setDoc(d);
           if (d.billing_reference) setBillingRef(d.billing_reference);
+          if (d.source_document_id) {
+            getDocument(d.source_document_id).then(setSourceDoc).catch(() => {});
+          }
         })
         .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la nota crédito"))
         .finally(() => setLoadingDocument(false));
@@ -216,7 +221,10 @@ export function CreditNoteEditorPage() {
 
   return (
     <div className="p-4">
-      <BackLink to="/documents/credit-notes" label="Notas Crédito" />
+      <BackLink
+        to={isNew && sourceInvoiceId ? `/documents/invoices/${sourceInvoiceId}` : "/documents/credit-notes"}
+        label={isNew && sourceDoc ? `Factura ${sourceDoc.prefix ?? ""}${sourceDoc.number ?? ""}` : "Notas Crédito"}
+      />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
             <FileMinus className="h-4 w-4 shrink-0 text-(--accent-primary)" />
@@ -274,6 +282,14 @@ export function CreditNoteEditorPage() {
         </Banner>
       )}
 
+      {sourceDoc && (
+        <SourceBalanceBlock
+          doc={sourceDoc}
+          pendingCents={pendingCents > 0 ? pendingCents : undefined}
+          pendingTypeCode="91"
+        />
+      )}
+
       {showForm ? (
         <Card className="mt-3">
           <CreditNoteForm
@@ -281,8 +297,9 @@ export function CreditNoteEditorPage() {
             prefill={isNew ? sourceDoc : null}
             billingReference={billingRef}
             onSubmit={handleSubmit}
-            onCancel={() => navigate("/documents/credit-notes")}
+            onCancel={() => navigate(isNew && sourceInvoiceId ? `/documents/invoices/${sourceInvoiceId}` : "/documents/credit-notes")}
             loading={saving}
+            onTotalChange={setPendingCents}
           />
         </Card>
       ) : doc ? (

@@ -21,6 +21,7 @@ import { usePdfFormat } from "../lib/usePdfFormat";
 import type { BillingReference, Document, IssueDebitNotePayload } from "../lib/types";
 import { BackLink } from "../components/ui/BackLink";
 import { Banner } from "../components/ui/Banner";
+import { SourceBalanceBlock } from "../components/ui/SourceBalanceBlock";
 import { DianStatusBlock } from "../components/DianStatusBlock";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -58,6 +59,7 @@ export function DebitNoteEditorPage() {
   const [doc, setDoc] = useState<Document | null>(null);
   const [sourceDoc, setSourceDoc] = useState<Document | null>(null);
   const [billingRef, setBillingRef] = useState<BillingReference | null>(null);
+  const [pendingCents, setPendingCents] = useState(0);
   const [loadingDocument, setLoadingDocument] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -90,6 +92,9 @@ export function DebitNoteEditorPage() {
         .then((d) => {
           setDoc(d);
           if (d.billing_reference) setBillingRef(d.billing_reference);
+          if (d.source_document_id) {
+            getDocument(d.source_document_id).then(setSourceDoc).catch(() => {});
+          }
         })
         .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la nota débito"))
         .finally(() => setLoadingDocument(false));
@@ -213,7 +218,10 @@ export function DebitNoteEditorPage() {
 
   return (
     <div className="p-4">
-      <BackLink to="/documents/debit-notes" label="Notas Débito" />
+      <BackLink
+        to={isNew && sourceInvoiceId ? `/documents/invoices/${sourceInvoiceId}` : "/documents/debit-notes"}
+        label={isNew && sourceDoc ? `Factura ${sourceDoc.prefix ?? ""}${sourceDoc.number ?? ""}` : "Notas Débito"}
+      />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
             <FilePlus className="h-4 w-4 shrink-0 text-(--accent-primary)" />
@@ -271,6 +279,14 @@ export function DebitNoteEditorPage() {
         </Banner>
       )}
 
+      {sourceDoc && (
+        <SourceBalanceBlock
+          doc={sourceDoc}
+          pendingCents={pendingCents > 0 ? pendingCents : undefined}
+          pendingTypeCode="92"
+        />
+      )}
+
       {showForm ? (
         <Card className="mt-3">
           <DebitNoteForm
@@ -278,8 +294,9 @@ export function DebitNoteEditorPage() {
             prefill={isNew ? sourceDoc : null}
             billingReference={billingRef}
             onSubmit={handleSubmit}
-            onCancel={() => navigate("/documents/debit-notes")}
+            onCancel={() => navigate(isNew && sourceInvoiceId ? `/documents/invoices/${sourceInvoiceId}` : "/documents/debit-notes")}
             loading={saving}
+            onTotalChange={setPendingCents}
           />
         </Card>
       ) : doc ? (

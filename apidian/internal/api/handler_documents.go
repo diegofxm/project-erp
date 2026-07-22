@@ -124,11 +124,64 @@ type documentResponse struct {
 	NCCount int `json:"nc_count,omitempty"`
 	NDCount int `json:"nd_count,omitempty"`
 
+	// RelatedNotes/NetPayableCents: solo presentes en GET /documents/{id} para FE (01) y DS
+	// (05) confirmados — vacíos en borradores, en NC/ND/NA y en el listado de documentos.
+	RelatedNotes    []relatedNoteDTO `json:"related_notes,omitempty"`
+	NetPayableCents *int64           `json:"net_payable_cents,omitempty"`
+
+	// SourceDocumentID: ID del FE o DS al que esta NC/ND/NA hace referencia. Solo presente en
+	// NC (91), ND (92) y NA (95) — se resuelve buscando por el CUFE del billing_reference.
+	SourceDocumentID *uuid.UUID `json:"source_document_id,omitempty"`
+
 	// CreatedAt/UpdatedAt — mismo criterio que customerResponse/productResponse. Un borrador
 	// no tiene IssueDate todavía, así que es lo único con lo que un listado puede ordenar u
 	// ofrecer "creado hace X" antes de confirmar.
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// relatedNoteDTO es la vista pública de un NC/ND/NA relacionado con un documento.
+type relatedNoteDTO struct {
+	ID                   uuid.UUID  `json:"id"`
+	DianDocumentTypeCode string     `json:"dian_document_type_code"`
+	Prefix               string     `json:"prefix,omitempty"`
+	Number               int64      `json:"number,omitempty"`
+	PayableCents         int64      `json:"payable_cents"`
+	Status               string     `json:"status"`
+	IssueDate            *time.Time `json:"issue_date,omitempty"`
+}
+
+func relatedNoteToDTO(n documents.RelatedNote) relatedNoteDTO {
+	return relatedNoteDTO{
+		ID:                   n.ID,
+		DianDocumentTypeCode: n.DianDocumentTypeCode,
+		Prefix:               n.Prefix,
+		Number:               n.Number,
+		PayableCents:         n.PayableCents,
+		Status:               string(n.Status),
+		IssueDate:            n.IssueDate,
+	}
+}
+
+// computeNetPayable calcula el saldo neto de una FE o DS dado el conjunto de notas relacionadas.
+// Para FE: payable − Σ NC aceptadas + Σ ND aceptadas.
+// Para DS: payable − Σ NA aceptadas.
+func computeNetPayable(doc *documents.Document, notes []documents.RelatedNote) *int64 {
+	net := doc.Totals.PayableCents
+	for _, n := range notes {
+		if n.Status != documents.StatusAccepted {
+			continue
+		}
+		switch n.DianDocumentTypeCode {
+		case "91": // NC — reduce saldo
+			net -= n.PayableCents
+		case "92": // ND — aumenta saldo
+			net += n.PayableCents
+		case "95": // NA — reduce saldo del DS
+			net -= n.PayableCents
+		}
+	}
+	return &net
 }
 
 func documentToResponse(d *documents.Document) documentResponse {
@@ -502,12 +555,36 @@ func (a *API) handleGetDocument(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, err)
 		return
 	}
-	if doc.IssuerID != middleware.GetTenantID(r.Context()) {
+	issuerID := middleware.GetTenantID(r.Context())
+	if doc.IssuerID != issuerID {
 		response.WriteError(w, documents.ErrDocumentNotFound)
 		return
 	}
 
-	response.WriteJSON(w, http.StatusOK, documentToResponse(doc))
+	resp := documentToResponse(doc)
+
+	// Para FE (01) y DS (05) confirmados: adjuntar notas relacionadas y saldo neto.
+	if doc.Number != 0 && (doc.DianDocumentTypeCode == "01" || doc.DianDocumentTypeCode == "05") {
+		notes, err := a.documents.GetRelatedNotes(r.Context(), issuerID, doc.Prefix, doc.Number)
+		if err == nil {
+			dtos := make([]relatedNoteDTO, len(notes))
+			for i, n := range notes {
+				dtos[i] = relatedNoteToDTO(n)
+			}
+			resp.RelatedNotes = dtos
+			resp.NetPayableCents = computeNetPayable(doc, notes)
+		}
+	}
+
+	// Para NC (91), ND (92) y NA (95): resolver el ID del documento de origen por CUFE.
+	if (doc.DianDocumentTypeCode == "91" || doc.DianDocumentTypeCode == "92" || doc.DianDocumentTypeCode == "95") &&
+		doc.BillingReference != nil && doc.BillingReference.CUFE != "" {
+		if srcDoc, err := a.documents.GetDocumentByDocumentKey(r.Context(), issuerID, doc.BillingReference.CUFE); err == nil {
+			resp.SourceDocumentID = &srcDoc.ID
+		}
+	}
+
+	response.WriteJSON(w, http.StatusOK, resp)
 }
 
 // handleGetDocumentPDF sirve la representación gráfica en PDF — generada en memoria en cada

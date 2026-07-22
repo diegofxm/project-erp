@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BookCopy, FileCode, FileText, Mail, Send, Trash2 } from "lucide-react";
+import { BookCopy, ExternalLink, FileCode, FileDiff, FileText, Mail, Send, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import {
   confirmDocument,
@@ -197,6 +197,16 @@ export function SupportDocumentEditorPage() {
               Enviar al proveedor
             </Button>
           )}
+          {!isNew && doc?.status === "accepted" && (
+            <Button
+              type="button"
+              variant="secondary"
+              icon={<FileDiff className="h-3.5 w-3.5" />}
+              onClick={() => navigate(`/documents/adjustment-notes/new?from=${id}`)}
+            >
+              Emitir Nota de Ajuste
+            </Button>
+          )}
           {!isNew && doc?.status === "draft" && (
             <>
               <Button
@@ -282,6 +292,41 @@ export function SupportDocumentEditorPage() {
 
           <DianStatusBlock statusCode={doc.dian_status_code} description={doc.dian_status_description} message={doc.dian_status_message} />
 
+          {doc.related_notes && doc.related_notes.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold text-(--text-primary)">
+                Notas de Ajuste emitidas ({doc.related_notes.length})
+              </p>
+              <div className="flex flex-col gap-1">
+                {doc.related_notes.map((note) => {
+                  const ident = note.prefix || note.number ? ` ${note.prefix ?? ""}${note.number ?? ""}` : " (borrador)";
+                  return (
+                    <div
+                      key={note.id}
+                      className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-secondary) px-3 py-2 text-xs"
+                    >
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium text-(--text-primary)">Nota de Ajuste{ident}</span>
+                        <span className="font-mono text-(--text-secondary)">{formatCOP.format(note.payable_cents / 100)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={note.status} />
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/documents/adjustment-notes/${note.id}`)}
+                          className="flex items-center gap-1 text-(--accent-primary) hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Ver
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {doc.withholding_taxes && doc.withholding_taxes.length > 0 && (
             <div>
               <h3 className="mb-2 text-xs font-semibold text-(--text-primary)">Retenciones</h3>
@@ -344,6 +389,11 @@ export function SupportDocumentEditorPage() {
               <span>Retenciones: <span className="font-mono text-(--danger)">− {formatCOP.format(withholdingTotal / 100)}</span></span>
             )}
             <span className="font-semibold">A pagar: <span className="font-mono text-(--text-primary)">{formatCOP.format(netPayable / 100)}</span></span>
+            {doc.net_payable_cents !== undefined && doc.net_payable_cents !== doc.totals.payable_cents && (
+              <span className="font-semibold text-(--accent-primary)">
+                Saldo efectivo: <span className="font-mono">{formatCOP.format(doc.net_payable_cents / 100)}</span>
+              </span>
+            )}
           </div>
         </Card>
       ) : null}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { FileDiff, FileCode, FileText, Mail, Send, Trash2 } from "lucide-react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   confirmDocument,
   createAdjustmentNoteDraft,
@@ -18,9 +18,10 @@ import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { usePdfFormat } from "../lib/usePdfFormat";
-import type { Document, IssueAdjustmentNotePayload } from "../lib/types";
+import type { BillingReference, Document, IssueAdjustmentNotePayload } from "../lib/types";
 import { BackLink } from "../components/ui/BackLink";
 import { Banner } from "../components/ui/Banner";
+import { SourceBalanceBlock } from "../components/ui/SourceBalanceBlock";
 import { DianStatusBlock } from "../components/DianStatusBlock";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -30,16 +31,30 @@ import { StatusBadge } from "../components/invoice-form/StatusBadge";
 
 const OPERATION_LABELS: Record<string, string> = { "10": "Residente", "11": "No Residente" };
 
+function billingRefFromDoc(doc: Document): BillingReference {
+  return {
+    prefix: doc.prefix ?? "",
+    number: doc.number?.toString() ?? "",
+    cufe: doc.document_key ?? "",
+    issue_date: doc.issue_date?.slice(0, 10) ?? "",
+  };
+}
+
 export function AdjustmentNoteEditorPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { activeIssuer } = useAuth();
   const confirmDialog = useConfirm();
   const toast = useToast();
   const isNew = id === "new";
+  const sourceDocId = searchParams.get("from");
 
   const [doc, setDoc] = useState<Document | null>(null);
-  const [loadingDocument, setLoadingDocument] = useState(!isNew);
+  const [sourceDoc, setSourceDoc] = useState<Document | null>(null);
+  const [billingRef, setBillingRef] = useState<BillingReference | null>(null);
+  const [pendingCents, setPendingCents] = useState(0);
+  const [loadingDocument, setLoadingDocument] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -49,12 +64,38 @@ export function AdjustmentNoteEditorPage() {
   const [pdfFormat] = usePdfFormat();
 
   useEffect(() => {
-    if (isNew || !id) return;
-    getDocument(id)
-      .then(setDoc)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la nota de ajuste"))
-      .finally(() => setLoadingDocument(false));
-  }, [id, isNew]);
+    if (isNew) {
+      if (!sourceDocId) {
+        setError("Falta el parámetro ?from= con el ID del Documento Soporte de referencia.");
+        setLoadingDocument(false);
+        return;
+      }
+      getDocument(sourceDocId)
+        .then((src) => {
+          if (src.status !== "accepted") {
+            setError("El Documento Soporte debe estar aceptado por la DIAN antes de emitir una nota de ajuste.");
+            return;
+          }
+          setBillingRef(billingRefFromDoc(src));
+          setSourceDoc(src);
+        })
+        .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar el Documento Soporte de referencia"))
+        .finally(() => setLoadingDocument(false));
+    } else if (id) {
+      getDocument(id)
+        .then((d) => {
+          setDoc(d);
+          if (d.billing_reference) setBillingRef(d.billing_reference);
+          if (d.source_document_id) {
+            getDocument(d.source_document_id).then(setSourceDoc).catch(() => {});
+          }
+        })
+        .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la nota de ajuste"))
+        .finally(() => setLoadingDocument(false));
+    } else {
+      setLoadingDocument(false);
+    }
+  }, [id, isNew, sourceDocId]);
 
   async function handleSubmit(payload: IssueAdjustmentNotePayload) {
     setError(null);
@@ -167,14 +208,17 @@ export function AdjustmentNoteEditorPage() {
     ? `Nota de Ajuste ${doc.prefix}${doc.number}`
     : "Nota de Ajuste";
 
-  const showForm = isNew || doc?.status === "draft";
+  const showForm = (isNew || doc?.status === "draft") && billingRef;
 
   const withholdingTotal = doc?.withholding_taxes?.reduce((s, t) => s + t.tax_amount_cents, 0) ?? 0;
   const netPayable = (doc?.totals.payable_cents ?? 0) - withholdingTotal;
 
   return (
     <div className="p-4">
-      <BackLink to="/documents/adjustment-notes" label="Notas de Ajuste" />
+      <BackLink
+        to={isNew && sourceDocId ? `/documents/support-documents/${sourceDocId}` : "/documents/adjustment-notes"}
+        label={isNew && sourceDoc ? `DS ${sourceDoc.prefix ?? ""}${sourceDoc.number ?? ""}` : "Notas de Ajuste"}
+      />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <FileDiff className="h-4 w-4 shrink-0 text-(--accent-primary)" />
@@ -231,13 +275,24 @@ export function AdjustmentNoteEditorPage() {
         </Banner>
       )}
 
+      {sourceDoc && (
+        <SourceBalanceBlock
+          doc={sourceDoc}
+          pendingCents={pendingCents > 0 ? pendingCents : undefined}
+          pendingTypeCode="95"
+        />
+      )}
+
       {showForm ? (
         <Card className="mt-3">
           <AdjustmentNoteForm
             initial={isNew ? null : doc}
+            prefill={isNew ? sourceDoc : null}
+            billingReference={billingRef!}
             onSubmit={handleSubmit}
-            onCancel={() => navigate("/documents/adjustment-notes")}
+            onCancel={() => navigate(isNew && sourceDocId ? `/documents/support-documents/${sourceDocId}` : "/documents/adjustment-notes")}
             loading={saving}
+            onTotalChange={setPendingCents}
           />
         </Card>
       ) : doc ? (

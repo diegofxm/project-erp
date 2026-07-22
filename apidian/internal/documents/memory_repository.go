@@ -48,6 +48,18 @@ func (r *MemoryRepository) GetByID(_ context.Context, id uuid.UUID) (*Document, 
 	return &cp, nil
 }
 
+func (r *MemoryRepository) GetByDocumentKey(_ context.Context, issuerID uuid.UUID, key string) (*Document, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, d := range r.docs {
+		if d.IssuerID == issuerID && d.DocumentKey == key {
+			cp := *d
+			return &cp, nil
+		}
+	}
+	return nil, ErrDocumentNotFound
+}
+
 func (r *MemoryRepository) UpdateDianStatus(_ context.Context, id uuid.UUID, status Status, trackID, statusCode, statusDescription, statusMessage, applicationResponseXML string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -204,4 +216,36 @@ func (r *MemoryRepository) GetBillingStats(_ context.Context, _ uuid.UUID) (*Bil
 		ByType: []TypeStats{},
 		Series: []MonthSeries{},
 	}, nil
+}
+
+// GetRelatedNotes devuelve notas relacionadas en memoria — busca NC/ND/NA cuyo
+// billing_reference apunte a (prefix, number) del mismo emisor.
+func (r *MemoryRepository) GetRelatedNotes(_ context.Context, issuerID uuid.UUID, prefix string, number int64) ([]RelatedNote, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	numStr := fmt.Sprintf("%d", number)
+	var out []RelatedNote
+	for _, d := range r.docs {
+		if d.IssuerID != issuerID || d.BillingReference == nil {
+			continue
+		}
+		if d.BillingReference.Prefix != prefix || d.BillingReference.Number != numStr {
+			continue
+		}
+		n := RelatedNote{
+			ID:                   d.ID,
+			DianDocumentTypeCode: d.DianDocumentTypeCode,
+			Prefix:               d.Prefix,
+			Number:               d.Number,
+			PayableCents:         d.Totals.PayableCents,
+			Status:               d.Status,
+		}
+		if !d.IssueDate.IsZero() {
+			t := d.IssueDate
+			n.IssueDate = &t
+		}
+		out = append(out, n)
+	}
+	return out, nil
 }
