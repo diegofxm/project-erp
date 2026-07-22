@@ -84,7 +84,7 @@ export function AdjustmentNotesPage() {
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-(--text-muted)" />
           <input
             type="search"
-            placeholder="Tercero o número..."
+            placeholder="Tercero, NIT o número..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="rounded border border-(--border-color) bg-(--bg-primary) py-1 pl-6 pr-2 text-xs text-(--text-primary) transition-colors w-44"

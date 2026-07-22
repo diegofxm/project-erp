@@ -280,10 +280,14 @@ func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUI
 	if filter.Search != "" {
 		args = append(args, "%"+filter.Search+"%")
 		n := len(args)
-		query += fmt.Sprintf(
-			" AND (customer->>'name' ILIKE $%[1]d OR vendor->>'name' ILIKE $%[1]d OR CONCAT(COALESCE(prefix,''), COALESCE(number::text,'')) ILIKE $%[1]d)",
-			n,
-		)
+		query += fmt.Sprintf(`
+			AND (
+				customer->>'Name' ILIKE $%[1]d
+				OR vendor->>'Name'  ILIKE $%[1]d
+				OR customer->'Identification'->>'Number' ILIKE $%[1]d
+				OR vendor->'Identification'->>'Number'   ILIKE $%[1]d
+				OR CONCAT(COALESCE(prefix,''), COALESCE(number::text,'')) ILIKE $%[1]d
+			)`, n)
 	}
 
 	args = append(args, filter.Limit, filter.Offset)

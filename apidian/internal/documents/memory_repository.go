@@ -171,9 +171,16 @@ func (r *MemoryRepository) ListByIssuer(_ context.Context, issuerID uuid.UUID, f
 		if filter.Search != "" {
 			q := strings.ToLower(filter.Search)
 			custName := strings.ToLower(d.Customer.Name)
+			custNIT := strings.ToLower(d.Customer.Identification.Number)
 			vendName := strings.ToLower(d.Vendor.Name)
+			vendNIT := ""
+			if d.Vendor != nil {
+				vendNIT = strings.ToLower(d.Vendor.Identification.Number)
+			}
 			docNum := strings.ToLower(d.Prefix + fmt.Sprintf("%d", d.Number))
-			if !strings.Contains(custName, q) && !strings.Contains(vendName, q) && !strings.Contains(docNum, q) {
+			if !strings.Contains(custName, q) && !strings.Contains(custNIT, q) &&
+				!strings.Contains(vendName, q) && !strings.Contains(vendNIT, q) &&
+				!strings.Contains(docNum, q) {
 				continue
 			}
 		}
