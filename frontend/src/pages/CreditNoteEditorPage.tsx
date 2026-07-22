@@ -19,6 +19,7 @@ import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { BillingReference, Document, IssueCreditNotePayload } from "../lib/types";
+import { BackLink } from "../components/ui/BackLink";
 import { Banner } from "../components/ui/Banner";
 import { DianStatusBlock } from "../components/DianStatusBlock";
 import { Button } from "../components/ui/Button";
@@ -215,6 +216,7 @@ export function CreditNoteEditorPage() {
 
   return (
     <div className="p-4">
+      <BackLink to="/documents/credit-notes" label="Notas Crédito" />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
             <FileMinus className="h-4 w-4 shrink-0 text-(--accent-primary)" />

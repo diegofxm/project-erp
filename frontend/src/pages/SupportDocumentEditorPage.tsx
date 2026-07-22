@@ -19,6 +19,7 @@ import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { Document, IssueSupportDocumentPayload } from "../lib/types";
+import { BackLink } from "../components/ui/BackLink";
 import { Banner } from "../components/ui/Banner";
 import { DianStatusBlock } from "../components/DianStatusBlock";
 import { Button } from "../components/ui/Button";
@@ -173,6 +174,7 @@ export function SupportDocumentEditorPage() {
 
   return (
     <div className="p-4">
+      <BackLink to="/documents/support-documents" label="Documentos Soporte" />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <BookCopy className="h-4 w-4 shrink-0 text-(--accent-primary)" />
