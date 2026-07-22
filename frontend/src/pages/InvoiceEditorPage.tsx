@@ -197,26 +197,32 @@ export function InvoiceEditorPage() {
               Enviar al cliente
             </Button>
           )}
-          {!isNew && doc?.status === "accepted" && (
-            <Button
-              type="button"
-              variant="secondary"
-              icon={<FileMinus className="h-3.5 w-3.5" />}
-              onClick={() => navigate(`/documents/credit-notes/new?from=${id}`)}
-            >
-              Emitir Nota Crédito
-            </Button>
-          )}
-          {!isNew && doc?.status === "accepted" && (
-            <Button
-              type="button"
-              variant="secondary"
-              icon={<FilePlus className="h-3.5 w-3.5" />}
-              onClick={() => navigate(`/documents/debit-notes/new?from=${id}`)}
-            >
-              Emitir Nota Débito
-            </Button>
-          )}
+          {!isNew && doc?.status === "accepted" && (() => {
+            const draftNC = doc.related_notes?.find(n => n.dian_document_type_code === "91" && n.status === "draft");
+            return (
+              <Button
+                type="button"
+                variant="secondary"
+                icon={<FileMinus className="h-3.5 w-3.5" />}
+                onClick={() => navigate(draftNC ? `/documents/credit-notes/${draftNC.id}` : `/documents/credit-notes/new?from=${id}`)}
+              >
+                {draftNC ? "Editar borrador NC" : "Emitir Nota Crédito"}
+              </Button>
+            );
+          })()}
+          {!isNew && doc?.status === "accepted" && (() => {
+            const draftND = doc.related_notes?.find(n => n.dian_document_type_code === "92" && n.status === "draft");
+            return (
+              <Button
+                type="button"
+                variant="secondary"
+                icon={<FilePlus className="h-3.5 w-3.5" />}
+                onClick={() => navigate(draftND ? `/documents/debit-notes/${draftND.id}` : `/documents/debit-notes/new?from=${id}`)}
+              >
+                {draftND ? "Editar borrador ND" : "Emitir Nota Débito"}
+              </Button>
+            );
+          })()}
           {!isNew && doc?.status === "draft" && (
             <>
               <Button type="button" variant="danger" icon={<Trash2 className="h-3.5 w-3.5" />} onClick={handleDelete} disabled={confirming}>

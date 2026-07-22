@@ -197,16 +197,19 @@ export function SupportDocumentEditorPage() {
               Enviar al proveedor
             </Button>
           )}
-          {!isNew && doc?.status === "accepted" && (
-            <Button
-              type="button"
-              variant="secondary"
-              icon={<FileDiff className="h-3.5 w-3.5" />}
-              onClick={() => navigate(`/documents/adjustment-notes/new?from=${id}`)}
-            >
-              Emitir Nota de Ajuste
-            </Button>
-          )}
+          {!isNew && doc?.status === "accepted" && (() => {
+            const draftNA = doc.related_notes?.find(n => n.dian_document_type_code === "95" && n.status === "draft");
+            return (
+              <Button
+                type="button"
+                variant="secondary"
+                icon={<FileDiff className="h-3.5 w-3.5" />}
+                onClick={() => navigate(draftNA ? `/documents/adjustment-notes/${draftNA.id}` : `/documents/adjustment-notes/new?from=${id}`)}
+              >
+                {draftNA ? "Editar borrador NA" : "Emitir Nota de Ajuste"}
+              </Button>
+            );
+          })()}
           {!isNew && doc?.status === "draft" && (
             <>
               <Button
