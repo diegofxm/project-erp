@@ -1072,6 +1072,70 @@ Regla adoptada: columnas angostas (`col-span-3`) → `col-span-6 sm:col-span-3` 
 
 ---
 
+## Sincronización de rangos de numeración con la DIAN ("Sincronizar con DIAN")
+
+### Flujo general
+
+`NumberingRangesPanel.tsx` expone un botón "Sincronizar con DIAN" que:
+
+1. Llama `getDianNumberingRanges()` → `GET /api/v1/dian/numbering-ranges` (nuevo endpoint, ver `apidian-architecture.md`)
+2. Abre un modal `ImportModal` con una tarjeta por rango devuelto por la DIAN
+3. El usuario revisa, ajusta `dian_document_type_code` (pre-sugerido por prefijo) y `test_set_id` (solo en HAB), y presiona "Importar rango" en cada tarjeta
+4. La tarjeta muestra "Ya existe en el sistema" si el prefijo ya está en la lista local, o "✓ Importado" tras una importación exitosa
+
+### Implementación
+
+- `frontend/src/lib/types.ts`: `DianRange` + `GetDianNumberingRangesResult`
+- `frontend/src/lib/dianVerification.ts`: `getDianNumberingRanges()` (reutiliza `apiClient`)
+- `NumberingRangesPanel.tsx`: estado `importModal`, `handleOpenImport` (loading en botón, toast.error en fallo), `handleImportRange` (construye `CreateNumberingRangePayload`, no manda `technical_key` si no es FE "01", no manda `test_set_id` si no es HAB)
+- Números de rango sin `.toLocaleString()` (sin puntos de miles) — decisión explícita del usuario
+
+### Backend: `GET /api/v1/dian/numbering-ranges`
+
+- Nuevo handler `handleGetDianNumberingRanges` en `apidian/internal/api/handler_documents.go`
+- Servicio `documents.Service.GetDianNumberingRanges` en `apidian/internal/documents/dian_ranges.go`:
+  - Carga certificado PKCS12 del emisor autenticado
+  - Detecta HAB vs PRD desde `issuer.Environment`
+  - Llama `cofacture/soap.Client.GetNumberingRange`
+  - Retorna `[]DianRange` con fechas sin hora (`trimISODateTime`), `SuggestedDocTypeCode` derivado del prefijo (`inferDocTypeFromPrefix`: "SETP"→"01", "SEDS"→"05")
+- Motivo de estar en `documents` (no `numbering`): requiere PKCS12 del emisor y el cliente SOAP, exactamente igual que `VerifyAcquirer` — `numbering` es CRUD puro sin SOAP
+
+---
+
+## Botón "Verificar en la DIAN" para todos los tipos de identificación
+
+`PartyFields.tsx` — el botón "Verificar en la DIAN" (llama `GetAcquirer`) estuvo inicialmente
+limitado a `type_code === "31"` (NIT). Se eliminó esa condición: el botón se muestra para
+cualquier tipo de identificación, deshabilitado solo si el número está vacío. El resultado
+esperado para cédulas/otros tipos es `found: false` (la mayoría no están en el registro de
+intercambio electrónico de la DIAN, que es distinto del RUT).
+
+---
+
+## `SettingsActivityPage` — grilla de una sola línea con paginador
+
+### Diseño
+
+- **6 columnas fijas**: `grid-cols-[140px_90px_110px_1fr_130px_160px]`
+  - Acción (badge de color)
+  - Tipo de doc + env abreviado ("HAB"/"PRD")
+  - Referencia `PREFIX-NÚMERO` (mono, clickeable → detalle del documento)
+  - Tercero (`flex-1 truncate`)
+  - Usuario (nombre o email)
+  - Fecha · hora (texto a la derecha, `whitespace-nowrap`)
+- Cabecera de columnas con la misma grilla
+- Hora en formato 24h (`hour12: false`) para evitar que "p. m." rompa a segunda línea
+- `whitespace-nowrap` en la columna de fecha; columna de 160px para la hora completa
+
+### Paginador
+
+- 20 eventos por página (`PAGE_SIZE = 20`)
+- Carga hasta 200 eventos desde el backend (`limit: 200`)
+- Controles Anterior/Siguiente deshabilitados en los extremos
+- Contador "X–Y de N" a la izquierda
+
+---
+
 ## Pendiente para próximas fases
 
 - **Prueba NA contra DIAN real** — crear rango tipo "95", confirmar y enviar un borrador NA.

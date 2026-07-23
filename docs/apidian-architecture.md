@@ -2953,3 +2953,46 @@ actual" en horario colombiano (UTC-5, sin DST).
 - Tabla de actividad reciente: últimos 6 documentos con `StatusBadge`.
 - Peticiones en paralelo (`getBillingStats()` + `listDocuments({limit:6})`) en un `useEffect`
   que se re-ejecuta cuando cambia `activeIssuer?.id`.
+
+### 9.58 `GET /api/v1/dian/numbering-ranges` — sincronizar rangos desde la DIAN (2026-07-22)
+
+**Propósito**: consultar directamente a la DIAN las resoluciones de numeración asociadas al
+software del emisor autenticado y pre-llenar los campos al registrar un rango nuevo.
+
+**Endpoint**: `GET /api/v1/dian/numbering-ranges` — requiere auth + tenant activo + emisor con
+certificado y `software_id` configurados (sino `ErrIssuerNotReadyToIssue` → HTTP 422).
+
+**Respuesta**:
+```json
+{
+  "ranges": [
+    {
+      "resolution_number": "18760000001",
+      "resolution_date": "2019-01-19",
+      "prefix": "SETP",
+      "range_from": 990000000,
+      "range_to": 999999999,
+      "valid_from": "2019-01-19",
+      "valid_to": "2030-01-19",
+      "technical_key": "fc8eac422eba16e22ffd8c6f94b3f40a...",
+      "suggested_doc_type_code": "01"
+    }
+  ]
+}
+```
+
+**Implementación**:
+- `apidian/internal/documents/dian_ranges.go` — `Service.GetDianNumberingRanges`:
+  - Mismo patrón que `VerifyAcquirer` (vive en `documents`, no en `numbering`, porque necesita
+    el certificado PKCS12 del emisor y el cliente SOAP cofacture)
+  - `trimISODateTime`: convierte "2019-01-19T00:00:00" → "2019-01-19"
+  - `inferDocTypeFromPrefix`: "SETP"→"01" (Factura), "SEDS"→"05" (DS), resto→""
+  - Detecta HAB vs PRD de `issuer.Environment`, igual que el resto del pipeline
+- `apidian/internal/api/handler_documents.go` — `handleGetDianNumberingRanges` + `dianRangeItem`
+- `apidian/internal/api/api.go` — ruta `GET /api/v1/dian/numbering-ranges`
+
+**De los 10 campos de un `numbering_range`**, 8 se auto-llenan del SOAP (resolution_number,
+resolution_date, prefix, range_from, range_to, valid_from, valid_to, technical_key); el usuario
+solo elige `dian_document_type_code` (pre-sugerido) y `test_set_id` (solo en HAB).
+
+Ver `docs/frontend-architecture.md` para el UX del modal "Sincronizar con DIAN".
