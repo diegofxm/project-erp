@@ -67,7 +67,7 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode, editing
           <p className="font-semibold text-(--color-info-text)">
             {docLabel} {doc.prefix ?? ""}{doc.number ?? ""}
           </p>
-          <InfoTip direction="down">
+          <InfoTip>
             Este panel es un <strong>visor didáctico de saldo</strong>: te muestra cómo
             quedaría el documento de origen después de aplicar las notas emitidas.
             {projectedCents !== null
