@@ -1,54 +1,26 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
-<svg
-   width="255.716"
-   height="255.716"
-   viewBox="0 0 67.658213 67.658191"
-   version="1.1"
-   id="svg1"
-   sodipodi:docname="favicon.svg"
-   xml:space="preserve"
-   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg"><sodipodi:namedview
-     id="namedview1"
-     pagecolor="#ffffff"
-     bordercolor="#000000"
-     borderopacity="0.25"
-     inkscape:showpageshadow="2"
-     inkscape:pageopacity="0.0"
-     inkscape:pagecheckerboard="0"
-     inkscape:deskcolor="#d1d1d1"
-     inkscape:zoom="1.8225807"
-     inkscape:cx="198.34512"
-     inkscape:cy="195.05309"
-     inkscape:window-width="1920"
-     inkscape:window-height="974"
-     inkscape:window-x="-11"
-     inkscape:window-y="-11"
-     inkscape:window-maximized="1"
-     inkscape:current-layer="svg1" /><defs
-     id="defs1" /><path
-     d="m 13.32321,8e-6 h 27.593905 l 20.371737,20.521716 v 40.18264 c 0,3.82454 -3.12931,6.95383 -6.95395,6.95383 H 13.32321 c -3.82463,0 -6.95386,-3.12922 -6.95386,-6.95383 V 6.953876 C 6.36935,3.129238 9.49858,8e-6 13.32321,8e-6 Z"
-     style="fill:#00247b;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.287906"
-     id="path89-4" /><path
-     d="m 57.175892,23.032464 -18.77956,0.003 -0.0081,-18.922483 H 13.322974 c -1.554205,0 -2.84066,1.286455 -2.84066,2.84066 v 53.750553 c 0,1.55421 1.286455,2.84063 2.84066,2.84063 h 41.011698 c 1.5542,0 2.84072,-1.28642 2.84072,-2.84063 z"
-     style="fill:#0087d1;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.287906"
-     id="path90-2" /><path
-     d="m 42.484171,8.027959 0.01526,10.695065 10.653551,0.0236 z"
-     style="fill:#0087d1;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:0.287906"
-     id="path91-3" /><text
-     xml:space="preserve"
-     style="font-weight:bold;font-size:42.0523px;font-family:Rajdhani;-inkscape-font-specification:'Rajdhani Bold';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:3.31162"
-     x="14.398266"
-     y="55.463654"
-     id="text1-2"><tspan
-       id="tspan1-2"
-       style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:3.31162"
-       x="14.398266"
-       y="55.463654"><tspan
-         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:3.31162"
-         id="tspan2-1">co</tspan></tspan></text></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Creator: CorelDRAW -->
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="0.693331in" height="0.853331in" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+viewBox="0 0 693.33 853.33"
+ xmlns:xlink="http://www.w3.org/1999/xlink"
+ xmlns:xodm="http://www.corel.com/coreldraw/odm/2003">
+ <defs>
+  <style type="text/css">
+   <![CDATA[
+    .fil2 {fill:#FEFEFE}
+    .fil0 {fill:#00247B}
+    .fil1 {fill:#0087D1}
+   ]]>
+  </style>
+ </defs>
+ <g id="Capa_x0020_1">
+  <metadata id="CorelCorpID_0Corel-Layer"/>
+  <g id="_2852508881680">
+   <path class="fil0" d="M83.33 0l351.93 0 258.08 258.08 0 511.93c0,45.83 -37.5,83.33 -83.33,83.33l-526.67 0c-45.83,0 -83.33,-37.5 -83.33,-83.33l0 -686.67c0,-45.83 37.5,-83.33 83.33,-83.33z"/>
+   <path class="fil1" d="M406.57 50l-323.24 0c-18.24,0 -33.33,15.1 -33.33,33.33l0 686.67c0,18.24 15.1,33.33 33.33,33.33l526.67 0c18.24,0 33.33,-15.1 33.33,-33.33l0 -483.34 -236.77 0 0 -236.67z"/>
+   <path class="fil2" d="M304.5 650.92l0 36.37c0,3.86 -0.79,6.59 -2.37,8.17 -1.58,1.58 -4.48,2.37 -8.69,2.37l-78.53 0c-27.76,0 -49.19,-7.38 -64.3,-22.13 -15.11,-14.76 -22.66,-36.02 -22.66,-63.77l0 -96.98c0,-27.76 7.56,-49.02 22.66,-63.77 15.11,-14.76 36.54,-22.14 64.3,-22.14l78.53 0c7.38,0 11.07,3.69 11.07,11.07l0 36.36c0,3.87 -0.79,6.59 -2.37,8.17 -1.58,1.58 -4.48,2.37 -8.69,2.37l-67.99 0c-10.89,0 -18.71,2.37 -23.45,7.11 -4.74,4.74 -7.12,12.74 -7.12,23.98l0 90.65c0,11.24 2.37,19.24 7.12,23.98 4.74,4.74 12.56,7.12 23.45,7.12l67.99 0c7.38,0 11.07,3.69 11.07,11.07zm173.93 46.91l-46.91 0c-27.76,0 -49.19,-7.38 -64.3,-22.13 -15.11,-14.76 -22.66,-36.02 -22.66,-63.77l0 -96.98c0,-27.76 7.56,-49.02 22.66,-63.77 15.11,-14.76 36.54,-22.14 64.3,-22.14l46.91 0c27.41,0 48.75,7.47 64.03,22.4 15.29,14.93 22.93,36.1 22.93,63.51l0 96.98c0,27.41 -7.64,48.57 -22.93,63.51 -15.28,14.93 -36.63,22.4 -64.03,22.4zm-36.89 -57.45l26.88 0c11.24,0 19.24,-2.28 23.98,-6.85 4.74,-4.57 7.11,-12.47 7.11,-23.72l0 -92.76c0,-11.24 -2.37,-19.15 -7.11,-23.72 -4.74,-4.57 -12.74,-6.85 -23.98,-6.85l-26.88 0c-11.24,0 -19.15,2.28 -23.72,6.85 -4.57,4.57 -6.85,12.47 -6.85,23.72l0 92.76c0,11.24 2.29,19.15 6.85,23.72 4.57,4.57 12.47,6.85 23.72,6.85z"/>
+   <polygon class="fil1" points="601.22,236.67 456.57,92.02 456.57,236.67 "/>
+  </g>
+ </g>
+</svg>

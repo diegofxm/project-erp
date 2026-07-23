@@ -40,21 +40,27 @@ export function DashboardLayout() {
   return (
     <div className="flex h-screen flex-col">
       <Navbar onToggleSidebar={toggleSidebar} />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         {/* Sidebar desktop — oculto en móvil */}
         <div className="hidden md:flex h-full shrink-0">
           <Sidebar collapsed={collapsed} />
         </div>
 
-        {/* Drawer móvil con backdrop */}
-        {mobileOpen && (
-          <div className="fixed inset-0 z-40 flex md:hidden">
-            <div className="w-52 shrink-0 shadow-xl">
-              <Sidebar collapsed={false} />
-            </div>
-            <div className="flex-1 bg-black/50" onClick={() => setMobileOpen(false)} />
+        {/* Drawer móvil con backdrop — absolute para no tapar el navbar */}
+        <div
+          className={`absolute inset-0 z-40 flex md:hidden transition-opacity duration-200 ${
+            mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+          }`}
+        >
+          <div
+            className={`shrink-0 shadow-xl transition-transform duration-200 ${
+              mobileOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
+          >
+            <Sidebar collapsed={false} />
           </div>
-        )}
+          <div className="flex-1 bg-black/50" onClick={() => setMobileOpen(false)} />
+        </div>
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <SubNav />

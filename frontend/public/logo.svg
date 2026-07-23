@@ -1,34 +1,19 @@
-<svg
-   width="207.56975"
-   height="255.71593"
-   viewBox="0 0 54.919512 67.658171"
-   version="1.1"
-   id="svg1"
-   xml:space="preserve"
-   xmlns="http://www.w3.org/2000/svg">
-  <defs id="defs1" />
-  <path
-     d="m 6.95386,0 h 27.593905 l 20.371741,20.521716 v 40.182641 c 0,3.824541 -3.129311,6.953829 -6.95395,6.953829 H 6.95386 C 3.1292296,67.658186 0,64.528964 0,60.704357 V 6.953868 C 0,3.1292291 3.1292296,0 6.95386,0 Z"
-     style="fill:#ecf0f1;fill-rule:evenodd;stroke:none;stroke-width:0.287906;fill-opacity:1"
-     id="path89" />
-  <path
-     d="m 50.806543,23.032451 -18.779561,0.0032 -0.0081,-18.9224784 H 6.953624 c -1.554205,0 -2.84066,1.2864548 -2.84066,2.8406598 V 60.704385 c 0,1.554207 1.286455,2.840627 2.84066,2.840627 h 41.011697 c 1.554204,0 2.840717,-1.28642 2.840717,-2.840627 z"
-     style="fill:#34495e;fill-rule:evenodd;stroke:none;stroke-width:0.287906;fill-opacity:1"
-     id="path90" />
-  <path
-     d="m 36.114821,8.0279509 0.01526,10.6950661 10.653552,0.02358 z"
-     style="fill:#34495e;fill-rule:evenodd;stroke:none;stroke-width:0.287906;fill-opacity:1"
-     id="path91" />
-  <text
-     xml:space="preserve"
-     style="font-weight:bold;font-size:42.0523px;font-family:Rajdhani;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ecf0f1;fill-opacity:1;stroke:none;stroke-width:3.31162"
-     x="8.0289164"
-     y="55.463646"
-     id="text1"><tspan
-       id="tspan1"
-       style="fill:#ecf0f1;fill-opacity:1;stroke:none;stroke-width:3.31162"
-       x="8.0289164"
-       y="55.463646"><tspan
-         style="fill:#ecf0f1;fill-opacity:1;stroke:none;stroke-width:3.31162"
-         id="tspan2">co</tspan></tspan></text>
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Creator: CorelDRAW -->
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="0.693331in" height="0.853331in" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+viewBox="0 0 693.33 853.33"
+ xmlns:xlink="http://www.w3.org/1999/xlink"
+ xmlns:xodm="http://www.corel.com/coreldraw/odm/2003">
+ <defs>
+  <style type="text/css">
+   <![CDATA[
+    .fil0 {fill:#ECF0F1}
+   ]]>
+  </style>
+ </defs>
+ <g id="Capa_x0020_1">
+  <metadata id="CorelCorpID_0Corel-Layer"/>
+  <path class="fil0" d="M83.33 0l351.93 0 258.08 258.08 0 511.93c0,45.83 -37.5,83.33 -83.33,83.33l-526.67 0c-45.83,0 -83.33,-37.5 -83.33,-83.33l0 -686.67c0,-45.83 37.5,-83.33 83.33,-83.33zm517.89 236.67l-144.65 -144.65 0 144.65 144.65 0zm-194.65 -186.67l-323.24 0c-18.24,0 -33.33,15.1 -33.33,33.33l0 686.67c0,18.24 15.1,33.33 33.33,33.33l526.67 0c18.24,0 33.33,-15.1 33.33,-33.33l0 -483.34 -236.77 0 0 -236.67zm-102.07 600.93l0 36.37c0,3.86 -0.79,6.59 -2.37,8.17 -1.58,1.58 -4.48,2.37 -8.69,2.37l-78.53 0c-27.76,0 -49.19,-7.38 -64.3,-22.13 -15.11,-14.76 -22.66,-36.02 -22.66,-63.77l0 -96.98c0,-27.76 7.56,-49.02 22.66,-63.77 15.11,-14.76 36.54,-22.14 64.3,-22.14l78.53 0c7.38,0 11.07,3.69 11.07,11.07l0 36.36c0,3.87 -0.79,6.59 -2.37,8.17 -1.58,1.58 -4.48,2.37 -8.69,2.37l-67.99 0c-10.89,0 -18.71,2.37 -23.45,7.11 -4.74,4.74 -7.12,12.74 -7.12,23.98l0 90.65c0,11.24 2.37,19.24 7.12,23.98 4.74,4.74 12.56,7.12 23.45,7.12l67.99 0c7.38,0 11.07,3.69 11.07,11.07zm173.93 46.91l-46.91 0c-27.76,0 -49.19,-7.38 -64.3,-22.13 -15.11,-14.76 -22.66,-36.02 -22.66,-63.77l0 -96.98c0,-27.76 7.56,-49.02 22.66,-63.77 15.11,-14.76 36.54,-22.14 64.3,-22.14l46.91 0c27.41,0 48.75,7.47 64.03,22.4 15.29,14.93 22.93,36.1 22.93,63.51l0 96.98c0,27.41 -7.64,48.57 -22.93,63.51 -15.28,14.93 -36.63,22.4 -64.03,22.4zm-36.89 -57.45l26.88 0c11.24,0 19.24,-2.28 23.98,-6.85 4.74,-4.57 7.11,-12.47 7.11,-23.72l0 -92.76c0,-11.24 -2.37,-19.15 -7.11,-23.72 -4.74,-4.57 -12.74,-6.85 -23.98,-6.85l-26.88 0c-11.24,0 -19.15,2.28 -23.72,6.85 -4.57,4.57 -6.85,12.47 -6.85,23.72l0 92.76c0,11.24 2.29,19.15 6.85,23.72 4.57,4.57 12.47,6.85 23.72,6.85z"/>
+ </g>
 </svg>

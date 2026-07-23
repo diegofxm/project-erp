@@ -95,32 +95,34 @@ export function SupportDocumentsPage() {
             className="rounded border border-(--border-color) bg-(--bg-primary) py-1 pl-6 pr-2 text-xs text-(--text-primary) transition-colors w-44"
           />
         </div>
-        <select
-          value={status}
-          onChange={(e) => { setStatus(e.target.value as DocumentStatus | ""); setOffset(0); }}
-          className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
-        >
-          {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <input
-          type="date"
-          value={from}
-          onChange={(e) => { setFrom(e.target.value); setOffset(0); }}
-          title="Desde"
-          className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
-        />
-        <input
-          type="date"
-          value={to}
-          onChange={(e) => { setTo(e.target.value); setOffset(0); }}
-          title="Hasta"
-          className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
-        />
-        {hasFilters && (
-          <button type="button" onClick={resetFilters} className="flex items-center gap-1 text-xs text-(--text-muted) hover:text-(--text-primary) transition-colors">
-            <X className="h-3 w-3" /> Limpiar
-          </button>
-        )}
+        <div className="flex w-full items-center gap-2 lg:contents">
+          <select
+            value={status}
+            onChange={(e) => { setStatus(e.target.value as DocumentStatus | ""); setOffset(0); }}
+            className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
+          >
+            {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => { setFrom(e.target.value); setOffset(0); }}
+            title="Desde"
+            className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
+          />
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => { setTo(e.target.value); setOffset(0); }}
+            title="Hasta"
+            className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
+          />
+          {hasFilters && (
+            <button type="button" onClick={resetFilters} className="flex items-center gap-1 text-xs text-(--text-muted) hover:text-(--text-primary) transition-colors">
+              <X className="h-3 w-3" /><span className="hidden lg:inline"> Limpiar</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <Banner tone="danger">{error}</Banner>}
