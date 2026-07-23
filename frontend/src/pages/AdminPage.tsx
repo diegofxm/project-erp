@@ -432,7 +432,7 @@ function IssuerContent() {
           {paymentsHistory.length === 0 ? (
             <p className="text-xs text-(--text-secondary)">Sin pagos registrados.</p>
           ) : (
-            <div className="overflow-hidden rounded border border-(--border-color)">
+            <div className="overflow-x-auto rounded border border-(--border-color)">
               <table className="w-full text-xs">
                 <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
                   <tr>
@@ -607,7 +607,7 @@ function UsersContent() {
       {loading ? (
         <p className="text-xs text-(--text-secondary)">Cargando usuarios…</p>
       ) : (
-        <div className="overflow-hidden rounded border border-(--border-color)">
+        <div className="overflow-x-auto rounded border border-(--border-color)">
           <table className="w-full text-xs">
             <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
               <tr>

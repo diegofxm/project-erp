@@ -8,6 +8,7 @@ import (
 
 	"github.com/diegofxm/apidian/internal/api/middleware"
 	"github.com/diegofxm/apidian/internal/api/response"
+	"github.com/diegofxm/apidian/internal/audit"
 	"github.com/diegofxm/apidian/internal/auth"
 	"github.com/diegofxm/apidian/internal/catalogs"
 	"github.com/diegofxm/apidian/internal/customers"
@@ -41,6 +42,7 @@ type API struct {
 	settings       *settings.Service
 	payments       *payments.Service
 	prospects      *prospects.Service
+	auditSvc       *audit.Service  // nil en tests que no usan Postgres
 	catalogs       catalogs.Repository
 	allowedOrigins []string
 	appBaseURL     string
@@ -72,8 +74,11 @@ func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byt
 	tokens := auth.NewTokenIssuer(authJWTSecret)
 	authSvc := auth.New(auth.NewPostgresRepository(db.Pool), issuerSvc, tokens).
 		WithEmail(emailSender, appBaseURL)
+	auditSvc := audit.New(audit.NewPostgresRepository(db.Pool))
 
-	return NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, vendorsSvc, plansSvc, subsSvc, settingsSvc, paymentsSvc, prospectsSvc, catalogsRepo, allowedOrigins, appBaseURL)
+	a := NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, vendorsSvc, plansSvc, subsSvc, settingsSvc, paymentsSvc, prospectsSvc, catalogsRepo, allowedOrigins, appBaseURL)
+	a.auditSvc = auditSvc
+	return a
 }
 
 // NewFromServices crea una API a partir de servicios ya construidos — útil para tests que
@@ -225,6 +230,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 	handle("POST /api/v1/adjustment-notes", a.handleCreateAdjustmentNote)
 	handle("PUT /api/v1/adjustment-notes/{id}", a.handleUpdateAdjustmentNote)
 	handle("POST /api/v1/documents/{id}/confirm", a.handleConfirmDocument)
+	handle("POST /api/v1/documents/{id}/clone", a.handleCloneDocument)
 	handle("DELETE /api/v1/documents/{id}", a.handleDeleteDocument)
 	handle("GET /api/v1/documents", a.handleListDocuments)
 	handle("GET /api/v1/documents/{id}", a.handleGetDocument)
@@ -236,6 +242,7 @@ func (a *API) registerRoutes(mux *http.ServeMux) {
 
 	handle("GET /api/v1/issuers/me/settings", a.handleGetMySettings)
 	handle("PATCH /api/v1/issuers/me/settings", a.handleUpdateMySettings)
+	handle("GET /api/v1/audit-events", a.handleListAuditEvents)
 
 	// Rutas de superadministrador — exigen is_superadmin=true además de estar autenticado.
 	handleSA := func(pattern string, h http.HandlerFunc) {

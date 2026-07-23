@@ -642,3 +642,26 @@ export interface ListDocumentsFilter {
   source_document_id?: string; // NC/ND que referencian la factura con este ID
   search?: string;             // búsqueda libre: nombre cliente/proveedor o número de documento
 }
+
+// Espejo de auditEventResponse (apidian/internal/api/handler_audit.go).
+export interface AuditEvent {
+  id: string;
+  user_name?: string;
+  user_email?: string;
+  action: string;
+  resource_type?: string;
+  resource_id?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ListAuditEventsResult {
+  events: AuditEvent[];
+  count: number;
+}
+
+export interface ListAuditEventsFilter {
+  resource_id?: string;
+  limit?: number;
+  offset?: number;
+}

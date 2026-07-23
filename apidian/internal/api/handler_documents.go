@@ -258,6 +258,10 @@ func (a *API) handleCreateInvoice(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, err)
 		return
 	}
+	a.logEvent(r, "document.created", "document", &doc.ID, map[string]any{
+		"dian_document_type_code": doc.DianDocumentTypeCode,
+		"customer_name":           doc.Customer.Name,
+	})
 	response.WriteJSON(w, http.StatusCreated, documentToResponse(doc))
 }
 
@@ -320,6 +324,10 @@ func (a *API) handleCreateCreditNote(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, err)
 		return
 	}
+	a.logEvent(r, "document.created", "document", &doc.ID, map[string]any{
+		"dian_document_type_code": doc.DianDocumentTypeCode,
+		"customer_name":           doc.Customer.Name,
+	})
 	response.WriteJSON(w, http.StatusCreated, documentToResponse(doc))
 }
 
@@ -372,6 +380,10 @@ func (a *API) handleCreateDebitNote(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, err)
 		return
 	}
+	a.logEvent(r, "document.created", "document", &doc.ID, map[string]any{
+		"dian_document_type_code": doc.DianDocumentTypeCode,
+		"customer_name":           doc.Customer.Name,
+	})
 	response.WriteJSON(w, http.StatusCreated, documentToResponse(doc))
 }
 
@@ -455,6 +467,12 @@ func (a *API) handleConfirmDocument(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, err)
 		return
 	}
+	a.logEvent(r, "document.confirmed", "document", &doc.ID, map[string]any{
+		"dian_document_type_code": doc.DianDocumentTypeCode,
+		"prefix":                  doc.Prefix,
+		"number":                  doc.Number,
+		"customer_name":           doc.Customer.Name,
+	})
 	response.WriteJSON(w, http.StatusOK, documentToResponse(doc))
 }
 
@@ -470,7 +488,75 @@ func (a *API) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, err)
 		return
 	}
+	a.logEvent(r, "document.deleted", "document", &id, nil)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleCloneDocument crea un borrador nuevo copiando customer/lines/payment_means/note del
+// documento fuente. Solo aplica a Facturas Electrónicas (tipo "01") — las notas (NC/ND) y
+// Documentos Soporte (DS) llevan referencias obligatorias al original que no tiene sentido
+// clonar. La clonación conserva el mismo NumberingRangeID; si el rango fue desactivado, el
+// error lo reporta CreateInvoiceDraft igual que si el usuario creara una factura nueva.
+func (a *API) handleCloneDocument(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseUUID(w, r.PathValue("id"))
+	if !ok {
+		return
+	}
+
+	issuerID := middleware.GetTenantID(r.Context())
+
+	doc, err := a.documents.GetDocument(r.Context(), id)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	if doc.IssuerID != issuerID {
+		response.WriteError(w, documents.ErrDocumentNotFound)
+		return
+	}
+	if doc.DianDocumentTypeCode != "01" {
+		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "solo se pueden clonar facturas electrónicas (tipo 01)"})
+		return
+	}
+
+	lines := make([]documents.LineInput, len(doc.Lines))
+	for i, l := range doc.Lines {
+		li := documents.LineInput{
+			Description:    l.Description,
+			Quantity:       l.Quantity,
+			UnitCode:       l.UnitCode,
+			UnitPriceCents: l.UnitPriceCents,
+			ItemCode:       l.ItemCode,
+			ItemTypeCode:   l.ItemTypeCode,
+		}
+		if len(l.Taxes) > 0 {
+			li.TaxTypeCode = l.Taxes[0].TypeCode
+			li.TaxPercent = l.Taxes[0].Percent
+		}
+		lines[i] = li
+	}
+
+	req := documents.IssueInvoiceRequest{
+		IssuerID:         issuerID,
+		NumberingRangeID: doc.NumberingRangeID,
+		Customer:         doc.Customer,
+		Lines:            lines,
+		PaymentMeans:     doc.PaymentMeans,
+		Note:             doc.Note,
+		CurrencyCode:     doc.CurrencyCode,
+		CustomerID:       doc.CustomerID,
+	}
+
+	clone, err := a.documents.CreateInvoiceDraft(r.Context(), req)
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+	a.logEvent(r, "document.cloned", "document", &clone.ID, map[string]any{
+		"source_document_id": id.String(),
+		"customer_name":      clone.Customer.Name,
+	})
+	response.WriteJSON(w, http.StatusCreated, documentToResponse(clone))
 }
 
 // ── Listado / consulta ───────────────────────────────────────────────────────────────────────
@@ -672,6 +758,7 @@ func (a *API) handleSendDocumentEmail(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, err)
 		return
 	}
+	a.logEvent(r, "document.email_sent", "document", &id, nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 

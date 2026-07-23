@@ -52,12 +52,10 @@ export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRan
     });
   }
 
-  // Grilla de 12 columnas fijas, ver company-form/IdentificationStep.tsx para el porqué (no
-  // auto-fit: no debe reordenar campos al colapsar/expandir el Sidebar).
   return (
     <form className="flex flex-col gap-3 rounded border border-(--border-color) p-4" onSubmit={handleSubmit}>
       <div className="grid grid-cols-12 gap-3">
-        <div className="col-span-4">
+        <div className="col-span-12 sm:col-span-4">
           <Select
             label="Tipo de documento"
             required
@@ -76,26 +74,26 @@ export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRan
             )}
           </Select>
         </div>
-        <div className="col-span-3">
+        <div className="col-span-6 sm:col-span-3">
           <Select label="Ambiente" required value={environment} onChange={(e) => setEnvironment(e.target.value as IssuerEnvironment)}>
             <option value="2">Habilitación</option>
             <option value="1">Producción</option>
           </Select>
         </div>
-        <div className="col-span-2">
+        <div className="col-span-6 sm:col-span-2">
           <Input label="Prefijo" required value={prefix} onChange={(e) => setPrefix(e.target.value)} />
         </div>
-        <div className="col-span-3">
+        <div className="col-span-12 sm:col-span-3">
           <Input label="Número de resolución" required value={resolutionNumber} onChange={(e) => setResolutionNumber(e.target.value)} />
         </div>
 
-        <div className="col-span-3">
+        <div className="col-span-6 sm:col-span-3">
           <Input label="Rango desde" type="number" required value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
         </div>
-        <div className="col-span-3">
-          <Input label="Rango hasta (opcional)" type="number" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
+        <div className="col-span-6 sm:col-span-3">
+          <Input label="Rango hasta" type="number" required value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
         </div>
-        <div className="col-span-3">
+        <div className="col-span-6 sm:col-span-3">
           <Input
             label="Fecha de la resolución"
             type="date"
@@ -104,7 +102,7 @@ export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRan
             onChange={(e) => setResolutionDate(e.target.value)}
           />
         </div>
-        <div className="col-span-3">
+        <div className="col-span-6 sm:col-span-3">
           <Input
             label="Próximo número (opcional)"
             type="number"
@@ -114,20 +112,20 @@ export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRan
           />
         </div>
 
-        <div className="col-span-6">
+        <div className="col-span-12 sm:col-span-6">
           <Input label="Vigente desde" type="date" required value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
         </div>
-        <div className="col-span-6">
+        <div className="col-span-12 sm:col-span-6">
           <Input label="Vigente hasta" type="date" required value={validTo} onChange={(e) => setValidTo(e.target.value)} />
         </div>
 
         {docTypeCode === "01" && (
-          <div className="col-span-6">
+          <div className="col-span-12 sm:col-span-6">
             <Input label="Clave técnica (CUFE)" required value={technicalKey} onChange={(e) => setTechnicalKey(e.target.value)} />
           </div>
         )}
         {environment === "2" && (
-          <div className="col-span-6">
+          <div className="col-span-12 sm:col-span-6">
             <Input
               label="Set de pruebas"
               required

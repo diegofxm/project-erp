@@ -11,7 +11,11 @@ const COLLAPSED_KEY = "apidian.sidebarCollapsed";
 export function DashboardLayout() {
   const { activeIssuer } = useAuth();
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === "true");
+  const [collapsed, setCollapsed] = useState(() => {
+    const saved = localStorage.getItem(COLLAPSED_KEY);
+    if (saved !== null) return saved === "true";
+    return window.innerWidth < 1024; // tablet y split-screen arrancan con sidebar colapsado
+  });
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Cierra el menú móvil al navegar

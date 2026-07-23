@@ -62,10 +62,10 @@ export function ProductForm({ initial, onSubmit, onCancel, loading }: ProductFor
   return (
     <form className="flex flex-col gap-3 p-4" onSubmit={handleSubmit}>
       <div className="grid grid-cols-12 gap-3">
-        <div className="col-span-8">
+        <div className="col-span-12 sm:col-span-8">
           <Input label="Descripción" required value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
-        <div className="col-span-4">
+        <div className="col-span-12 sm:col-span-4">
           <Input
             label="Código del ítem (opcional)"
             value={itemCode}
@@ -74,7 +74,7 @@ export function ProductForm({ initial, onSubmit, onCancel, loading }: ProductFor
           />
         </div>
 
-        <div className="col-span-4">
+        <div className="col-span-6 sm:col-span-4">
           <Combobox
             label="Unidad de medida"
             disabled={loadingUnitMeasures}
@@ -84,7 +84,7 @@ export function ProductForm({ initial, onSubmit, onCancel, loading }: ProductFor
             placeholder={loadingUnitMeasures ? "Cargando…" : "Buscar unidad…"}
           />
         </div>
-        <div className="col-span-4">
+        <div className="col-span-6 sm:col-span-4">
           <Input
             label="Precio unitario (COP)"
             type="number"
@@ -95,7 +95,7 @@ export function ProductForm({ initial, onSubmit, onCancel, loading }: ProductFor
             onChange={(e) => setUnitPrice(e.target.value)}
           />
         </div>
-        <div className="col-span-4">
+        <div className="col-span-6 sm:col-span-4">
           <Select label="Tipo de impuesto por defecto" disabled={loadingTaxTypes} value={taxTypeCode} onChange={(e) => setTaxTypeCode(e.target.value)}>
             {loadingTaxTypes ? (
               <option>Cargando…</option>
@@ -112,10 +112,10 @@ export function ProductForm({ initial, onSubmit, onCancel, loading }: ProductFor
           </Select>
         </div>
 
-        <div className="col-span-4">
+        <div className="col-span-6 sm:col-span-4">
           <Input label="Porcentaje de impuesto (%)" type="number" step="0.01" min="0" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} />
         </div>
-        <div className="col-span-8">
+        <div className="col-span-12 sm:col-span-8">
           <Select
             label="Estándar de clasificación del ítem"
             disabled={loadingItemStandards}

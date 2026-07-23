@@ -35,7 +35,7 @@ export function IdentificationStep({ form, setField }: StepProps) {
   return (
     <div className="grid grid-cols-12 gap-3 p-4">
       {/* Tipo de persona + ambiente — arriba del todo */}
-      <div className="col-span-6">
+      <div className="col-span-12 sm:col-span-6">
         <Select
           label="Tipo de persona"
           value={form.entity_type_code ?? ""}
@@ -46,7 +46,7 @@ export function IdentificationStep({ form, setField }: StepProps) {
           <option value="2">Persona natural</option>
         </Select>
       </div>
-      <div className="col-span-3">
+      <div className="col-span-6 sm:col-span-3">
         <Select
           label="Ambiente"
           required
@@ -104,7 +104,7 @@ export function IdentificationStep({ form, setField }: StepProps) {
       </div>
 
       {/* Nombre comercial */}
-      <div className="col-span-6">
+      <div className="col-span-12 sm:col-span-6">
         <Input
           label="Nombre comercial (opcional)"
           value={form.trade_name ?? ""}

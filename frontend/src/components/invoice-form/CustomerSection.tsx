@@ -107,7 +107,7 @@ export function CustomerSection({ value, customerId, onChange }: CustomerSection
       {mode === "search" && (
         <div className="flex flex-col gap-2">
           <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-6">
+            <div className="col-span-12 sm:col-span-6">
               <Combobox
                 label="Buscar cliente"
                 value={picker}

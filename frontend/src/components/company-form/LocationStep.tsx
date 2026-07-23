@@ -31,7 +31,7 @@ export function LocationStep({ form, setField }: StepProps) {
   // (no auto-fit: no debe reordenar campos al colapsar/expandir el Sidebar).
   return (
     <div className="grid grid-cols-12 gap-3 p-4">
-      <div className="col-span-3">
+      <div className="col-span-6 sm:col-span-3">
         <Select
           label="Departamento"
           required
@@ -53,7 +53,7 @@ export function LocationStep({ form, setField }: StepProps) {
           )}
         </Select>
       </div>
-      <div className="col-span-5">
+      <div className="col-span-6 sm:col-span-5">
         <Select
           label="Municipio"
           required
@@ -75,10 +75,10 @@ export function LocationStep({ form, setField }: StepProps) {
           )}
         </Select>
       </div>
-      <div className="col-span-4">
+      <div className="col-span-12 sm:col-span-4">
         <Input label="Dirección" required value={form.address_line} onChange={(e) => setField("address_line", e.target.value)} />
       </div>
-      <div className="col-span-8">
+      <div className="col-span-12 sm:col-span-8">
         <Input
           label="Correo de la empresa"
           type="email"
@@ -87,7 +87,7 @@ export function LocationStep({ form, setField }: StepProps) {
           onChange={(e) => setField("email", e.target.value)}
         />
       </div>
-      <div className="col-span-4">
+      <div className="col-span-12 sm:col-span-4">
         <Input label="Teléfono" value={form.phone ?? ""} onChange={(e) => setField("phone", e.target.value)} />
       </div>
     </div>

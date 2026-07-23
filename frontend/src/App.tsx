@@ -14,6 +14,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsGeneralPage } from "./pages/SettingsGeneralPage";
 import { SettingsAccountPage } from "./pages/SettingsAccountPage";
 import { SettingsCompanyPage } from "./pages/SettingsCompanyPage";
+import { SettingsActivityPage } from "./pages/SettingsActivityPage";
 import { IssuersPage } from "./pages/IssuersPage";
 import { CustomersPage } from "./pages/CustomersPage";
 import { VendorsPage } from "./pages/VendorsPage";
@@ -52,6 +53,7 @@ function App() {
                     <Route path="/settings/general" element={<SettingsGeneralPage />} />
                     <Route path="/settings/account" element={<SettingsAccountPage />} />
                     <Route path="/settings/company" element={<SettingsCompanyPage />} />
+                    <Route path="/settings/activity" element={<SettingsActivityPage />} />
                     <Route path="/issuers" element={<IssuersPage />} />
                     <Route path="/customers" element={<CustomersPage />} />
                     <Route path="/vendors" element={<VendorsPage />} />

@@ -263,7 +263,7 @@ export function CompanyProfileForm() {
                 {idTypeLabel} {formattedNit} · {envLabel}
               </p>
             </div>
-            <div className="col-span-6">
+            <div className="col-span-12 sm:col-span-6">
               <Input
                 label="Razón social"
                 value={form.business_name}
@@ -271,14 +271,14 @@ export function CompanyProfileForm() {
                 required
               />
             </div>
-            <div className="col-span-6">
+            <div className="col-span-12 sm:col-span-6">
               <Input
                 label="Nombre comercial (opcional)"
                 value={form.trade_name}
                 onChange={(e) => setField("trade_name", e.target.value)}
               />
             </div>
-            <div className="col-span-4">
+            <div className="col-span-6 sm:col-span-4">
               <label className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-(--text-secondary)">Tipo de persona</span>
                 <select
@@ -290,7 +290,7 @@ export function CompanyProfileForm() {
                 </select>
               </label>
             </div>
-            <div className="col-span-4">
+            <div className="col-span-6 sm:col-span-4">
               <Select
                 label="Ambiente DIAN"
                 value={form.environment}
@@ -300,13 +300,13 @@ export function CompanyProfileForm() {
                 <option value="1">Producción</option>
               </Select>
             </div>
-            <div className="col-span-8">
+            <div className="col-span-12 sm:col-span-8">
               <Input label="Correo" type="email" value={form.email} onChange={(e) => setField("email", e.target.value)} required />
             </div>
-            <div className="col-span-4">
+            <div className="col-span-12 sm:col-span-4">
               <Input label="Teléfono (opcional)" value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
             </div>
-            <div className="col-span-4">
+            <div className="col-span-6 sm:col-span-4">
               <label className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-(--text-secondary)">Departamento</span>
                 <select
@@ -319,7 +319,7 @@ export function CompanyProfileForm() {
                 </select>
               </label>
             </div>
-            <div className="col-span-4">
+            <div className="col-span-6 sm:col-span-4">
               <label className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-(--text-secondary)">Municipio</span>
                 <select
@@ -336,7 +336,7 @@ export function CompanyProfileForm() {
             <div className="col-span-12">
               <Input label="Dirección" value={form.address_line} onChange={(e) => setField("address_line", e.target.value)} required />
             </div>
-            <div className="col-span-4">
+            <div className="col-span-6 sm:col-span-4">
               <label className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-(--text-secondary)">Tipo de impuesto del régimen</span>
                 <select
@@ -348,7 +348,7 @@ export function CompanyProfileForm() {
                 </select>
               </label>
             </div>
-            <div className="col-span-4">
+            <div className="col-span-6 sm:col-span-4">
               <label className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-(--text-secondary)">Tipo de régimen (opcional)</span>
                 <select
@@ -361,7 +361,7 @@ export function CompanyProfileForm() {
                 </select>
               </label>
             </div>
-            <div className="col-span-4">
+            <div className="col-span-6 sm:col-span-4">
               <Input
                 label="Matrícula mercantil (opcional)"
                 value={form.merchant_registration_number ?? ""}

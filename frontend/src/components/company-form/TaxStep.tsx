@@ -37,7 +37,7 @@ export function TaxStep({ form, setField }: StepProps) {
   // Grilla de 12 columnas fijas, ver IdentificationStep.tsx para la explicación de por qué.
   return (
     <div className="grid grid-cols-12 gap-3 p-4">
-      <div className="col-span-4">
+      <div className="col-span-6 sm:col-span-4">
         <Select
           label="Tipo de impuesto del régimen"
           disabled={loadingTaxTypes}
@@ -55,7 +55,7 @@ export function TaxStep({ form, setField }: StepProps) {
           )}
         </Select>
       </div>
-      <div className="col-span-4">
+      <div className="col-span-6 sm:col-span-4">
         <Select
           label="Tipo de régimen"
           disabled={loadingTaxRegimes}
@@ -76,7 +76,7 @@ export function TaxStep({ form, setField }: StepProps) {
           )}
         </Select>
       </div>
-      <div className="col-span-4">
+      <div className="col-span-6 sm:col-span-4">
         <Input
           label="Matrícula mercantil (opcional)"
           value={form.merchant_registration_number ?? ""}

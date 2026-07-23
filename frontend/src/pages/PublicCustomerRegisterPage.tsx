@@ -161,23 +161,23 @@ export function PublicCustomerRegisterPage() {
             <form className="flex flex-col gap-3 p-5" onSubmit={handleFormSubmit}>
               {error && <Banner tone="danger">{error}</Banner>}
               <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-5">
+                <div className="col-span-12 sm:col-span-5">
                   <Select label="Tipo de identificación" required value={typeCode} onChange={(e) => setTypeCode(e.target.value)}>
                     {IDENTIFICATION_TYPES.map((t) => (
                       <option key={t.code} value={t.code}>{t.name}</option>
                     ))}
                   </Select>
                 </div>
-                <div className="col-span-7">
+                <div className="col-span-12 sm:col-span-7">
                   <Input label="Número de identificación" required value={number} onChange={(e) => setNumber(e.target.value)} />
                 </div>
                 <div className="col-span-12">
                   <Input label="Nombre completo" required value={name} onChange={(e) => setName(e.target.value)} />
                 </div>
-                <div className="col-span-6">
+                <div className="col-span-12 sm:col-span-6">
                   <Input label="Correo electrónico" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
-                <div className="col-span-6">
+                <div className="col-span-12 sm:col-span-6">
                   <Input label="Teléfono (opcional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
                 </div>
               </div>

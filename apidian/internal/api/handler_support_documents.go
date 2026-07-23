@@ -37,6 +37,14 @@ func (a *API) handleCreateSupportDocument(w http.ResponseWriter, r *http.Request
 		response.WriteError(w, err)
 		return
 	}
+	vendorName := ""
+	if doc.Vendor != nil {
+		vendorName = doc.Vendor.Name
+	}
+	a.logEvent(r, "document.created", "document", &doc.ID, map[string]any{
+		"dian_document_type_code": doc.DianDocumentTypeCode,
+		"vendor_name":             vendorName,
+	})
 	response.WriteJSON(w, http.StatusCreated, documentToResponse(doc))
 }
 

@@ -59,7 +59,7 @@ function RangesTable({ rows, docTypeName, onDeactivate, onArchive, onActivate }:
 
   return (
     <>
-      <div className="overflow-hidden rounded border border-(--border-color)">
+      <div className="overflow-x-auto rounded border border-(--border-color)">
         <table className="w-full text-left text-xs">
           <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
             <tr>

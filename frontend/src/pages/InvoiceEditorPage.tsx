@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, FileCode, FileMinus, FilePlus, FileText, Mail, Send, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, FileCode, FileMinus, FilePlus, FileText, Mail, Send, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import {
+  cloneDocument,
   confirmDocument,
   createInvoiceDraft,
   deleteDraft,
@@ -53,6 +54,7 @@ export function InvoiceEditorPage() {
   const [confirming, setConfirming] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingXml, setLoadingXml] = useState(false);
+  const [cloningDoc, setCloningDoc] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [pdfFormat] = usePdfFormat();
 
@@ -147,6 +149,20 @@ export function InvoiceEditorPage() {
     }
   }
 
+  async function handleClone() {
+    if (!id || isNew) return;
+    setCloningDoc(true);
+    try {
+      const clone = await cloneDocument(id);
+      toast.success("Factura clonada como borrador.");
+      navigate(`/documents/invoices/${clone.id}`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo clonar la factura");
+    } finally {
+      setCloningDoc(false);
+    }
+  }
+
   async function handleSendEmailConfirm(cc: string[]) {
     if (!id || isNew || !doc) return;
     try {
@@ -182,6 +198,11 @@ export function InvoiceEditorPage() {
           {!isNew && doc && (
             <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
               Ver PDF
+            </Button>
+          )}
+          {!isNew && doc && (
+            <Button type="button" variant="secondary" icon={<Copy className="h-3.5 w-3.5" />} loading={cloningDoc} onClick={handleClone}>
+              Clonar
             </Button>
           )}
           {!isNew && doc && doc.status !== "draft" && (

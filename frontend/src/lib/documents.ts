@@ -92,6 +92,12 @@ export function confirmDocument(id: string): Promise<Document> {
   return apiClient.post<Document>(`/documents/${id}/confirm`);
 }
 
+// cloneDocument crea un borrador nuevo copiando customer/lines/payment_means del documento
+// fuente (solo facturas tipo "01"). El clon queda en estado draft, listo para editar y confirmar.
+export function cloneDocument(id: string): Promise<Document> {
+  return apiClient.post<Document>(`/documents/${id}/clone`);
+}
+
 // sendDocumentEmail envía el documento (debe estar accepted) al correo del cliente con el PDF y
 // el XML firmado adjuntos (ver docs/apidian-architecture.md sección 9.42). Funciona para
 // Factura, NC y ND. El PDF adjunto usa el formato indicado (defecto: full_a4).
