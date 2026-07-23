@@ -64,18 +64,24 @@ function eventEnv(meta?: Record<string, unknown>): string {
   return env ? (ENV_LABELS[env] ?? "") : "";
 }
 
+const PAGE_SIZE = 20;
+
 export function SettingsActivityPage() {
   const navigate = useNavigate();
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
-    listAuditEvents({ limit: 100 })
+    listAuditEvents({ limit: 200 })
       .then(setEvents)
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar el historial"))
       .finally(() => setLoading(false));
   }, []);
+
+  const totalPages = Math.ceil(events.length / PAGE_SIZE);
+  const pageEvents = events.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="p-4">
@@ -95,7 +101,7 @@ export function SettingsActivityPage() {
       ) : (
         <div className="flex flex-col gap-1">
           {/* Cabecera de columnas */}
-          <div className="grid grid-cols-[140px_90px_100px_1fr_110px_130px] gap-3 px-3 py-1 text-xs font-medium text-(--text-muted)">
+          <div className="grid grid-cols-[140px_90px_110px_1fr_130px_160px] gap-3 px-3 py-1 text-xs font-medium text-(--text-muted)">
             <span>Acción</span>
             <span>Tipo</span>
             <span>Referencia</span>
@@ -104,7 +110,7 @@ export function SettingsActivityPage() {
             <span className="text-right">Fecha y hora</span>
           </div>
 
-          {events.map((e) => {
+          {pageEvents.map((e) => {
             const label     = ACTION_LABELS[e.action] ?? e.action;
             const colorClass = ACTION_COLORS[e.action] ?? "text-(--text-secondary) bg-(--bg-secondary)";
             const docType   = eventDocType(e.metadata);
@@ -113,13 +119,13 @@ export function SettingsActivityPage() {
             const env       = eventEnv(e.metadata);
             const date      = new Date(e.created_at);
             const dateStr   = date.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
-            const timeStr   = date.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+            const timeStr   = date.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", hour12: false });
             const actor     = e.user_name || e.user_email || "Sistema";
 
             return (
               <div
                 key={e.id}
-                className="grid grid-cols-[140px_90px_100px_1fr_110px_130px] items-center gap-3 rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-xs"
+                className="grid grid-cols-[140px_90px_110px_1fr_130px_160px] items-center gap-3 rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-xs"
               >
                 {/* Acción */}
                 <span className={`inline-flex w-fit items-center rounded px-1.5 py-0.5 font-medium ${colorClass}`}>
@@ -152,10 +158,37 @@ export function SettingsActivityPage() {
                 <span className="truncate text-(--text-muted)">{actor}</span>
 
                 {/* Fecha · hora */}
-                <span className="text-right text-(--text-muted)">{dateStr} · {timeStr}</span>
+                <span className="whitespace-nowrap text-right text-(--text-muted)">{dateStr} · {timeStr}</span>
               </div>
             );
           })}
+
+          {/* Paginador */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-2 text-xs text-(--text-muted)">
+              <span>
+                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, events.length)} de {events.length}
+              </span>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  disabled={page === 0}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="rounded border border-(--border-color) px-2 py-0.5 disabled:opacity-40 hover:not-disabled:bg-(--bg-secondary)"
+                >
+                  ← Anterior
+                </button>
+                <button
+                  type="button"
+                  disabled={page >= totalPages - 1}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="rounded border border-(--border-color) px-2 py-0.5 disabled:opacity-40 hover:not-disabled:bg-(--bg-secondary)"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
