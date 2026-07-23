@@ -2,6 +2,7 @@ import { ExternalLink } from "lucide-react";
 import { Link } from "react-router";
 import { formatCOP } from "../../lib/currency";
 import type { Document } from "../../lib/types";
+import { InfoTip } from "./InfoTip";
 
 interface Props {
   doc: Document;           // FE o DS de origen
@@ -62,9 +63,18 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode, editing
   return (
     <div className="mt-3 rounded border border-(--color-info-border) bg-(--color-info-bg) p-3 text-xs">
       <div className="mb-2 flex items-center justify-between">
-        <p className="font-semibold text-(--color-info-text)">
-          {docLabel} {doc.prefix ?? ""}{doc.number ?? ""}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="font-semibold text-(--color-info-text)">
+            {docLabel} {doc.prefix ?? ""}{doc.number ?? ""}
+          </p>
+          <InfoTip direction="down">
+            Este panel es un <strong>visor didáctico de saldo</strong>: te muestra cómo
+            quedaría el documento de origen después de aplicar las notas emitidas.
+            {projectedCents !== null
+              ? " El saldo proyectado incluye el borrador que estás editando y puede cambiar antes de confirmarlo."
+              : " El saldo contable refleja solo notas ya aceptadas por la DIAN."}
+          </InfoTip>
+        </div>
         <Link
           to={docUrl}
           className="flex items-center gap-1 text-xs text-(--color-info-text) opacity-70 hover:opacity-100 hover:underline"
@@ -129,10 +139,6 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode, editing
         )}
       </div>
 
-      {/* Nota de contexto */}
-      <p className="mt-1.5 text-right text-[10px] italic text-(--color-info-text) opacity-40">
-        {projectedCents !== null ? "Visor proyectado · incluye borrador en edición" : "Visor contable · solo notas aceptadas por la DIAN"}
-      </p>
     </div>
   );
 }
