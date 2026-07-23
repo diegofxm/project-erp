@@ -27,16 +27,16 @@ export const WIDGET_LABELS: Record<WidgetId, string> = {
   w_recent:     "Actividad reciente",
 };
 
-// Tamaño base de cada widget (12 columnas totales, rowHeight=44px)
+// Tamaño base de cada widget (12 columnas totales, rowHeight=40px)
 const DEFAULT_SIZES: Record<WidgetId, { w: number; h: number }> = {
   w_revenue:    { w: 3, h: 4 },
   w_docs:       { w: 3, h: 4 },
   w_acceptance: { w: 3, h: 4 },
   w_drafts:     { w: 3, h: 4 },
-  w_chart_area: { w: 9, h: 8 },
-  w_chart_type: { w: 3, h: 8 },
+  w_chart_area: { w: 9, h: 6 },
+  w_chart_type: { w: 3, h: 6 },
   w_ytd:        { w: 12, h: 3 },
-  w_recent:     { w: 12, h: 9 },
+  w_recent:     { w: 12, h: 6 },
 };
 
 const DEFAULT_ORDER: WidgetId[] = [
@@ -93,7 +93,7 @@ const DEFAULT: DashboardLayout = {
   hidden: [],
 };
 
-const LS_KEY = "dashboard_layout_v4";
+const LS_KEY = "dashboard_layout_v5";
 
 function load(): DashboardLayout {
   try {

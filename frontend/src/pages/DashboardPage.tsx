@@ -191,14 +191,17 @@ export function DashboardPage() {
   const acceptRatePrev = pm && pm.document_count > 0 ? (pm.accepted_count / pm.document_count) * 100 : 0;
   const seriesData = (stats?.series ?? []).map((s) => ({ ...s, label: monthLabel(s.month) }));
 
-  // w_ytd se oculta del grid si no hay datos y no estamos en edición
-  const effectiveItems = visibleItems.filter((item) => {
+  // w_recent se renderiza fuera del grid (altura automática según contenido)
+  // w_ytd se oculta si no hay datos y no estamos en edición
+  const gridItems = visibleItems.filter((item) => {
+    if (item.i === "w_recent") return false;
     if (item.i === "w_ytd") {
       const hasData = stats?.ytd && stats.ytd.document_count > 0;
       return hasData || editMode;
     }
     return true;
   });
+  const showRecent = !hidden.includes("w_recent");
 
   // ── Renderizador por widget ───────────────────────────────────────────────
 
@@ -343,7 +346,7 @@ export function DashboardPage() {
       }
       case "w_recent":
         return (
-          <Card className="flex h-full flex-col gap-3 p-4">
+          <Card className="flex flex-col gap-3 p-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-(--text-muted)">Actividad reciente</h2>
               <Link to="/documents/invoices" className="flex items-center gap-1 text-xs text-(--accent-primary) hover:underline">
@@ -353,7 +356,7 @@ export function DashboardPage() {
             {recentDocs.length === 0 ? (
               <p className="py-4 text-center text-sm text-(--text-muted)">Aún no hay documentos emitidos</p>
             ) : (
-              <div className="min-h-0 flex-1 overflow-auto">
+              <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-(--border-light)">
@@ -445,54 +448,72 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* Grid de widgets */}
-      {effectiveItems.length === 0 ? (
+      {/* Grid de widgets (w_recent se renderiza aparte abajo) */}
+      {gridItems.length === 0 && !showRecent ? (
         <div className="py-16 text-center">
           <p className="text-sm text-(--text-muted)">No hay widgets visibles.</p>
           <button type="button" onClick={() => setEditMode(true)} className="mt-2 text-xs text-(--accent-primary) hover:underline">
             Personalizar dashboard
           </button>
         </div>
-      ) : (
+      ) : gridItems.length > 0 && (
         <GridLayout
-          layout={effectiveItems}
+          layout={gridItems}
           cols={12}
-          rowHeight={44}
+          rowHeight={40}
           isDraggable={editMode}
           isResizable={editMode}
           onLayoutChange={updateItems}
           margin={[16, 16]}
           containerPadding={[0, 0]}
           resizeHandles={["se"]}
-          draggableHandle=".rgl-drag-handle"
-          draggableCancel=".rgl-no-drag"
+          draggableCancel=".react-resizable-handle"
         >
-          {effectiveItems.map((item) => (
-            <div key={item.i} className="flex flex-col">
-              {/* Barra de arrastre — visible solo en modo edición */}
+          {gridItems.map((item) => (
+            // h-full es esencial: el .react-grid-item tiene height fijo por RGL,
+            // el wrapper debe llenarlo para que el Card ocupe toda la celda
+            <div key={item.i} className={`flex h-full flex-col ${editMode ? "cursor-grab active:cursor-grabbing" : ""}`}>
+              {/* Barra de título en modo edición */}
               {editMode && (
-                <div className="rgl-drag-handle flex shrink-0 cursor-grab select-none items-center gap-2 rounded-t-lg border border-b-0 border-(--border-color) bg-(--bg-tertiary) px-2 py-1 active:cursor-grabbing">
+                <div className="flex shrink-0 select-none items-center gap-2 rounded-t-lg border border-b-0 border-(--border-color) bg-(--bg-tertiary) px-2 py-1">
                   <GripHorizontal className="h-3.5 w-3.5 shrink-0 text-(--text-muted)" />
                   <span className="flex-1 truncate text-[10px] font-semibold uppercase tracking-wider text-(--text-muted)">
                     {WIDGET_LABELS[item.i]}
                   </span>
                   <button
                     type="button"
-                    onClick={() => hide(item.i)}
+                    onClick={(e) => { e.stopPropagation(); hide(item.i); }}
                     aria-label={`Ocultar ${WIDGET_LABELS[item.i]}`}
-                    className="rgl-no-drag rounded p-0.5 text-(--text-muted) transition-colors hover:text-red-500"
+                    className="rounded p-0.5 text-(--text-muted) transition-colors hover:text-red-500"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               )}
-              {/* Contenido del widget — ocupa el resto de la celda */}
               <div className="min-h-0 flex-1">
                 {renderWidget(item.i)}
               </div>
             </div>
           ))}
         </GridLayout>
+      )}
+
+      {/* Actividad reciente — fuera del grid, altura automática según datos */}
+      {showRecent && (
+        <div>
+          {editMode && (
+            <div className="mb-1 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => hide("w_recent")}
+                className="flex items-center gap-1 rounded border border-(--border-color) px-2 py-0.5 text-[10px] text-(--text-muted) hover:text-red-500"
+              >
+                <X className="h-3 w-3" /> Ocultar lista
+              </button>
+            </div>
+          )}
+          {renderWidget("w_recent")}
+        </div>
       )}
     </div>
   );
