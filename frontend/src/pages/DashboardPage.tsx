@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import {
   TrendingUp, FileText, CheckCircle2, Clock,
-  LayoutDashboard, ArrowRight, Settings2, Plus, RotateCcw, X,
+  LayoutDashboard, ArrowRight, Settings2, Plus, RotateCcw, X, GripHorizontal,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { Card } from "../components/ui/Card";
@@ -191,7 +191,7 @@ export function DashboardPage() {
   const acceptRatePrev = pm && pm.document_count > 0 ? (pm.accepted_count / pm.document_count) * 100 : 0;
   const seriesData = (stats?.series ?? []).map((s) => ({ ...s, label: monthLabel(s.month) }));
 
-  // Excluye w_ytd si no hay datos y no estamos en modo edición
+  // w_ytd se oculta del grid si no hay datos y no estamos en edición
   const effectiveItems = visibleItems.filter((item) => {
     if (item.i === "w_ytd") {
       const hasData = stats?.ytd && stats.ytd.document_count > 0;
@@ -318,7 +318,7 @@ export function DashboardPage() {
       case "w_ytd": {
         const hasData = stats?.ytd && stats.ytd.document_count > 0;
         return (
-          <Card className="p-4">
+          <Card className="flex h-full flex-col justify-center p-4">
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-(--text-muted)">Acumulado del año</h2>
             {!hasData ? <p className="text-xs text-(--text-muted)">Sin datos aún</p> : (
               <div className="grid grid-cols-3 gap-4 text-center">
@@ -343,7 +343,7 @@ export function DashboardPage() {
       }
       case "w_recent":
         return (
-          <Card className="flex flex-col gap-3 p-4">
+          <Card className="flex h-full flex-col gap-3 p-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-(--text-muted)">Actividad reciente</h2>
               <Link to="/documents/invoices" className="flex items-center gap-1 text-xs text-(--accent-primary) hover:underline">
@@ -353,7 +353,7 @@ export function DashboardPage() {
             {recentDocs.length === 0 ? (
               <p className="py-4 text-center text-sm text-(--text-muted)">Aún no hay documentos emitidos</p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="min-h-0 flex-1 overflow-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-(--border-light)">
@@ -432,7 +432,7 @@ export function DashboardPage() {
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-(--accent-primary) bg-(--color-info-bg) px-3 py-2">
           <Settings2 className="h-3.5 w-3.5 shrink-0 text-(--accent-primary)" />
           <span className="flex-1 text-xs font-medium text-(--accent-primary)">
-            Arrastra para mover · arrastra la esquina ↘ para redimensionar · ✕ para ocultar
+            Toma la barra ≡ para mover · arrastra la esquina ↘ para redimensionar · ✕ para ocultar
           </span>
           <AddWidgetDropdown hidden={hidden} onShow={show} onReset={reset} />
           <button
@@ -457,28 +457,39 @@ export function DashboardPage() {
         <GridLayout
           layout={effectiveItems}
           cols={12}
-          rowHeight={40}
+          rowHeight={44}
           isDraggable={editMode}
           isResizable={editMode}
           onLayoutChange={updateItems}
           margin={[16, 16]}
           containerPadding={[0, 0]}
           resizeHandles={["se"]}
+          draggableHandle=".rgl-drag-handle"
           draggableCancel=".rgl-no-drag"
         >
           {effectiveItems.map((item) => (
-            <div key={item.i} className="relative">
+            <div key={item.i} className="flex flex-col">
+              {/* Barra de arrastre — visible solo en modo edición */}
               {editMode && (
-                <button
-                  type="button"
-                  onClick={() => hide(item.i)}
-                  aria-label={`Ocultar ${WIDGET_LABELS[item.i]}`}
-                  className="rgl-no-drag absolute right-1.5 top-1.5 z-20 rounded-full bg-(--bg-secondary) p-0.5 text-(--text-muted) shadow hover:text-red-500"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                <div className="rgl-drag-handle flex shrink-0 cursor-grab select-none items-center gap-2 rounded-t-lg border border-b-0 border-(--border-color) bg-(--bg-tertiary) px-2 py-1 active:cursor-grabbing">
+                  <GripHorizontal className="h-3.5 w-3.5 shrink-0 text-(--text-muted)" />
+                  <span className="flex-1 truncate text-[10px] font-semibold uppercase tracking-wider text-(--text-muted)">
+                    {WIDGET_LABELS[item.i]}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => hide(item.i)}
+                    aria-label={`Ocultar ${WIDGET_LABELS[item.i]}`}
+                    className="rgl-no-drag rounded p-0.5 text-(--text-muted) transition-colors hover:text-red-500"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
               )}
-              {renderWidget(item.i)}
+              {/* Contenido del widget — ocupa el resto de la celda */}
+              <div className="min-h-0 flex-1">
+                {renderWidget(item.i)}
+              </div>
             </div>
           ))}
         </GridLayout>

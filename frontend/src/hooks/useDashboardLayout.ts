@@ -6,7 +6,6 @@ export const WIDGET_IDS = [
 ] as const;
 export type WidgetId = (typeof WIDGET_IDS)[number];
 
-// Shape compatible con LayoutItem de react-grid-layout
 export interface GridItem {
   i: WidgetId;
   x: number;
@@ -15,11 +14,6 @@ export interface GridItem {
   h: number;
   minW?: number;
   minH?: number;
-  maxW?: number;
-  maxH?: number;
-  isDraggable?: boolean;
-  isResizable?: boolean;
-  static?: boolean;
 }
 
 export const WIDGET_LABELS: Record<WidgetId, string> = {
@@ -33,28 +27,73 @@ export const WIDGET_LABELS: Record<WidgetId, string> = {
   w_recent:     "Actividad reciente",
 };
 
-// 12 columnas, rowHeight=40px
-// w_revenue/docs/acceptance/drafts: 3 col cada uno → una fila de 4 KPIs
-// w_chart_area: 9 col, w_chart_type: 3 col → segunda fila
-// w_ytd + w_recent: 12 col → filas completas
-const DEFAULT_ITEMS: GridItem[] = [
-  { i: "w_revenue",    x: 0,  y: 0,  w: 3,  h: 4,  minW: 2, minH: 3 },
-  { i: "w_docs",       x: 3,  y: 0,  w: 3,  h: 4,  minW: 2, minH: 3 },
-  { i: "w_acceptance", x: 6,  y: 0,  w: 3,  h: 4,  minW: 2, minH: 3 },
-  { i: "w_drafts",     x: 9,  y: 0,  w: 3,  h: 4,  minW: 2, minH: 3 },
-  { i: "w_chart_area", x: 0,  y: 4,  w: 9,  h: 9,  minW: 3, minH: 5 },
-  { i: "w_chart_type", x: 9,  y: 4,  w: 3,  h: 9,  minW: 2, minH: 5 },
-  { i: "w_ytd",        x: 0,  y: 13, w: 12, h: 4,  minW: 3, minH: 3 },
-  { i: "w_recent",     x: 0,  y: 17, w: 12, h: 8,  minW: 4, minH: 5 },
+// Tamaño base de cada widget (12 columnas totales, rowHeight=44px)
+const DEFAULT_SIZES: Record<WidgetId, { w: number; h: number }> = {
+  w_revenue:    { w: 3, h: 4 },
+  w_docs:       { w: 3, h: 4 },
+  w_acceptance: { w: 3, h: 4 },
+  w_drafts:     { w: 3, h: 4 },
+  w_chart_area: { w: 9, h: 8 },
+  w_chart_type: { w: 3, h: 8 },
+  w_ytd:        { w: 12, h: 3 },
+  w_recent:     { w: 12, h: 9 },
+};
+
+const DEFAULT_ORDER: WidgetId[] = [
+  "w_revenue", "w_docs", "w_acceptance", "w_drafts",
+  "w_chart_area", "w_chart_type",
+  "w_ytd", "w_recent",
 ];
 
+// Empaqueta widgets en filas de 12 columnas, izquierda-derecha
+function packItems(
+  orderedIds: WidgetId[],
+  sizeOverrides: Partial<Record<WidgetId, { w: number; h: number }>>,
+): GridItem[] {
+  let x = 0, y = 0, rowH = 0;
+  const result: GridItem[] = [];
+
+  for (const id of orderedIds) {
+    const { w, h } = { ...DEFAULT_SIZES[id], ...(sizeOverrides[id] ?? {}) };
+
+    // Wrap si no cabe o si el widget es full-width
+    if (x > 0 && (x + w > 12 || w >= 12)) {
+      y += rowH;
+      x = 0;
+      rowH = 0;
+    }
+
+    result.push({ i: id, x, y, w, h, minW: 1, minH: 2 });
+    x += w;
+    rowH = Math.max(rowH, h);
+  }
+
+  return result;
+}
+
+// Deriva el orden visual (arriba→abajo, izquierda→derecha) desde posiciones
+function positionsToOrder(items: GridItem[]): WidgetId[] {
+  return [...items]
+    .sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x)
+    .map((it) => it.i);
+}
+
+// Extrae mapa de tamaños actuales de los items
+function toSizeMap(items: GridItem[]): Partial<Record<WidgetId, { w: number; h: number }>> {
+  return Object.fromEntries(items.map((it) => [it.i, { w: it.w, h: it.h }]));
+}
+
 interface DashboardLayout {
-  items: GridItem[];
+  items: GridItem[];   // todos los widgets (visibles + ocultos) con posiciones actuales
   hidden: WidgetId[];
 }
 
-const DEFAULT: DashboardLayout = { items: DEFAULT_ITEMS, hidden: [] };
-const LS_KEY = "dashboard_layout_v3";
+const DEFAULT: DashboardLayout = {
+  items: packItems(DEFAULT_ORDER, {}),
+  hidden: [],
+};
+
+const LS_KEY = "dashboard_layout_v4";
 
 function load(): DashboardLayout {
   try {
@@ -66,12 +105,11 @@ function load(): DashboardLayout {
     const storedItems = (p.items ?? []).filter(
       (it): it is GridItem => known.has(it.i),
     );
-    // Append items added after the stored layout was saved
-    for (const def of DEFAULT_ITEMS) {
-      if (!storedItems.find((it) => it.i === def.i)) storedItems.push(def);
-    }
+    const storedIds = new Set(storedItems.map((it) => it.i));
+    const newWidgets = DEFAULT.items.filter((it) => !storedIds.has(it.i));
+
     return {
-      items: storedItems,
+      items: [...storedItems, ...newWidgets],
       hidden: (p.hidden ?? []).filter((id): id is WidgetId => known.has(id)),
     };
   } catch {
@@ -91,20 +129,18 @@ export function useDashboardLayout() {
     persist(next);
   }, []);
 
-  // Llamado por react-grid-layout en cada drag/resize — solo llega con items visibles.
-  // Fusionamos con los items ocultos para no perder sus posiciones.
+  // Drag/resize de RGL → guardar posiciones directamente (sin repaquetear)
   const updateItems = useCallback(
-    (newVisibleItems: readonly { i: string; x: number; y: number; w: number; h: number }[]) => {
+    (newVisible: readonly { i: string; x: number; y: number; w: number; h: number }[]) => {
       const hiddenItems = layout.items.filter((it) => layout.hidden.includes(it.i));
       const merged: GridItem[] = [
-        ...newVisibleItems
+        ...newVisible
           .filter((it): it is typeof it & { i: WidgetId } =>
             (WIDGET_IDS as readonly string[]).includes(it.i)
           )
           .map((it) => ({
             ...(layout.items.find((s) => s.i === it.i) ?? {}),
-            i: it.i,
-            x: it.x, y: it.y, w: it.w, h: it.h,
+            i: it.i, x: it.x, y: it.y, w: it.w, h: it.h,
           })),
         ...hiddenItems,
       ];
@@ -113,14 +149,31 @@ export function useDashboardLayout() {
     [layout, update],
   );
 
+  // Ocultar → repaquetear visibles para cerrar el hueco
   const hide = useCallback(
-    (id: WidgetId) => update({ ...layout, hidden: [...layout.hidden, id] }),
+    (id: WidgetId) => {
+      const newHidden = [...layout.hidden, id];
+      const visibleNow = layout.items.filter((it) => !newHidden.includes(it.i));
+      const packed = packItems(positionsToOrder(visibleNow), toSizeMap(layout.items));
+      const hiddenItems = layout.items.filter((it) => newHidden.includes(it.i));
+      update({ items: [...packed, ...hiddenItems], hidden: newHidden });
+    },
     [layout, update],
   );
+
+  // Mostrar → añadir al final y repaquetear
   const show = useCallback(
-    (id: WidgetId) => update({ ...layout, hidden: layout.hidden.filter((h) => h !== id) }),
+    (id: WidgetId) => {
+      const newHidden = layout.hidden.filter((h) => h !== id);
+      const currentVisible = layout.items.filter((it) => !layout.hidden.includes(it.i));
+      const order = [...positionsToOrder(currentVisible), id];
+      const packed = packItems(order, toSizeMap(layout.items));
+      const stillHidden = layout.items.filter((it) => newHidden.includes(it.i));
+      update({ items: [...packed, ...stillHidden], hidden: newHidden });
+    },
     [layout, update],
   );
+
   const reset = useCallback(() => update(DEFAULT), [update]);
 
   const visibleItems = layout.items.filter((it) => !layout.hidden.includes(it.i));
