@@ -28,25 +28,28 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode, editing
 
   // Cuando se edita una nota existente, sacarla de la lista y fusionarla en una fila unificada.
   const editingNote = editingNoteId ? notes.find(n => n.id === editingNoteId) : undefined;
-  // Solo notas aceptadas (drafts ajenos son especulativos y distorsionan el saldo).
-  const displayNotes = notes.filter(n => n.status === "accepted" && n.id !== editingNoteId);
+  const editingNoteIsAccepted = editingNote?.status === "accepted";
 
-  // Fila unificada de edición: usa el valor vivo del formulario si está disponible,
-  // si no el valor guardado del borrador (fallback hasta que onTotalChange dispare).
+  // Notas aceptadas ajenas — si la nota en edición YA está aceptada, incluirla aquí (no en la fila de borrador).
+  const displayNotes = notes.filter(
+    n => n.status === "accepted" && (n.id !== editingNoteId || editingNoteIsAccepted),
+  );
+
+  // Fila de borrador solo cuando la nota en edición es un draft, o se está creando una nueva con valor.
   const editingTypeCode = pendingTypeCode ?? editingNote?.dian_document_type_code;
   const editingIsDebit = editingTypeCode === "92";
   const editingLabel = NOTE_LABELS[editingTypeCode ?? ""] ?? "Esta nota";
   const editingCents = (pendingCents ?? 0) > 0 ? (pendingCents ?? 0) : (editingNote?.payable_cents ?? 0);
 
-  // Hay fila de edición cuando: editamos borrador existente O estamos creando uno nuevo con valor
-  const showEditingRow = !!editingNote || (!editingNoteId && (pendingCents ?? 0) > 0);
-  // Label: "borrador en edición" si viene de nota existente, "(en edición)" si es nueva
-  const editingRowLabel = editingNote
+  const showDraftRow =
+    (!!editingNote && !editingNoteIsAccepted) ||
+    (!editingNoteId && (pendingCents ?? 0) > 0);
+  const draftRowLabel = editingNote
     ? `${editingLabel} (borrador en edición)`
     : `${editingLabel} (en edición)`;
 
-  // Saldo proyectado: acceptedNet ± lo que se está editando
-  const projectedCents = showEditingRow && editingCents > 0
+  // Saldo proyectado (borrador pendiente) vs saldo contable (todo aceptado).
+  const projectedCents = showDraftRow && editingCents > 0
     ? editingIsDebit
       ? acceptedNet + editingCents
       : acceptedNet - editingCents
@@ -103,10 +106,10 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode, editing
           );
         })}
 
-        {/* Fila unificada: borrador en edición (o nueva nota en edición) */}
-        {showEditingRow && editingCents > 0 && (
+        {/* Fila de borrador en edición (solo cuando la nota no está aceptada aún) */}
+        {showDraftRow && editingCents > 0 && (
           <div className="flex items-center justify-between italic">
-            <span className="text-(--color-info-text)">{editingRowLabel}</span>
+            <span className="text-(--color-info-text)">{draftRowLabel}</span>
             <span className={`font-mono ${editingIsDebit ? "text-(--color-success-text)" : "text-(--color-danger-text)"}`}>
               {editingIsDebit ? "+" : "−"} {formatCOP.format(editingCents / 100)}
             </span>
@@ -117,7 +120,7 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode, editing
         {showFooter && (
           <div className="flex items-center justify-between border-t border-(--color-info-border) pt-1.5 font-semibold">
             <span className="text-(--color-info-text)">
-              {projectedCents !== null ? "Saldo proyectado" : "Saldo efectivo"}
+              {projectedCents !== null ? "Saldo proyectado" : "Saldo contable"}
             </span>
             <span className="font-mono text-(--color-info-text)">
               {formatCOP.format((projectedCents ?? acceptedNet) / 100)}
@@ -125,6 +128,11 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode, editing
           </div>
         )}
       </div>
+
+      {/* Nota de contexto */}
+      <p className="mt-1.5 text-right text-[10px] italic text-(--color-info-text) opacity-40">
+        {projectedCents !== null ? "Visor proyectado · incluye borrador en edición" : "Visor contable · solo notas aceptadas por la DIAN"}
+      </p>
     </div>
   );
 }
