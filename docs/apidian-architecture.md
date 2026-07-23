@@ -2706,7 +2706,7 @@ esos son CRMs primero; aquí el core es el pipeline DIAN, no un CRM.
 | Nota Crédito (91) | ✅ Aceptada en habilitación real |
 | Nota Débito (92) | ✅ Aceptada en habilitación real |
 | Documento Soporte (05) | ✅ Autorizado en habilitación real (CUDS-SHA384, StatusCode 00), ver 9.55 |
-| Nota de Ajuste (95) | ⏳ Pendiente (depende de DS — DS ya implementado, NA es el siguiente paso) |
+| Nota de Ajuste (95) | ✅ Implementada (backend + frontend completo, 2026-07-19) — pendiente prueba contra DIAN real con rango tipo "95" |
 
 #### Modelo de precios elegido
 

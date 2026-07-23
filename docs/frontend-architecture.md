@@ -963,14 +963,117 @@ tiene acceso a CSS vars en los ticks).
 **Archivo**: `src/pages/DashboardPage.tsx` (reescritura completa).
 **Tipos**: `src/lib/stats.ts` — `BillingStats`, `PeriodStats`, `TypeStats`, `MonthSeries`.
 
+## Nota de Ajuste al DS (tipo 95) — frontend completo (2026-07-19)
+
+Cuarto tipo de documento bajo `/documents`. Mismo ciclo borrador→confirmar→PDF→correo que DS.
+
+**Páginas y rutas**:
+
+| Ruta | Componente |
+|---|---|
+| `/documents/adjustment-notes` | `AdjustmentNotesPage` — lista con columna "DS ajustado" |
+| `/documents/adjustment-notes/new` | `AdjustmentNoteEditorPage` — modo creación |
+| `/documents/adjustment-notes/:id` | `AdjustmentNoteEditorPage` — modo edición/vista |
+
+**`AdjustmentNoteForm`** — formulario equivalente a `SupportDocumentForm` con tres secciones extra:
+- **Referencia del DS** (obligatoria): prefijo, número, CUDS del DS original, y fecha de emisión
+- **Respuesta de discrepancia** (opcional): código de concepto (Lista de Valores `ConceptoNotaAjuste`)
+  y descripción del motivo de corrección
+- Selector de rango de numeración filtrado a `dian_document_type_code = "95"`
+
+**SubNav**: pestaña "Nota de Ajuste" añadida en `/documents/*`.
+
+**`lib/documents.ts`**: `IssueAdjustmentNotePayload`, `createAdjustmentNoteDraft`, `updateAdjustmentNoteDraft`.
+
+**Pendiente**: probar el flujo de confirmación contra la DIAN real con un rango tipo "95" registrado.
+
+---
+
+## Responsividad tablet/móvil (2026-07-22)
+
+Ronda de ajustes para que el dashboard sea usable en pantallas `<1280px`. Los prefijos
+`sm:`/`md:`/`lg:` aplican solo en los breakpoints inferiores; escritorio queda intacto.
+
+### Breakpoints estándar adoptados
+
+| Rango | Prefijo Tailwind | Comportamiento |
+|---|---|---|
+| `< 640 px` — Móvil | (sin prefijo) | Columna única, drawer completamente oculto |
+| `640–1023 px` — Tablet | `sm:` / `md:` | Grillas reducidas, drawer colapsado fijo |
+| `≥ 1024 px` — Escritorio | `lg:` | Comportamiento existente intacto |
+
+### Drawer móvil profesional (`DashboardLayout.tsx`)
+
+El sidebar en móvil (`<768px`) pasó de `fixed inset-0` (cubría el navbar) a `absolute inset-0`
+dentro de un contenedor `relative flex flex-1 overflow-hidden` que excluye el navbar. Siempre
+montado en el DOM (no `{condition && ...}`) para poder animar con `transition-opacity
+duration-200` y `transition-transform duration-200`. Franja transparente eliminada: quitado
+`w-52` del wrapper del drawer (los 16 px de diferencia respecto al `w-48` del `<aside>` eran
+visibles como borde transparente).
+
+```tsx
+<div className="relative flex flex-1 overflow-hidden">
+  {/* desktop/tablet: sidebar fijo */}
+  <div className="hidden md:flex h-full shrink-0"><Sidebar collapsed={collapsed} /></div>
+  {/* móvil: drawer con slide-in */}
+  <div className={`absolute inset-0 z-40 flex md:hidden transition-opacity duration-200 ${
+    mobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+  }`}>
+    <div className={`shrink-0 shadow-xl transition-transform duration-200 ${
+      mobileOpen ? "translate-x-0" : "-translate-x-full"
+    }`}>
+      <Sidebar collapsed={false} />
+    </div>
+    <div className="flex-1 bg-black/50" onClick={() => setMobileOpen(false)} />
+  </div>
+```
+
+### Filtros en listas de documentos
+
+Las 5 páginas de lista (`InvoicesPage`, `CreditNotesPage`, `DebitNotesPage`,
+`SupportDocumentsPage`, `AdjustmentNotesPage`) reestructuradas:
+
+- **Móvil/tablet**: fila 1 = buscador; fila 2 = estado + fechas + botón limpiar
+- **Escritorio** (`lg:`): todo en una sola fila
+
+Truco `lg:contents` — el div wrapper desaparece en escritorio y sus hijos fluyen directamente
+en el flex padre, sin romper el orden DOM. El botón "Limpiar" muestra solo la X en móvil/tablet
+(`<span className="hidden lg:inline"> Limpiar</span>`).
+
+### Editor de facturas — botones en fila propia en móvil
+
+`InvoiceEditorPage`: header cambiado de `flex justify-between` a
+`flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between` — título en su propia
+fila en móvil/tablet, botones debajo en `flex flex-wrap`; en escritorio ambos en una sola
+línea horizontal con `justify-between`.
+
+### Grillas de formularios responsivos (9 archivos)
+
+`col-span-N` sin prefijo convertido a doble col-span (móvil primero, escritorio con `sm:`):
+
+| Archivo | Cambio típico |
+|---|---|
+| `NumberingRangeForm.tsx` | `col-span-4` → `col-span-12 sm:col-span-4` |
+| `CompanyProfileForm.tsx` | `col-span-6` → `col-span-12 sm:col-span-6` |
+| `ProductForm.tsx` | `col-span-8` → `col-span-12 sm:col-span-8` |
+| `company-form/IdentificationStep.tsx` | `col-span-3` → `col-span-6 sm:col-span-3` |
+| `company-form/TaxStep.tsx` | 3× `col-span-4` → `col-span-6 sm:col-span-4` |
+| `company-form/LocationStep.tsx` | mixto: 3/5/4/8 → 6/6/12/12 en móvil |
+| `invoice-form/CustomerSection.tsx` | `col-span-6` → `col-span-12 sm:col-span-6` |
+| `invoice-form/VendorSection.tsx` | ídem |
+| `pages/PublicCustomerRegisterPage.tsx` | 5/7/6/6 → 12 en móvil con sm: correcto |
+
+Regla adoptada: columnas angostas (`col-span-3`) → `col-span-6 sm:col-span-3` (dos por fila en tablet); anchas (`col-span-6`+) → `col-span-12 sm:col-span-N` (columna única en móvil).
+
+### Otros cambios del mismo commit (1075d94)
+
+- `frontend/index.html`: `lang="en"` → `lang="es"`
+- `frontend/public/favicon.svg` y `logo.svg`: actualizados por el usuario (nuevo logo)
+
+---
+
 ## Pendiente para próximas fases
 
-- Sidebar: sincronizar expansión del grupo "Documentos" con la ruta activa — si el usuario
-  navega a Clientes, el grupo debería cerrarse solo (actualmente requiere click manual).
-- Modal de confirmación propio — los 7 sitios con `window.confirm` (eliminar borrador/logo/
-  cliente/producto/rango) deberían usar un modal UI en lugar del diálogo nativo del navegador.
-- Toast system — los mensajes de éxito/error de acciones (`Banner` fijo) deberían ser toasts
-  con auto-cierre en lugar de banners permanentes.
-- Banner "sin conexión" — si el backend no responde al cargar, mostrar aviso claro en lugar de
-  renderizar el dashboard silenciosamente con datos de `localStorage`.
-- Nota de Ajuste (95) para DS — depende de que el backend implemente el tipo 95 (DS ya está).
+- **Prueba NA contra DIAN real** — crear rango tipo "95", confirmar y enviar un borrador NA.
+- **Flujo comercial completo** (sección 9.54 de `apidian-architecture.md`): Railway, `account_status`, upload documentos onboarding, webhook ePayco, panel `/admin`.
+- **Alertas proactivas por correo** (sección 9.52): vencimiento de certificado/rango → correo automático.
