@@ -164,23 +164,21 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
         />
       </div>
 
-      {/* Verificar en DIAN — solo NIT */}
-      {value.identification.type_code === "31" && (
-        <div className="col-span-12 flex flex-col gap-1">
-          <Button
-            type="button"
-            variant="secondary"
-            icon={<Search className="h-3.5 w-3.5" />}
-            loading={verifying}
-            disabled={!value.identification.number}
-            onClick={handleVerify}
-            className="self-start"
-          >
-            Verificar en la DIAN
-          </Button>
-          {verifyResult && <p className="text-xs text-(--text-secondary)">{verifyResult}</p>}
-        </div>
-      )}
+      {/* Verificar en DIAN */}
+      <div className="col-span-12 flex flex-col gap-1">
+        <Button
+          type="button"
+          variant="secondary"
+          icon={<Search className="h-3.5 w-3.5" />}
+          loading={verifying}
+          disabled={!value.identification.number}
+          onClick={handleVerify}
+          className="self-start"
+        >
+          Verificar en la DIAN
+        </Button>
+        {verifyResult && <p className="text-xs text-(--text-secondary)">{verifyResult}</p>}
+      </div>
 
       {/* Correo | Teléfono */}
       <div className="col-span-12 sm:col-span-6">

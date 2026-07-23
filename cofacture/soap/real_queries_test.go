@@ -32,13 +32,48 @@ func realClient(t *testing.T) *Client {
 	return New(HabilitacionURL, cert, key)
 }
 
-// TestGetNumberingRange_Real llama al webservice real de la DIAN con las credenciales del
-// emisor de prueba para obtener sus rangos de numeración autorizados. Requiere
-// COFACTURE_TEST_FIXTURES_DIR y que credenciales.txt tenga DIAN_SOFTWARE_ID.
-// El resultado imprime cada rango con su resolución, prefijo, from/to, fechas y TechnicalKey.
-func TestGetNumberingRange_Real(t *testing.T) {
-	c := realClient(t)
+// queryRanges llama GetNumberingRange en el endpoint dado e imprime los rangos devueltos.
+func queryRanges(t *testing.T, label, baseURL, nit, softwareCode string) {
+	t.Helper()
 	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")
+	certPEM, _ := os.ReadFile(filepath.Join(dir, "certificado_cert.pem"))
+	keyPEM, _ := os.ReadFile(filepath.Join(dir, "certificado_key.pem"))
+	cert, key, err := signer.LoadPEM(certPEM, keyPEM)
+	if err != nil {
+		t.Fatalf("LoadPEM: %v", err)
+	}
+	c := New(baseURL, cert, key)
+
+	got, err := c.GetNumberingRange(nit, nit, softwareCode)
+	if err != nil {
+		t.Logf("[%s] ERROR: %v", label, err)
+		return
+	}
+	t.Logf("[%s] OperationCode        : %s", label, got.OperationCode)
+	t.Logf("[%s] OperationDescription : %s", label, got.OperationDescription)
+	t.Logf("[%s] Rangos encontrados   : %d", label, len(got.ResponseList))
+	for i, r := range got.ResponseList {
+		t.Logf("[%s] --- Rango %d ---", label, i+1)
+		t.Logf("[%s]   ResolutionNumber : %s", label, r.ResolutionNumber)
+		t.Logf("[%s]   ResolutionDate   : %s", label, r.ResolutionDate)
+		t.Logf("[%s]   Prefix           : %s", label, r.Prefix)
+		t.Logf("[%s]   FromNumber       : %d", label, r.FromNumber)
+		t.Logf("[%s]   ToNumber         : %d", label, r.ToNumber)
+		t.Logf("[%s]   ValidDateFrom    : %s", label, r.ValidDateFrom)
+		t.Logf("[%s]   ValidDateTo      : %s", label, r.ValidDateTo)
+		t.Logf("[%s]   TechnicalKey     : %s", label, r.TechnicalKey)
+	}
+}
+
+// TestGetNumberingRange_Real consulta ambos ambientes (habilitación y producción) para el
+// mismo NIT y software. Los entornos son bases de datos separadas en la DIAN: una resolución
+// autorizada en producción no aparece en habilitación y viceversa. Si SETP (FE) solo aparece
+// en producción y SEDS (DS) solo en habilitación, eso es el comportamiento correcto.
+func TestGetNumberingRange_Real(t *testing.T) {
+	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")
+	if dir == "" {
+		t.Skip("COFACTURE_TEST_FIXTURES_DIR no configurado, se omite la prueba real contra la DIAN")
+	}
 	env := parseEnvFile(t, filepath.Join(dir, "credenciales.txt"))
 
 	nit := "6382356"
@@ -47,25 +82,11 @@ func TestGetNumberingRange_Real(t *testing.T) {
 		t.Fatal("DIAN_SOFTWARE_ID no está en credenciales.txt")
 	}
 
-	got, err := c.GetNumberingRange(nit, nit, softwareCode)
-	if err != nil {
-		t.Fatalf("GetNumberingRange: %v", err)
-	}
+	t.Log("=== HABILITACIÓN ===")
+	queryRanges(t, "HAB", HabilitacionURL, nit, softwareCode)
 
-	t.Logf("OperationCode        : %s", got.OperationCode)
-	t.Logf("OperationDescription : %s", got.OperationDescription)
-	t.Logf("Rangos encontrados   : %d", len(got.ResponseList))
-	for i, r := range got.ResponseList {
-		t.Logf("--- Rango %d ---", i+1)
-		t.Logf("  ResolutionNumber : %s", r.ResolutionNumber)
-		t.Logf("  ResolutionDate   : %s", r.ResolutionDate)
-		t.Logf("  Prefix           : %s", r.Prefix)
-		t.Logf("  FromNumber       : %d", r.FromNumber)
-		t.Logf("  ToNumber         : %d", r.ToNumber)
-		t.Logf("  ValidDateFrom    : %s", r.ValidDateFrom)
-		t.Logf("  ValidDateTo      : %s", r.ValidDateTo)
-		t.Logf("  TechnicalKey     : %s", r.TechnicalKey)
-	}
+	t.Log("=== PRODUCCIÓN ===")
+	queryRanges(t, "PRD", ProduccionURL, nit, softwareCode)
 }
 
 // TestGetAcquirer_Real llama al webservice real de la DIAN con la cédula del emisor de

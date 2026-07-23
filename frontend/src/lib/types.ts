@@ -299,6 +299,24 @@ export interface ListNumberingRangesResult {
   count: number;
 }
 
+// Rango devuelto por GET /dian/numbering-ranges — datos tal como los reporta la DIAN,
+// sin dian_document_type_code ni test_set_id que son campos propios de apidian.
+export interface DianRange {
+  resolution_number: string;
+  resolution_date: string; // YYYY-MM-DD
+  prefix: string;
+  range_from: number;
+  range_to: number;
+  valid_from: string; // YYYY-MM-DD
+  valid_to: string;   // YYYY-MM-DD
+  technical_key?: string;
+  suggested_doc_type_code?: string; // sugerido cuando el prefijo es SETP/SEDS; "" si no reconocible
+}
+
+export interface GetDianNumberingRangesResult {
+  ranges: DianRange[];
+}
+
 // Espejo de createNumberingRangeRequest. technical_key solo aplica cuando
 // dian_document_type_code es "01" (Factura, CUFE); test_set_id solo aplica en habilitación
 // ("2") — es el "set de pruebas" que la DIAN asigna para poder confirmar documentos de prueba.

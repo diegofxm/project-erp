@@ -792,3 +792,49 @@ func (a *API) handleVerifyAcquirer(w http.ResponseWriter, r *http.Request) {
 		ReceiverEmail: info.ReceiverEmail,
 	})
 }
+
+type dianRangeItem struct {
+	ResolutionNumber     string `json:"resolution_number"`
+	ResolutionDate       string `json:"resolution_date"`
+	Prefix               string `json:"prefix"`
+	RangeFrom            int64  `json:"range_from"`
+	RangeTo              int64  `json:"range_to"`
+	ValidFrom            string `json:"valid_from"`
+	ValidTo              string `json:"valid_to"`
+	TechnicalKey         string `json:"technical_key,omitempty"`
+	SuggestedDocTypeCode string `json:"suggested_doc_type_code,omitempty"`
+}
+
+type getDianNumberingRangesResponse struct {
+	Ranges []dianRangeItem `json:"ranges"`
+}
+
+// handleGetDianNumberingRanges consulta los rangos de numeración del emisor activo ante la
+// DIAN vía GetNumberingRange — devuelve los datos tal como los reporta la DIAN, con una
+// sugerencia de tipo de documento cuando el prefijo es reconocible (SETP/SEDS). El frontend
+// usa estos datos para pre-llenar el formulario de importación; el usuario aporta
+// dian_document_type_code y, si el ambiente es habilitación, el test_set_id.
+func (a *API) handleGetDianNumberingRanges(w http.ResponseWriter, r *http.Request) {
+	ranges, err := a.documents.GetDianNumberingRanges(r.Context(), middleware.GetTenantID(r.Context()))
+	if err != nil {
+		response.WriteError(w, err)
+		return
+	}
+
+	items := make([]dianRangeItem, 0, len(ranges))
+	for _, dr := range ranges {
+		items = append(items, dianRangeItem{
+			ResolutionNumber:     dr.ResolutionNumber,
+			ResolutionDate:       dr.ResolutionDate,
+			Prefix:               dr.Prefix,
+			RangeFrom:            dr.RangeFrom,
+			RangeTo:              dr.RangeTo,
+			ValidFrom:            dr.ValidFrom,
+			ValidTo:              dr.ValidTo,
+			TechnicalKey:         dr.TechnicalKey,
+			SuggestedDocTypeCode: dr.SuggestedDocTypeCode,
+		})
+	}
+
+	response.WriteJSON(w, http.StatusOK, getDianNumberingRangesResponse{Ranges: items})
+}
