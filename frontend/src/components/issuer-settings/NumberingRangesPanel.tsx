@@ -158,9 +158,9 @@ function ImportModal({ dianRanges, existingPrefixes, docTypes, environment, onIm
       <div className="flex w-full max-w-2xl flex-col gap-4 rounded-lg bg-(--bg-primary) p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-(--text-primary)">Rangos disponibles en la DIAN</h3>
+            <h3 className="text-sm font-semibold text-(--text-primary)">Sincronizar con la DIAN</h3>
             <p className="mt-0.5 text-xs text-(--text-muted)">
-              Ambiente: {environment === "1" ? "Producción" : "Habilitación"} — selecciona el tipo de documento y guarda.
+              Ambiente: {environment === "1" ? "Producción" : "Habilitación"} — selecciona el tipo de documento e importa.
             </p>
           </div>
           <button type="button" onClick={onClose} className="rounded p-1 text-(--text-muted) hover:bg-(--bg-hover) hover:text-(--text-primary)">
@@ -198,7 +198,7 @@ function ImportModal({ dianRanges, existingPrefixes, docTypes, environment, onIm
 
                   {/* Datos del rango */}
                   <div className="grid grid-cols-2 gap-1 text-xs text-(--text-secondary)">
-                    <span>Rango: <span className="font-mono text-(--text-primary)">{r.range_from.toLocaleString()} – {r.range_to.toLocaleString()}</span></span>
+                    <span>Rango: <span className="font-mono text-(--text-primary)">{r.range_from} – {r.range_to}</span></span>
                     <span>Resolución: {r.resolution_date}</span>
                     <span>Vigente desde: {r.valid_from}</span>
                     <span>Vigente hasta: {r.valid_to}</span>
@@ -386,7 +386,7 @@ export function NumberingRangesPanel() {
                   loading={importFetching}
                   onClick={handleOpenImport}
                 >
-                  Importar desde DIAN
+                  Sincronizar con DIAN
                 </Button>
               )}
               {!showForm && (

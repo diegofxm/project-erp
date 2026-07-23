@@ -10,10 +10,10 @@ import { Spinner } from "../components/ui/Spinner";
 const ACTION_LABELS: Record<string, string> = {
   "document.created":    "Borrador creado",
   "document.updated":    "Borrador actualizado",
-  "document.confirmed":  "Documento confirmado",
-  "document.deleted":    "Borrador eliminado",
+  "document.confirmed":  "Confirmado",
+  "document.deleted":    "Eliminado",
   "document.email_sent": "Correo enviado",
-  "document.cloned":     "Documento clonado",
+  "document.cloned":     "Clonado",
 };
 
 const ACTION_COLORS: Record<string, string> = {
@@ -26,28 +26,42 @@ const ACTION_COLORS: Record<string, string> = {
 };
 
 const DOC_TYPE_LABELS: Record<string, string> = {
-  "01": "FE",
-  "91": "NC",
-  "92": "ND",
-  "05": "DS",
-  "95": "NA",
+  "01": "Factura",
+  "91": "Nota Crédito",
+  "92": "Nota Débito",
+  "05": "Doc. Soporte",
+  "95": "Nota Ajuste",
 };
 
-function eventParty(meta?: Record<string, unknown>): string {
-  if (!meta) return "";
-  const name = (meta.customer_name ?? meta.vendor_name ?? "") as string;
-  return name;
-}
+const ENV_LABELS: Record<string, string> = {
+  "1": "Producción",
+  "2": "Habilitación",
+};
 
-function eventDocLabel(meta?: Record<string, unknown>): string {
-  if (!meta) return "";
-  const typeCode = meta.dian_document_type_code as string | undefined;
+function eventDocRef(meta?: Record<string, unknown>): string {
+  if (!meta) return "—";
   const prefix = meta.prefix as string | undefined;
   const number = meta.number as number | undefined;
-  if (!typeCode) return "";
-  const type = DOC_TYPE_LABELS[typeCode] ?? typeCode;
-  if (prefix || number) return `${type} ${prefix ?? ""}${number ?? ""}`;
-  return type;
+  if (prefix && number) return `${prefix}-${number}`;
+  if (prefix) return prefix;
+  return "—";
+}
+
+function eventDocType(meta?: Record<string, unknown>): string {
+  if (!meta) return "";
+  const typeCode = meta.dian_document_type_code as string | undefined;
+  return typeCode ? (DOC_TYPE_LABELS[typeCode] ?? typeCode) : "";
+}
+
+function eventParty(meta?: Record<string, unknown>): string {
+  if (!meta) return "—";
+  return ((meta.customer_name ?? meta.vendor_name ?? "") as string) || "—";
+}
+
+function eventEnv(meta?: Record<string, unknown>): string {
+  if (!meta) return "";
+  const env = meta.environment as string | undefined;
+  return env ? (ENV_LABELS[env] ?? "") : "";
 }
 
 export function SettingsActivityPage() {
@@ -80,42 +94,65 @@ export function SettingsActivityPage() {
         <p className="text-xs text-(--text-secondary)">No hay eventos registrados todavía.</p>
       ) : (
         <div className="flex flex-col gap-1">
+          {/* Cabecera de columnas */}
+          <div className="grid grid-cols-[140px_90px_100px_1fr_110px_130px] gap-3 px-3 py-1 text-xs font-medium text-(--text-muted)">
+            <span>Acción</span>
+            <span>Tipo</span>
+            <span>Referencia</span>
+            <span>Tercero</span>
+            <span>Usuario</span>
+            <span className="text-right">Fecha y hora</span>
+          </div>
+
           {events.map((e) => {
-            const label = ACTION_LABELS[e.action] ?? e.action;
+            const label     = ACTION_LABELS[e.action] ?? e.action;
             const colorClass = ACTION_COLORS[e.action] ?? "text-(--text-secondary) bg-(--bg-secondary)";
-            const party = eventParty(e.metadata);
-            const docLabel = eventDocLabel(e.metadata);
-            const date = new Date(e.created_at);
-            const dateStr = date.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
-            const timeStr = date.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+            const docType   = eventDocType(e.metadata);
+            const docRef    = eventDocRef(e.metadata);
+            const party     = eventParty(e.metadata);
+            const env       = eventEnv(e.metadata);
+            const date      = new Date(e.created_at);
+            const dateStr   = date.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+            const timeStr   = date.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+            const actor     = e.user_name || e.user_email || "Sistema";
 
             return (
               <div
                 key={e.id}
-                className="flex items-start gap-3 rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-xs"
+                className="grid grid-cols-[140px_90px_100px_1fr_110px_130px] items-center gap-3 rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-xs"
               >
-                <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-medium ${colorClass}`}>
+                {/* Acción */}
+                <span className={`inline-flex w-fit items-center rounded px-1.5 py-0.5 font-medium ${colorClass}`}>
                   {label}
                 </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-x-2">
-                    {docLabel && (
-                      <button
-                        type="button"
-                        disabled={!e.resource_id}
-                        onClick={() => e.resource_id && navigate(`/documents/invoices/${e.resource_id}`)}
-                        className="font-medium text-(--text-primary) hover:underline disabled:cursor-default disabled:no-underline"
-                      >
-                        {docLabel}
-                      </button>
-                    )}
-                    {party && <span className="text-(--text-secondary)">{party}</span>}
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-(--text-muted)">
-                    <span>{e.user_name || e.user_email || "Sistema"}</span>
-                    <span>{dateStr} · {timeStr}</span>
-                  </div>
-                </div>
+
+                {/* Tipo de documento */}
+                <span className="truncate text-(--text-secondary)">
+                  {docType || <span className="text-(--text-muted)">—</span>}
+                  {env && <span className="ml-1 text-(--text-muted)">· {env === "Habilitación" ? "HAB" : "PRD"}</span>}
+                </span>
+
+                {/* Referencia (prefix-número, clickeable) */}
+                {e.resource_id ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/documents/invoices/${e.resource_id}`)}
+                    className="truncate text-left font-mono font-semibold text-(--accent-primary) hover:underline"
+                  >
+                    {docRef}
+                  </button>
+                ) : (
+                  <span className="truncate font-mono text-(--text-muted)">{docRef}</span>
+                )}
+
+                {/* Tercero */}
+                <span className="min-w-0 truncate text-(--text-secondary)">{party}</span>
+
+                {/* Actor */}
+                <span className="truncate text-(--text-muted)">{actor}</span>
+
+                {/* Fecha · hora */}
+                <span className="text-right text-(--text-muted)">{dateStr} · {timeStr}</span>
               </div>
             );
           })}
