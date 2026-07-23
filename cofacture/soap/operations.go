@@ -98,6 +98,28 @@ func (c *Client) GetStatus(trackID string) (*DianResponse, error) {
 	return &result.Result, nil
 }
 
+// GetNumberingRange consulta los rangos de numeración autorizados por la DIAN para un
+// emisor + software dados. accountCode y accountCodeT son el NIT del emisor (en integración
+// directa son iguales); softwareCode es el UUID del software registrado.
+// Devuelve todos los rangos activos e históricos que la DIAN tiene para ese par
+// emisor/software, cada uno con su resolución, prefijo, from/to, fechas de vigencia y la
+// clave técnica (TechnicalKey) necesaria para calcular el CUFE.
+func (c *Client) GetNumberingRange(accountCode, accountCodeT, softwareCode string) (*NumberRangeResponseList, error) {
+	var result struct {
+		Result NumberRangeResponseList `xml:"GetNumberingRangeResult"`
+	}
+	err := c.call("GetNumberingRange", func(body *etree.Element) {
+		el := body.CreateElement("wcf:GetNumberingRange")
+		el.CreateElement("wcf:accountCode").SetText(accountCode)
+		el.CreateElement("wcf:accountCodeT").SetText(accountCodeT)
+		el.CreateElement("wcf:softwareCode").SetText(softwareCode)
+	}, &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Result, nil
+}
+
 // GetAcquirer consulta el registro de intercambio/notificación de la DIAN para un tercero —
 // ver AcquirerResponse. Ayuda opcional al capturar un NIT, nunca bloqueante: un resultado vacío
 // (sin ReceiverName/ReceiverEmail) es normal y esperado para la mayoría de identificaciones.

@@ -45,6 +45,31 @@ type UploadDocumentResponse struct {
 	ZipKey string `xml:"ZipKey"`
 }
 
+// NumberRangeResponse es un rango de numeración individual devuelto por GetNumberingRange
+// (namespace http://schemas.datacontract.org/2004/07/NumberRangeResponse en el WSDL real).
+// Fechas en formato string tal como las devuelve la DIAN ("2019-01-19T00:00:00") — el
+// llamador convierte según necesite.
+type NumberRangeResponse struct {
+	ResolutionNumber string `xml:"ResolutionNumber"`
+	ResolutionDate   string `xml:"ResolutionDate"`
+	Prefix           string `xml:"Prefix"`
+	FromNumber       int64  `xml:"FromNumber"`
+	ToNumber         int64  `xml:"ToNumber"`
+	ValidDateFrom    string `xml:"ValidDateFrom"`
+	ValidDateTo      string `xml:"ValidDateTo"`
+	TechnicalKey     string `xml:"TechnicalKey"`
+}
+
+// NumberRangeResponseList es el resultado completo de GetNumberingRange — una lista de
+// rangos autorizados para el emisor + software dados (namespace
+// http://schemas.datacontract.org/2004/07/NumberRangeResponseList).
+// OperationCode "0" indica éxito; cualquier otro código indica error de la DIAN.
+type NumberRangeResponseList struct {
+	OperationCode        string                `xml:"OperationCode"`
+	OperationDescription string                `xml:"OperationDescription"`
+	ResponseList         []NumberRangeResponse `xml:"ResponseList>NumberRangeResponse"`
+}
+
 // AcquirerResponse es el resultado de GetAcquirer (namespace
 // Gosocket.Dian.Services.Utils.Common en el WSDL real) — consulta el registro de
 // intercambio/notificación de la DIAN para un tercero dado, no un RUT completo: solo trae
