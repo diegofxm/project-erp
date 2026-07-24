@@ -19,7 +19,7 @@ const TONE_ICONS: Record<Tone, ReactNode> = {
 // y mensajes de estado del onboarding.
 export function Banner({ tone, children }: { tone: Tone; children: ReactNode }) {
   return (
-    <div className={`flex flex-col items-center gap-1.5 rounded border px-3 py-3 text-center text-xs ${TONE_CLASSES[tone]}`}>
+    <div className={`flex items-start gap-2 rounded border px-3 py-2.5 text-xs ${TONE_CLASSES[tone]}`}>
       {TONE_ICONS[tone]}
       <span>{children}</span>
     </div>
