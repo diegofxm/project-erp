@@ -7,28 +7,30 @@ interface Props {
 }
 
 /**
- * Icono ⓘ con popover explicativo al hacer clic.
- * Abre a la derecha por defecto (flujo natural de lectura); si el espacio
- * a la derecha es insuficiente (<260px), se voltea automáticamente a la izquierda.
- *
- * Uso: <InfoTip>Texto explicativo.</InfoTip>
+ * Ícono ⓘ con popover explicativo al hacer clic.
+ * Abre debajo del ícono por defecto (recuadro horizontal, más ancho que alto);
+ * si no hay espacio abajo se voltea arriba. Alineación izquierda o derecha
+ * según el espacio disponible.
  */
 export function InfoTip({ children, className }: Props) {
   const [open, setOpen] = useState(false);
+  const [flipUp, setFlipUp] = useState(false);
   const [flipLeft, setFlipLeft] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Detectar si hay espacio a la derecha al abrir.
+  const POPOVER_W = 320;
+  const POPOVER_H_ESTIMATE = 160; // estimado conservador
+
   function handleOpen() {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setFlipLeft(window.innerWidth - rect.right < 260);
+      setFlipUp(window.innerHeight - rect.bottom < POPOVER_H_ESTIMATE);
+      setFlipLeft(window.innerWidth - rect.left < POPOVER_W);
     }
     setOpen((o) => !o);
   }
 
-  // Cerrar al clic fuera.
   useEffect(() => {
     if (!open) return;
     function onPointer(e: PointerEvent) {
@@ -40,15 +42,16 @@ export function InfoTip({ children, className }: Props) {
     return () => document.removeEventListener("pointerdown", onPointer);
   }, [open]);
 
-  // Posición del popover: derecha o izquierda del ícono, centrado verticalmente.
-  const popoverPos = flipLeft
-    ? "right-full mr-2 top-1/2 -translate-y-1/2"
-    : "left-full ml-2 top-1/2 -translate-y-1/2";
+  // Posición vertical: debajo o arriba del ícono.
+  const vertPos = flipUp ? "bottom-full mb-2" : "top-full mt-2";
+  // Alineación horizontal: desde la izquierda del ícono o anclado a la derecha.
+  const horizPos = flipLeft ? "right-0" : "left-0";
 
-  // Flecha apuntando hacia el ícono.
-  const arrowPos = flipLeft
-    ? "left-full top-1/2 -translate-y-1/2 border-l-(--bg-primary) border-y-transparent border-r-transparent"
-    : "right-full top-1/2 -translate-y-1/2 border-r-(--bg-primary) border-y-transparent border-l-transparent";
+  // Flecha
+  const arrowV = flipUp
+    ? "top-full border-t-(--bg-primary) border-x-transparent border-b-transparent"
+    : "bottom-full border-b-(--bg-primary) border-x-transparent border-t-transparent";
+  const arrowH = flipLeft ? "right-1.5" : "left-1.5";
 
   return (
     <div ref={containerRef} className={`relative inline-flex items-center ${className ?? ""}`}>
@@ -64,11 +67,11 @@ export function InfoTip({ children, className }: Props) {
 
       {open && (
         <div
-          className={`absolute ${popoverPos} z-50 w-56 rounded border border-(--border-color) bg-(--bg-primary) p-2.5 shadow-lg`}
+          className={`absolute ${vertPos} ${horizPos} z-50 w-80 rounded border border-(--border-color) bg-(--bg-primary) p-3 shadow-lg`}
           role="tooltip"
         >
           <p className="text-[11px] leading-relaxed text-(--text-secondary)">{children}</p>
-          <span className={`absolute ${arrowPos} border-4`} />
+          <span className={`absolute ${arrowV} ${arrowH} border-4`} />
         </div>
       )}
     </div>
