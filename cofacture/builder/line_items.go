@@ -53,7 +53,7 @@ func appendDocumentLine(parent *etree.Element, node, nodeQty string, index int, 
 
 	item := el.CreateElement("cac:Item")
 	item.CreateElement("cbc:Description").SetText(line.Description)
-	if documentTypeCode == "01" || documentTypeCode == "05" {
+	if documentTypeCode == "01" || documentTypeCode == "05" || documentTypeCode == "95" {
 		sii := item.CreateElement("cac:StandardItemIdentification").CreateElement("cbc:ID")
 		sii.CreateAttr("schemeID", line.ItemTypeCode)
 		sii.CreateAttr("schemeName", line.ItemTypeName)

@@ -51,7 +51,7 @@ const (
 	supportDocumentHashType     = "CUDS-SHA384"
 	supportDocumentDianDocType  = "05"
 
-	adjustmentNoteProfileID   = "DIAN 2.1: nota de ajuste al documento soporte en adquisiciones efectuadas a no obligados a facturar."
+	adjustmentNoteProfileID   = "DIAN 2.1: Nota de ajuste al documento soporte en adquisiciones efectuadas a sujetos no obligados a expedir factura o documento equivalente"
 	adjustmentNoteHashType    = "CUDS-SHA384"
 	adjustmentNoteDianDocType = "95"
 )

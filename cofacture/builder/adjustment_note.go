@@ -9,15 +9,15 @@ import (
 )
 
 // BuildAdjustmentNote construye el árbol XML de una Nota de Ajuste al Documento Soporte
-// (InvoiceTypeCode "95"). Es al DS (tipo 05) lo que NC/ND son a la Factura: usa el mismo
-// elemento raíz Invoice, los mismos roles invertidos (Supplier=SNO, Customer=ABS), y el
-// mismo algoritmo CUDS-SHA384. Añade BillingReference al DS original y DiscrepancyResponse.
+// (InvoiceTypeCode "95"). Usa CreditNote como elemento raíz (igual que NC/91) con
+// namespace CreditNote-2 — verificado contra el ejemplo oficial DIAN NotaDeAjuste.xml.
+// Roles invertidos iguales al DS: Supplier = SNO, Customer = ABS.
 func BuildAdjustmentNote(an domain.AdjustmentNote) (*etree.Document, error) {
 	doc := etree.NewDocument()
 	doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8" standalone="no"`)
 
-	root := doc.CreateElement("Invoice")
-	root.CreateAttr("xmlns", ubl.NSInvoiceDefault)
+	root := doc.CreateElement("CreditNote")
+	root.CreateAttr("xmlns", ubl.NSCreditNote)
 	root.CreateAttr("xmlns:cac", ubl.NSCac)
 	root.CreateAttr("xmlns:cbc", ubl.NSCbc)
 	root.CreateAttr("xmlns:ds", ubl.NSDs)
@@ -26,7 +26,7 @@ func BuildAdjustmentNote(an domain.AdjustmentNote) (*etree.Document, error) {
 	root.CreateAttr("xmlns:xades", ubl.NSXades)
 	root.CreateAttr("xmlns:xades141", ubl.NSXades141)
 	root.CreateAttr("xmlns:xsi", ubl.NSXsi)
-	root.CreateAttr("xsi:schemaLocation", ubl.SchemaLocationInvoice)
+	root.CreateAttr("xsi:schemaLocation", ubl.NSCreditNote+" http://docs.oasis-open.org/ubl/os-UBL-2.1/xsd/maindoc/UBL-CreditNote-2.1.xsd")
 
 	// appendUBLExtensions maneja InvoiceControl para tipo "05"/"95" (familia DS).
 	appendUBLExtensions(root, an.Invoice)
@@ -44,7 +44,7 @@ func BuildAdjustmentNote(an domain.AdjustmentNote) (*etree.Document, error) {
 
 	root.CreateElement("cbc:IssueDate").SetText(an.IssueDate)
 	root.CreateElement("cbc:IssueTime").SetText(an.IssueTime)
-	root.CreateElement("cbc:InvoiceTypeCode").SetText(an.DocumentTypeCode) // "95"
+	root.CreateElement("cbc:CreditNoteTypeCode").SetText(an.DocumentTypeCode) // "95"
 	if an.Note != "" {
 		root.CreateElement("cbc:Note").SetText(an.Note)
 	}
@@ -59,8 +59,7 @@ func BuildAdjustmentNote(an domain.AdjustmentNote) (*etree.Document, error) {
 		appendDiscrepancyResponse(root, *an.DiscrepancyResponse)
 	}
 
-	// BillingReference apunta al DS original — el UUID lleva schemeName="CUDS-SHA384"
-	// (a diferencia de NC/ND que referencian una FE y usan "CUFE-SHA384").
+	// BillingReference apunta al DS original — el UUID lleva schemeName="CUDS-SHA384".
 	appendNABillingReference(root, an.BillingReference)
 
 	// Roles invertidos iguales al DS: Supplier = tercero no obligado, Customer = ABS.
@@ -80,7 +79,7 @@ func BuildAdjustmentNote(an domain.AdjustmentNote) (*etree.Document, error) {
 		linePeriodDate = an.IssueDate
 	}
 	for i, line := range an.Lines {
-		appendDocumentLine(root, "InvoiceLine", "InvoicedQuantity", i+1, line, an.CurrencyCode, an.DocumentTypeCode, domain.Identification{}, linePeriodDate)
+		appendDocumentLine(root, "CreditNoteLine", "CreditedQuantity", i+1, line, an.CurrencyCode, an.DocumentTypeCode, domain.Identification{}, linePeriodDate)
 	}
 
 	return doc, nil
