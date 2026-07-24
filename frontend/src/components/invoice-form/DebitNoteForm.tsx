@@ -219,42 +219,17 @@ export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, on
         </div>
       </section>
 
-      <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
-        <p className="text-xs font-semibold text-(--text-primary)">Respuesta de discrepancia</p>
-        <p className="text-xs text-(--text-secondary)">
-          Se envía junto con la nota — se llena automáticamente al seleccionar el concepto.
-        </p>
-        <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-12 sm:col-span-4">
-            <Input
-              label="ID de referencia (número de la factura)"
-              value={discrepancy.reference_id}
-              onChange={(e) => setDiscrepancy((d) => ({ ...d, reference_id: e.target.value }))}
-            />
+      {/* DiscrepancyResponse — solo confirmación visual, no editable */}
+      {discrepancy.response_code && (
+        <section className="flex flex-col gap-1.5 border-t border-(--border-color) pt-3">
+          <p className="text-xs font-semibold text-(--text-primary)">Respuesta de discrepancia</p>
+          <div className="rounded border border-(--border-color) bg-(--bg-subtle) px-3 py-2 text-xs text-(--text-secondary)">
+            <span className="font-medium text-(--text-primary)">{discrepancy.reference_id}</span>
+            {" · "}
+            <span>{discrepancy.response_code} — {discrepancy.description}</span>
           </div>
-          <div className="col-span-12 sm:col-span-4">
-            <Select
-              label="Código de respuesta"
-              value={discrepancy.response_code}
-              onChange={(e) => setDiscrepancy((d) => ({ ...d, response_code: e.target.value }))}
-            >
-              <option value="">Selecciona…</option>
-              {DEBIT_NOTE_TYPES.map((t) => (
-                <option key={t.code} value={t.code}>
-                  {t.code} — {t.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="col-span-12">
-            <Input
-              label="Descripción"
-              value={discrepancy.description}
-              onChange={(e) => setDiscrepancy((d) => ({ ...d, description: e.target.value }))}
-            />
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <div className="flex gap-2">
         <Button type="button" variant="secondary" onClick={onCancel} className="flex-1">
