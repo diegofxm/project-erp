@@ -223,18 +223,6 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
         </div>
       </div>
 
-      {/* Respuesta de discrepancia — solo confirmación visual, no editable */}
-      {discrepancy.response_code && (
-        <section className="flex flex-col gap-1.5 border-t border-(--border-color) pt-3">
-          <p className="text-xs font-semibold text-(--text-primary)">Respuesta de discrepancia</p>
-          <div className="rounded border border-(--border-color) bg-(--bg-subtle) px-3 py-2 text-xs text-(--text-secondary)">
-            <span className="font-medium text-(--text-primary)">{discrepancy.reference_id}</span>
-            {" · "}
-            <span>{discrepancy.response_code} — {discrepancy.description}</span>
-          </div>
-        </section>
-      )}
-
       {/* Tercero no obligado */}
       <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
         <h2 className="text-xs font-semibold text-(--text-primary)">Tercero no obligado a facturar</h2>
@@ -265,6 +253,18 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
           <TotalsSummary lines={lines} withholdingTaxes={withholdingTaxes} />
         </div>
       </section>
+
+      {/* Respuesta de discrepancia — solo confirmación visual, no editable */}
+      {discrepancy.response_code && (
+        <section className="flex flex-col gap-1.5 border-t border-(--border-color) pt-3">
+          <p className="text-xs font-semibold text-(--text-primary)">Respuesta de discrepancia</p>
+          <div className="rounded border border-(--border-color) bg-(--bg-subtle) px-3 py-2 text-xs text-(--text-secondary)">
+            <span className="font-medium text-(--text-primary)">{discrepancy.reference_id}</span>
+            {" · "}
+            <span>{discrepancy.response_code} — {discrepancy.description}</span>
+          </div>
+        </section>
+      )}
 
       <div className="flex gap-2">
         <Button type="button" variant="secondary" onClick={onCancel} className="flex-1">

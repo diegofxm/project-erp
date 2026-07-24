@@ -154,6 +154,7 @@ export function DebitNoteEditorPage() {
     setConfirming(true);
     try {
       setDoc(await confirmDocument(id));
+      if (sourceDoc?.id) getDocument(sourceDoc.id).then(setSourceDoc).catch(() => {});
       toast.success("Nota Débito confirmada.");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo confirmar la nota débito");

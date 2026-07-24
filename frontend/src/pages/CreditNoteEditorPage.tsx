@@ -157,6 +157,7 @@ export function CreditNoteEditorPage() {
     setConfirming(true);
     try {
       setDoc(await confirmDocument(id));
+      if (sourceDoc?.id) getDocument(sourceDoc.id).then(setSourceDoc).catch(() => {});
       toast.success("Nota Crédito confirmada.");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo confirmar la nota crédito");

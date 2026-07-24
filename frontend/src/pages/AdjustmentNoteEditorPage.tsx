@@ -148,6 +148,7 @@ export function AdjustmentNoteEditorPage() {
     setConfirming(true);
     try {
       setDoc(await confirmDocument(id));
+      if (sourceDoc?.id) getDocument(sourceDoc.id).then(setSourceDoc).catch(() => {});
       toast.success("Nota de Ajuste confirmada.");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo confirmar la nota de ajuste");
