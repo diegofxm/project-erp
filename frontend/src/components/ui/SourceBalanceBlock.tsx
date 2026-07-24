@@ -73,6 +73,15 @@ export function SourceBalanceBlock({ doc, pendingCents, pendingTypeCode, editing
             {projectedCents !== null
               ? " El saldo proyectado incluye el borrador que estás editando y puede cambiar antes de confirmarlo."
               : " El saldo contable refleja solo notas ya aceptadas por la DIAN."}
+            {(pendingTypeCode === "95" || editingTypeCode === "95") && (
+              <>
+                {" "}<strong>Nota de Ajuste (NA):</strong> el estándar UBL 2.1 no tiene
+                un tipo &ldquo;AjusteNote&rdquo; propio — la DIAN reutiliza la estructura{" "}
+                <em>CreditNote</em> con código 95. La misma NA cubre tanto anulación parcial
+                como total según el concepto elegido. Para <em>agregar</em> valor a un DS
+                se emite un nuevo Documento Soporte; no existe nota débito en el ecosistema DS.
+              </>
+            )}
           </InfoTip>
         </div>
         <Link

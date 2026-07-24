@@ -6,6 +6,7 @@ import type { CreateNumberingRangePayload, IssuerEnvironment } from "../../lib/t
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Button } from "../ui/Button";
+import { InfoTip } from "../ui/InfoTip";
 
 interface NumberingRangeFormProps {
   onSubmit: (payload: CreateNumberingRangePayload) => void;
@@ -56,6 +57,17 @@ export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRan
 
   return (
     <form className="flex flex-col gap-3 rounded border border-(--border-color) p-4" onSubmit={handleSubmit}>
+      <div className="flex items-center gap-1.5">
+        <p className="text-xs font-semibold text-(--text-primary)">Nuevo rango de numeración</p>
+        <InfoTip>
+          <strong>FE y DS:</strong> requieren resolución DIAN. El prefijo, rango, vigencia y
+          clave técnica los asigna la DIAN — sincronízalos con la DIAN o transcríbelos exactamente como aparecen en el
+          documento oficial.
+          {" "}<br /><br />
+          <strong>NC, ND y NA:</strong> numeración libre, sin resolución. Tú defines el prefijo
+          y el rango; no hay vigencia ni clave técnica asociadas.
+        </InfoTip>
+      </div>
       <div className="grid grid-cols-12 gap-3">
         <div className="col-span-12 sm:col-span-4">
           <Select
@@ -140,13 +152,14 @@ export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRan
             <Input label="Clave técnica (CUFE)" required value={technicalKey} onChange={(e) => setTechnicalKey(e.target.value)} />
           </div>
         )}
-        {environment === "2" && (
+        {isResolutionType && environment === "2" && (
           <div className="col-span-12 sm:col-span-6">
             <Input
-              label="Set de pruebas (opcional)"
+              label={`Set de pruebas${docTypeCode === "01" ? "" : " (opcional)"}`}
+              required={docTypeCode === "01"}
               value={testSetId}
               onChange={(e) => setTestSetId(e.target.value)}
-              placeholder="ID del set de pruebas DIAN — vacío para habilitación libre"
+              placeholder="ID asignado por la DIAN para habilitación"
             />
           </div>
         )}
