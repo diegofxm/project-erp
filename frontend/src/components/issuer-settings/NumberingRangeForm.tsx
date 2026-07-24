@@ -143,11 +143,10 @@ export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRan
         {environment === "2" && (
           <div className="col-span-12 sm:col-span-6">
             <Input
-              label="Set de pruebas"
-              required
+              label="Set de pruebas (opcional)"
               value={testSetId}
               onChange={(e) => setTestSetId(e.target.value)}
-              placeholder="ID que la DIAN asigna para el set de pruebas de habilitación"
+              placeholder="ID del set de pruebas DIAN — vacío para habilitación libre"
             />
           </div>
         )}

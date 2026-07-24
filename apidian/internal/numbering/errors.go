@@ -17,8 +17,4 @@ var (
 	// que la DIAN ya autorizó bajo esta resolución".
 	ErrNextNumberOutOfRange = errors.New("numbering: next_number debe estar dentro del rango [range_from, range_to]")
 
-	// ErrMissingTestSetID: en habilitación todos los rangos deben llevar el test_set_id que
-	// la DIAN asigna en el portal, sin él SendTestSetAsync no puede usarse y el proceso de
-	// certificación no arranca.
-	ErrMissingTestSetID = errors.New("numbering: test_set_id es obligatorio en ambiente de habilitación")
 )
