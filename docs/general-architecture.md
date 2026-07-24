@@ -10,7 +10,7 @@
 
 La arquitectura propuesta es viable y bien fundamentada. La separación actual
 (`apidian` / `cofacture` / `frontend`) es el punto de partida correcto.
-El siguiente bloque natural es `accounting-core/` — sin tocar nada de lo que ya funciona.
+El siguiente bloque natural es `accounting/` — sin tocar nada de lo que ya funciona.
 
 ---
 
@@ -22,7 +22,7 @@ project-ubl/
 │
 ├── apidian/            ← dominio fiscal electrónico DIAN (FE/NC/ND/DS/NA) — ya existe
 ├── cofacture/          ← librería de infraestructura DIAN (UBL + firma + SOAP) — ya existe
-├── accounting-core/    ← motor contable puro — SIGUIENTE FASE
+├── accounting/    ← motor contable puro — SIGUIENTE FASE
 ├── inventory/          ← inventario y almacén — futuro cercano
 ├── payroll/            ← nómina electrónica — futuro
 ├── hr/                 ← RRHH — futuro
@@ -33,7 +33,7 @@ project-ubl/
 
 | Módulo | Prioridad | Descripción |
 |---|---|---|
-| `accounting-core` | **Siguiente** | Motor contable: PUC, journal ledger, partida doble, reportes |
+| `accounting` | **Siguiente** | Motor contable: PUC, journal ledger, partida doble, reportes |
 | `inventory` | **Futuro cercano** | Productos, bodegas, movimientos de stock, costo de ventas |
 | `payroll` | Futuro | Liquidación de nómina, nómina electrónica DIAN |
 | `hr` | Futuro | Empleados, contratos, cargos |
@@ -49,11 +49,11 @@ project-ubl/
 
 ### Por qué NATS y no HTTP siempre
 
-Con HTTP sincrónico, los servicios están acoplados en tiempo: si `accounting-core` está caído
+Con HTTP sincrónico, los servicios están acoplados en tiempo: si `accounting` está caído
 cuando `apidian` confirma una FE, el asiento nunca se crea y la contabilidad queda incompleta
 (la FE ya fue a la DIAN — no se puede revertir).
 
-Con un bus de eventos, `apidian` publica `"invoice.confirmed"` y olvida. Si `accounting-core`
+Con un bus de eventos, `apidian` publica `"invoice.confirmed"` y olvida. Si `accounting`
 estaba caído, levanta después y lee el evento de la cola. Los servicios no necesitan estar
 vivos al mismo tiempo.
 
@@ -86,7 +86,7 @@ Módulo publica →  nats-server (VPS, binario Go)  → consumidor procesa
 
 ## Principio fundamental
 
-> El `accounting-core` no sabe que existen facturas DIAN, empleados, inventarios ni bancos.
+> El `accounting` no sabe que existen facturas DIAN, empleados, inventarios ni bancos.
 > Solo recibe instrucciones contables válidas y mantiene la verdad financiera de la empresa.
 >
 > Igual que el core bancario no sabe si una transferencia viene de una app móvil o de una
@@ -94,10 +94,10 @@ Módulo publica →  nats-server (VPS, binario Go)  → consumidor procesa
 
 ---
 
-## 1. accounting-core — estructura interna
+## 1. accounting — estructura interna
 
 ```
-accounting-core/
+accounting/
 ├── cmd/
 │   └── api/                    ← punto de entrada HTTP
 └── internal/
@@ -191,10 +191,10 @@ inventory/
     │   └── costing/        ← PEPS, promedio ponderado
     ├── infrastructure/postgres/
     └── integrations/
-        └── accounting/     ← adaptador → accounting-core
+        └── accounting/     ← adaptador → accounting
 ```
 
-### Eventos que genera inventory hacia accounting-core
+### Eventos que genera inventory hacia accounting
 
 | Evento | Asiento generado |
 |---|---|
@@ -206,9 +206,9 @@ inventory/
 ### Relación con apidian
 
 - Al confirmar una **FE** → `apidian` notifica a `inventory` (salida de stock) e `inventory`
-  notifica a `accounting-core` (asiento de costo).
+  notifica a `accounting` (asiento de costo).
 - Al confirmar un **DS** → `apidian` notifica a `inventory` (entrada de stock) e `inventory`
-  notifica a `accounting-core` (asiento de compra).
+  notifica a `accounting` (asiento de compra).
 
 ---
 
@@ -218,7 +218,7 @@ No se toca el dominio de documentos. Se agrega una capa de integración aislada:
 
 ```
 apidian/internal/integrations/accounting/
-    client.go       ← llama al accounting-core via HTTP (o publica evento NATS en Fase 3)
+    client.go       ← llama al accounting via HTTP (o publica evento NATS en Fase 3)
     mapper.go       ← traduce Document → JournalEntry
     dto.go          ← structs del request/response
 ```
@@ -236,7 +236,7 @@ accounting.Mapper.FromInvoice(doc) → JournalEntryRequest
         ↓
 accounting.Client.PostJournal(entry)          ← HTTP en Fase 1-2
         ↓                                     ← NATS en Fase 3+
-accounting-core API
+accounting API
         ↓
 Valida PUC + partida doble + periodo
         ↓
@@ -277,7 +277,7 @@ Las reglas se implementan primero hardcodeadas en el mapper y se hacen configura
 
 ### Consistencia transaccional (Fase 1-2 con HTTP)
 
-Si `apidian` confirma una FE pero `accounting-core` está caído, el asiento no se crea.
+Si `apidian` confirma una FE pero `accounting` está caído, el asiento no se crea.
 La FE ya fue a la DIAN — no se puede revertir.
 **Decisión para MVP:** loggear el error y continuar. En Fase 3, NATS resuelve esto
 estructuralmente: el evento queda en cola hasta que el core levante.
@@ -296,14 +296,14 @@ Las reglas configurables (tabla `posting_rules` en el core) van en Fase 2.
 
 ## 6. Orden de construcción
 
-### Fase 1 — Núcleo contable (accounting-core)
-- [ ] Crear `accounting-core/` con su `go.mod`, agregar al `go.work`
+### Fase 1 — Núcleo contable (accounting)
+- [ ] Crear `accounting/` con su `go.mod`, agregar al `go.work`
 - [ ] Schema SQL: `accounts`, `accounting_periods`, `journal_entries`, `journal_lines`
 - [ ] Seed del PUC desde `docs/reference/accounts.csv`
 - [ ] Motor de validación de partida doble
 - [ ] API REST: `POST /journals`, `GET /accounts`, `GET /reports/trial-balance`
 
-### Fase 2 — Adaptadores (apidian → accounting-core)
+### Fase 2 — Adaptadores (apidian → accounting)
 - [ ] `apidian/internal/integrations/accounting/`
 - [ ] Mapper para FE y DS (posting rules básicas hardcodeadas)
 - [ ] Llamada HTTP al core al confirmar documento
@@ -321,7 +321,7 @@ Las reglas configurables (tabla `posting_rules` en el core) van en Fase 2.
 ### Fase 5 — Bus de eventos (NATS)
 - [ ] Desplegar binario `nats-server` en VPS (puerto 4222)
 - [ ] Migrar adaptadores de HTTP directo a publicación de eventos NATS
-- [ ] Consumidores en `accounting-core` e `inventory` suscritos a los eventos
+- [ ] Consumidores en `accounting` e `inventory` suscritos a los eventos
 
 ### Fase 6 — Módulos futuros
 - [ ] `payroll/` + nómina electrónica DIAN
@@ -348,7 +348,7 @@ Las reglas configurables (tabla `posting_rules` en el core) van en Fase 2.
                    nats-server          ← binario Go en VPS
                    (pub/sub)
                          |
-                  accounting-core
+                  accounting
                   (Journal Ledger)
                          |
                   Estados financieros
