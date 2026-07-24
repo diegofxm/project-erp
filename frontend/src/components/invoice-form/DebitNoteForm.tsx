@@ -67,6 +67,9 @@ export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, on
   const [currencyCode, setCurrencyCode] = useState(
     initial?.currency_code ?? prefill?.currency_code ?? "COP"
   );
+  const [debitNoteTypeCode, setDebitNoteTypeCode] = useState(
+    initial?.discrepancy_response?.response_code ?? ""
+  );
   const [discrepancy, setDiscrepancy] = useState<DiscrepancyResponse>(
     initial?.discrepancy_response ?? {
       reference_id: billingReference.prefix + billingReference.number,
@@ -76,8 +79,9 @@ export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, on
   );
 
   function handleTypeCodeChange(code: string) {
-    const label = DEBIT_NOTE_TYPES.find((t) => t.code === code)?.label ?? "";
+    setDebitNoteTypeCode(code);
     if (!initial?.discrepancy_response) {
+      const label = DEBIT_NOTE_TYPES.find((t) => t.code === code)?.label ?? "";
       setDiscrepancy((d) => ({ ...d, response_code: code, description: label }));
     }
   }
@@ -116,7 +120,7 @@ export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, on
   const selectableRanges = ranges.filter((r) => r.status === "active" || r.id === numberingRangeId);
   const canSubmit =
     numberingRangeId !== "" &&
-    discrepancy.response_code !== "" &&
+    debitNoteTypeCode !== "" &&
     customer.identification.number.trim() !== "" &&
     lines.length > 0 &&
     paymentMeans.length > 0;
@@ -124,6 +128,21 @@ export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, on
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="grid grid-cols-12 gap-3">
+        <div className="col-span-12 sm:col-span-6">
+          <Select
+            label="Concepto de Nota Débito"
+            required
+            value={debitNoteTypeCode}
+            onChange={(e) => handleTypeCodeChange(e.target.value)}
+          >
+            <option value="">Selecciona…</option>
+            {DEBIT_NOTE_TYPES.map((t) => (
+              <option key={t.code} value={t.code}>
+                {t.code} — {t.label}
+              </option>
+            ))}
+          </Select>
+        </div>
         <div className="col-span-12 sm:col-span-6">
           <Select
             label="Rango de numeración"
@@ -215,13 +234,9 @@ export function DebitNoteForm({ initial, prefill, billingReference, onSubmit, on
           </div>
           <div className="col-span-12 sm:col-span-4">
             <Select
-              label="Concepto de Nota Débito"
-              required
+              label="Código de respuesta"
               value={discrepancy.response_code}
-              onChange={(e) => {
-                handleTypeCodeChange(e.target.value);
-                setDiscrepancy((d) => ({ ...d, response_code: e.target.value }));
-              }}
+              onChange={(e) => setDiscrepancy((d) => ({ ...d, response_code: e.target.value }))}
             >
               <option value="">Selecciona…</option>
               {DEBIT_NOTE_TYPES.map((t) => (

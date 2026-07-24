@@ -79,15 +79,25 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
   const [note, setNote] = useState(initial?.note ?? "");
   const [currencyCode, setCurrencyCode] = useState(initial?.currency_code ?? prefill?.currency_code ?? "COP");
 
-  // Motivo del ajuste (opcional)
-  const [hasDiscrepancy, setHasDiscrepancy] = useState(!!initial?.discrepancy_response);
+  // Concepto del ajuste — primer campo que el usuario elige; auto-puebla la discrepancyResponse.
+  const [adjustmentConceptCode, setAdjustmentConceptCode] = useState(
+    initial?.discrepancy_response?.response_code ?? ""
+  );
   const [discrepancy, setDiscrepancy] = useState<DiscrepancyResponse>(
     initial?.discrepancy_response ?? {
       reference_id: billingReference.prefix + billingReference.number,
-      response_code: "1",
+      response_code: "",
       description: "",
     }
   );
+
+  function handleConceptChange(code: string) {
+    setAdjustmentConceptCode(code);
+    if (!initial?.discrepancy_response) {
+      const label = DISCREPANCY_RESPONSE_OPTIONS.find((o) => o.code === code)?.label ?? "";
+      setDiscrepancy((d) => ({ ...d, response_code: code, description: label }));
+    }
+  }
 
   useEffect(() => {
     listNumberingRanges(ADJUSTMENT_NOTE_DIAN_TYPE)
@@ -117,7 +127,7 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
       operation_type_code: operationTypeCode,
       withholding_taxes: withholdingTaxes.length > 0 ? withholdingTaxes : undefined,
       billing_reference: billingReference,
-      discrepancy_response: hasDiscrepancy ? discrepancy : undefined,
+      discrepancy_response: discrepancy,
     });
   }
 
@@ -125,14 +135,28 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
   const selectableRanges = ranges.filter((r) => r.status === "active" || r.id === numberingRangeId);
   const canSubmit =
     numberingRangeId !== "" &&
+    adjustmentConceptCode !== "" &&
     vendor.identification.number.trim() !== "" &&
     lines.length > 0 &&
     paymentMeans.length > 0;
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      {/* Cabecera: rango, tipo operación, moneda, nota */}
+      {/* Cabecera: concepto (primero), rango, tipo operación, moneda, nota */}
       <div className="grid grid-cols-12 gap-3">
+        <div className="col-span-12 sm:col-span-6">
+          <Select
+            label="Concepto de Nota de Ajuste"
+            required
+            value={adjustmentConceptCode}
+            onChange={(e) => handleConceptChange(e.target.value)}
+          >
+            <option value="">Selecciona…</option>
+            {DISCREPANCY_RESPONSE_OPTIONS.map((o) => (
+              <option key={o.code} value={o.code}>{o.label}</option>
+            ))}
+          </Select>
+        </div>
         <div className="col-span-12 sm:col-span-6">
           <Select
             label="Rango de numeración"
@@ -199,51 +223,40 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
         </div>
       </div>
 
-      {/* Motivo del ajuste */}
+      {/* Respuesta de discrepancia — auto-poblada al elegir el concepto, editable si se necesita */}
       <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xs font-semibold text-(--text-primary)">Motivo del ajuste</h2>
-          <label className="flex items-center gap-1 text-xs text-(--text-muted)">
-            <input
-              type="checkbox"
-              checked={hasDiscrepancy}
-              onChange={(e) => setHasDiscrepancy(e.target.checked)}
-              className="h-3 w-3"
+        <p className="text-xs font-semibold text-(--text-primary)">Respuesta de discrepancia</p>
+        <p className="text-xs text-(--text-secondary)">
+          Se envía junto con la nota — se llena automáticamente al seleccionar el concepto.
+        </p>
+        <div className="grid grid-cols-12 gap-3">
+          <div className="col-span-12 sm:col-span-4">
+            <Input
+              label="ID de referencia (número del DS)"
+              value={discrepancy.reference_id}
+              onChange={(e) => setDiscrepancy((d) => ({ ...d, reference_id: e.target.value }))}
             />
-            Incluir motivo
-          </label>
-        </div>
-        {hasDiscrepancy && (
-          <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-6 sm:col-span-3">
-              <Select
-                label="Código"
-                value={discrepancy.response_code}
-                onChange={(e) => setDiscrepancy((d) => ({ ...d, response_code: e.target.value }))}
-              >
-                {DISCREPANCY_RESPONSE_OPTIONS.map((o) => (
-                  <option key={o.code} value={o.code}>{o.label}</option>
-                ))}
-              </Select>
-            </div>
-            <div className="col-span-6 sm:col-span-5">
-              <Input
-                label="Referencia"
-                value={discrepancy.reference_id}
-                onChange={(e) => setDiscrepancy((d) => ({ ...d, reference_id: e.target.value }))}
-                placeholder="SEDS984000000"
-              />
-            </div>
-            <div className="col-span-12">
-              <Input
-                label="Descripción"
-                value={discrepancy.description}
-                onChange={(e) => setDiscrepancy((d) => ({ ...d, description: e.target.value }))}
-                placeholder="Descripción del ajuste"
-              />
-            </div>
           </div>
-        )}
+          <div className="col-span-12 sm:col-span-4">
+            <Select
+              label="Código de respuesta"
+              value={discrepancy.response_code}
+              onChange={(e) => setDiscrepancy((d) => ({ ...d, response_code: e.target.value }))}
+            >
+              <option value="">Selecciona…</option>
+              {DISCREPANCY_RESPONSE_OPTIONS.map((o) => (
+                <option key={o.code} value={o.code}>{o.label}</option>
+              ))}
+            </Select>
+          </div>
+          <div className="col-span-12">
+            <Input
+              label="Descripción"
+              value={discrepancy.description}
+              onChange={(e) => setDiscrepancy((d) => ({ ...d, description: e.target.value }))}
+            />
+          </div>
+        </div>
       </section>
 
       {/* Tercero no obligado */}
