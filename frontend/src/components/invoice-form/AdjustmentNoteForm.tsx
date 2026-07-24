@@ -33,11 +33,11 @@ const OPERATION_TYPE_OPTIONS = [
 
 // Códigos de motivo para Nota de Ajuste al DS (análogos a los de NC/ND para FE).
 const DISCREPANCY_RESPONSE_OPTIONS = [
-  { code: "1", label: "1 — Devolución de parte de los bienes" },
-  { code: "2", label: "2 — Anulación de operación" },
-  { code: "3", label: "3 — Rebaja o descuento parcial" },
-  { code: "4", label: "4 — Ajuste de precio" },
-  { code: "5", label: "5 — Otros" },
+  { code: "1", label: "Devolución de parte de los bienes" },
+  { code: "2", label: "Anulación de operación" },
+  { code: "3", label: "Rebaja o descuento parcial" },
+  { code: "4", label: "Ajuste de precio" },
+  { code: "5", label: "Otros" },
 ];
 
 const NEW_VENDOR: VendorPayload = {
@@ -258,10 +258,15 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
       {discrepancy.response_code && (
         <section className="flex flex-col gap-1.5 border-t border-(--border-color) pt-3">
           <p className="text-xs font-semibold text-(--text-primary)">Respuesta de discrepancia</p>
-          <div className="rounded border border-(--border-color) bg-(--bg-subtle) px-3 py-2 text-xs text-(--text-secondary)">
-            <span className="font-medium text-(--text-primary)">{discrepancy.reference_id}</span>
-            {" · "}
-            <span>{discrepancy.response_code} — {discrepancy.description}</span>
+          <div className="flex flex-col gap-1 rounded border border-(--border-color) bg-(--bg-subtle) px-3 py-2 text-xs">
+            <div className="flex gap-2">
+              <span className="w-20 shrink-0 text-(--text-muted)">Documento</span>
+              <span className="font-medium text-(--text-primary)">{discrepancy.reference_id}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="w-20 shrink-0 text-(--text-muted)">Concepto</span>
+              <span className="text-(--text-secondary)">{discrepancy.response_code} — {discrepancy.description}</span>
+            </div>
           </div>
         </section>
       )}
