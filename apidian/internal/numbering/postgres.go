@@ -45,11 +45,26 @@ func (r *PostgresRepository) Create(ctx context.Context, nr NumberingRange) (*Nu
 		return nil, fmt.Errorf("cifrar technical_key: %w", err)
 	}
 
+	var resNum *string
+	if nr.ResolutionNumber != "" {
+		resNum = &nr.ResolutionNumber
+	}
+	var resDate, vFrom, vTo *time.Time
+	if !nr.ResolutionDate.IsZero() {
+		resDate = &nr.ResolutionDate
+	}
+	if !nr.ValidFrom.IsZero() {
+		vFrom = &nr.ValidFrom
+	}
+	if !nr.ValidTo.IsZero() {
+		vTo = &nr.ValidTo
+	}
+
 	_, err = r.pool.Exec(ctx, `
 		INSERT INTO numbering_ranges (`+numberingColumns+`)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-		nr.ID, nr.IssuerID, nr.DianDocumentTypeCode, nr.Prefix, nr.ResolutionNumber, nr.ResolutionDate,
-		nr.RangeFrom, nr.RangeTo, nr.CurrentNumber, nr.ValidFrom, nr.ValidTo, string(nr.Environment),
+		nr.ID, nr.IssuerID, nr.DianDocumentTypeCode, nr.Prefix, resNum, resDate,
+		nr.RangeFrom, nr.RangeTo, nr.CurrentNumber, vFrom, vTo, string(nr.Environment),
 		encKey, nr.TestSetID, nr.IsActive, nr.CreatedAt, nr.UpdatedAt,
 	)
 	if err != nil {
@@ -186,14 +201,28 @@ func (r *PostgresRepository) scan(row pgx.Row) (*NumberingRange, error) {
 	var env string
 	var encKey []byte
 
-	err := row.Scan(&nr.ID, &nr.IssuerID, &nr.DianDocumentTypeCode, &nr.Prefix, &nr.ResolutionNumber,
-		&nr.ResolutionDate, &nr.RangeFrom, &nr.RangeTo, &nr.CurrentNumber, &nr.ValidFrom, &nr.ValidTo,
+	var resNum *string
+	var resDate, vFrom, vTo *time.Time
+	err := row.Scan(&nr.ID, &nr.IssuerID, &nr.DianDocumentTypeCode, &nr.Prefix, &resNum,
+		&resDate, &nr.RangeFrom, &nr.RangeTo, &nr.CurrentNumber, &vFrom, &vTo,
 		&env, &encKey, &nr.TestSetID, &nr.IsActive, &nr.CreatedAt, &nr.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrRangeNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("scan numbering range: %w", err)
+	}
+	if resNum != nil {
+		nr.ResolutionNumber = *resNum
+	}
+	if resDate != nil {
+		nr.ResolutionDate = *resDate
+	}
+	if vFrom != nil {
+		nr.ValidFrom = *vFrom
+	}
+	if vTo != nil {
+		nr.ValidTo = *vTo
 	}
 	nr.Environment = Environment(env)
 

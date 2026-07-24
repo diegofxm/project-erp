@@ -471,6 +471,13 @@ type numberingRangeResponse struct {
 }
 
 func numberingRangeToResponse(nr *numbering.NumberingRange) numberingRangeResponse {
+	var validFrom, validTo string
+	if !nr.ValidFrom.IsZero() {
+		validFrom = nr.ValidFrom.Format("2006-01-02")
+	}
+	if !nr.ValidTo.IsZero() {
+		validTo = nr.ValidTo.Format("2006-01-02")
+	}
 	return numberingRangeResponse{
 		ID:                   nr.ID,
 		IssuerID:             nr.IssuerID,
@@ -479,8 +486,8 @@ func numberingRangeToResponse(nr *numbering.NumberingRange) numberingRangeRespon
 		RangeFrom:            nr.RangeFrom,
 		RangeTo:              nr.RangeTo,
 		CurrentNumber:        nr.CurrentNumber,
-		ValidFrom:            nr.ValidFrom.Format("2006-01-02"),
-		ValidTo:              nr.ValidTo.Format("2006-01-02"),
+		ValidFrom:            validFrom,
+		ValidTo:              validTo,
 		Environment:          string(nr.Environment),
 		TestSetID:            nr.TestSetID,
 		IsActive:             nr.IsActive,
@@ -497,20 +504,26 @@ func (a *API) handleCreateNumberingRange(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	resolutionDate, err := parseDate(req.ResolutionDate)
-	if err != nil {
-		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "resolution_date inválida, se espera YYYY-MM-DD"})
-		return
-	}
-	validFrom, err := parseDate(req.ValidFrom)
-	if err != nil {
-		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "valid_from inválida, se espera YYYY-MM-DD"})
-		return
-	}
-	validTo, err := parseDate(req.ValidTo)
-	if err != nil {
-		response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "valid_to inválida, se espera YYYY-MM-DD"})
-		return
+	// FE (01) y DS (05) requieren resolución de numeración DIAN. NC (91), ND (92) y NA (95) no.
+	needsResolution := req.DianDocumentTypeCode == "01" || req.DianDocumentTypeCode == "05"
+	var resolutionDate, validFrom, validTo time.Time
+	if needsResolution {
+		var err error
+		resolutionDate, err = parseDate(req.ResolutionDate)
+		if err != nil {
+			response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "resolution_date inválida, se espera YYYY-MM-DD"})
+			return
+		}
+		validFrom, err = parseDate(req.ValidFrom)
+		if err != nil {
+			response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "valid_from inválida, se espera YYYY-MM-DD"})
+			return
+		}
+		validTo, err = parseDate(req.ValidTo)
+		if err != nil {
+			response.WriteJSON(w, http.StatusBadRequest, response.Error{Error: "valid_to inválida, se espera YYYY-MM-DD"})
+			return
+		}
 	}
 
 	nr, err := a.numbering.RegisterRange(r.Context(), numbering.NumberingRange{

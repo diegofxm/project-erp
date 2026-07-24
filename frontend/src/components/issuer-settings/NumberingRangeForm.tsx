@@ -34,17 +34,19 @@ export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRan
   const [testSetId, setTestSetId] = useState("");
   const [nextNumber, setNextNumber] = useState("");
 
+  const isResolutionType = docTypeCode === "01" || docTypeCode === "05";
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     onSubmit({
       dian_document_type_code: docTypeCode,
       prefix,
-      resolution_number: resolutionNumber,
-      resolution_date: resolutionDate,
+      resolution_number: isResolutionType ? resolutionNumber : undefined,
+      resolution_date: isResolutionType ? resolutionDate : undefined,
       range_from: Number(rangeFrom),
       range_to: rangeTo ? Number(rangeTo) : undefined,
-      valid_from: validFrom,
-      valid_to: validTo,
+      valid_from: isResolutionType ? validFrom : undefined,
+      valid_to: isResolutionType ? validTo : undefined,
       environment,
       technical_key: docTypeCode === "01" ? technicalKey || undefined : undefined,
       test_set_id: environment === "2" ? testSetId || undefined : undefined,
@@ -83,25 +85,35 @@ export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRan
         <div className="col-span-6 sm:col-span-2">
           <Input label="Prefijo" required value={prefix} onChange={(e) => setPrefix(e.target.value)} />
         </div>
-        <div className="col-span-12 sm:col-span-3">
-          <Input label="Número de resolución" required value={resolutionNumber} onChange={(e) => setResolutionNumber(e.target.value)} />
-        </div>
+        {isResolutionType && (
+          <div className="col-span-12 sm:col-span-3">
+            <Input label="Número de resolución" required value={resolutionNumber} onChange={(e) => setResolutionNumber(e.target.value)} />
+          </div>
+        )}
 
         <div className="col-span-6 sm:col-span-3">
           <Input label="Rango desde" type="number" required value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
         </div>
         <div className="col-span-6 sm:col-span-3">
-          <Input label="Rango hasta" type="number" required value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
-        </div>
-        <div className="col-span-6 sm:col-span-3">
           <Input
-            label="Fecha de la resolución"
-            type="date"
-            required
-            value={resolutionDate}
-            onChange={(e) => setResolutionDate(e.target.value)}
+            label="Rango hasta"
+            type="number"
+            required={isResolutionType}
+            value={rangeTo}
+            onChange={(e) => setRangeTo(e.target.value)}
           />
         </div>
+        {isResolutionType && (
+          <div className="col-span-6 sm:col-span-3">
+            <Input
+              label="Fecha de la resolución"
+              type="date"
+              required
+              value={resolutionDate}
+              onChange={(e) => setResolutionDate(e.target.value)}
+            />
+          </div>
+        )}
         <div className="col-span-6 sm:col-span-3">
           <Input
             label="Próximo número (opcional)"
@@ -112,12 +124,16 @@ export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRan
           />
         </div>
 
-        <div className="col-span-12 sm:col-span-6">
-          <Input label="Vigente desde" type="date" required value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
-        </div>
-        <div className="col-span-12 sm:col-span-6">
-          <Input label="Vigente hasta" type="date" required value={validTo} onChange={(e) => setValidTo(e.target.value)} />
-        </div>
+        {isResolutionType && (
+          <>
+            <div className="col-span-12 sm:col-span-6">
+              <Input label="Vigente desde" type="date" required value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
+            </div>
+            <div className="col-span-12 sm:col-span-6">
+              <Input label="Vigente hasta" type="date" required value={validTo} onChange={(e) => setValidTo(e.target.value)} />
+            </div>
+          </>
+        )}
 
         {docTypeCode === "01" && (
           <div className="col-span-12 sm:col-span-6">

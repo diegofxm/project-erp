@@ -323,12 +323,13 @@ export interface GetDianNumberingRangesResult {
 export interface CreateNumberingRangePayload {
   dian_document_type_code: string;
   prefix: string;
-  resolution_number: string;
-  resolution_date: string; // YYYY-MM-DD
+  // Solo requeridos para FE (01) y DS (05); NC/ND/NA no tienen resolución DIAN
+  resolution_number?: string;
+  resolution_date?: string; // YYYY-MM-DD
   range_from: number;
   range_to?: number;
-  valid_from: string; // YYYY-MM-DD
-  valid_to: string; // YYYY-MM-DD
+  valid_from?: string; // YYYY-MM-DD
+  valid_to?: string; // YYYY-MM-DD
   environment: IssuerEnvironment;
   technical_key?: string;
   test_set_id?: string;

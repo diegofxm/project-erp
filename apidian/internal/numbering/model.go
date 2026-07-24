@@ -69,7 +69,7 @@ func (nr NumberingRange) Status() string {
 		return "inactive"
 	case nr.Exhausted():
 		return "exhausted"
-	case time.Now().After(nr.ValidTo):
+	case !nr.ValidTo.IsZero() && time.Now().After(nr.ValidTo):
 		return "expired"
 	default:
 		return "active"

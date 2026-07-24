@@ -3,3 +3,4 @@ code,name,description
 05,Documento Soporte,Documento soporte en adquisiciones efectuadas a no obligados a facturar
 91,Nota Crédito,Nota crédito que referencia una factura electrónica
 92,Nota Débito,Nota débito que referencia una factura electrónica
+95,Nota de Ajuste,Nota de ajuste al documento soporte
