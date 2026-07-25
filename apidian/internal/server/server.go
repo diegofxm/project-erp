@@ -9,6 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/diegofxm/accounting"
 	"github.com/diegofxm/apidian/internal/api"
 	"github.com/diegofxm/apidian/internal/config"
 	"github.com/diegofxm/apidian/internal/database"
@@ -17,25 +18,28 @@ import (
 
 // Server is the HTTP entry point for the apidian service.
 type Server struct {
-	cfg        *config.Config
-	log        *zap.Logger
-	db         *database.DB
-	httpServer *http.Server
+	cfg            *config.Config
+	log            *zap.Logger
+	db             *database.DB
+	accountingCore *accounting.Core
+	httpServer     *http.Server
 }
 
 // Options holds all dependencies required to build a Server.
 type Options struct {
-	Config *config.Config
-	Logger *zap.Logger
-	DB     *database.DB
+	Config         *config.Config
+	Logger         *zap.Logger
+	DB             *database.DB
+	AccountingCore *accounting.Core
 }
 
 // New constructs a Server and wires the HTTP routes.
 func New(opts Options) *Server {
 	s := &Server{
-		cfg: opts.Config,
-		log: opts.Logger,
-		db:  opts.DB,
+		cfg:            opts.Config,
+		log:            opts.Logger,
+		db:             opts.DB,
+		accountingCore: opts.AccountingCore,
 	}
 
 	s.httpServer = &http.Server{
@@ -66,7 +70,7 @@ func (s *Server) routes() http.Handler {
 			FromAddress: s.cfg.SMTPFromAddress,
 			FromName:    s.cfg.SMTPFromName,
 		}
-		mux.Handle("/api/", api.New(s.log, s.db, s.cfg.IssuerSecretsKey, s.cfg.AuthJWTSecret, s.cfg.CORSAllowedOrigins, smtpCfg, s.cfg.AppBaseURL).Handler())
+		mux.Handle("/api/", api.New(s.log, s.db, s.cfg.IssuerSecretsKey, s.cfg.AuthJWTSecret, s.cfg.CORSAllowedOrigins, smtpCfg, s.cfg.AppBaseURL, s.accountingCore).Handler())
 	}
 
 	return mux

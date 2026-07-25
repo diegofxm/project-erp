@@ -14,8 +14,8 @@ import (
 //go:embed accounts.csv
 var seedFS embed.FS
 
-// Accounts carga el PUC completo en accounting.accounts. Es idempotente:
-// ON CONFLICT (code) DO UPDATE reemplaza el nombre y flags sin duplicar filas.
+// Accounts carga el PUC completo en accounting.accounts en un único bulk upsert.
+// Es idempotente: ON CONFLICT (code) DO UPDATE nunca duplica filas.
 func Accounts(ctx context.Context, pool *pgxpool.Pool) error {
 	f, err := seedFS.Open("accounts.csv")
 	if err != nil {
@@ -24,22 +24,21 @@ func Accounts(ctx context.Context, pool *pgxpool.Pool) error {
 	defer f.Close()
 
 	r := csv.NewReader(f)
-	r.FieldsPerRecord = -1 // tolera trailing comma del CSV fuente
+	r.FieldsPerRecord = -1
 	if _, err := r.Read(); err != nil {
 		return fmt.Errorf("seed accounts: read header: %w", err)
 	}
 
-	type row struct {
-		code       string
-		name       string
-		parentCode *string
-		level      int
-		category   string
-		isPosting  bool
-		isActive   bool
-	}
+	var (
+		codes       []string
+		names       []string
+		parentCodes []*string
+		levels      []int32
+		categories  []string
+		isPostings  []bool
+		isActives   []bool
+	)
 
-	var rows []row
 	for {
 		rec, err := r.Read()
 		if err == io.EOF {
@@ -62,34 +61,43 @@ func Accounts(ctx context.Context, pool *pgxpool.Pool) error {
 			parentCode = &s
 		}
 
-		rows = append(rows, row{
-			code:       rec[0],
-			name:       rec[1],
-			parentCode: parentCode,
-			level:      level,
-			category:   rec[4],
-			isPosting:  isPosting,
-			isActive:   isActive,
-		})
+		codes = append(codes, rec[0])
+		names = append(names, rec[1])
+		parentCodes = append(parentCodes, parentCode)
+		levels = append(levels, int32(level))
+		categories = append(categories, rec[4])
+		isPostings = append(isPostings, isPosting)
+		isActives = append(isActives, isActive)
 	}
 
-	for _, rw := range rows {
-		_, err := pool.Exec(ctx, `
-			INSERT INTO accounting.accounts (code, name, parent_code, level, category, is_posting, is_active)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			ON CONFLICT (code) DO UPDATE SET
-				name       = EXCLUDED.name,
-				parent_code = EXCLUDED.parent_code,
-				level      = EXCLUDED.level,
-				category   = EXCLUDED.category,
-				is_posting = EXCLUDED.is_posting,
-				is_active  = EXCLUDED.is_active,
-				updated_at = NOW()`,
-			rw.code, rw.name, rw.parentCode, rw.level, rw.category, rw.isPosting, rw.isActive,
-		)
-		if err != nil {
-			return fmt.Errorf("seed accounts: upsert %q: %w", rw.code, err)
-		}
+	if len(codes) == 0 {
+		return nil
+	}
+
+	// Un solo round-trip para todas las filas.
+	_, err = pool.Exec(ctx, `
+		INSERT INTO accounting.accounts
+			(code, name, parent_code, level, category, is_posting, is_active)
+		SELECT
+			UNNEST($1::text[]),
+			UNNEST($2::text[]),
+			UNNEST($3::text[]),
+			UNNEST($4::int[]),
+			UNNEST($5::text[]),
+			UNNEST($6::bool[]),
+			UNNEST($7::bool[])
+		ON CONFLICT (code) DO UPDATE SET
+			name        = EXCLUDED.name,
+			parent_code = EXCLUDED.parent_code,
+			level       = EXCLUDED.level,
+			category    = EXCLUDED.category,
+			is_posting  = EXCLUDED.is_posting,
+			is_active   = EXCLUDED.is_active,
+			updated_at  = NOW()`,
+		codes, names, parentCodes, levels, categories, isPostings, isActives,
+	)
+	if err != nil {
+		return fmt.Errorf("seed accounts: bulk upsert: %w", err)
 	}
 
 	return nil

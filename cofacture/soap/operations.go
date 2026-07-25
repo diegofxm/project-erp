@@ -120,6 +120,40 @@ func (c *Client) GetNumberingRange(accountCode, accountCodeT, softwareCode strin
 	return &result.Result, nil
 }
 
+// SendNominaSync envía un ZIP con un NominaIndividual (o NominaIndividualDeAjuste) firmado
+// y devuelve el resultado de validación de forma síncrona (Anexo Técnico Nómina, sección 9.7).
+// A diferencia de SendBillSync, solo recibe contentFile (sin fileName).
+func (c *Client) SendNominaSync(content []byte) (*DianResponse, error) {
+	var result struct {
+		Result DianResponse `xml:"SendNominaSyncResult"`
+	}
+	err := c.call("SendNominaSync", func(body *etree.Element) {
+		el := body.CreateElement("wcf:SendNominaSync")
+		el.CreateElement("wcf:contentFile").SetText(base64.StdEncoding.EncodeToString(content))
+	}, &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Result, nil
+}
+
+// SendNominaSyncTestSet envía un ZIP de nómina al set de pruebas de habilitación.
+// Combina la lógica de SendNominaSync con el testSetId requerido para habilitación.
+func (c *Client) SendNominaSyncTestSet(content []byte, testSetID string) (*DianResponse, error) {
+	var result struct {
+		Result DianResponse `xml:"SendNominaSyncResult"`
+	}
+	err := c.call("SendNominaSync", func(body *etree.Element) {
+		el := body.CreateElement("wcf:SendNominaSync")
+		el.CreateElement("wcf:contentFile").SetText(base64.StdEncoding.EncodeToString(content))
+		el.CreateElement("wcf:testSetId").SetText(testSetID)
+	}, &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Result, nil
+}
+
 // GetAcquirer consulta el registro de intercambio/notificación de la DIAN para un tercero —
 // ver AcquirerResponse. Ayuda opcional al capturar un NIT, nunca bloqueante: un resultado vacío
 // (sin ReceiverName/ReceiverEmail) es normal y esperado para la mayoría de identificaciones.

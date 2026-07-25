@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/diegofxm/accounting"
 	"github.com/diegofxm/apidian/internal/api/middleware"
 	"github.com/diegofxm/apidian/internal/api/response"
 	"github.com/diegofxm/apidian/internal/audit"
@@ -15,6 +16,7 @@ import (
 	"github.com/diegofxm/apidian/internal/database"
 	"github.com/diegofxm/apidian/internal/documents"
 	"github.com/diegofxm/apidian/internal/email"
+	accintegration "github.com/diegofxm/apidian/internal/integrations/accounting"
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/numbering"
 	"github.com/diegofxm/apidian/internal/payments"
@@ -42,10 +44,11 @@ type API struct {
 	settings       *settings.Service
 	payments       *payments.Service
 	prospects      *prospects.Service
-	auditSvc       *audit.Service  // nil en tests que no usan Postgres
-	catalogs       catalogs.Repository
-	allowedOrigins []string
-	appBaseURL     string
+	auditSvc         *audit.Service  // nil en tests que no usan Postgres
+	catalogs         catalogs.Repository
+	accountingClient *accintegration.Client
+	allowedOrigins   []string
+	appBaseURL       string
 }
 
 // New conecta los siete dominios sobre una sola base de datos y devuelve la API.
@@ -54,7 +57,7 @@ type API struct {
 // orígenes permitidos por CORS (ver internal/api/middleware/cors.go). smtpCfg configura el
 // envío de correo al cliente (ver docs/apidian-architecture.md sección 9.42) — vacío es válido,
 // SendInvoiceEmail simplemente falla con un mensaje claro si nunca se configuró.
-func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byte, allowedOrigins []string, smtpCfg email.Config, appBaseURL string) *API {
+func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byte, allowedOrigins []string, smtpCfg email.Config, appBaseURL string, accountingCore *accounting.Core) *API {
 	catalogsRepo := catalogs.NewPostgresRepository(db.Pool)
 	issuerSvc := issuers.New(issuers.NewPostgresRepository(db.Pool, issuerSecretsKey), documents.ValidateCertificate, documents.ParseCertificate, catalogsRepo)
 	numberingSvc := numbering.New(numbering.NewPostgresRepository(db.Pool, issuerSecretsKey))
@@ -78,6 +81,9 @@ func New(log *zap.Logger, db *database.DB, issuerSecretsKey, authJWTSecret []byt
 
 	a := NewFromServices(log, issuerSvc, numberingSvc, documentsSvc, authSvc, tokens, customersSvc, productsSvc, vendorsSvc, plansSvc, subsSvc, settingsSvc, paymentsSvc, prospectsSvc, catalogsRepo, allowedOrigins, appBaseURL)
 	a.auditSvc = auditSvc
+	if accountingCore != nil {
+		a.accountingClient = accintegration.New(accountingCore)
+	}
 	return a
 }
 

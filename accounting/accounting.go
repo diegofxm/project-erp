@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"strings"
 
 	"github.com/diegofxm/accounting/accounts"
 	"github.com/diegofxm/accounting/database/seed"
@@ -45,13 +46,21 @@ func New(pool *pgxpool.Pool) *Core {
 }
 
 // Migrate ejecuta las migraciones SQL embebidas del módulo contable.
-// Llamar una vez al arrancar, antes de New.
+// Usa su propia tabla de seguimiento (accounting_schema_migrations) para no
+// interferir con las migraciones de otros módulos que compartan la misma BD.
 func Migrate(databaseURL string) error {
+	// Agregar x-migrations-table sin romper query params existentes (ej. sslmode=require)
+	sep := "?"
+	if strings.Contains(databaseURL, "?") {
+		sep = "&"
+	}
+	url := databaseURL + sep + "x-migrations-table=accounting_schema_migrations"
+
 	src, err := iofs.New(migrationsFS, "database/migrations")
 	if err != nil {
 		return fmt.Errorf("accounting migrate: %w", err)
 	}
-	m, err := migrate.NewWithSourceInstance("iofs", src, databaseURL)
+	m, err := migrate.NewWithSourceInstance("iofs", src, url)
 	if err != nil {
 		return fmt.Errorf("accounting migrate: %w", err)
 	}

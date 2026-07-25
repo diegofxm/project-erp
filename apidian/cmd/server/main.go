@@ -10,6 +10,7 @@ import (
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 
+	"github.com/diegofxm/accounting"
 	"github.com/diegofxm/apidian/internal/config"
 	"github.com/diegofxm/apidian/internal/database"
 	"github.com/diegofxm/apidian/internal/logger"
@@ -85,11 +86,26 @@ func run() error {
 
 	log.Info("plans seeded")
 
+	// 4b. Módulo contable
+	if err := accounting.Migrate(cfg.DatabaseURL); err != nil {
+		return err
+	}
+
+	log.Info("accounting migrations applied")
+
+	accountingCore := accounting.New(db.Pool)
+	if err := accountingCore.Seed(ctx); err != nil {
+		return err
+	}
+
+	log.Info("accounting PUC seeded")
+
 	// 5. Servidor HTTP
 	srv := server.New(server.Options{
-		Config: cfg,
-		Logger: log,
-		DB:     db,
+		Config:         cfg,
+		Logger:         log,
+		DB:             db,
+		AccountingCore: accountingCore,
 	})
 
 	if err := srv.Start(ctx); err != nil {
