@@ -37,13 +37,14 @@ type JournalEntry struct {
 }
 
 // JournalLine es una línea del asiento — exactamente uno de Debit o Credit > 0.
+// Debit y Credit están en centavos (int64) para evitar errores de punto flotante.
 type JournalLine struct {
 	ID          uuid.UUID
 	JournalID   uuid.UUID
 	AccountID   uuid.UUID
 	AccountCode string
-	Debit       float64
-	Credit      float64
+	Debit       int64
+	Credit      int64
 	CostCenter  string
 	Description string
 	CreatedAt   time.Time
@@ -60,10 +61,11 @@ type PostRequest struct {
 }
 
 // LineRequest referencia la cuenta por código para que el servicio resuelva el UUID.
+// Debit y Credit en centavos (int64).
 type LineRequest struct {
 	AccountCode string
-	Debit       float64
-	Credit      float64
+	Debit       int64
+	Credit      int64
 	CostCenter  string
 	Description string
 }

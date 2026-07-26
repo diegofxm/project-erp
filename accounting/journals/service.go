@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
 	"github.com/diegofxm/accounting/accounts"
 	"github.com/diegofxm/accounting/periods"
@@ -38,7 +37,7 @@ func (s *Service) Post(ctx context.Context, req PostRequest) (*JournalEntry, err
 	}
 
 	resolvedLines := make([]*JournalLine, len(req.Lines))
-	var totalDebit, totalCredit float64
+	var totalDebit, totalCredit int64
 
 	for i, lr := range req.Lines {
 		if (lr.Debit > 0) == (lr.Credit > 0) {
@@ -62,8 +61,8 @@ func (s *Service) Post(ctx context.Context, req PostRequest) (*JournalEntry, err
 		totalCredit += lr.Credit
 	}
 
-	if math.Abs(totalDebit-totalCredit) > 0.01 {
-		return nil, fmt.Errorf("%w (débitos: %.2f, créditos: %.2f)", ErrImbalancedEntry, totalDebit, totalCredit)
+	if totalDebit != totalCredit {
+		return nil, fmt.Errorf("%w (débitos: %d, créditos: %d)", ErrImbalancedEntry, totalDebit, totalCredit)
 	}
 
 	period, err := s.periodsSvc.GetOrCreate(ctx, req.CompanyID, req.Date)

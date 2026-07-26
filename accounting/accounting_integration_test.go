@@ -90,9 +90,9 @@ func TestAccounting(t *testing.T) {
 		Source:      "test",
 		EntryType:   journals.EntryAutomatic,
 		Lines: []journals.LineRequest{
-			{AccountCode: "130505", Debit: 1190000, Description: "Cliente — total con IVA"},
-			{AccountCode: "413505", Credit: 1000000, Description: "Venta — subtotal"},
-			{AccountCode: "240805", Credit: 190000, Description: "IVA generado 19%"},
+			{AccountCode: "130505", Debit: 119000000, Description: "Cliente — total con IVA"},
+			{AccountCode: "413505", Credit: 100000000, Description: "Venta — subtotal"},
+			{AccountCode: "240805", Credit: 19000000, Description: "IVA generado 19%"},
 		},
 	})
 	if err != nil {
@@ -101,7 +101,7 @@ func TestAccounting(t *testing.T) {
 	t.Logf("   OK — asiento ID: %s | status: %s | periodo: %s",
 		entry.ID, entry.Status, entry.PeriodID)
 	for _, l := range entry.Lines {
-		t.Logf("      %s  déb=%-12.2f  cré=%-12.2f  %s",
+		t.Logf("      %s  déb=%-12d  cré=%-12d  %s",
 			l.AccountCode, l.Debit, l.Credit, l.Description)
 	}
 
@@ -112,8 +112,8 @@ func TestAccounting(t *testing.T) {
 		Date:        time.Now(),
 		Description: "TEST — asiento inválido",
 		Lines: []journals.LineRequest{
-			{AccountCode: "130505", Debit: 500000},
-			{AccountCode: "413505", Credit: 300000}, // ← no cuadra
+			{AccountCode: "130505", Debit: 50000000},
+			{AccountCode: "413505", Credit: 30000000}, // ← no cuadra
 		},
 	})
 	if err == nil {
@@ -133,7 +133,7 @@ func TestAccounting(t *testing.T) {
 		t.Log("   (sin movimientos en el periodo)")
 	}
 	for _, r := range rows {
-		t.Logf("   [%s] %-45s  déb=%12.2f  cré=%12.2f  saldo=%12.2f",
+		t.Logf("   [%s] %-45s  déb=%12d  cré=%12d  saldo=%12d",
 			r.AccountCode, r.AccountName, r.TotalDebit, r.TotalCredit, r.Balance)
 	}
 
@@ -158,7 +158,7 @@ func TestAccounting(t *testing.T) {
 		t.Log("   (sin movimientos — el asiento fue anulado, no aparece en el ledger)")
 	}
 	for _, l := range ledger {
-		t.Logf("   %s  %s  déb=%10.2f  cré=%10.2f  saldo=%10.2f",
+		t.Logf("   %s  %s  déb=%10d  cré=%10d  saldo=%10d",
 			l.Date, fmt.Sprintf("%-40s", l.Description), l.Debit, l.Credit, l.RunningBal)
 	}
 

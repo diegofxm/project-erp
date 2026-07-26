@@ -83,7 +83,7 @@ func (s *Service) GeneralLedger(ctx context.Context, companyID uuid.UUID, accoun
 	defer rows.Close()
 
 	var out []*LedgerRow
-	var running float64
+	var running int64
 	for rows.Next() {
 		var r LedgerRow
 		if err := rows.Scan(&r.JournalID, &r.Date, &r.Description, &r.Debit, &r.Credit); err != nil {
@@ -111,7 +111,7 @@ func (s *Service) IncomeStatement(ctx context.Context, companyID uuid.UUID, from
 		  AND je.status = 'POSTED'
 		  AND je.date >= $2
 		  AND je.date <= $3
-		  AND a.category IN ('Ingresos', 'Gastos', 'Costos')
+		  AND a.category IN ('Ingresos', 'Gastos', 'Costos', 'Costo de Producción')
 		GROUP BY a.id, a.code, a.name, a.category
 		ORDER BY a.category, a.code`,
 		companyID, from.UTC(), to.UTC(),
@@ -127,14 +127,16 @@ func (s *Service) IncomeStatement(ctx context.Context, companyID uuid.UUID, from
 		if err := rows.Scan(&r.AccountCode, &r.AccountName, &r.Category, &r.Amount); err != nil {
 			return nil, fmt.Errorf("scan income statement: %w", err)
 		}
+		// Amount = SUM(credit) - SUM(debit):
+		//   Ingresos → positivo (créditos > débitos): suma a utilidad.
+		//   Gastos/Costos → negativo (débitos > créditos): también suma (resta utilidad).
 		switch r.Category {
 		case "Ingresos":
 			is.Revenue = append(is.Revenue, r)
-			is.NetIncome += r.Amount
-		default: // Gastos, Costos
+		default: // Gastos, Costos, Costo de Producción
 			is.Expenses = append(is.Expenses, r)
-			is.NetIncome -= r.Amount
 		}
+		is.NetIncome += r.Amount
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

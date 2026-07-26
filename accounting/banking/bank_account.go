@@ -25,8 +25,8 @@ type StatementLine struct {
 	BankAccountID uuid.UUID
 	Date          time.Time
 	Description   string
-	Debit         float64
-	Credit        float64
+	Debit         int64
+	Credit        int64
 	Reference     string
 	IsReconciled  bool
 	JournalLineID *uuid.UUID // nil si aún no está conciliada
@@ -40,15 +40,15 @@ type ReconciliationReport struct {
 	PeriodTo          time.Time
 
 	// Saldo según extracto bancario al final del período.
-	StatementBalance float64
+	StatementBalance int64
 	// Partidas en el extracto que aún no están en los libros.
 	UnreconciledStatement []*StatementLine
 	// Saldo en libros (libro mayor de la cuenta bancaria).
-	BookBalance float64
+	BookBalance int64
 	// Partidas en los libros que aún no figuran en el extracto.
 	UnreconciledBook []*UnreconciledBookItem
 	// Diferencia; debe ser cero si la conciliación cuadra.
-	Difference float64
+	Difference int64
 }
 
 // UnreconciledBookItem representa un movimiento en el libro mayor que aún
@@ -58,15 +58,15 @@ type UnreconciledBookItem struct {
 	JournalID     uuid.UUID
 	Date          time.Time
 	Description   string
-	Debit         float64
-	Credit        float64
+	Debit         int64
+	Credit        int64
 }
 
 // ImportLine contiene los datos de una línea del extracto para importar.
 type ImportLine struct {
 	Date        time.Time
 	Description string
-	Debit       float64
-	Credit      float64
+	Debit       int64
+	Credit      int64
 	Reference   string
 }

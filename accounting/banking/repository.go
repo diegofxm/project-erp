@@ -26,6 +26,6 @@ type Repository interface {
 	ListUnreconciledBook(ctx context.Context, bankAccountID uuid.UUID, from, to time.Time) ([]*UnreconciledBookItem, error)
 
 	// Balance queries
-	StatementBalance(ctx context.Context, bankAccountID uuid.UUID, asOf time.Time) (float64, error)
-	BookBalance(ctx context.Context, bankAccountID uuid.UUID, asOf time.Time) (float64, error)
+	StatementBalance(ctx context.Context, bankAccountID uuid.UUID, asOf time.Time) (int64, error)
+	BookBalance(ctx context.Context, bankAccountID uuid.UUID, asOf time.Time) (int64, error)
 }

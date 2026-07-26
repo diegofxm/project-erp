@@ -7,14 +7,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// PLBalance es el saldo neto de una cuenta para un período dado.
+// PLBalance es el saldo neto de una cuenta para un período dado (en centavos).
 // Balance = SUM(debit) - SUM(credit); negativo indica saldo acreedor (típico en ingresos).
 type PLBalance struct {
 	AccountID   uuid.UUID
 	AccountCode string
 	AccountName string
 	Category    string
-	Balance     float64
+	Balance     int64
 }
 
 // Repository define las operaciones de persistencia de asientos.

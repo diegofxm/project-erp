@@ -228,8 +228,8 @@ func (r *PostgresRepository) ListUnreconciledBook(ctx context.Context, bankAccou
 	return out, rows.Err()
 }
 
-func (r *PostgresRepository) StatementBalance(ctx context.Context, bankAccountID uuid.UUID, asOf time.Time) (float64, error) {
-	var balance float64
+func (r *PostgresRepository) StatementBalance(ctx context.Context, bankAccountID uuid.UUID, asOf time.Time) (int64, error) {
+	var balance int64
 	err := r.pool.QueryRow(ctx, `
 		SELECT COALESCE(SUM(credit) - SUM(debit), 0)
 		FROM accounting.bank_statement_lines
@@ -242,8 +242,8 @@ func (r *PostgresRepository) StatementBalance(ctx context.Context, bankAccountID
 	return balance, nil
 }
 
-func (r *PostgresRepository) BookBalance(ctx context.Context, bankAccountID uuid.UUID, asOf time.Time) (float64, error) {
-	var balance float64
+func (r *PostgresRepository) BookBalance(ctx context.Context, bankAccountID uuid.UUID, asOf time.Time) (int64, error) {
+	var balance int64
 	err := r.pool.QueryRow(ctx, `
 		SELECT COALESCE(SUM(jl.debit) - SUM(jl.credit), 0)
 		FROM accounting.journal_lines jl
