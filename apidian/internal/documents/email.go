@@ -46,7 +46,43 @@ var emailTemplateSrc string
 
 var emailTmpl = htmltmpl.Must(htmltmpl.New("email").Parse(emailTemplateSrc))
 
-// SendDocumentEmail envía el documento ya aceptado por la DIAN al correo del cliente.
+// resolveRecipient devuelve el nombre y correo actuales del destinatario del correo.
+//
+// Para DS (Documento Soporte) el destinatario es el proveedor (Vendor); para los demás
+// documentos es el cliente (Customer). En ambos casos se intenta obtener el correo actual
+// del catálogo (customers / vendors) usando el ID opcional guardado en el documento,
+// porque el snapshot almacenado en el documento puede quedar desactualizado si el usuario
+// edita el correo del cliente o proveedor después de emitir.
+func (s *Service) resolveRecipient(ctx context.Context, d *Document) (name, email string, err error) {
+	if d.DianDocumentTypeCode == supportDocumentDianDocType {
+		// DS: el destinatario es el Vendor.
+		if d.Vendor == nil {
+			return "", "", ErrCustomerEmailMissing
+		}
+		name = d.Vendor.Name
+		email = d.Vendor.Email
+		if d.VendorID != nil && s.vendors != nil {
+			if v, e := s.vendors.GetVendor(ctx, *d.VendorID); e == nil {
+				email = v.Party.Email
+				name = v.Party.Name
+			}
+		}
+		return
+	}
+	// FE / NC / ND: el destinatario es el Customer.
+	name = d.Customer.Name
+	email = d.Customer.Email
+	if d.CustomerID != nil {
+		if c, e := s.customers.GetCustomer(ctx, *d.CustomerID); e == nil {
+			email = c.Party.Email
+			name = c.Party.Name
+		}
+	}
+	return
+}
+
+// SendDocumentEmail envía el documento ya aceptado por la DIAN al correo del cliente
+// (FE/NC/ND) o del proveedor (DS).
 //
 // El adjunto es un único ZIP que, cuando el documento fue aceptado con la migración 000013
 // ya activa, contiene un AttachedDocument UBL firmado (con el XML de la factura y el
@@ -54,7 +90,6 @@ var emailTmpl = htmltmpl.Must(htmltmpl.New("email").Parse(emailTemplateSrc))
 // 1.9. Para documentos aceptados antes de esa migración — ApplicationResponseXML vacío —
 // el ZIP contiene el XML firmado crudo + el PDF (comportamiento anterior).
 //
-// Válido para Factura (01), Nota Crédito (91) y Nota Débito (92). Solo StatusAccepted.
 // cc es la lista de destinatarios en copia; nil o vacío = sin CC.
 func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID, format pdf.Format, cc []string) error {
 	d, iss, err := s.loadDocumentAndIssuer(ctx, issuerID, id)
@@ -64,7 +99,11 @@ func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID,
 	if d.Status != StatusAccepted {
 		return ErrDocumentNotAccepted
 	}
-	if d.Customer.Email == "" {
+	recipientName, recipientEmail, err := s.resolveRecipient(ctx, d)
+	if err != nil {
+		return err
+	}
+	if recipientEmail == "" {
 		return ErrCustomerEmailMissing
 	}
 
@@ -98,7 +137,7 @@ func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID,
 	// NIT; Nombre del facturador; Número del documento; Código tipo; Nombre comercial
 	subject := fmt.Sprintf("%s;%s;%s;%s;%s", iss.NIT, iss.BusinessName, filename, d.DianDocumentTypeCode, tradeName)
 
-	bodyPlainText := defaultEmailBody(d, iss, typeName)
+	bodyPlainText := defaultEmailBody(recipientName, iss, typeName)
 
 	issuerNIT := iss.NIT
 	if iss.IdentificationTypeCode == "31" {
@@ -126,7 +165,7 @@ func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID,
 		data.DocumentTypeName, filename, data.IssueDate, data.TotalFormatted)
 
 	msg := email.Message{
-		To:       d.Customer.Email,
+		To:       recipientEmail,
 		CC:       cc,
 		Subject:  subject,
 		BodyText: bodyText,
@@ -160,9 +199,9 @@ func buildEmailText(bodyText, issuerName, issuerNIT, issuerEmail, docTypeName, d
 
 // defaultEmailBody retorna el cuerpo predeterminado cuando el emisor no configuró una
 // plantilla personalizada. Es breve — el template HTML ya muestra los datos del documento.
-func defaultEmailBody(d *Document, iss *issuers.Issuer, typeName string) string {
+func defaultEmailBody(recipientName string, iss *issuers.Issuer, typeName string) string {
 	return fmt.Sprintf("Hola %s,\n\n%s te hace llegar tu %s. Encuéntrala en el archivo ZIP adjunto a este correo.",
-		d.Customer.Name, iss.BusinessName, typeName)
+		recipientName, iss.BusinessName, typeName)
 }
 
 // bodyTextToParas convierte texto plano en párrafos HTML seguros para inyectar en el
@@ -265,9 +304,20 @@ func buildAttachedDocumentXML(d *Document, iss *issuers.Issuer, filename string,
 		taxRegime = *iss.TaxRegimeCode
 	}
 
-	hashType := "CUFE-SHA384"
-	if d.DianDocumentTypeCode != invoiceDianDocumentType {
-		hashType = "CUDE-SHA384"
+	hashType := invoiceHashType
+	switch d.DianDocumentTypeCode {
+	case creditNoteDianDocumentType, debitNoteDianDocumentType:
+		hashType = creditNoteHashType
+	case supportDocumentDianDocType:
+		hashType = supportDocumentHashType
+	}
+
+	// Para DS el receptor del AttachedDocument es el proveedor (Vendor); para el resto es el cliente.
+	var receiver domain.Party
+	if d.DianDocumentTypeCode == supportDocumentDianDocType && d.Vendor != nil {
+		receiver = *d.Vendor
+	} else {
+		receiver = d.Customer
 	}
 
 	ad := domain.AttachedDocument{
@@ -285,12 +335,12 @@ func buildAttachedDocumentXML(d *Document, iss *issuers.Issuer, filename string,
 			TaxSchemeName:  iss.TaxSchemeName,
 		},
 		Receiver: domain.AttachedPartyInfo{
-			Name:           d.Customer.Name,
-			Identification: domain.Identification{TypeCode: d.Customer.Identification.TypeCode, Number: d.Customer.Identification.Number},
-			TaxRegimeCode:  d.Customer.TaxRegimeCode,
-			LiabilityCodes: d.Customer.LiabilityCodes,
-			TaxSchemeCode:  d.Customer.TaxSchemeCode,
-			TaxSchemeName:  d.Customer.TaxSchemeName,
+			Name:           receiver.Name,
+			Identification: domain.Identification{TypeCode: receiver.Identification.TypeCode, Number: receiver.Identification.Number},
+			TaxRegimeCode:  receiver.TaxRegimeCode,
+			LiabilityCodes: receiver.LiabilityCodes,
+			TaxSchemeCode:  receiver.TaxSchemeCode,
+			TaxSchemeName:  receiver.TaxSchemeName,
 		},
 		AttachmentXML: d.SignedXML,
 		ValidationResults: []domain.ValidationResult{
@@ -315,7 +365,7 @@ func buildAttachedDocumentXML(d *Document, iss *issuers.Issuer, filename string,
 		doc, err = builder.BuildCreditNoteAttachedDocument(ad)
 	case debitNoteDianDocumentType:
 		doc, err = builder.BuildDebitNoteAttachedDocument(ad)
-	default:
+	default: // Invoice (01) y Documento Soporte (05) usan la misma estructura UBL
 		doc, err = builder.BuildInvoiceAttachedDocument(ad)
 	}
 	if err != nil {
