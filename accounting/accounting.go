@@ -12,6 +12,7 @@ import (
 	"github.com/diegofxm/accounting/journals"
 	"github.com/diegofxm/accounting/periods"
 	"github.com/diegofxm/accounting/reports"
+	"github.com/diegofxm/accounting/withholdings"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -24,12 +25,13 @@ var migrationsFS embed.FS
 // Core agrupa todos los servicios del motor contable. Se crea una sola vez al arrancar
 // la aplicación y se pasa a las capas que necesiten registrar o consultar asientos.
 type Core struct {
-	Accounts *accounts.Service
-	Journals *journals.Service
-	Periods  *periods.Service
-	Reports  *reports.Service
-	Banking  *banking.Service
-	pool     *pgxpool.Pool
+	Accounts     *accounts.Service
+	Journals     *journals.Service
+	Periods      *periods.Service
+	Reports      *reports.Service
+	Banking      *banking.Service
+	Withholdings *withholdings.Service
+	pool         *pgxpool.Pool
 }
 
 // New construye el Core conectando cada servicio con su repositorio PostgreSQL.
@@ -39,12 +41,13 @@ func New(pool *pgxpool.Pool) *Core {
 	journalRepo := journals.NewPostgresRepository(pool)
 
 	return &Core{
-		Accounts: accountsSvc,
-		Periods:  periodsSvc,
-		Journals: journals.NewService(journalRepo, accountsSvc, periodsSvc),
-		Reports:  reports.NewService(pool),
-		Banking:  banking.NewService(banking.NewPostgresRepository(pool)),
-		pool:     pool,
+		Accounts:     accountsSvc,
+		Periods:      periodsSvc,
+		Journals:     journals.NewService(journalRepo, accountsSvc, periodsSvc),
+		Reports:      reports.NewService(pool),
+		Banking:      banking.NewService(banking.NewPostgresRepository(pool)),
+		Withholdings: withholdings.NewService(withholdings.NewPostgresRepository(pool)),
+		pool:         pool,
 	}
 }
 
@@ -74,8 +77,14 @@ func Migrate(databaseURL string) error {
 	return nil
 }
 
-// Seed carga el PUC completo desde el CSV embebido. Es idempotente: se puede llamar
-// en cada arranque sin riesgo de duplicar datos.
+// Seed carga el PUC completo y los catálogos de retenciones desde los CSVs embebidos.
+// Es idempotente: se puede llamar en cada arranque sin riesgo de duplicar datos.
 func (c *Core) Seed(ctx context.Context) error {
-	return seed.Accounts(ctx, c.pool)
+	if err := seed.Accounts(ctx, c.pool); err != nil {
+		return err
+	}
+	if err := seed.WithholdingConcepts(ctx, c.pool); err != nil {
+		return err
+	}
+	return seed.UVT(ctx, c.pool)
 }
