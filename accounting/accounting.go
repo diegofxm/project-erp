@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/diegofxm/accounting/accounts"
+	"github.com/diegofxm/accounting/assets"
 	"github.com/diegofxm/accounting/banking"
 	"github.com/diegofxm/accounting/database/seed"
 	"github.com/diegofxm/accounting/journals"
@@ -31,6 +32,7 @@ type Core struct {
 	Reports      *reports.Service
 	Banking      *banking.Service
 	Withholdings *withholdings.Service
+	Assets       *assets.Service
 	pool         *pgxpool.Pool
 }
 
@@ -38,15 +40,16 @@ type Core struct {
 func New(pool *pgxpool.Pool) *Core {
 	accountsSvc := accounts.NewService(accounts.NewPostgresRepository(pool))
 	periodsSvc := periods.NewService(periods.NewPostgresRepository(pool))
-	journalRepo := journals.NewPostgresRepository(pool)
+	journalsSvc := journals.NewService(journals.NewPostgresRepository(pool), accountsSvc, periodsSvc)
 
 	return &Core{
 		Accounts:     accountsSvc,
 		Periods:      periodsSvc,
-		Journals:     journals.NewService(journalRepo, accountsSvc, periodsSvc),
+		Journals:     journalsSvc,
 		Reports:      reports.NewService(pool),
 		Banking:      banking.NewService(banking.NewPostgresRepository(pool)),
 		Withholdings: withholdings.NewService(withholdings.NewPostgresRepository(pool)),
+		Assets:       assets.NewService(assets.NewPostgresRepository(pool), journalsSvc, periodsSvc),
 		pool:         pool,
 	}
 }
