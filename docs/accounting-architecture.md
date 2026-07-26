@@ -176,69 +176,40 @@ Lo implementado es correcto y profesional en todo lo que toca: aritmética de ce
 
 ---
 
-## 6. Pendientes en `apidian/internal/integrations/accounting/`
+## 6. Integración `apidian/internal/integrations/accounting/`
 
-El adaptador entre apidian y la librería contable tiene bugs activos y no aprovecha las nuevas funcionalidades. Estado actual: **no compila** contra la versión actual de `accounting/`.
+El adaptador entre apidian y la librería contable está **completo para todos los tipos de documento** que maneja apidian. Estado actual: compila, tests pasan, wiring activo en `handleConfirmDocument`.
 
-### 6.1 Bug crítico — no compila
+### 6.1–6.5 Completados ✅
 
-`mapper.go` divide los centavos entre 100 y pasa el resultado `float64` a campos `int64`:
+| # | Ítem | Estado |
+|---|---|---|
+| 6.1 | Bug float64→int64 en mapper (centavos directos) | ✅ |
+| 6.2 | ThirdPartyNIT en líneas de cliente/proveedor (130505 / 220505) | ✅ |
+| 6.3 | SourceDocumentID/Type en PostRequest | ✅ |
+| 6.4 | Retenciones DS: 220505 neto + CR 236505/236540/236560 por TypeCode DIAN | ✅ |
+| 6.5 | VoucherType "FE"/"DS"/"NC"/"ND"/"NA" asignado en cada PostRequest | ✅ |
 
-```go
-// ACTUAL (roto)
-totalCOP := float64(doc.Totals.PayableCents) / 100  // ← float64
-LineRequest{Debit: totalCOP}                         // ← int64: error de tipos
+### Cobertura de documentos — julio 2026
 
-// CORRECTO
-LineRequest{Debit: doc.Totals.PayableCents}          // pasar centavos directo
-```
+Todos los documentos que confirma apidian generan asiento contable automático:
 
-Esto rompió cuando los campos monetarios de `journals.LineRequest` migraron a `int64` centavos. **Requiere corrección inmediata.**
+| Documento | DianDocumentTypeCode | Asiento | VoucherType |
+|---|---|---|---|
+| FE — Factura de venta | 01 | DR 130505(cliente) / CR 413505 + CR 240805(IVA) | "FE" |
+| NC — Nota Crédito | 91 | DR 413505 + DR 240805 / CR 130505(cliente) | "NC" |
+| ND — Nota Débito | 92 | DR 130505(cliente) / CR 413505 + CR 240805 | "ND" |
+| DS — Documento Soporte | 05 | DR gasto + DR 135530(IVA) / CR 220505(neto) + CR 2365xx(retenciones) | "DS" |
+| NA — Nota de Ajuste DS | 95 | Espejo exacto del DS (DR↔CR invertidos) | "NA" |
 
-### 6.2 ThirdPartyNIT faltante en las líneas
+**Punto de entrada**: `handleConfirmDocument` llama `postAccountingEntry` después de confirmar.
+`POST /api/v1/documents/{id}/confirm` acepta body opcional `{ "expense_account_code": "5135" }` para DS y NA (si se omite, el asiento no se registra y se emite un aviso en logs).
 
-Las líneas de los asientos generados no incluyen el NIT del cliente (FE) ni del proveedor (DS). Sin eso:
-- `MediosMagneticos` no reporta esos asientos por NIT.
-- `AuxiliaryByThird` no los encuentra.
-- Los asientos quedan incompletos para Información Exógena DIAN.
+### 6.6 Pendiente — Fase 3
 
-**Corrección**: leer `doc.Customer.TaxID` (FE) o `doc.Supplier.TaxID` (DS) y asignarlo a `ThirdPartyNIT` en las líneas que tocan la cuenta del tercero (130505 / 220505).
-
-### 6.3 SourceDocumentID / SourceDocumentType no enlazado
-
-Existe desde migración 000013 y `PostRequest` ya lo soporta, pero el mapper no lo envía. Sin él, `core.Journals.GetBySourceDocument(ctx, companyID, docUUID, "FE")` devuelve vacío.
-
-**Corrección**:
-
-```go
-// En fromInvoice:
-SourceDocumentID:   uuid.MustParse(doc.ID),
-SourceDocumentType: journals.SourceFE,
-
-// En fromSupportDocument:
-SourceDocumentID:   uuid.MustParse(doc.ID),
-SourceDocumentType: journals.SourceDS,
-```
-
-### 6.4 Retenciones no calculadas
-
-Si la FE o DS incluyen Retefuente/Reteiva/Reteica, el mapper actual las ignora. El módulo `withholdings` ya tiene toda la lógica; solo falta llamarlo desde el adaptador:
-
-```go
-// Después de construir las líneas base:
-result, err := core.Withholdings.Calculate(ctx, "COMPRAS_GENERALES", withholdings.TypeRetefuente,
-    doc.Totals.LineExtensionCents, withholdings.VendorJuridica, doc.IssueDate.Year())
-if err == nil && result != nil {
-    lines = append(lines,
-        journals.LineRequest{AccountCode: result.AccountReceivable, Debit: result.Amount, ...},
-        journals.LineRequest{AccountCode: result.AccountPayable, Credit: result.Amount, ...},
-    )
-}
-```
-
-### 6.5 VoucherType no asignado
-
-Los asientos de FE y DS deberían tener comprobante consecutivo. El módulo de vouchers está listo; el mapper solo necesita pasar `VoucherType: "FE"` o `"DS"` en el `PostRequest` para que `Service.Post` asigne el número automáticamente.
+| # | Pendiente | Estado |
+|---|---|---|
+| 6.6 | Posting rules configurables en BD (hoy hardcodeadas en mapper: 130505, 413505, 220505…) | 🔵 Fase 3 |
 
 ---
 

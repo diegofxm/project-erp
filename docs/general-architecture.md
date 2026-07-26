@@ -42,8 +42,8 @@ electrónicos: creación, firma, envío a la DIAN, polling de resultado, PDF, co
 adquiriente. Pendiente menor: mejoras de UX y edge cases de la DIAN.
 
 **Integración contable**: `apidian/internal/integrations/accounting/` — adaptador directo al
-`accounting.Core` (mismo proceso, vía `go.work`). Al confirmar una FE o DS llama
-`core.Journals.Post()` con las líneas correctas.
+`accounting.Core` (mismo proceso, vía `go.work`). Al confirmar cualquier documento (FE, NC,
+ND, DS, NA) llama `core.Journals.Post()` con las líneas correctas, retenciones incluidas.
 
 ### `frontend/` ✅ — facturación completa, contabilidad pendiente
 
@@ -318,18 +318,19 @@ de documentos y el core contable no se tocan.
 
 ---
 
-## Pendientes en `apidian/internal/integrations/accounting/`
+## Integración `apidian` → `accounting` — estado julio 2026
 
-Estado al julio 2026: los tres bugs críticos fueron corregidos. Pendiente de Fase 2:
+Adaptador completo. Todos los documentos que confirma apidian generan asiento automático.
 
-| # | Pendiente | Estado |
+| # | Ítem | Estado |
 |---|---|---|
-| 6.1 | Bug float64→int64 en mapper (centavos directos) | ✅ corregido |
-| 6.2 | ThirdPartyNIT en líneas de cliente/proveedor | ✅ corregido |
-| 6.3 | SourceDocumentID/Type en PostRequest | ✅ corregido |
-| 6.4 | Retenciones: calcular y contabilizar Retefuente/Reteiva cuando el doc las trae | 🔲 Fase 2 |
-| 6.5 | VoucherType: asignar consecutivo "FE"/"DS" al asiento | 🔲 Fase 2 |
-| 6.6 | Posting rules configurables en BD (hoy hardcodeadas en mapper) | 🔵 Fase 3 |
+| 6.1 | Bug float64→int64 en mapper | ✅ |
+| 6.2 | ThirdPartyNIT en líneas de cliente/proveedor | ✅ |
+| 6.3 | SourceDocumentID/Type en PostRequest | ✅ |
+| 6.4 | Retenciones DS/NA: 220505 neto + CR 236505/236540/236560 | ✅ |
+| 6.5 | VoucherType "FE"/"NC"/"ND"/"DS"/"NA" en cada asiento | ✅ |
+| 6.6 | NC/ND/NA — mappers + métodos client + wiring en `handleConfirmDocument` | ✅ |
+| 6.7 | Posting rules configurables en BD (hoy hardcodeadas en mapper) | 🔵 Fase 3 |
 
 ---
 
