@@ -413,11 +413,11 @@ func fromAdjustmentNote(doc *documents.Document, companyID uuid.UUID, expenseAcc
 func withholdingPayableAccount(typeCode string) (string, bool) {
 	switch typeCode {
 	case "05":
-		return "236540", true // ReteIVA por pagar
+		return "240802", true // IVA retenido por pagar (2408 IVA × pagar → 240802)
 	case "06":
-		return "236505", true // Retefuente por pagar (Fase 2: cuenta específica por concepto)
+		return "236540", true // Retefuente por pagar — Compras (genérico; Fase 2: cuenta por concepto)
 	case "07":
-		return "236560", true // ReteICA por pagar
+		return "2368", true // ICA retenido por pagar (PUC 2368 = "Impuesto de industria y comercio retenido")
 	default:
 		return "", false
 	}

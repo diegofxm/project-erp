@@ -15,3 +15,6 @@ code,name,type,rate_bp,min_base_uvt,account_payable,account_receivable,applicabl
 12,Contratos de construcción,RETEFUENTE,200,27,236540,135505,BOTH
 16,Loterías rifas apuestas y similares,RETEFUENTE,2000,48,236595,135505,BOTH
 IVA,Retención de IVA (15% del IVA facturado),RETEIVA,1500,0,240802,136502,BOTH
+ICA-C,ICA — Actividades comerciales (tarifa ref. Bogotá 10‰),RETEICA,1000,0,2368,135518,BOTH
+ICA-S,ICA — Servicios (tarifa ref. Bogotá 10‰),RETEICA,1000,0,2368,135518,BOTH
+ICA-I,ICA — Actividades industriales (tarifa ref. Bogotá 8‰),RETEICA,800,0,2368,135518,BOTH

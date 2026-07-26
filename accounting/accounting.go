@@ -17,6 +17,7 @@ import (
 	"github.com/diegofxm/accounting/journals"
 	"github.com/diegofxm/accounting/periods"
 	"github.com/diegofxm/accounting/reports"
+	"github.com/diegofxm/accounting/tax"
 	"github.com/diegofxm/accounting/withholdings"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -41,6 +42,7 @@ type Core struct {
 	Cartera      *cartera.Service
 	Budget       *budget.Service
 	Forex        *forex.Service
+	Tax          *tax.Service
 	pool         *pgxpool.Pool
 }
 
@@ -62,6 +64,7 @@ func New(pool *pgxpool.Pool) *Core {
 		Cartera:      cartera.NewService(cartera.NewPostgresRepository(pool)),
 		Budget:       budget.NewService(budget.NewPostgresRepository(pool), accountsSvc),
 		Forex:        forex.NewService(forex.NewPostgresRepository(pool), journalsSvc),
+		Tax:          tax.NewService(tax.NewPostgresRepository(pool), journalsSvc),
 		pool:         pool,
 	}
 }
