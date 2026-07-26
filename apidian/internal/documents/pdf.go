@@ -119,6 +119,9 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 	case supportDocumentDianDocType:
 		documentTitle = "DOCUMENTO SOPORTE"
 		hashLabel = "CUDS"
+	case adjustmentNoteDianDocType:
+		documentTitle = "NOTA DE AJUSTE - DOCUMENTO SOPORTE"
+		hashLabel = "CUDS"
 	default:
 		documentTitle = "FACTURA ELECTRÓNICA DE VENTA"
 		hashLabel = "CUFE"
@@ -128,7 +131,7 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 	// PIN, CUDS, URL=…); d.QRURL almacena solo la URL (para el frontend/PDF link). El
 	// contenido completo se reconstruye aquí para generar la imagen QR del PDF.
 	var qrContent string
-	if d.DianDocumentTypeCode == supportDocumentDianDocType && d.Vendor != nil && d.DocumentKey != "" {
+	if (d.DianDocumentTypeCode == supportDocumentDianDocType || d.DianDocumentTypeCode == adjustmentNoteDianDocType) && d.Vendor != nil && d.DocumentKey != "" {
 		dsInv := domain.Invoice{
 			Prefix:          d.Prefix,
 			Number:          strconv.FormatInt(d.Number, 10),
@@ -182,7 +185,7 @@ func (s *Service) invoicePDFInput(ctx context.Context, d *Document, iss *issuers
 		brandColor = s.settings.GetBrandColor(ctx, iss.ID)
 	}
 
-	isDS := d.DianDocumentTypeCode == supportDocumentDianDocType
+	isDS := d.DianDocumentTypeCode == supportDocumentDianDocType || d.DianDocumentTypeCode == adjustmentNoteDianDocType
 
 	// En DS los datos del "tercero" (proveedor) están en d.Vendor, no en d.Customer.
 	// Para FE/NC/ND el cliente es d.Customer.

@@ -54,8 +54,8 @@ var emailTmpl = htmltmpl.Must(htmltmpl.New("email").Parse(emailTemplateSrc))
 // porque el snapshot almacenado en el documento puede quedar desactualizado si el usuario
 // edita el correo del cliente o proveedor después de emitir.
 func (s *Service) resolveRecipient(ctx context.Context, d *Document) (name, email string, err error) {
-	if d.DianDocumentTypeCode == supportDocumentDianDocType {
-		// DS: el destinatario es el Vendor.
+	if d.DianDocumentTypeCode == supportDocumentDianDocType || d.DianDocumentTypeCode == adjustmentNoteDianDocType {
+		// DS / NA: el destinatario es el Vendor (proveedor).
 		if d.Vendor == nil {
 			return "", "", ErrCustomerEmailMissing
 		}
@@ -99,7 +99,7 @@ func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID,
 	if to != "" {
 		// El frontend ya resolvió y confirmó el correo (puede haber sido editado por el usuario).
 		recipientEmail = to
-		if d.DianDocumentTypeCode == supportDocumentDianDocType && d.Vendor != nil {
+		if (d.DianDocumentTypeCode == supportDocumentDianDocType || d.DianDocumentTypeCode == adjustmentNoteDianDocType) && d.Vendor != nil {
 			recipientName = d.Vendor.Name
 		} else {
 			recipientName = d.Customer.Name
@@ -286,6 +286,10 @@ func documentTypeName(typeCode string) string {
 		return "nota crédito"
 	case debitNoteDianDocumentType:
 		return "nota débito"
+	case supportDocumentDianDocType:
+		return "documento soporte"
+	case adjustmentNoteDianDocType:
+		return "nota de ajuste"
 	default:
 		return "factura electrónica"
 	}
@@ -315,13 +319,13 @@ func buildAttachedDocumentXML(d *Document, iss *issuers.Issuer, filename string,
 	switch d.DianDocumentTypeCode {
 	case creditNoteDianDocumentType, debitNoteDianDocumentType:
 		hashType = creditNoteHashType
-	case supportDocumentDianDocType:
+	case supportDocumentDianDocType, adjustmentNoteDianDocType:
 		hashType = supportDocumentHashType
 	}
 
-	// Para DS el receptor del AttachedDocument es el proveedor (Vendor); para el resto es el cliente.
+	// Para DS/NA el receptor del AttachedDocument es el proveedor (Vendor); para el resto es el cliente.
 	var receiver domain.Party
-	if d.DianDocumentTypeCode == supportDocumentDianDocType && d.Vendor != nil {
+	if (d.DianDocumentTypeCode == supportDocumentDianDocType || d.DianDocumentTypeCode == adjustmentNoteDianDocType) && d.Vendor != nil {
 		receiver = *d.Vendor
 	} else {
 		receiver = d.Customer
@@ -372,7 +376,7 @@ func buildAttachedDocumentXML(d *Document, iss *issuers.Issuer, filename string,
 		doc, err = builder.BuildCreditNoteAttachedDocument(ad)
 	case debitNoteDianDocumentType:
 		doc, err = builder.BuildDebitNoteAttachedDocument(ad)
-	default: // Invoice (01) y Documento Soporte (05) usan la misma estructura UBL
+	default: // Invoice (01), Documento Soporte (05) y Nota de Ajuste (95) usan la misma estructura UBL
 		doc, err = builder.BuildInvoiceAttachedDocument(ad)
 	}
 	if err != nil {
