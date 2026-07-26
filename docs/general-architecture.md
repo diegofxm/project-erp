@@ -1,363 +1,378 @@
-# Arquitectura General del ERP — Plan de Evolución
+# Arquitectura General del ERP
 
-> Basado en el análisis del chat con ChatGPT (ver referencia completa en
-> `docs/reference/chat-general-architecture.md`) y validado contra el estado real del proyecto
-> a julio 2026.
-
----
-
-## Veredicto
-
-La arquitectura propuesta es viable y bien fundamentada. La separación actual
-(`apidian` / `cofacture` / `frontend`) es el punto de partida correcto.
-El siguiente bloque natural es `accounting/` — sin tocar nada de lo que ya funciona.
+> Última actualización: **julio 2026**.
+> Este documento refleja el estado real del proyecto, no un plan futuro.
+> Las secciones marcadas ✅ están en producción o listas para producción.
+> Las marcadas 🔲 son trabajo pendiente con diseño ya definido.
+> Las marcadas 🔵 son futuras sin diseño cerrado aún.
 
 ---
 
-## Mapa del ecosistema objetivo
+## Estado actual del ecosistema
 
 ```
 project-ubl/
-├── go.work
+├── go.work                   ← workspace que une todos los módulos Go
 │
-├── apidian/            ← dominio fiscal electrónico DIAN (FE/NC/ND/DS/NA) — ya existe
-├── cofacture/          ← librería de infraestructura DIAN (UBL + firma + SOAP) — ya existe
-├── accounting/    ← motor contable puro — SIGUIENTE FASE
-├── inventory/          ← inventario y almacén — futuro cercano
-├── payroll/            ← nómina electrónica — futuro
-├── hr/                 ← RRHH — futuro
-└── frontend/           ← React SPA, evoluciona en módulos — ya existe
-```
-
-### Módulos proyectados (orden de prioridad)
-
-| Módulo | Prioridad | Descripción |
-|---|---|---|
-| `accounting` | **Siguiente** | Motor contable: PUC, journal ledger, partida doble, reportes |
-| `inventory` | **Futuro cercano** | Productos, bodegas, movimientos de stock, costo de ventas |
-| `payroll` | Futuro | Liquidación de nómina, nómina electrónica DIAN |
-| `hr` | Futuro | Empleados, contratos, cargos |
-| `purchasing` | Futuro | Órdenes de compra (el DS ya cubre el lado fiscal) |
-| `crm` | Futuro | Cotizaciones, órdenes de venta → generan FE |
-| `fixed-assets` | Futuro | Activos fijos, depreciación → asientos automáticos |
-| `treasury` | Futuro | Conciliación bancaria → conecta con core-bank |
-| `logistics` | Futuro lejano | Despachos, rutas, flota |
-
----
-
-## Comunicación entre servicios
-
-### Por qué NATS y no HTTP siempre
-
-Con HTTP sincrónico, los servicios están acoplados en tiempo: si `accounting` está caído
-cuando `apidian` confirma una FE, el asiento nunca se crea y la contabilidad queda incompleta
-(la FE ya fue a la DIAN — no se puede revertir).
-
-Con un bus de eventos, `apidian` publica `"invoice.confirmed"` y olvida. Si `accounting`
-estaba caído, levanta después y lee el evento de la cola. Los servicios no necesitan estar
-vivos al mismo tiempo.
-
-### Por qué NATS específicamente
-
-- **Escrito en Go** (`github.com/nats-io/nats-server`) — compila a un solo binario sin
-  dependencias externas, igual que `apidian`.
-- **Sin Docker obligatorio** — se sube el binario al VPS y se corre como cualquier proceso Go.
-  Inicio en milisegundos, ~10-15 MB de RAM en idle.
-- **Sin costo de licencia** — open source. Nube administrada tiene tier gratuito.
-- **Cliente Go nativo** (`github.com/nats-io/nats.go`) — un `go get` y está disponible en
-  cualquier módulo del ecosistema.
-- **Configuración mínima** — `./nats-server` sin ningún archivo de config es suficiente para
-  desarrollo. Puerto 4222 por defecto.
-- Mucho más simple que RabbitMQ o Kafka para este caso de uso.
-
-### Estrategia de transición
-
-**Fase 1-2 (MVP):** HTTP directo entre servicios. Suficiente mientras hay pocos módulos.
-
-**Fase 3+ (cuando haya 3+ módulos):** agregar NATS. Cada módulo publica eventos; cada
-adaptador contable los consume. El binario se despliega en el VPS igual que los demás.
-
-```
-Módulo publica →  nats-server (VPS, binario Go)  → consumidor procesa
-                       puerto 4222
+├── cofacture/          ✅    ← librería DIAN: UBL, firma XML, SOAP, CUFE/CUDE
+├── apidian/            ✅    ← facturación electrónica DIAN (FE/NC/ND/DS/NA)
+├── accounting/         🔲    ← motor contable — ~60 % completo (ver § 3)
+├── payroll/            🔵    ← nómina colombiana
+├── inventory/          🔵    ← inventarios y costeo
+├── purchasing/         🔵    ← compras y proveedores
+├── hr/                 🔵    ← recursos humanos
+└── frontend/           ✅    ← React/TypeScript SPA
 ```
 
 ---
 
-## Principio fundamental
+## Módulos existentes
 
-> El `accounting` no sabe que existen facturas DIAN, empleados, inventarios ni bancos.
-> Solo recibe instrucciones contables válidas y mantiene la verdad financiera de la empresa.
->
-> Igual que el core bancario no sabe si una transferencia viene de una app móvil o de una
-> sucursal — recibe una orden válida y mueve el ledger.
+### `cofacture/` ✅ — completo
+
+Librería de infraestructura DIAN. Construye y firma documentos UBL 2.1 para Colombia:
+facturas, notas crédito/débito, documentos soporte. Sin lógica de negocio propia — es la
+capa técnica que todos los módulos que necesiten hablar con la DIAN consumen.
+Cuando `payroll` emita nómina electrónica, también usará `cofacture`.
+
+### `apidian/` ✅ — ~95 % completo
+
+Módulo de facturación electrónica DIAN. Maneja el ciclo de vida completo de documentos
+electrónicos: creación, firma, envío a la DIAN, polling de resultado, PDF, correo al
+adquiriente. Pendiente menor: mejoras de UX y edge cases de la DIAN.
+
+**Integración contable**: `apidian/internal/integrations/accounting/` — adaptador directo al
+`accounting.Core` (mismo proceso, vía `go.work`). Al confirmar una FE o DS llama
+`core.Journals.Post()` con las líneas correctas.
+
+### `frontend/` ✅ — facturación completa, contabilidad pendiente
+
+SPA en React/TypeScript. El módulo de facturación (FE, NC, DS, clientes, productos,
+configuración de empresa) está completo. Los módulos de contabilidad, nómina e inventario
+se agregarán como rutas nuevas sin tocar lo existente.
 
 ---
 
-## 1. accounting — estructura interna
+## `accounting/` — motor contable
+
+### Principio de diseño
+
+`accounting` es una **librería Go pura**, no un servicio HTTP. No tiene `cmd/api/`.
+Expone un `Core` que otros módulos importan directamente:
+
+```go
+core := accounting.New(pool)   // un pool PostgreSQL compartido
+core.Journals.Post(ctx, req)   // registrar un asiento
+core.Reports.IncomeStatement(ctx, ...)
+```
+
+Esto elimina latencia de red en el camino crítico (confirmar una FE) y simplifica el
+despliegue: un solo binario de `apidian` ya incluye el motor contable.
+Cuando haya 3+ módulos y el bus de eventos (NATS) entre en juego, `accounting` puede
+exponerse opcionalmente como microservicio — sin cambiar su código interno.
+
+### Estructura real de paquetes
 
 ```
 accounting/
-├── cmd/
-│   └── api/                    ← punto de entrada HTTP
-└── internal/
-    ├── domain/
-    │   ├── account/            ← PUC
-    │   ├── journal/            ← journal_entries + journal_lines
-    │   ├── period/             ← periodos contables
-    │   └── currency/           ← monedas
-    ├── application/
-    │   ├── posting/            ← motor de partida doble
-    │   ├── reports/            ← libro diario, mayor, estados financieros
-    │   └── closing/            ← cierres de periodo
-    ├── infrastructure/
-    │   └── postgres/           ← acceso a BD
-    └── interfaces/
-        └── http/               ← handlers REST
+├── accounting.go          ← Core{}, New(), Migrate(), Seed()
+├── accounts/              ← PUC: Account, Nature(), GetPostable()
+├── journals/              ← Motor: Post, Void, CloseYear, OpenYear,
+│                             comprobantes consecutivos, GetBySourceDocument,
+│                             constantes SourceFE/DS/NC/NOM/INV…
+│                             tipo Book: BOTH / PCGA / NIIF
+├── periods/               ← Períodos mensuales: GetOrCreate, Close, CloseYear
+├── reports/               ← 8 reportes calculados (sin balances guardados)
+├── banking/               ← Conciliación bancaria
+├── withholdings/          ← Retefuente, Reteiva, Reteica + UVT 2020-2025
+├── assets/                ← PPE: depreciación línea recta, baja con ganancia/pérdida
+├── iva/                   ← F300: generado/descontable, ciclo DRAFT→PAID
+├── cartera/               ← Aging FIFO, 6 cubetas colombianas, provisiones Art.145 ET
+├── budget/                ← Presupuesto anual vs. real (BvR)
+└── database/
+    ├── migrations/        ← 000001–000015 embebidas en el binario
+    └── seed/              ← PUC (2502 cuentas) + retenciones + UVT en CSV
 ```
 
-### Catálogos que viven en el core (y solo en el core)
+### Migraciones y tablas (schema `accounting.*`)
 
-| Catálogo | Estado |
+| # | Tablas | Contenido |
+|---|---|---|
+| 001 | `accounts`, `accounting_periods` | PUC y períodos |
+| 002 | `journal_entries`, `journal_lines` | Motor de asientos con `third_party_nit` |
+| 003 | `bank_accounts`, `bank_statement_lines` | Conciliación bancaria |
+| 004–006 | índices auxiliares | Auxiliar por tercero, Medios Magnéticos |
+| 007 | `withholding_concepts`, `uvt_values` | Catálogo de retenciones |
+| 008 | renombre `tercero_nit → third_party_nit` | Naming en inglés |
+| 009 | `voucher_types`, `voucher_counters` | Comprobantes consecutivos |
+| 010 | `fixed_assets`, `depreciation_runs`, `depreciation_entries` | PPE |
+| 011 | `iva_declarations` | Formulario 300 |
+| 012 | `reconciliation_marks` | Conciliación de cartera |
+| 013 | columnas `source_document_id / _type` | Trazabilidad a documento fuente |
+| 014 | `budgets`, `budget_lines` | Presupuesto vs. real |
+| 015 | columna `book` en `journal_entries` | Doble libro PCGA/NIIF |
+
+### Reportes disponibles
+
+| Reporte | Filtro de libro |
 |---|---|
-| PUC (`accounts`) | CSV ya disponible en `docs/reference/accounts.csv` — importar como seed |
-| Naturaleza contable | derivable del `category` del PUC (ver tabla abajo) |
-| Monedas | tabla simple, iniciar solo con COP |
-| Periodos contables | control de apertura/cierre de meses |
-| Tipos de asiento | MANUAL / AUTOMATIC / ADJUSTMENT / CLOSING / OPENING |
+| Balance de comprobación | ✅ PCGA / NIIF |
+| Libro mayor por cuenta | — |
+| Estado de resultados | ✅ PCGA / NIIF |
+| Balance general | ✅ PCGA / NIIF |
+| Auxiliar por tercero (NIT) | — |
+| Saldo por tercero | — |
+| Medios Magnéticos (base Información Exógena) | — |
+| Centro de costo | — |
 
-### Naturaleza contable por categoría PUC
+### Invariante central
 
-| Categoría | Naturaleza | Regla |
-|---|---|---|
-| Activo, Gastos, Costos | Débito | aumenta con débito, disminuye con crédito |
-| Pasivo, Patrimonio, Ingresos | Crédito | aumenta con crédito, disminuye con débito |
-
-### Tablas centrales del motor
-
-```sql
--- Cabecera del asiento
-journal_entries (
-  id, company_id, date, description,
-  status,     -- DRAFT | POSTED | VOID
-  source,     -- "apidian", "inventory", "payroll", "manual", etc.
-  entry_type, -- MANUAL | AUTOMATIC | ADJUSTMENT | CLOSING | OPENING
-  created_at
-)
-
--- Partida doble — el verdadero ledger
-journal_lines (
-  id, journal_id, account_id,
-  debit, credit,      -- exactamente uno debe ser > 0, el otro 0
-  cost_center,        -- opcional, el core guarda el código pero no lo administra
-  created_at
-)
-```
-
-**Invariante del motor:** `SUM(debit) = SUM(credit)` por cada `journal_id`. Si no se cumple, el asiento no se guarda.
-
-### API pública del core
-
-```
-POST   /api/v1/journals               ← crear asiento (valida PUC, doble partida, periodo)
-GET    /api/v1/journals/:id           ← consultar asiento
-GET    /api/v1/accounts               ← listar PUC
-GET    /api/v1/accounts/:id/ledger    ← libro mayor de una cuenta
-GET    /api/v1/reports/trial-balance  ← balance de comprobación
-GET    /api/v1/reports/income-statement
-GET    /api/v1/reports/balance-sheet
-GET    /api/v1/reports/general-ledger
-```
-
-Todos los reportes son **queries calculadas** sobre `journal_lines` — no se guardan balances.
+`SUM(debit) == SUM(credit)` exacto por asiento, en centavos `int64`.
+Sin tolerancia. Sin `float64`. El motor rechaza si no cuadra.
 
 ---
 
-## 2. inventory — estructura y relación contable
+## Estado real de `accounting/` — julio 2026
 
-El módulo de inventario cierra el ciclo compra-venta: sin él el sistema no sabe cuántas
-unidades hay ni qué costo tienen, y la contabilidad queda sin el asiento de costo de ventas.
+### Avance estimado: ~60 %
 
-```
-inventory/
-├── cmd/api/
-└── internal/
-    ├── domain/
-    │   ├── product/        ← productos con costo unitario
-    │   ├── warehouse/      ← bodegas / ubicaciones
-    │   └── movement/       ← entradas, salidas, traslados
-    ├── application/
-    │   ├── stock/          ← control de existencias
-    │   └── costing/        ← PEPS, promedio ponderado
-    ├── infrastructure/postgres/
-    └── integrations/
-        └── accounting/     ← adaptador → accounting
-```
+Lo implementado es correcto y profesional. Lo que falta es ortogonal — se agrega sin
+romper nada de lo existente.
 
-### Eventos que genera inventory hacia accounting
+### ✅ Funcional hoy para
 
-| Evento | Asiento generado |
+- Microempresas en régimen ordinario sin empleados formales ni inventario.
+- Registro automático de asientos de FE y DS desde apidian.
+- Reportes gerenciales: P&G, balance general, libro mayor, medios magnéticos base.
+- Cierres y aperturas de año.
+- Presupuesto vs. real.
+- Doble libro PCGA/NIIF con filtro en reportes.
+
+### 🔲 Pendiente para la PYME colombiana típica
+
+| Área | Por qué es necesaria |
 |---|---|
-| Venta (salida por FE) | `610505 Costo de ventas` Débito / `143505 Mercancía` Crédito |
-| Compra (entrada por DS) | `143505 Mercancía` Débito / `220505 Proveedores` Crédito |
-| Ajuste de inventario | `143505 Mercancía` Débito o Crédito según dirección |
-| Traslado entre bodegas | Asiento interno (no afecta P&G) |
-
-### Relación con apidian
-
-- Al confirmar una **FE** → `apidian` notifica a `inventory` (salida de stock) e `inventory`
-  notifica a `accounting` (asiento de costo).
-- Al confirmar un **DS** → `apidian` notifica a `inventory` (entrada de stock) e `inventory`
-  notifica a `accounting` (asiento de compra).
+| **Nómina** | Parafiscales, UGPP, aportes seguridad social, cesantías, vacaciones, prima. Sin esto no se pueden registrar los asientos de nómina. |
+| **Inventarios** | PEPS/promedio ponderado, kardex, Costo de Mercancía Vendida automático. Sin esto el costo de ventas queda sin registrar. |
+| **Declaraciones de impuestos** | Solo existe F300 (IVA). Falta F210 (Renta jurídicas), F220 (RetFuente anual), F490 (ICA por municipio). |
+| **Moneda extranjera** | Diferencial cambiario, cuentas en USD/EUR. Necesario para importadores/exportadores. |
+| **Posting rules configurables** | Hoy las reglas de contabilización están hardcodeadas en el mapper de apidian. Deben vivir en BD para ser configurables por tipo de documento y categoría de producto/proveedor. |
 
 ---
 
-## 3. Adaptador contable en apidian
+## ¿Qué tan grande es el trabajo restante?
 
-No se toca el dominio de documentos. Se agrega una capa de integración aislada:
+### El 40% que falta vs. apidian
 
+`apidian` es complejo por razones *externas*: protocolo DIAN, UBL/XML, firmas digitales,
+polling asíncrono. La mayor parte de su código existe para hablarle a un tercero de una
+forma muy específica.
+
+El 40% restante de `accounting` es complejo por razones *internas*: reglas de negocio
+colombianas puras. No hay protocolo externo que dominar.
+
+| Módulo pendiente | Esfuerzo relativo vs. apidian |
+|---|---|
+| Nómina completa (UGPP, parafiscales, liquidaciones, provisiones) | ~40 % |
+| Inventarios (PEPS/promedio, kardex, CMV) | ~25 % |
+| Declaraciones de impuestos (F210, F220, F490 ICA) | ~15 % |
+| Posting rules configurables | ~10 % |
+| Moneda extranjera + diferencial cambiario | ~10 % |
+
+**En total: el 40% faltante equivale aproximadamente a construir un apidian completo**,
+pero sin la parte más difícil de apidian (los protocolos externos de la DIAN).
+
+### ¿Los demás módulos son pequeños una vez el core esté listo?
+
+El patrón de integración es siempre el mismo y ya está definido:
+
+```go
+// Cualquier módulo, siempre igual:
+core.Journals.Post(ctx, journals.PostRequest{
+    SourceDocumentID:   docUUID,
+    SourceDocumentType: journals.SourceNOM,  // o SourceINV, SourceOC...
+    Lines:              lineasCalculadas,
+})
 ```
-apidian/internal/integrations/accounting/
-    client.go       ← llama al accounting via HTTP (o publica evento NATS en Fase 3)
-    mapper.go       ← traduce Document → JournalEntry
-    dto.go          ← structs del request/response
-```
 
-### Flujo cuando se confirma una FE
+Lo que varía es cuánta lógica de dominio tiene cada módulo *antes* de llegar a ese `Post`:
 
-```
-Usuario confirma FE
-        ↓
-InvoiceService (apidian)
-        ↓
-Guarda documento, actualiza estado DIAN
-        ↓
-accounting.Mapper.FromInvoice(doc) → JournalEntryRequest
-        ↓
-accounting.Client.PostJournal(entry)          ← HTTP en Fase 1-2
-        ↓                                     ← NATS en Fase 3+
-accounting API
-        ↓
-Valida PUC + partida doble + periodo
-        ↓
-Guarda journal_entry + journal_lines
-```
-
-### Posting rules de ejemplo para FE
-
-| Cuenta | Código | Movimiento |
+| Módulo | Lógica de dominio | Integración contable |
 |---|---|---|
-| Clientes nacionales | 130505 | Débito (total con IVA) |
-| Ventas — Comercio | 413505 | Crédito (subtotal) |
-| IVA por pagar | 240805 | Crédito (IVA generado) |
+| **HR** (contratos, cargos, novedades) | Pequeño | Ninguna directa — alimenta nómina |
+| **Tesorería** (flujo de caja, anticipos) | Pequeño-medio | Simple: 1-2 líneas por movimiento |
+| **Compras** (OC, recepción, 3-way match) | Medio | Medio: CxP + retenciones |
+| **Inventarios** (kardex, valoración, ajustes) | Medio-grande | Medio: CMV automático |
+| **Nómina** | **Grande** | Complejo: 15-20 líneas por período |
 
-Para DS (Documento Soporte):
+La nómina es la excepción: tiene tanta lógica de dominio propia que es comparable en
+tamaño a lo que ya lleva `accounting/` completo.
 
-| Cuenta | Código | Movimiento |
+---
+
+## Estructura objetivo para una empresa grande
+
+Para una empresa grande (manufactura, 200+ empleados, múltiples sucursales, operaciones
+en USD, vigilada por Supersociedades):
+
+```
+project-ubl/
+│
+├── cofacture/              ✅  ← UBL XML + firmas (completo)
+│
+├── apidian/                ✅  ← Facturación DIAN — FE, DS, NC, ND (~95 %)
+│
+├── accounting/             🔲  ← Motor contable core (~60 % listo)
+│   ├── journals/               Partida doble, comprobantes, doble libro ✅
+│   ├── accounts/               PUC 2502 cuentas ✅
+│   ├── periods/                Períodos + cierre de año ✅
+│   ├── reports/                8 reportes con filtro PCGA/NIIF ✅
+│   ├── banking/                Conciliación bancaria ✅
+│   ├── withholdings/           Retefuente/Reteiva/Reteica ✅
+│   ├── assets/                 PPE + depreciación + baja ✅
+│   ├── iva/                    F300 + ciclo de pago ✅
+│   ├── cartera/                Aging FIFO + conciliación ✅
+│   ├── budget/                 Presupuesto vs. real ✅
+│   ├── forex/                  Moneda extranjera + diferencial cambiario 🔲
+│   ├── consolidation/          Consolidación multi-empresa 🔵
+│   └── tax/                    F210 Renta, F220 RetFuente, F490 ICA 🔲
+│
+├── payroll/                🔵  ← Nómina colombiana (módulo propio)
+│   ├── concepts/               Devengados y deducciones configurables
+│   ├── settlements/            Liquidación mensual
+│   ├── provisions/             Cesantías, vacaciones, prima (provisión mensual)
+│   ├── social/                 Parafiscales + aportes seguridad social
+│   └── → accounting            Post de ~15-20 líneas por período
+│
+├── inventory/              🔵  ← Inventarios (módulo propio)
+│   ├── items/                  Referencia de productos con costo
+│   ├── movements/              Entradas, salidas, traslados, ajustes
+│   ├── valuation/              PEPS o Promedio ponderado
+│   └── → accounting            CMV automático al vender
+│
+├── purchasing/             🔵  ← Compras y proveedores (módulo propio)
+│   ├── orders/                 Órdenes de compra
+│   ├── receipts/               Recepción de mercancía
+│   ├── matching/               3-way match (OC + recepción + factura)
+│   └── → accounting            CxP + retenciones al registrar factura proveedor
+│
+├── hr/                     🔵  ← RRHH (alimenta payroll, no tiene contabilidad propia)
+│   ├── employees/              Ficha personal, contratos, cargos
+│   ├── attendance/             Novedades: incapacidades, vacaciones, horas extra
+│   └── → payroll               Novedades del período
+│
+└── frontend/               🔲  ← UI web
+    ├── facturación         ✅  Completo
+    ├── contabilidad        🔲  Por construir
+    ├── nómina              🔵  Por construir
+    └── inventario          🔵  Por construir
+```
+
+---
+
+## Flujo de integración entre módulos
+
+El contrato entre cualquier módulo y el motor contable siempre es el mismo.
+Lo que cambia es quién llama y con qué líneas:
+
+```
+apidian (FE/DS)   →  SourceFE / SourceDS   →  Clientes, Ventas, IVA, Retenciones
+payroll           →  SourceNOM             →  Gastos laborales, Parafiscales, Provisiones
+inventory         →  SourceINV             →  CMV, Inventario, Variaciones de costo
+purchasing        →  SourceOC              →  Proveedores, Gastos, IVA descontable
+assets            →  SourceAF              →  PPE, Depreciación acumulada
+```
+
+El campo `book` (BOTH / PCGA / NIIF) permite que cada módulo indique si el asiento aplica
+a ambos libros o solo al local o al IFRS — crítico para la convergencia NIIF que exige la
+Superintendencia de Sociedades.
+
+---
+
+## Comunicación entre módulos
+
+### Fase actual (Fase 1-2): llamada directa
+
+Los módulos comparten el mismo proceso Go vía `go.work`. `apidian` importa `accounting`
+directamente y llama `core.Journals.Post()` en la misma transacción que confirma el documento.
+
+**Ventaja**: sin latencia, sin coordinación de versiones, sin red.  
+**Riesgo controlado**: si el `Post` falla, se loggea y la FE igual se confirma (decisión MVP
+documentada — la FE ya fue a la DIAN, no se puede revertir).
+
+### Fase 3+ (cuando haya 3+ módulos): NATS
+
+```
+Módulo publica "invoice.confirmed"
+        ↓
+nats-server (VPS, binario Go, puerto 4222)
+        ↓
+accounting consume el evento y registra el asiento
+```
+
+NATS resuelve el problema de consistencia: si `accounting` estaba caído cuando se confirmó
+la FE, levanta después y lee el evento de la cola. La FE no queda sin asiento.
+
+Solo se cambia `apidian/internal/integrations/accounting/client.go` — el mapper, el dominio
+de documentos y el core contable no se tocan.
+
+---
+
+## Pendientes en `apidian/internal/integrations/accounting/`
+
+Estado al julio 2026: los tres bugs críticos fueron corregidos. Pendiente de Fase 2:
+
+| # | Pendiente | Estado |
 |---|---|---|
-| Proveedores nacionales | 220505 | Crédito (total) |
-| Gasto o costo correspondiente | según naturaleza | Débito |
-| IVA descontable | 135530 | Débito (si aplica) |
-
-Las reglas se implementan primero hardcodeadas en el mapper y se hacen configurables en Fase 2.
-
----
-
-## 4. Lo que NO se toca ni reorganiza
-
-- `cofacture/` — librería de infraestructura DIAN. Se mantiene exactamente como está.
-  Cuando payroll y otros módulos necesiten UBL/firma/SOAP, consumirán cofacture.
-- `apidian/` — dominio de facturación. Solo se agrega `internal/integrations/accounting/`.
-- `frontend/` — evoluciona progresivamente; los módulos contables se agregan bajo `src/modules/accounting/`.
-- No se crea un `shared/` genérico. Lo realmente transversal (UUIDs, errores, logging) vive en cofacture o se duplica con criterio.
+| 6.1 | Bug float64→int64 en mapper (centavos directos) | ✅ corregido |
+| 6.2 | ThirdPartyNIT en líneas de cliente/proveedor | ✅ corregido |
+| 6.3 | SourceDocumentID/Type en PostRequest | ✅ corregido |
+| 6.4 | Retenciones: calcular y contabilizar Retefuente/Reteiva cuando el doc las trae | 🔲 Fase 2 |
+| 6.5 | VoucherType: asignar consecutivo "FE"/"DS" al asiento | 🔲 Fase 2 |
+| 6.6 | Posting rules configurables en BD (hoy hardcodeadas en mapper) | 🔵 Fase 3 |
 
 ---
 
-## 5. Riesgos identificados y decisiones
+## Lo que no se toca ni reorganiza
 
-### Consistencia transaccional (Fase 1-2 con HTTP)
-
-Si `apidian` confirma una FE pero `accounting` está caído, el asiento no se crea.
-La FE ya fue a la DIAN — no se puede revertir.
-**Decisión para MVP:** loggear el error y continuar. En Fase 3, NATS resuelve esto
-estructuralmente: el evento queda en cola hasta que el core levante.
-
-### Base de datos
-
-**Decisión para MVP:** PostgreSQL compartido con schema separado (`accounting.*`, `inventory.*`
-vs `public.*`). Migrar a BD independiente por servicio cuando haya razón operacional real.
-
-### Posting rules
-
-**Decisión para MVP:** reglas hardcodeadas en `mapper.go` de cada módulo adaptador.
-Las reglas configurables (tabla `posting_rules` en el core) van en Fase 2.
+- `cofacture/` — librería de infraestructura DIAN. Se consume, no se modifica.
+- El dominio de `apidian/internal/documents/` — solo se agregan adaptadores en `integrations/`.
+- No se crea un `shared/` genérico. Lo realmente transversal (UUIDs, errores) se duplica
+  con criterio o vive en `cofacture`.
 
 ---
 
-## 6. Orden de construcción
+## Orden de construcción — próximos pasos
 
-### Fase 1 — Núcleo contable (accounting)
-- [ ] Crear `accounting/` con su `go.mod`, agregar al `go.work`
-- [ ] Schema SQL: `accounts`, `accounting_periods`, `journal_entries`, `journal_lines`
-- [ ] Seed del PUC desde `docs/reference/accounts.csv`
-- [ ] Motor de validación de partida doble
-- [ ] API REST: `POST /journals`, `GET /accounts`, `GET /reports/trial-balance`
+### Inmediato — completar `accounting/`
+- [ ] `accounting/forex/` — moneda extranjera, diferencial cambiario (cuentas `4210`/`5306`)
+- [ ] `accounting/tax/` — F210 Renta, F220 Retención fuente, F490 ICA por municipio
+- [ ] Posting rules configurables en BD (tabla `posting_rules` en el core)
 
-### Fase 2 — Adaptadores (apidian → accounting)
-- [ ] `apidian/internal/integrations/accounting/`
-- [ ] Mapper para FE y DS (posting rules básicas hardcodeadas)
-- [ ] Llamada HTTP al core al confirmar documento
+### Siguiente módulo — `payroll/`
+La nómina es el módulo más complejo después del core contable. Incluye:
+- Liquidación mensual (devengados, deducciones, neto a pagar)
+- Parafiscales: SENA 2 %, ICBF 3 %, Caja de Compensación 4 %
+- Aportes seguridad social: salud 12.5 % (8.5 empleador + 4 empleado), pensión 16 % (12 + 4)
+- Provisiones mensuales: cesantías 8.33 %, vacaciones 4.17 %, prima 8.33 %
+- Integración con UGPP
+- Nómina electrónica DIAN (usa `cofacture`)
+- Asiento contable: 15-20 líneas por período por empresa
 
-### Fase 3 — Reportes completos + UI
-- [ ] Libro diario, libro mayor, estado de resultados, balance general
-- [ ] UI en frontend: módulo `src/modules/accounting/`
+### Luego — `inventory/`
+- Kardex de entradas/salidas por referencia
+- Valoración PEPS o Promedio ponderado
+- CMV automático al confirmar una FE
+- Ajustes de inventario con asiento contable
 
-### Fase 4 — Inventario
-- [ ] Crear `inventory/` con su `go.mod`, agregar al `go.work`
-- [ ] Schema SQL: `products`, `warehouses`, `stock_movements`
-- [ ] Adaptador contable: asientos de costo al confirmar FE/DS
-- [ ] UI en frontend: módulo `src/modules/inventory/`
+### Luego — `purchasing/` y `hr/`
+Módulos más pequeños; `hr` alimenta a `payroll`, `purchasing` cierra el ciclo con el DS de `apidian`.
 
-### Fase 5 — Bus de eventos (NATS)
-- [ ] Desplegar binario `nats-server` en VPS (puerto 4222)
-- [ ] Migrar adaptadores de HTTP directo a publicación de eventos NATS
-- [ ] Consumidores en `accounting` e `inventory` suscritos a los eventos
-
-### Fase 6 — Módulos futuros
-- [ ] `payroll/` + nómina electrónica DIAN
-- [ ] `hr/` (empleados, contratos)
-- [ ] `purchasing/` (órdenes de compra)
-- [ ] `crm/` (cotizaciones → FE)
-- [ ] `fixed-assets/` (depreciación → asientos automáticos)
+### Infraestructura — NATS (cuando haya 3+ módulos activos)
+- Desplegar `nats-server` en VPS como binario Go
+- Migrar `integrations/accounting/client.go` de llamada directa a publicación de evento
+- Consumidores en `accounting`, `inventory`, `payroll` suscritos a los eventos relevantes
 
 ---
 
-## 7. Relación entre módulos (visión final)
-
-```
-                              ERP
-
-        |           |            |           |
-     Apidian    Inventory     Payroll      CRM
-        |           |            |           |
-  Accounting  Accounting    Accounting  Accounting
-   Adapter     Adapter       Adapter     Adapter
-        |           |            |           |
-        -------------------------------------------
-                         |
-                   nats-server          ← binario Go en VPS
-                   (pub/sub)
-                         |
-                  accounting
-                  (Journal Ledger)
-                         |
-                  Estados financieros
-
-
-         CoFacture (infraestructura DIAN)
-         consumida por Apidian y Payroll
-```
-
----
-
-*Documento actualizado: 2026-07-24. Actualizar cuando cambien decisiones de arquitectura.*
+*Actualizado: julio 2026. Actualizar cuando cambien decisiones de arquitectura o avance el estado de un módulo.*
