@@ -56,10 +56,11 @@ func (r *PostgresRepository) Create(ctx context.Context, entry JournalEntry) (*J
 
 		_, err = tx.Exec(ctx, `
 			INSERT INTO accounting.journal_lines
-				(id, journal_id, account_id, debit, credit, cost_center, description, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+				(id, journal_id, account_id, debit, credit, tercero_nit, cost_center, description, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 			line.ID, line.JournalID, line.AccountID,
 			line.Debit, line.Credit,
+			nullableString(line.TerceroNIT),
 			nullableString(line.CostCenter), nullableString(line.Description),
 			line.CreatedAt,
 		)
@@ -103,7 +104,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Journa
 func (r *PostgresRepository) loadLines(ctx context.Context, journalID uuid.UUID) ([]*JournalLine, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT jl.id, jl.journal_id, jl.account_id, a.code,
-		       jl.debit, jl.credit, jl.cost_center, jl.description, jl.created_at
+		       jl.debit, jl.credit, jl.tercero_nit, jl.cost_center, jl.description, jl.created_at
 		FROM accounting.journal_lines jl
 		JOIN accounting.accounts a ON a.id = jl.account_id
 		WHERE jl.journal_id = $1
@@ -116,12 +117,15 @@ func (r *PostgresRepository) loadLines(ctx context.Context, journalID uuid.UUID)
 	var lines []*JournalLine
 	for rows.Next() {
 		var l JournalLine
-		var costCenter, description *string
+		var terceroNIT, costCenter, description *string
 		if err := rows.Scan(
 			&l.ID, &l.JournalID, &l.AccountID, &l.AccountCode,
-			&l.Debit, &l.Credit, &costCenter, &description, &l.CreatedAt,
+			&l.Debit, &l.Credit, &terceroNIT, &costCenter, &description, &l.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan line: %w", err)
+		}
+		if terceroNIT != nil {
+			l.TerceroNIT = *terceroNIT
 		}
 		if costCenter != nil {
 			l.CostCenter = *costCenter

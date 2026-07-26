@@ -38,6 +38,9 @@ type JournalEntry struct {
 
 // JournalLine es una línea del asiento — exactamente uno de Debit o Credit > 0.
 // Debit y Credit están en centavos (int64) para evitar errores de punto flotante.
+// TerceroNIT es el NIT del tercero involucrado (proveedor, cliente, empleado, banco).
+// Requerido por la DIAN para Medios Magnéticos / Información Exógena. Vacío solo
+// en asientos internos (apertura, cierre, ajustes sin contraparte externa).
 type JournalLine struct {
 	ID          uuid.UUID
 	JournalID   uuid.UUID
@@ -45,6 +48,7 @@ type JournalLine struct {
 	AccountCode string
 	Debit       int64
 	Credit      int64
+	TerceroNIT  string
 	CostCenter  string
 	Description string
 	CreatedAt   time.Time
@@ -61,11 +65,12 @@ type PostRequest struct {
 }
 
 // LineRequest referencia la cuenta por código para que el servicio resuelva el UUID.
-// Debit y Credit en centavos (int64).
+// Debit y Credit en centavos (int64). TerceroNIT es opcional para asientos internos.
 type LineRequest struct {
 	AccountCode string
 	Debit       int64
 	Credit      int64
+	TerceroNIT  string
 	CostCenter  string
 	Description string
 }

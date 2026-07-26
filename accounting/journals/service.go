@@ -54,6 +54,7 @@ func (s *Service) Post(ctx context.Context, req PostRequest) (*JournalEntry, err
 			AccountCode: acct.Code,
 			Debit:       lr.Debit,
 			Credit:      lr.Credit,
+			TerceroNIT:  lr.TerceroNIT,
 			CostCenter:  lr.CostCenter,
 			Description: lr.Description,
 		}

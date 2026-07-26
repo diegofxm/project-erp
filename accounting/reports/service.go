@@ -144,6 +144,131 @@ func (s *Service) IncomeStatement(ctx context.Context, companyID uuid.UUID, from
 	return is, nil
 }
 
+// AuxiliaryByThird devuelve el libro auxiliar de una cuenta para un NIT específico,
+// con saldo acumulado. Es el reporte estándar de libro auxiliar por tercero en Colombia.
+func (s *Service) AuxiliaryByThird(ctx context.Context, companyID uuid.UUID, accountCode, terceroNIT string, from, to time.Time) ([]*AuxiliaryRow, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT
+			je.id::text,
+			je.date::text,
+			je.description,
+			COALESCE(jl.tercero_nit, ''),
+			jl.debit,
+			jl.credit
+		FROM accounting.journal_lines jl
+		JOIN accounting.journal_entries je ON je.id = jl.journal_id
+		JOIN accounting.accounts a ON a.id = jl.account_id
+		WHERE je.company_id = $1
+		  AND je.status     = 'POSTED'
+		  AND a.code        = $2
+		  AND jl.tercero_nit = $3
+		  AND je.date       >= $4
+		  AND je.date       <= $5
+		ORDER BY je.date, je.created_at`,
+		companyID, accountCode, terceroNIT, from.UTC(), to.UTC(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("auxiliary by third: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*AuxiliaryRow
+	var running int64
+	for rows.Next() {
+		var r AuxiliaryRow
+		if err := rows.Scan(&r.JournalID, &r.Date, &r.Description, &r.TerceroNIT, &r.Debit, &r.Credit); err != nil {
+			return nil, fmt.Errorf("scan auxiliary: %w", err)
+		}
+		running += r.Debit - r.Credit
+		r.RunningBal = running
+		out = append(out, &r)
+	}
+	return out, rows.Err()
+}
+
+// TerceroBalance devuelve el saldo por tercero (NIT) en una cuenta para un rango de fechas.
+// Útil para cartera (cuenta 13xx) y proveedores (cuenta 22xx).
+func (s *Service) TerceroBalance(ctx context.Context, companyID uuid.UUID, accountCode string, from, to time.Time) ([]*TerceroBalanceRow, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT
+			jl.tercero_nit,
+			COALESCE(SUM(jl.debit), 0)                        AS total_debit,
+			COALESCE(SUM(jl.credit), 0)                       AS total_credit,
+			COALESCE(SUM(jl.debit) - SUM(jl.credit), 0)      AS balance
+		FROM accounting.journal_lines jl
+		JOIN accounting.journal_entries je ON je.id = jl.journal_id
+		JOIN accounting.accounts a ON a.id = jl.account_id
+		WHERE je.company_id  = $1
+		  AND je.status      = 'POSTED'
+		  AND a.code         = $2
+		  AND je.date       >= $3
+		  AND je.date       <= $4
+		  AND jl.tercero_nit IS NOT NULL
+		GROUP BY jl.tercero_nit
+		HAVING COALESCE(SUM(jl.debit) - SUM(jl.credit), 0) != 0
+		ORDER BY jl.tercero_nit`,
+		companyID, accountCode, from.UTC(), to.UTC(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("tercero balance: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*TerceroBalanceRow
+	for rows.Next() {
+		var r TerceroBalanceRow
+		if err := rows.Scan(&r.TerceroNIT, &r.TotalDebit, &r.TotalCredit, &r.Balance); err != nil {
+			return nil, fmt.Errorf("scan tercero balance: %w", err)
+		}
+		out = append(out, &r)
+	}
+	return out, rows.Err()
+}
+
+// MediosMagneticos devuelve los movimientos por NIT y cuenta para un año completo.
+// Es la base para generar el reporte de Información Exógena que se reporta a la DIAN.
+// Solo incluye líneas que tengan tercero_nit registrado.
+func (s *Service) MediosMagneticos(ctx context.Context, companyID uuid.UUID, year int) ([]*MediosMagneticosRow, error) {
+	from := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(year, 12, 31, 23, 59, 59, 999999999, time.UTC)
+
+	rows, err := s.pool.Query(ctx, `
+		SELECT
+			jl.tercero_nit,
+			a.code,
+			a.name,
+			a.category,
+			COALESCE(SUM(jl.debit), 0)  AS total_debit,
+			COALESCE(SUM(jl.credit), 0) AS total_credit
+		FROM accounting.journal_lines jl
+		JOIN accounting.journal_entries je ON je.id = jl.journal_id
+		JOIN accounting.accounts a ON a.id = jl.account_id
+		WHERE je.company_id  = $1
+		  AND je.status      = 'POSTED'
+		  AND je.date       >= $2
+		  AND je.date       <= $3
+		  AND jl.tercero_nit IS NOT NULL
+		GROUP BY jl.tercero_nit, a.id, a.code, a.name, a.category
+		ORDER BY jl.tercero_nit, a.code`,
+		companyID, from, to,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("medios magnéticos: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*MediosMagneticosRow
+	for rows.Next() {
+		var r MediosMagneticosRow
+		if err := rows.Scan(&r.TerceroNIT, &r.AccountCode, &r.AccountName, &r.Category,
+			&r.TotalDebit, &r.TotalCredit); err != nil {
+			return nil, fmt.Errorf("scan medios magnéticos: %w", err)
+		}
+		out = append(out, &r)
+	}
+	return out, rows.Err()
+}
+
 // CostCenterBalance devuelve el movimiento débito/crédito por centro de costo en un rango de fechas.
 // Solo incluye líneas que tengan cost_center no nulo.
 func (s *Service) CostCenterBalance(ctx context.Context, companyID uuid.UUID, from, to time.Time) (*CostCenterReport, error) {

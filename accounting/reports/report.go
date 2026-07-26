@@ -51,6 +51,36 @@ type BalanceSheet struct {
 	TotalLiabilitiesAndEquity int64
 }
 
+// AuxiliaryRow es una fila del libro auxiliar de una cuenta para un tercero (NIT).
+type AuxiliaryRow struct {
+	JournalID   string
+	Date        string
+	Description string
+	TerceroNIT  string
+	Debit       int64
+	Credit      int64
+	RunningBal  int64
+}
+
+// TerceroBalanceRow es el saldo de un tercero en una cuenta contable.
+type TerceroBalanceRow struct {
+	TerceroNIT  string
+	TotalDebit  int64
+	TotalCredit int64
+	Balance     int64 // debit - credit
+}
+
+// MediosMagneticosRow es una fila del reporte de información exógena (Medios Magnéticos).
+// Agrupa por NIT y cuenta todos los movimientos del año para reportar a la DIAN.
+type MediosMagneticosRow struct {
+	TerceroNIT  string
+	AccountCode string
+	AccountName string
+	Category    string
+	TotalDebit  int64
+	TotalCredit int64
+}
+
 // CostCenterRow es una fila del reporte por centro de costo.
 type CostCenterRow struct {
 	CostCenter  string
