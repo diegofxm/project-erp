@@ -47,3 +47,40 @@ func (c *Client) PostSupportDocument(ctx context.Context, doc *documents.Documen
 	}
 	return nil
 }
+
+// PostCreditNote registra el asiento contable de una NC confirmada.
+func (c *Client) PostCreditNote(ctx context.Context, doc *documents.Document, companyID uuid.UUID) error {
+	req, err := fromCreditNote(doc, companyID)
+	if err != nil {
+		return fmt.Errorf("accounting client: mapear NC: %w", err)
+	}
+	if _, err := c.core.Journals.Post(ctx, *req); err != nil {
+		return fmt.Errorf("accounting client: registrar asiento NC: %w", err)
+	}
+	return nil
+}
+
+// PostDebitNote registra el asiento contable de una ND confirmada.
+func (c *Client) PostDebitNote(ctx context.Context, doc *documents.Document, companyID uuid.UUID) error {
+	req, err := fromDebitNote(doc, companyID)
+	if err != nil {
+		return fmt.Errorf("accounting client: mapear ND: %w", err)
+	}
+	if _, err := c.core.Journals.Post(ctx, *req); err != nil {
+		return fmt.Errorf("accounting client: registrar asiento ND: %w", err)
+	}
+	return nil
+}
+
+// PostAdjustmentNote registra el asiento contable de una NA (Nota de Ajuste al DS) confirmada.
+// expenseAccountCode es la misma cuenta PUC que se usó en el DS original.
+func (c *Client) PostAdjustmentNote(ctx context.Context, doc *documents.Document, companyID uuid.UUID, expenseAccountCode string) error {
+	req, err := fromAdjustmentNote(doc, companyID, expenseAccountCode)
+	if err != nil {
+		return fmt.Errorf("accounting client: mapear NA: %w", err)
+	}
+	if _, err := c.core.Journals.Post(ctx, *req); err != nil {
+		return fmt.Errorf("accounting client: registrar asiento NA: %w", err)
+	}
+	return nil
+}

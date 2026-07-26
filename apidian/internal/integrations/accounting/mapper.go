@@ -140,6 +140,183 @@ func fromSupportDocument(doc *documents.Document, companyID uuid.UUID, expenseAc
 	}, nil
 }
 
+// fromCreditNote traduce una NC confirmada a un PostRequest contable.
+// La NC reduce la cuenta por cobrar y revierte ventas + IVA del período.
+//
+//	413505 Ventas — Comercio       → Débito  (subtotal de la nota)
+//	240805 IVA generado por pagar  → Débito  (IVA de la nota, si > 0)
+//	130505 Clientes nacionales     → Crédito (total con IVA; NIT del cliente)
+func fromCreditNote(doc *documents.Document, companyID uuid.UUID) (*journals.PostRequest, error) {
+	total := doc.Totals.PayableCents
+	subtotal := doc.Totals.LineExtensionCents
+	iva := total - subtotal
+
+	if total <= 0 {
+		return nil, fmt.Errorf("accounting mapper: NC %s tiene total <= 0", doc.ID)
+	}
+
+	customerNIT := doc.Customer.Identification.Number
+
+	lines := []journals.LineRequest{
+		{
+			AccountCode: "413505",
+			Debit:       subtotal,
+			Description: fmt.Sprintf("NC %s%d — reverso venta", doc.Prefix, doc.Number),
+		},
+	}
+	if iva > 0 {
+		lines = append(lines, journals.LineRequest{
+			AccountCode: "240805",
+			Debit:       iva,
+			Description: fmt.Sprintf("NC %s%d — reverso IVA", doc.Prefix, doc.Number),
+		})
+	}
+	lines = append(lines, journals.LineRequest{
+		AccountCode:   "130505",
+		Credit:        total,
+		ThirdPartyNIT: customerNIT,
+		Description:   fmt.Sprintf("NC %s%d — cliente", doc.Prefix, doc.Number),
+	})
+
+	return &journals.PostRequest{
+		CompanyID:          companyID,
+		Date:               doc.IssueDate,
+		Description:        fmt.Sprintf("NC %s%d confirmada", doc.Prefix, doc.Number),
+		Source:             "apidian",
+		EntryType:          journals.EntryAutomatic,
+		VoucherType:        "NC",
+		SourceDocumentID:   doc.ID,
+		SourceDocumentType: journals.SourceNC,
+		Lines:              lines,
+	}, nil
+}
+
+// fromDebitNote traduce una ND confirmada a un PostRequest contable.
+// La ND aumenta la cuenta por cobrar (cargo adicional al cliente).
+//
+//	130505 Clientes nacionales     → Débito  (total con IVA; NIT del cliente)
+//	413505 Ventas — Comercio       → Crédito (subtotal de la nota)
+//	240805 IVA generado por pagar  → Crédito (IVA de la nota, si > 0)
+func fromDebitNote(doc *documents.Document, companyID uuid.UUID) (*journals.PostRequest, error) {
+	total := doc.Totals.PayableCents
+	subtotal := doc.Totals.LineExtensionCents
+	iva := total - subtotal
+
+	if total <= 0 {
+		return nil, fmt.Errorf("accounting mapper: ND %s tiene total <= 0", doc.ID)
+	}
+
+	customerNIT := doc.Customer.Identification.Number
+
+	lines := []journals.LineRequest{
+		{
+			AccountCode:   "130505",
+			Debit:         total,
+			ThirdPartyNIT: customerNIT,
+			Description:   fmt.Sprintf("ND %s%d — cliente", doc.Prefix, doc.Number),
+		},
+		{
+			AccountCode: "413505",
+			Credit:      subtotal,
+			Description: fmt.Sprintf("ND %s%d — cargo adicional", doc.Prefix, doc.Number),
+		},
+	}
+	if iva > 0 {
+		lines = append(lines, journals.LineRequest{
+			AccountCode: "240805",
+			Credit:      iva,
+			Description: fmt.Sprintf("ND %s%d — IVA generado", doc.Prefix, doc.Number),
+		})
+	}
+
+	return &journals.PostRequest{
+		CompanyID:          companyID,
+		Date:               doc.IssueDate,
+		Description:        fmt.Sprintf("ND %s%d confirmada", doc.Prefix, doc.Number),
+		Source:             "apidian",
+		EntryType:          journals.EntryAutomatic,
+		VoucherType:        "ND",
+		SourceDocumentID:   doc.ID,
+		SourceDocumentType: journals.SourceND,
+		Lines:              lines,
+	}, nil
+}
+
+// fromAdjustmentNote traduce una NA (Nota de Ajuste al DS) confirmada a un PostRequest contable.
+// La NA revierte total o parcialmente el asiento del DS original.
+// Es el espejo exacto de fromSupportDocument: los débitos pasan a crédito y viceversa.
+//
+//	220505 Proveedores nacionales  → Débito  (bruto − retenciones; NIT del proveedor)
+//	236505/236540/236560           → Débito  (reverso retenciones, si las había)
+//	expenseAccountCode             → Crédito (subtotal sin IVA)
+//	135530 IVA descontable         → Crédito (IVA, si > 0)
+func fromAdjustmentNote(doc *documents.Document, companyID uuid.UUID, expenseAccountCode string) (*journals.PostRequest, error) {
+	gross := doc.Totals.TaxInclusiveCents
+	subtotal := doc.Totals.LineExtensionCents
+	iva := gross - subtotal
+
+	if gross <= 0 {
+		return nil, fmt.Errorf("accounting mapper: NA %s tiene total <= 0", doc.ID)
+	}
+
+	var vendorNIT string
+	if doc.Vendor != nil {
+		vendorNIT = doc.Vendor.Identification.Number
+	}
+
+	var withholdingTotal int64
+	for _, w := range doc.WithholdingTaxes {
+		withholdingTotal += w.TaxAmountCents
+	}
+
+	lines := []journals.LineRequest{
+		{
+			AccountCode:   "220505",
+			Debit:         gross - withholdingTotal,
+			ThirdPartyNIT: vendorNIT,
+			Description:   fmt.Sprintf("NA %s%d — reverso proveedor", doc.Prefix, doc.Number),
+		},
+	}
+
+	for _, w := range doc.WithholdingTaxes {
+		acc, ok := withholdingPayableAccount(w.TypeCode)
+		if !ok || w.TaxAmountCents == 0 {
+			continue
+		}
+		lines = append(lines, journals.LineRequest{
+			AccountCode: acc,
+			Debit:       w.TaxAmountCents,
+			Description: fmt.Sprintf("NA %s%d — reverso %s", doc.Prefix, doc.Number, w.TypeName),
+		})
+	}
+
+	lines = append(lines, journals.LineRequest{
+		AccountCode: expenseAccountCode,
+		Credit:      subtotal,
+		Description: fmt.Sprintf("NA %s%d — reverso gasto/costo", doc.Prefix, doc.Number),
+	})
+
+	if iva > 0 {
+		lines = append(lines, journals.LineRequest{
+			AccountCode: "135530",
+			Credit:      iva,
+			Description: fmt.Sprintf("NA %s%d — reverso IVA", doc.Prefix, doc.Number),
+		})
+	}
+
+	return &journals.PostRequest{
+		CompanyID:          companyID,
+		Date:               doc.IssueDate,
+		Description:        fmt.Sprintf("NA %s%d confirmada", doc.Prefix, doc.Number),
+		Source:             "apidian",
+		EntryType:          journals.EntryAutomatic,
+		VoucherType:        "NA",
+		SourceDocumentID:   doc.ID,
+		SourceDocumentType: journals.SourceNA,
+		Lines:              lines,
+	}, nil
+}
+
 // withholdingPayableAccount devuelve la cuenta PUC 2365XX que corresponde al tipo
 // de retención según el catálogo DIAN (TypeCode del Tax en DS).
 // "05" ReteIVA → 236540; "06" Retefuente → 236505; "07" ReteICA → 236560.

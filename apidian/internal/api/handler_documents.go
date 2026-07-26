@@ -452,6 +452,15 @@ func toServiceNoteRequest(w http.ResponseWriter, issuerID uuid.UUID, req issueNo
 
 // ── Confirmar / eliminar (compartido por los tres tipos) ───────────────────────────────────
 
+// confirmDocumentRequest es el body opcional de POST /documents/{id}/confirm.
+// Solo es relevante para DS ("05") y NA ("95") — los demás tipos lo ignoran.
+type confirmDocumentRequest struct {
+	// ExpenseAccountCode es el código PUC del gasto o costo (ej. "5135" Servicios,
+	// "5120" Arrendamientos). Requerido para que el asiento contable de DS/NA sea correcto;
+	// si se omite, el asiento DS/NA no se registra y se emite un aviso en logs.
+	ExpenseAccountCode string `json:"expense_account_code"`
+}
+
 // handleConfirmDocument reclama el consecutivo real, construye, firma, y —si el ambiente lo
 // permite— envía un borrador ya creado. Único punto donde se "gasta" un número real de la
 // DIAN — antes de esto, el documento se podía editar o eliminar libremente (ver sección 9.25
@@ -461,6 +470,9 @@ func (a *API) handleConfirmDocument(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
+	var body confirmDocumentRequest
+	_ = json.NewDecoder(r.Body).Decode(&body) // EOF cuando no hay body — aceptable
 
 	doc, err := a.documents.ConfirmDocument(r.Context(), middleware.GetTenantID(r.Context()), id)
 	if err != nil {
@@ -473,7 +485,44 @@ func (a *API) handleConfirmDocument(w http.ResponseWriter, r *http.Request) {
 		"number":                  doc.Number,
 		"customer_name":           doc.Customer.Name,
 	})
+
+	a.postAccountingEntry(r, doc, body.ExpenseAccountCode)
+
 	response.WriteJSON(w, http.StatusOK, documentToResponse(doc))
+}
+
+// postAccountingEntry registra el asiento contable correspondiente al documento confirmado.
+// Es fire-and-forget: los errores se loggean pero nunca fallan la respuesta HTTP.
+func (a *API) postAccountingEntry(r *http.Request, doc *documents.Document, expenseAccountCode string) {
+	if a.accountingClient == nil {
+		return
+	}
+	companyID := middleware.GetTenantID(r.Context())
+	ctx := r.Context()
+	var err error
+	switch doc.DianDocumentTypeCode {
+	case "01": // FE — Factura de venta
+		err = a.accountingClient.PostInvoice(ctx, doc, companyID)
+	case "91": // NC — Nota Crédito
+		err = a.accountingClient.PostCreditNote(ctx, doc, companyID)
+	case "92": // ND — Nota Débito
+		err = a.accountingClient.PostDebitNote(ctx, doc, companyID)
+	case "05": // DS — Documento Soporte
+		if expenseAccountCode == "" {
+			a.log.Sugar().Warnf("accounting: DS %s confirmado sin expense_account_code — asiento omitido", doc.ID)
+			return
+		}
+		err = a.accountingClient.PostSupportDocument(ctx, doc, companyID, expenseAccountCode)
+	case "95": // NA — Nota de Ajuste al DS
+		if expenseAccountCode == "" {
+			a.log.Sugar().Warnf("accounting: NA %s confirmada sin expense_account_code — asiento omitido", doc.ID)
+			return
+		}
+		err = a.accountingClient.PostAdjustmentNote(ctx, doc, companyID, expenseAccountCode)
+	}
+	if err != nil {
+		a.log.Sugar().Warnf("accounting: asiento %s %s%d: %v", doc.DianDocumentTypeCode, doc.Prefix, doc.Number, err)
+	}
 }
 
 // handleDeleteDocument elimina un borrador — solo mientras siga en borrador
