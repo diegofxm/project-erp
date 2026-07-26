@@ -31,4 +31,14 @@ type Repository interface {
 	// GetBSBalances devuelve los saldos acumulados de Activo, Pasivo y Patrimonio
 	// hasta la fecha indicada. Solo incluye cuentas con saldo distinto de cero.
 	GetBSBalances(ctx context.Context, companyID uuid.UUID, asOf time.Time) ([]PLBalance, error)
+
+	// NextVoucherSeq incrementa atómicamente el contador para (companyID, code, year)
+	// y devuelve el nuevo valor. Crea la fila del contador si no existe aún.
+	NextVoucherSeq(ctx context.Context, companyID uuid.UUID, code string, year int) (int, error)
+
+	// RegisterVoucherType crea o actualiza la configuración de un tipo de comprobante.
+	RegisterVoucherType(ctx context.Context, cfg VoucherTypeConfig) (*VoucherTypeConfig, error)
+
+	// ListVoucherTypes devuelve los tipos de comprobante activos de una empresa.
+	ListVoucherTypes(ctx context.Context, companyID uuid.UUID) ([]*VoucherTypeConfig, error)
 }

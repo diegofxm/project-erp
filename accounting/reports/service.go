@@ -152,7 +152,7 @@ func (s *Service) AuxiliaryByThird(ctx context.Context, companyID uuid.UUID, acc
 			je.id::text,
 			je.date::text,
 			je.description,
-			COALESCE(jl.tercero_nit, ''),
+			COALESCE(jl.third_party_nit, ''),
 			jl.debit,
 			jl.credit
 		FROM accounting.journal_lines jl
@@ -161,7 +161,7 @@ func (s *Service) AuxiliaryByThird(ctx context.Context, companyID uuid.UUID, acc
 		WHERE je.company_id = $1
 		  AND je.status     = 'POSTED'
 		  AND a.code        = $2
-		  AND jl.tercero_nit = $3
+		  AND jl.third_party_nit = $3
 		  AND je.date       >= $4
 		  AND je.date       <= $5
 		ORDER BY je.date, je.created_at`,
@@ -191,7 +191,7 @@ func (s *Service) AuxiliaryByThird(ctx context.Context, companyID uuid.UUID, acc
 func (s *Service) TerceroBalance(ctx context.Context, companyID uuid.UUID, accountCode string, from, to time.Time) ([]*TerceroBalanceRow, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT
-			jl.tercero_nit,
+			jl.third_party_nit,
 			COALESCE(SUM(jl.debit), 0)                        AS total_debit,
 			COALESCE(SUM(jl.credit), 0)                       AS total_credit,
 			COALESCE(SUM(jl.debit) - SUM(jl.credit), 0)      AS balance
@@ -203,10 +203,10 @@ func (s *Service) TerceroBalance(ctx context.Context, companyID uuid.UUID, accou
 		  AND a.code         = $2
 		  AND je.date       >= $3
 		  AND je.date       <= $4
-		  AND jl.tercero_nit IS NOT NULL
-		GROUP BY jl.tercero_nit
+		  AND jl.third_party_nit IS NOT NULL
+		GROUP BY jl.third_party_nit
 		HAVING COALESCE(SUM(jl.debit) - SUM(jl.credit), 0) != 0
-		ORDER BY jl.tercero_nit`,
+		ORDER BY jl.third_party_nit`,
 		companyID, accountCode, from.UTC(), to.UTC(),
 	)
 	if err != nil {
@@ -227,14 +227,14 @@ func (s *Service) TerceroBalance(ctx context.Context, companyID uuid.UUID, accou
 
 // MediosMagneticos devuelve los movimientos por NIT y cuenta para un año completo.
 // Es la base para generar el reporte de Información Exógena que se reporta a la DIAN.
-// Solo incluye líneas que tengan tercero_nit registrado.
+// Solo incluye líneas que tengan third_party_nit registrado.
 func (s *Service) MediosMagneticos(ctx context.Context, companyID uuid.UUID, year int) ([]*MediosMagneticosRow, error) {
 	from := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(year, 12, 31, 23, 59, 59, 999999999, time.UTC)
 
 	rows, err := s.pool.Query(ctx, `
 		SELECT
-			jl.tercero_nit,
+			jl.third_party_nit,
 			a.code,
 			a.name,
 			a.category,
@@ -247,9 +247,9 @@ func (s *Service) MediosMagneticos(ctx context.Context, companyID uuid.UUID, yea
 		  AND je.status      = 'POSTED'
 		  AND je.date       >= $2
 		  AND je.date       <= $3
-		  AND jl.tercero_nit IS NOT NULL
-		GROUP BY jl.tercero_nit, a.id, a.code, a.name, a.category
-		ORDER BY jl.tercero_nit, a.code`,
+		  AND jl.third_party_nit IS NOT NULL
+		GROUP BY jl.third_party_nit, a.id, a.code, a.name, a.category
+		ORDER BY jl.third_party_nit, a.code`,
 		companyID, from, to,
 	)
 	if err != nil {

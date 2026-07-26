@@ -36,10 +36,12 @@ func (r *PostgresRepository) Create(ctx context.Context, entry JournalEntry) (*J
 
 	_, err = tx.Exec(ctx, `
 		INSERT INTO accounting.journal_entries
-			(id, company_id, period_id, date, description, status, source, entry_type, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			(id, company_id, period_id, date, description, status, source, entry_type,
+			 voucher_type, voucher_number, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
 		entry.ID, entry.CompanyID, entry.PeriodID, entry.Date.UTC(),
 		entry.Description, entry.Status, entry.Source, entry.EntryType,
+		nullableString(entry.VoucherType), nullableString(entry.VoucherNumber),
 		entry.CreatedAt, entry.UpdatedAt,
 	)
 	if err != nil {
@@ -56,11 +58,11 @@ func (r *PostgresRepository) Create(ctx context.Context, entry JournalEntry) (*J
 
 		_, err = tx.Exec(ctx, `
 			INSERT INTO accounting.journal_lines
-				(id, journal_id, account_id, debit, credit, tercero_nit, cost_center, description, created_at)
+				(id, journal_id, account_id, debit, credit, third_party_nit, cost_center, description, created_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 			line.ID, line.JournalID, line.AccountID,
 			line.Debit, line.Credit,
-			nullableString(line.TerceroNIT),
+			nullableString(line.ThirdPartyNIT),
 			nullableString(line.CostCenter), nullableString(line.Description),
 			line.CreatedAt,
 		)
@@ -77,13 +79,16 @@ func (r *PostgresRepository) Create(ctx context.Context, entry JournalEntry) (*J
 
 func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*JournalEntry, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, company_id, period_id, date, description, status, source, entry_type, created_at, updated_at
+		SELECT id, company_id, period_id, date, description, status, source, entry_type,
+		       voucher_type, voucher_number, created_at, updated_at
 		FROM accounting.journal_entries WHERE id = $1`, id)
 
 	var e JournalEntry
+	var voucherType, voucherNumber *string
 	err := row.Scan(
 		&e.ID, &e.CompanyID, &e.PeriodID, &e.Date,
 		&e.Description, &e.Status, &e.Source, &e.EntryType,
+		&voucherType, &voucherNumber,
 		&e.CreatedAt, &e.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -91,6 +96,12 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Journa
 	}
 	if err != nil {
 		return nil, fmt.Errorf("scan journal entry: %w", err)
+	}
+	if voucherType != nil {
+		e.VoucherType = *voucherType
+	}
+	if voucherNumber != nil {
+		e.VoucherNumber = *voucherNumber
 	}
 
 	lines, err := r.loadLines(ctx, id)
@@ -104,7 +115,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Journa
 func (r *PostgresRepository) loadLines(ctx context.Context, journalID uuid.UUID) ([]*JournalLine, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT jl.id, jl.journal_id, jl.account_id, a.code,
-		       jl.debit, jl.credit, jl.tercero_nit, jl.cost_center, jl.description, jl.created_at
+		       jl.debit, jl.credit, jl.third_party_nit, jl.cost_center, jl.description, jl.created_at
 		FROM accounting.journal_lines jl
 		JOIN accounting.accounts a ON a.id = jl.account_id
 		WHERE jl.journal_id = $1
@@ -117,15 +128,15 @@ func (r *PostgresRepository) loadLines(ctx context.Context, journalID uuid.UUID)
 	var lines []*JournalLine
 	for rows.Next() {
 		var l JournalLine
-		var terceroNIT, costCenter, description *string
+		var thirdPartyNIT, costCenter, description *string
 		if err := rows.Scan(
 			&l.ID, &l.JournalID, &l.AccountID, &l.AccountCode,
-			&l.Debit, &l.Credit, &terceroNIT, &costCenter, &description, &l.CreatedAt,
+			&l.Debit, &l.Credit, &thirdPartyNIT, &costCenter, &description, &l.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan line: %w", err)
 		}
-		if terceroNIT != nil {
-			l.TerceroNIT = *terceroNIT
+		if thirdPartyNIT != nil {
+			l.ThirdPartyNIT = *thirdPartyNIT
 		}
 		if costCenter != nil {
 			l.CostCenter = *costCenter
@@ -157,7 +168,8 @@ func (r *PostgresRepository) Void(ctx context.Context, id uuid.UUID) error {
 
 func (r *PostgresRepository) ListByCompany(ctx context.Context, companyID uuid.UUID, limit, offset int) ([]*JournalEntry, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, company_id, period_id, date, description, status, source, entry_type, created_at, updated_at
+		SELECT id, company_id, period_id, date, description, status, source, entry_type,
+		       voucher_type, voucher_number, created_at, updated_at
 		FROM accounting.journal_entries
 		WHERE company_id = $1
 		ORDER BY date DESC, created_at DESC
@@ -172,12 +184,20 @@ func (r *PostgresRepository) ListByCompany(ctx context.Context, companyID uuid.U
 	var out []*JournalEntry
 	for rows.Next() {
 		var e JournalEntry
+		var voucherType, voucherNumber *string
 		if err := rows.Scan(
 			&e.ID, &e.CompanyID, &e.PeriodID, &e.Date,
 			&e.Description, &e.Status, &e.Source, &e.EntryType,
+			&voucherType, &voucherNumber,
 			&e.CreatedAt, &e.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan journal: %w", err)
+		}
+		if voucherType != nil {
+			e.VoucherType = *voucherType
+		}
+		if voucherNumber != nil {
+			e.VoucherNumber = *voucherNumber
 		}
 		out = append(out, &e)
 	}
@@ -234,6 +254,78 @@ func (r *PostgresRepository) GetBSBalances(ctx context.Context, companyID uuid.U
 	defer rows.Close()
 
 	return scanPLBalances(rows)
+}
+
+// NextVoucherSeq incrementa atómicamente el contador y devuelve el nuevo valor.
+// El upsert es atómico en PostgreSQL: safe para concurrencia sin locks manuales.
+func (r *PostgresRepository) NextVoucherSeq(ctx context.Context, companyID uuid.UUID, code string, year int) (int, error) {
+	var seq int
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO accounting.voucher_counters (company_id, code, year, last_seq)
+		VALUES ($1, $2, $3, 1)
+		ON CONFLICT (company_id, code, year) DO UPDATE
+			SET last_seq = voucher_counters.last_seq + 1
+		RETURNING last_seq`,
+		companyID, code, year,
+	).Scan(&seq)
+	if err != nil {
+		return 0, fmt.Errorf("next voucher seq %s/%d: %w", code, year, err)
+	}
+	return seq, nil
+}
+
+func (r *PostgresRepository) RegisterVoucherType(ctx context.Context, cfg VoucherTypeConfig) (*VoucherTypeConfig, error) {
+	if cfg.ID == uuid.Nil {
+		cfg.ID = uuid.New()
+	}
+	now := time.Now().UTC()
+	cfg.CreatedAt = now
+	cfg.UpdatedAt = now
+
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO accounting.voucher_types
+			(id, company_id, code, name, resets_annually, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (company_id, code) DO UPDATE SET
+			name            = EXCLUDED.name,
+			resets_annually = EXCLUDED.resets_annually,
+			is_active       = EXCLUDED.is_active,
+			updated_at      = NOW()
+		RETURNING id, created_at, updated_at`,
+		cfg.ID, cfg.CompanyID, cfg.Code, cfg.Name,
+		cfg.ResetsAnnually, cfg.IsActive, cfg.CreatedAt, cfg.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register voucher type %s: %w", cfg.Code, err)
+	}
+	return &cfg, nil
+}
+
+func (r *PostgresRepository) ListVoucherTypes(ctx context.Context, companyID uuid.UUID) ([]*VoucherTypeConfig, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, company_id, code, name, resets_annually, is_active, created_at, updated_at
+		FROM accounting.voucher_types
+		WHERE company_id = $1 AND is_active = TRUE
+		ORDER BY code`,
+		companyID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list voucher types: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*VoucherTypeConfig
+	for rows.Next() {
+		var cfg VoucherTypeConfig
+		if err := rows.Scan(
+			&cfg.ID, &cfg.CompanyID, &cfg.Code, &cfg.Name,
+			&cfg.ResetsAnnually, &cfg.IsActive, &cfg.CreatedAt, &cfg.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan voucher type: %w", err)
+		}
+		out = append(out, &cfg)
+	}
+	return out, rows.Err()
 }
 
 func scanPLBalances(rows pgx.Rows) ([]PLBalance, error) {

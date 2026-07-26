@@ -86,6 +86,7 @@ func (s *Service) CloseYear(ctx context.Context, companyID uuid.UUID, year int) 
 		Description: fmt.Sprintf("Asiento de cierre del ejercicio %d", year),
 		Source:      "closing",
 		EntryType:   EntryClosing,
+		VoucherType: VoucherClosing,
 		Lines:       lines,
 	})
 	if err != nil {
@@ -149,6 +150,7 @@ func (s *Service) OpenYear(ctx context.Context, companyID uuid.UUID, year int) (
 		Description: fmt.Sprintf("Asiento de apertura del ejercicio %d", year),
 		Source:      "opening",
 		EntryType:   EntryOpening,
+		VoucherType: VoucherOpening,
 		Lines:       lines,
 	})
 }

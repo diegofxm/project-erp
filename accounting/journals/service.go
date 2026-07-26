@@ -29,8 +29,9 @@ func NewService(repo Repository, accountsSvc *accounts.Service, periodsSvc *peri
 //  1. Mínimo 2 líneas.
 //  2. Cada línea: exactamente uno de debit o credit > 0.
 //  3. Cada código de cuenta existe, es activa y es posteable.
-//  4. SUM(debit) == SUM(credit) (tolerancia de 1 centavo por redondeo).
+//  4. SUM(debit) == SUM(credit) (exacto, sin tolerancia).
 //  5. Se obtiene (o crea) el periodo para la fecha del asiento.
+//  6. Si VoucherType está definido, asigna el siguiente número consecutivo.
 func (s *Service) Post(ctx context.Context, req PostRequest) (*JournalEntry, error) {
 	if len(req.Lines) < 2 {
 		return nil, ErrEmptyLines
@@ -50,13 +51,13 @@ func (s *Service) Post(ctx context.Context, req PostRequest) (*JournalEntry, err
 		}
 
 		resolvedLines[i] = &JournalLine{
-			AccountID:   acct.ID,
-			AccountCode: acct.Code,
-			Debit:       lr.Debit,
-			Credit:      lr.Credit,
-			TerceroNIT:  lr.TerceroNIT,
-			CostCenter:  lr.CostCenter,
-			Description: lr.Description,
+			AccountID:     acct.ID,
+			AccountCode:   acct.Code,
+			Debit:         lr.Debit,
+			Credit:        lr.Credit,
+			ThirdPartyNIT: lr.ThirdPartyNIT,
+			CostCenter:    lr.CostCenter,
+			Description:   lr.Description,
 		}
 		totalDebit += lr.Debit
 		totalCredit += lr.Credit
@@ -83,7 +84,7 @@ func (s *Service) Post(ctx context.Context, req PostRequest) (*JournalEntry, err
 		source = "manual"
 	}
 
-	return s.repo.Create(ctx, JournalEntry{
+	entry := JournalEntry{
 		CompanyID:   req.CompanyID,
 		PeriodID:    period.ID,
 		Date:        req.Date,
@@ -92,7 +93,18 @@ func (s *Service) Post(ctx context.Context, req PostRequest) (*JournalEntry, err
 		Source:      source,
 		EntryType:   entryType,
 		Lines:       resolvedLines,
-	})
+	}
+
+	if req.VoucherType != "" {
+		seq, err := s.repo.NextVoucherSeq(ctx, req.CompanyID, req.VoucherType, req.Date.Year())
+		if err != nil {
+			return nil, fmt.Errorf("asignar número de comprobante: %w", err)
+		}
+		entry.VoucherType = req.VoucherType
+		entry.VoucherNumber = formatVoucherNumber(req.VoucherType, req.Date.Year(), seq)
+	}
+
+	return s.repo.Create(ctx, entry)
 }
 
 // Get devuelve un asiento por UUID incluyendo sus líneas.
@@ -121,4 +133,18 @@ func (s *Service) List(ctx context.Context, companyID uuid.UUID, limit, offset i
 		limit = 50
 	}
 	return s.repo.ListByCompany(ctx, companyID, limit, offset)
+}
+
+// RegisterVoucherType crea o actualiza el nombre y comportamiento de un tipo de comprobante.
+// Si IsActive no se setea explícitamente, se activa por defecto.
+func (s *Service) RegisterVoucherType(ctx context.Context, cfg VoucherTypeConfig) (*VoucherTypeConfig, error) {
+	if !cfg.IsActive {
+		cfg.IsActive = true
+	}
+	return s.repo.RegisterVoucherType(ctx, cfg)
+}
+
+// ListVoucherTypes devuelve los tipos de comprobante activos de una empresa.
+func (s *Service) ListVoucherTypes(ctx context.Context, companyID uuid.UUID) ([]*VoucherTypeConfig, error) {
+	return s.repo.ListVoucherTypes(ctx, companyID)
 }
