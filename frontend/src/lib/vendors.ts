@@ -8,6 +8,10 @@ export async function listVendors(): Promise<Vendor[]> {
   return res.vendors;
 }
 
+export function fetchVendor(id: string): Promise<Vendor> {
+  return apiClient.get<Vendor>(`/vendors/${id}`);
+}
+
 export function createVendor(payload: VendorPayload): Promise<Vendor> {
   return apiClient.post<Vendor>("/vendors", payload);
 }

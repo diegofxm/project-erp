@@ -84,14 +84,10 @@ func (s *Service) resolveRecipient(ctx context.Context, d *Document) (name, emai
 // SendDocumentEmail envía el documento ya aceptado por la DIAN al correo del cliente
 // (FE/NC/ND) o del proveedor (DS).
 //
-// El adjunto es un único ZIP que, cuando el documento fue aceptado con la migración 000013
-// ya activa, contiene un AttachedDocument UBL firmado (con el XML de la factura y el
-// ApplicationResponse de la DIAN embebidos), conforme a la sección 9.1 del Anexo Técnico
-// 1.9. Para documentos aceptados antes de esa migración — ApplicationResponseXML vacío —
-// el ZIP contiene el XML firmado crudo + el PDF (comportamiento anterior).
-//
-// cc es la lista de destinatarios en copia; nil o vacío = sin CC.
-func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID, format pdf.Format, cc []string) error {
+// to es el correo destino confirmado por el usuario en el modal; si está vacío se resuelve
+// automáticamente desde el catálogo (customers/vendors). cc es la lista de destinatarios
+// en copia; nil o vacío = sin CC.
+func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID, format pdf.Format, to string, cc []string) error {
 	d, iss, err := s.loadDocumentAndIssuer(ctx, issuerID, id)
 	if err != nil {
 		return err
@@ -99,9 +95,20 @@ func (s *Service) SendDocumentEmail(ctx context.Context, issuerID, id uuid.UUID,
 	if d.Status != StatusAccepted {
 		return ErrDocumentNotAccepted
 	}
-	recipientName, recipientEmail, err := s.resolveRecipient(ctx, d)
-	if err != nil {
-		return err
+	var recipientName, recipientEmail string
+	if to != "" {
+		// El frontend ya resolvió y confirmó el correo (puede haber sido editado por el usuario).
+		recipientEmail = to
+		if d.DianDocumentTypeCode == supportDocumentDianDocType && d.Vendor != nil {
+			recipientName = d.Vendor.Name
+		} else {
+			recipientName = d.Customer.Name
+		}
+	} else {
+		recipientName, recipientEmail, err = s.resolveRecipient(ctx, d)
+		if err != nil {
+			return err
+		}
 	}
 	if recipientEmail == "" {
 		return ErrCustomerEmailMissing

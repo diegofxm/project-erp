@@ -19,6 +19,7 @@ import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { SendEmailModal } from "../components/ui/SendEmailModal";
+import { fetchVendor } from "../lib/vendors";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { BillingReference, Document, IssueAdjustmentNotePayload } from "../lib/types";
 import { BackLink } from "../components/ui/BackLink";
@@ -170,11 +171,11 @@ export function AdjustmentNoteEditorPage() {
     }
   }
 
-  async function handleSendEmailConfirm(cc: string[]) {
+  async function handleSendEmailConfirm(to: string, cc: string[]) {
     if (!id || isNew || !doc) return;
     try {
-      await sendDocumentEmail(id, pdfFormat, cc);
-      toast.success(`Nota de Ajuste enviada a ${doc.vendor?.email}`);
+      await sendDocumentEmail(id, pdfFormat, to, cc);
+      toast.success(`Nota de Ajuste enviada a ${to}`);
       setShowEmailModal(false);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo enviar el documento por correo");
@@ -424,7 +425,8 @@ export function AdjustmentNoteEditorPage() {
       ) : null}
       {showEmailModal && doc && (
         <SendEmailModal
-          toEmail={doc.vendor?.email ?? ""}
+          initialEmail={doc.vendor?.email ?? ""}
+          fetchEmail={doc.vendor_id ? () => fetchVendor(doc.vendor_id!).then((v) => v.email ?? "") : undefined}
           onSend={handleSendEmailConfirm}
           onClose={() => setShowEmailModal(false)}
         />

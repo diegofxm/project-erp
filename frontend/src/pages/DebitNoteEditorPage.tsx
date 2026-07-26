@@ -19,6 +19,7 @@ import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { SendEmailModal } from "../components/ui/SendEmailModal";
+import { fetchCustomer } from "../lib/customers";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { BillingReference, Document, IssueDebitNotePayload } from "../lib/types";
 import { BackLink } from "../components/ui/BackLink";
@@ -193,11 +194,11 @@ export function DebitNoteEditorPage() {
     }
   }
 
-  async function handleSendEmailConfirm(cc: string[]) {
+  async function handleSendEmailConfirm(to: string, cc: string[]) {
     if (!id || isNew || !doc) return;
     try {
-      await sendDocumentEmail(id, pdfFormat, cc);
-      toast.success(`Nota Débito enviada a ${doc.customer.email}`);
+      await sendDocumentEmail(id, pdfFormat, to, cc);
+      toast.success(`Nota Débito enviada a ${to}`);
       setShowEmailModal(false);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo enviar la nota débito por correo");
@@ -393,7 +394,8 @@ export function DebitNoteEditorPage() {
       ) : null}
       {showEmailModal && doc && (
         <SendEmailModal
-          toEmail={doc.customer.email ?? ""}
+          initialEmail={doc.customer.email ?? ""}
+          fetchEmail={doc.customer_id ? () => fetchCustomer(doc.customer_id!).then((c) => c.email ?? "") : undefined}
           onSend={handleSendEmailConfirm}
           onClose={() => setShowEmailModal(false)}
         />

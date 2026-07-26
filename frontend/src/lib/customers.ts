@@ -8,6 +8,10 @@ export async function listCustomers(): Promise<Customer[]> {
   return res.customers;
 }
 
+export function fetchCustomer(id: string): Promise<Customer> {
+  return apiClient.get<Customer>(`/customers/${id}`);
+}
+
 export function createCustomer(payload: CustomerPayload): Promise<Customer> {
   return apiClient.post<Customer>("/customers", payload);
 }

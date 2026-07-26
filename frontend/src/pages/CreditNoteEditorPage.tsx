@@ -19,6 +19,7 @@ import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { SendEmailModal } from "../components/ui/SendEmailModal";
+import { fetchCustomer } from "../lib/customers";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { BillingReference, Document, IssueCreditNotePayload } from "../lib/types";
 import { BackLink } from "../components/ui/BackLink";
@@ -196,11 +197,11 @@ export function CreditNoteEditorPage() {
     }
   }
 
-  async function handleSendEmailConfirm(cc: string[]) {
+  async function handleSendEmailConfirm(to: string, cc: string[]) {
     if (!id || isNew || !doc) return;
     try {
-      await sendDocumentEmail(id, pdfFormat, cc);
-      toast.success(`Nota Crédito enviada a ${doc.customer.email}`);
+      await sendDocumentEmail(id, pdfFormat, to, cc);
+      toast.success(`Nota Crédito enviada a ${to}`);
       setShowEmailModal(false);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo enviar la nota crédito por correo");
@@ -396,7 +397,8 @@ export function CreditNoteEditorPage() {
       ) : null}
       {showEmailModal && doc && (
         <SendEmailModal
-          toEmail={doc.customer.email ?? ""}
+          initialEmail={doc.customer.email ?? ""}
+          fetchEmail={doc.customer_id ? () => fetchCustomer(doc.customer_id!).then((c) => c.email ?? "") : undefined}
           onSend={handleSendEmailConfirm}
           onClose={() => setShowEmailModal(false)}
         />

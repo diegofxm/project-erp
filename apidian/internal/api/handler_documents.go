@@ -733,12 +733,12 @@ func (a *API) handleGetDocumentXML(w http.ResponseWriter, r *http.Request) {
 
 type sendEmailRequest struct {
 	PDFFormat string   `json:"pdf_format,omitempty"`
+	To        string   `json:"to,omitempty"` // override del destinatario; vacío = resolver desde catálogo
 	CC        []string `json:"cc,omitempty"`
 }
 
-// handleSendDocumentEmail envía el documento accepted al correo del cliente con el PDF y el XML
-// firmado adjuntos (ver docs/apidian-architecture.md sección 9.42/9.49). Válido para Factura,
-// NC y ND. Body opcional: {"pdf_format":"half_a4"} — sin body usa full_a4.
+// handleSendDocumentEmail envía el documento accepted al correo del cliente/proveedor con el PDF
+// y el XML firmado adjuntos. Body opcional: {"to":"email","pdf_format":"half_a4","cc":[]}.
 func (a *API) handleSendDocumentEmail(w http.ResponseWriter, r *http.Request) {
 	id, ok := parseUUID(w, r.PathValue("id"))
 	if !ok {
@@ -754,7 +754,7 @@ func (a *API) handleSendDocumentEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	format := pdf.ParseFormat(req.PDFFormat)
-	if err := a.documents.SendDocumentEmail(r.Context(), middleware.GetTenantID(r.Context()), id, format, req.CC); err != nil {
+	if err := a.documents.SendDocumentEmail(r.Context(), middleware.GetTenantID(r.Context()), id, format, req.To, req.CC); err != nil {
 		response.WriteError(w, err)
 		return
 	}

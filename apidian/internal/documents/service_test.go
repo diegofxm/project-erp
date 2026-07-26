@@ -1067,7 +1067,7 @@ func TestSendDocumentEmail_OK(t *testing.T) {
 	svc := documents.New(repo, &fakeIssuerPort{issuer: iss}, &fakeNumberingPort{nr: testNumberingRange(iss.ID)}, &fakeCustomerPort{}, newFakeCatalogPort(), emailPort)
 	doc := seedInvoice(t, repo, iss.ID, documents.StatusAccepted, "cliente@example.test")
 
-	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4, nil)
+	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4, "", nil)
 	require.NoError(t, err)
 
 	require.Len(t, emailPort.sent, 1)
@@ -1086,7 +1086,7 @@ func TestSendDocumentEmail_NotAccepted(t *testing.T) {
 	svc := documents.New(repo, &fakeIssuerPort{issuer: iss}, &fakeNumberingPort{}, &fakeCustomerPort{}, newFakeCatalogPort(), &fakeEmailPort{})
 	doc := seedInvoice(t, repo, iss.ID, documents.StatusBuilt, "cliente@example.test")
 
-	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4, nil)
+	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4, "", nil)
 	assert.ErrorIs(t, err, documents.ErrDocumentNotAccepted)
 }
 
@@ -1096,7 +1096,7 @@ func TestSendDocumentEmail_MissingCustomerEmail(t *testing.T) {
 	svc := documents.New(repo, &fakeIssuerPort{issuer: iss}, &fakeNumberingPort{}, &fakeCustomerPort{}, newFakeCatalogPort(), &fakeEmailPort{})
 	doc := seedInvoice(t, repo, iss.ID, documents.StatusAccepted, "")
 
-	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4, nil)
+	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4, "", nil)
 	assert.ErrorIs(t, err, documents.ErrCustomerEmailMissing)
 }
 
@@ -1106,7 +1106,7 @@ func TestSendDocumentEmail_OtherIssuer(t *testing.T) {
 	svc := documents.New(repo, &fakeIssuerPort{issuer: iss}, &fakeNumberingPort{}, &fakeCustomerPort{}, newFakeCatalogPort(), &fakeEmailPort{})
 	doc := seedInvoice(t, repo, iss.ID, documents.StatusAccepted, "cliente@example.test")
 
-	err := svc.SendDocumentEmail(context.Background(), uuid.New(), doc.ID, pdf.FormatFullA4, nil)
+	err := svc.SendDocumentEmail(context.Background(), uuid.New(), doc.ID, pdf.FormatFullA4, "", nil)
 	assert.ErrorIs(t, err, documents.ErrDocumentNotFound)
 }
 
@@ -1118,7 +1118,7 @@ func TestSendDocumentEmail_CreditNote(t *testing.T) {
 	svc := documents.New(repo, &fakeIssuerPort{issuer: iss}, &fakeNumberingPort{nr: nr}, &fakeCustomerPort{}, newFakeCatalogPort(), emailPort)
 	doc := seedCreditNote(t, repo, iss.ID, documents.StatusAccepted, "cliente@example.test")
 
-	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4, nil)
+	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4, "", nil)
 	require.NoError(t, err)
 
 	require.Len(t, emailPort.sent, 1)
@@ -1138,7 +1138,7 @@ func TestSendDocumentEmail_SendFailurePropagates(t *testing.T) {
 	svc := documents.New(repo, &fakeIssuerPort{issuer: iss}, &fakeNumberingPort{nr: testNumberingRange(iss.ID)}, &fakeCustomerPort{}, newFakeCatalogPort(), &fakeEmailPort{err: sendErr})
 	doc := seedInvoice(t, repo, iss.ID, documents.StatusAccepted, "cliente@example.test")
 
-	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4, nil)
+	err := svc.SendDocumentEmail(context.Background(), iss.ID, doc.ID, pdf.FormatFullA4, "", nil)
 	assert.ErrorIs(t, err, sendErr)
 }
 
