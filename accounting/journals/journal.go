@@ -57,17 +57,21 @@ type JournalEntry struct {
 // ThirdPartyNIT es el NIT del tercero involucrado (proveedor, cliente, empleado, banco).
 // Requerido por la DIAN para Medios Magnéticos / Información Exógena. Vacío solo
 // en asientos internos (apertura, cierre, ajustes sin contraparte externa).
+// ForeignAmount y ForeignCurrency son opcionales: solo se populan cuando el documento
+// original está en moneda extranjera (USD, EUR). Permiten la revaluación al cierre de período.
 type JournalLine struct {
-	ID             uuid.UUID
-	JournalID      uuid.UUID
-	AccountID      uuid.UUID
-	AccountCode    string
-	Debit          int64
-	Credit         int64
-	ThirdPartyNIT  string
-	CostCenter     string
-	Description    string
-	CreatedAt      time.Time
+	ID              uuid.UUID
+	JournalID       uuid.UUID
+	AccountID       uuid.UUID
+	AccountCode     string
+	Debit           int64
+	Credit          int64
+	ThirdPartyNIT   string
+	CostCenter      string
+	Description     string
+	ForeignAmount   int64  // centavos en moneda extranjera; 0 si el asiento es en COP
+	ForeignCurrency string // ISO 4217 ("USD", "EUR"); vacío si el asiento es en COP
+	CreatedAt       time.Time
 }
 
 // PostRequest contiene los datos necesarios para registrar un asiento nuevo.
@@ -86,11 +90,15 @@ type PostRequest struct {
 
 // LineRequest referencia la cuenta por código para que el servicio resuelva el UUID.
 // Debit y Credit en centavos (int64). ThirdPartyNIT es opcional para asientos internos.
+// ForeignAmount y ForeignCurrency son opcionales: solo se usan en documentos en moneda
+// extranjera para habilitar la revaluación al cierre del período.
 type LineRequest struct {
-	AccountCode   string
-	Debit         int64
-	Credit        int64
-	ThirdPartyNIT string
-	CostCenter    string
-	Description   string
+	AccountCode     string
+	Debit           int64
+	Credit          int64
+	ThirdPartyNIT   string
+	CostCenter      string
+	Description     string
+	ForeignAmount   int64  // centavos en moneda extranjera; 0 si el asiento es en COP
+	ForeignCurrency string // ISO 4217 ("USD", "EUR"); vacío si el asiento es en COP
 }

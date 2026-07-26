@@ -61,12 +61,14 @@ func (r *PostgresRepository) Create(ctx context.Context, entry JournalEntry) (*J
 
 		_, err = tx.Exec(ctx, `
 			INSERT INTO accounting.journal_lines
-				(id, journal_id, account_id, debit, credit, third_party_nit, cost_center, description, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+				(id, journal_id, account_id, debit, credit, third_party_nit, cost_center, description,
+				 foreign_amount, foreign_currency, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 			line.ID, line.JournalID, line.AccountID,
 			line.Debit, line.Credit,
 			nullableString(line.ThirdPartyNIT),
 			nullableString(line.CostCenter), nullableString(line.Description),
+			nullableInt64(line.ForeignAmount), nullableString(line.ForeignCurrency),
 			line.CreatedAt,
 		)
 		if err != nil {
@@ -127,7 +129,8 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Journa
 func (r *PostgresRepository) loadLines(ctx context.Context, journalID uuid.UUID) ([]*JournalLine, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT jl.id, jl.journal_id, jl.account_id, a.code,
-		       jl.debit, jl.credit, jl.third_party_nit, jl.cost_center, jl.description, jl.created_at
+		       jl.debit, jl.credit, jl.third_party_nit, jl.cost_center, jl.description,
+		       jl.foreign_amount, jl.foreign_currency, jl.created_at
 		FROM accounting.journal_lines jl
 		JOIN accounting.accounts a ON a.id = jl.account_id
 		WHERE jl.journal_id = $1
@@ -140,10 +143,12 @@ func (r *PostgresRepository) loadLines(ctx context.Context, journalID uuid.UUID)
 	var lines []*JournalLine
 	for rows.Next() {
 		var l JournalLine
-		var thirdPartyNIT, costCenter, description *string
+		var thirdPartyNIT, costCenter, description, foreignCurrency *string
+		var foreignAmount *int64
 		if err := rows.Scan(
 			&l.ID, &l.JournalID, &l.AccountID, &l.AccountCode,
-			&l.Debit, &l.Credit, &thirdPartyNIT, &costCenter, &description, &l.CreatedAt,
+			&l.Debit, &l.Credit, &thirdPartyNIT, &costCenter, &description,
+			&foreignAmount, &foreignCurrency, &l.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan line: %w", err)
 		}
@@ -155,6 +160,12 @@ func (r *PostgresRepository) loadLines(ctx context.Context, journalID uuid.UUID)
 		}
 		if description != nil {
 			l.Description = *description
+		}
+		if foreignAmount != nil {
+			l.ForeignAmount = *foreignAmount
+		}
+		if foreignCurrency != nil {
+			l.ForeignCurrency = *foreignCurrency
 		}
 		lines = append(lines, &l)
 	}
@@ -414,6 +425,13 @@ func nullableString(s string) any {
 		return nil
 	}
 	return s
+}
+
+func nullableInt64(n int64) any {
+	if n == 0 {
+		return nil
+	}
+	return n
 }
 
 func nullableUUID(id uuid.UUID) any {
