@@ -38,12 +38,13 @@ func (r *PostgresRepository) Create(ctx context.Context, entry JournalEntry) (*J
 		INSERT INTO accounting.journal_entries
 			(id, company_id, period_id, date, description, status, source, entry_type,
 			 voucher_type, voucher_number, source_document_id, source_document_type,
-			 created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+			 book, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
 		entry.ID, entry.CompanyID, entry.PeriodID, entry.Date.UTC(),
 		entry.Description, entry.Status, entry.Source, entry.EntryType,
 		nullableString(entry.VoucherType), nullableString(entry.VoucherNumber),
 		nullableUUID(entry.SourceDocumentID), nullableString(entry.SourceDocumentType),
+		string(entry.Book),
 		entry.CreatedAt, entry.UpdatedAt,
 	)
 	if err != nil {
@@ -83,7 +84,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Journa
 	row := r.pool.QueryRow(ctx, `
 		SELECT id, company_id, period_id, date, description, status, source, entry_type,
 		       voucher_type, voucher_number, source_document_id, source_document_type,
-		       created_at, updated_at
+		       book, created_at, updated_at
 		FROM accounting.journal_entries WHERE id = $1`, id)
 
 	var e JournalEntry
@@ -93,6 +94,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Journa
 		&e.ID, &e.CompanyID, &e.PeriodID, &e.Date,
 		&e.Description, &e.Status, &e.Source, &e.EntryType,
 		&voucherType, &voucherNumber, &sourceDocID, &sourceDocType,
+		&e.Book,
 		&e.CreatedAt, &e.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -180,7 +182,7 @@ func (r *PostgresRepository) ListByCompany(ctx context.Context, companyID uuid.U
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, company_id, period_id, date, description, status, source, entry_type,
 		       voucher_type, voucher_number, source_document_id, source_document_type,
-		       created_at, updated_at
+		       book, created_at, updated_at
 		FROM accounting.journal_entries
 		WHERE company_id = $1
 		ORDER BY date DESC, created_at DESC
@@ -201,6 +203,7 @@ func (r *PostgresRepository) ListByCompany(ctx context.Context, companyID uuid.U
 			&e.ID, &e.CompanyID, &e.PeriodID, &e.Date,
 			&e.Description, &e.Status, &e.Source, &e.EntryType,
 			&voucherType, &voucherNumber, &sourceDocID, &sourceDocType,
+			&e.Book,
 			&e.CreatedAt, &e.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan journal: %w", err)
@@ -226,7 +229,7 @@ func (r *PostgresRepository) GetBySourceDocument(ctx context.Context, companyID,
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, company_id, period_id, date, description, status, source, entry_type,
 		       voucher_type, voucher_number, source_document_id, source_document_type,
-		       created_at, updated_at
+		       book, created_at, updated_at
 		FROM accounting.journal_entries
 		WHERE company_id = $1
 		  AND source_document_id = $2
@@ -248,6 +251,7 @@ func (r *PostgresRepository) GetBySourceDocument(ctx context.Context, companyID,
 			&e.ID, &e.CompanyID, &e.PeriodID, &e.Date,
 			&e.Description, &e.Status, &e.Source, &e.EntryType,
 			&voucherType, &voucherNumber, &sourceDocIDCol, &sourceDocTypeCol,
+			&e.Book,
 			&e.CreatedAt, &e.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan journal by source doc: %w", err)

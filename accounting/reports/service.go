@@ -19,8 +19,30 @@ func NewService(pool *pgxpool.Pool) *Service {
 	return &Service{pool: pool}
 }
 
+// bookClause genera la cláusula SQL para filtrar por libro contable.
+// "PCGA" incluye asientos PCGA y BOTH; "NIIF" incluye NIIF y BOTH; cualquier otro valor = sin filtro.
+func bookClause(book string) string {
+	switch book {
+	case "PCGA":
+		return " AND je.book IN ('PCGA', 'BOTH')"
+	case "NIIF":
+		return " AND je.book IN ('NIIF', 'BOTH')"
+	default:
+		return ""
+	}
+}
+
+// resolveBook extrae el primer valor de books o devuelve "" si no se pasa ninguno.
+func resolveBook(books []string) string {
+	if len(books) > 0 {
+		return books[0]
+	}
+	return ""
+}
+
 // TrialBalance devuelve el balance de comprobación para una empresa en un rango de fechas.
-func (s *Service) TrialBalance(ctx context.Context, companyID uuid.UUID, from, to time.Time) ([]*TrialBalanceRow, error) {
+// El parámetro opcional book ("PCGA" | "NIIF") filtra por libro contable; vacío = ambos libros.
+func (s *Service) TrialBalance(ctx context.Context, companyID uuid.UUID, from, to time.Time, book ...string) ([]*TrialBalanceRow, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT
 			a.code,
@@ -35,7 +57,7 @@ func (s *Service) TrialBalance(ctx context.Context, companyID uuid.UUID, from, t
 		WHERE je.company_id = $1
 		  AND je.status = 'POSTED'
 		  AND je.date >= $2
-		  AND je.date <= $3
+		  AND je.date <= $3`+bookClause(resolveBook(book))+`
 		GROUP BY a.id, a.code, a.name, a.category
 		ORDER BY a.code`,
 		companyID, from.UTC(), to.UTC(),
@@ -97,7 +119,8 @@ func (s *Service) GeneralLedger(ctx context.Context, companyID uuid.UUID, accoun
 }
 
 // IncomeStatement devuelve el estado de resultados para un rango de fechas.
-func (s *Service) IncomeStatement(ctx context.Context, companyID uuid.UUID, from, to time.Time) (*IncomeStatement, error) {
+// El parámetro opcional book ("PCGA" | "NIIF") filtra por libro contable; vacío = ambos libros.
+func (s *Service) IncomeStatement(ctx context.Context, companyID uuid.UUID, from, to time.Time, book ...string) (*IncomeStatement, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT
 			a.code,
@@ -111,7 +134,7 @@ func (s *Service) IncomeStatement(ctx context.Context, companyID uuid.UUID, from
 		  AND je.status = 'POSTED'
 		  AND je.date >= $2
 		  AND je.date <= $3
-		  AND a.category IN ('Ingresos', 'Gastos', 'Costos', 'Costo de Producción')
+		  AND a.category IN ('Ingresos', 'Gastos', 'Costos', 'Costo de Producción')`+bookClause(resolveBook(book))+`
 		GROUP BY a.id, a.code, a.name, a.category
 		ORDER BY a.category, a.code`,
 		companyID, from.UTC(), to.UTC(),
@@ -312,7 +335,8 @@ func (s *Service) CostCenterBalance(ctx context.Context, companyID uuid.UUID, fr
 }
 
 // BalanceSheet devuelve el balance general a una fecha de corte.
-func (s *Service) BalanceSheet(ctx context.Context, companyID uuid.UUID, asOf time.Time) (*BalanceSheet, error) {
+// El parámetro opcional book ("PCGA" | "NIIF") filtra por libro contable; vacío = ambos libros.
+func (s *Service) BalanceSheet(ctx context.Context, companyID uuid.UUID, asOf time.Time, book ...string) (*BalanceSheet, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT
 			a.code,
@@ -325,7 +349,7 @@ func (s *Service) BalanceSheet(ctx context.Context, companyID uuid.UUID, asOf ti
 		WHERE je.company_id = $1
 		  AND je.status = 'POSTED'
 		  AND je.date <= $2
-		  AND a.category IN ('Activo', 'Pasivo', 'Patrimonio')
+		  AND a.category IN ('Activo', 'Pasivo', 'Patrimonio')`+bookClause(resolveBook(book))+`
 		GROUP BY a.id, a.code, a.name, a.category
 		ORDER BY a.category, a.code`,
 		companyID, asOf.UTC(),

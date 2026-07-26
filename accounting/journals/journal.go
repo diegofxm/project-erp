@@ -9,6 +9,10 @@ import (
 type Status string
 type EntryType string
 
+// Book discrimina el libro contable al que pertenece un asiento.
+// BookBoth (defecto) aplica a ambos libros y es válido en cualquier estado del plan.
+type Book string
+
 const (
 	StatusDraft  Status = "DRAFT"
 	StatusPosted Status = "POSTED"
@@ -19,6 +23,13 @@ const (
 	EntryAdjustment EntryType = "ADJUSTMENT"
 	EntryClosing    EntryType = "CLOSING"
 	EntryOpening    EntryType = "OPENING"
+
+	// BookBoth aplica a ambos libros (PCGA y NIIF). Es el valor por defecto.
+	BookBoth Book = "BOTH"
+	// BookPCGA es exclusivo del libro local (Decreto 2649 / PCGA colombiano).
+	BookPCGA Book = "PCGA"
+	// BookNIIF es exclusivo del libro IFRS (ajustes de convergencia, NIIF 16, etc.).
+	BookNIIF Book = "NIIF"
 )
 
 // JournalEntry es la cabecera de un asiento contable.
@@ -35,6 +46,7 @@ type JournalEntry struct {
 	VoucherNumber      string    // número de comprobante formateado (CE-2025-00001)
 	SourceDocumentID   uuid.UUID // UUID del documento que originó el asiento (uuid.Nil si ninguno)
 	SourceDocumentType string    // discriminador: "FE", "DS", "NC", "NOM", etc.
+	Book               Book      // libro contable: "BOTH" (defecto), "PCGA", "NIIF"
 	Lines              []*JournalLine
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
@@ -68,6 +80,7 @@ type PostRequest struct {
 	VoucherType        string    // opcional: si se indica, se asigna el siguiente número consecutivo
 	SourceDocumentID   uuid.UUID // UUID del documento fuente (FE, DS, NC…); uuid.Nil si no aplica
 	SourceDocumentType string    // discriminador del tipo de documento fuente
+	Book               Book      // vacío o "BOTH" usa ambos libros (defecto)
 	Lines              []LineRequest
 }
 

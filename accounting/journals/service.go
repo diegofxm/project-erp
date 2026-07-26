@@ -84,6 +84,11 @@ func (s *Service) Post(ctx context.Context, req PostRequest) (*JournalEntry, err
 		source = "manual"
 	}
 
+	book := req.Book
+	if book == "" {
+		book = BookBoth
+	}
+
 	entry := JournalEntry{
 		CompanyID:          req.CompanyID,
 		PeriodID:           period.ID,
@@ -94,6 +99,7 @@ func (s *Service) Post(ctx context.Context, req PostRequest) (*JournalEntry, err
 		EntryType:          entryType,
 		SourceDocumentID:   req.SourceDocumentID,
 		SourceDocumentType: req.SourceDocumentType,
+		Book:               book,
 		Lines:              resolvedLines,
 	}
 

@@ -9,6 +9,7 @@ import (
 	"github.com/diegofxm/accounting/accounts"
 	"github.com/diegofxm/accounting/assets"
 	"github.com/diegofxm/accounting/banking"
+	"github.com/diegofxm/accounting/budget"
 	"github.com/diegofxm/accounting/cartera"
 	"github.com/diegofxm/accounting/database/seed"
 	"github.com/diegofxm/accounting/iva"
@@ -37,6 +38,7 @@ type Core struct {
 	Assets       *assets.Service
 	IVA          *iva.Service
 	Cartera      *cartera.Service
+	Budget       *budget.Service
 	pool         *pgxpool.Pool
 }
 
@@ -56,6 +58,7 @@ func New(pool *pgxpool.Pool) *Core {
 		Assets:       assets.NewService(assets.NewPostgresRepository(pool), journalsSvc, periodsSvc),
 		IVA:          iva.NewService(iva.NewPostgresRepository(pool), journalsSvc),
 		Cartera:      cartera.NewService(cartera.NewPostgresRepository(pool)),
+		Budget:       budget.NewService(budget.NewPostgresRepository(pool), accountsSvc),
 		pool:         pool,
 	}
 }
