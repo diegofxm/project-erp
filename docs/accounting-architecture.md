@@ -1,22 +1,24 @@
 # Arquitectura del Módulo Contable — `accounting`
 
-> Estado auditado: **julio 2026**.
+> Última actualización: **julio 2026**.
 > Módulo Go independiente en `accounting/` con su propio `go.mod` (`github.com/diegofxm/accounting`).
-> Se conecta a la misma base de datos que `apidian` pero usa el schema propio `accounting.*`
+> Conecta a la misma base de datos que `apidian` pero usa el schema `accounting.*`
 > y una tabla de migraciones separada (`accounting_schema_migrations`).
 
 ---
 
 ## 1. Principios de diseño
 
-| Principio | Implementación actual |
+| Principio | Implementación |
 |---|---|
-| Partida doble obligatoria | `journals.Service.Post` rechaza si `SUM(debit) ≠ SUM(credit)` (tolerancia 1 centavo) |
-| Naturaleza de cuentas | `Account.Nature()` — Activo/Gasto/Costo → Debit; Pasivo/Patrimonio/Ingreso → Credit |
+| Partida doble obligatoria | `Service.Post` rechaza si `SUM(debit) ≠ SUM(credit)` (exacto, sin tolerancia) |
+| Aritmética sin punto flotante | Todos los montos en `int64` centavos — nunca `float64` |
 | Libro inmutable | Los asientos no se eliminan; se anulan (`StatusVoid`) |
-| PUC colombiano real | 2 502 cuentas cargadas via seed CSV |
+| PUC colombiano real | 2 502 cuentas cargadas vía seed CSV; idempotente |
 | Schema aislado | Todas las tablas en `accounting.*`; no colisiona con `public.*` de apidian |
 | Migración embebida | `//go:embed database/migrations/*.sql` — el binario se auto-migra al arrancar |
+| Sin FK a otros módulos | `source_document_id UUID` sin FK referencial — cross-module sin acoplamiento |
+| Doble libro opcional | Campo `book` en asientos: `BOTH` (defecto), `PCGA`, `NIIF` |
 
 ---
 
@@ -24,183 +26,243 @@
 
 ```
 accounting/
-├── accounting.go          ← Core: punto de entrada, Migrate(), Seed()
-├── accounts/              ← PUC: Account, Nature(), GetPostable()
-├── journals/              ← Motor de asientos: Post, Void, CloseYear, OpenYear
-├── periods/               ← Períodos mensuales: GetOrCreate, Close, CloseYear
-├── reports/               ← Reportes calculados: TrialBalance, Ledger, IncomeStatement, BalanceSheet, CostCenterBalance
-├── banking/               ← Conciliación bancaria: BankAccount, StatementLine, Reconcile, GetReport
+├── accounting.go              ← Core: punto de entrada, New(), Migrate(), Seed()
+├── accounts/                  ← PUC: Account, Nature(), GetPostable(), List()
+├── journals/                  ← Motor de asientos: Post, Void, CloseYear, OpenYear,
+│                                 GetBySourceDocument, vouchers, source constants
+├── periods/                   ← Períodos mensuales: GetOrCreate, Close, CloseYear
+├── reports/                   ← Reportes calculados (ver § 4.3)
+├── banking/                   ← Conciliación bancaria: BankAccount, StatementLine
+├── withholdings/              ← Retenciones: Calculate, CalculateMany, UVT values
+├── assets/                    ← Activos fijos PPE: Run/Depreciation, Dispose
+├── iva/                       ← IVA declarado: GenerateForm300, CreatePaymentEntry
+├── cartera/                   ← Cartera: AgeByThird (FIFO), Reconcile, ProvisionsEstimate
+├── budget/                    ← Presupuesto vs. real: Create, SetLine, Approve, BvR
 └── database/
-    ├── migrations/        ← SQL embebido (000001–000004)
-    └── seed/              ← PUC completo en CSV
+    ├── migrations/            ← SQL embebido (000001–000015)
+    └── seed/                  ← PUC + conceptos de retención + valores UVT en CSV
 ```
 
 ---
 
 ## 3. Tablas en el schema `accounting`
 
-| Tabla | Descripción |
+| Migración | Tabla(s) | Descripción |
+|---|---|---|
+| 000001 | `accounts`, `accounting_periods` | PUC y períodos |
+| 000002 | `journal_entries`, `journal_lines` | Motor de asientos; `third_party_nit` en líneas |
+| 000003 | `bank_accounts`, `bank_statement_lines` | Conciliación bancaria |
+| 000004 | `medios_magneticos_*, auxiliary_by_third_*` | Índices de reportes |
+| 000005 | — | Migración de tipos monetarios a `int64` centavos |
+| 000006 | `journal_entries`: auxiliar por tercero | Reporte auxiliar |
+| 000007 | `withholding_concepts`, `uvt_values` | Catálogo de retenciones y UVT |
+| 000008 | `journal_lines`: renombre `tercero_nit` → `third_party_nit` | Naming en inglés |
+| 000009 | `voucher_types`, `voucher_counters`; columnas en `journal_entries` | Comprobantes consecutivos |
+| 000010 | `fixed_assets`, `depreciation_runs`, `depreciation_entries` | Activos fijos PPE |
+| 000011 | `iva_declarations` | Declaraciones de IVA |
+| 000012 | `reconciliation_marks` | Conciliación de cartera |
+| 000013 | `journal_entries`, `fixed_assets`: `source_document_id / _type` | Trazabilidad |
+| 000014 | `budgets`, `budget_lines` | Presupuesto anual |
+| 000015 | `journal_entries`: columna `book` | Doble libro PCGA/NIIF |
+
+---
+
+## 4. Lo que está implementado ✅
+
+### 4.1 Motor de asientos (journals/)
+
+- **Partida doble estricta**: mínimo 2 líneas; exactamente uno de débito o crédito por línea; `SUM(debit) == SUM(credit)` sin tolerancia.
+- **Tipos de asiento**: `MANUAL`, `AUTOMATIC`, `ADJUSTMENT`, `CLOSING`, `OPENING`.
+- **Estados**: `POSTED` → `VOID`; nunca eliminación.
+- **Tercero (`ThirdPartyNIT`)**: NIT del cliente/proveedor/empleado en cada línea; requerido por Información Exógena DIAN.
+- **Centro de costo** por línea.
+- **Comprobantes consecutivos**: tipos CE/CI/NC/NI/CJ/AP; formato `CE-2025-00001`; contador atómico por empresa+tipo+año (upsert PostgreSQL, seguro bajo concurrencia).
+- **Doble libro**: campo `book` (`BOTH`/`PCGA`/`NIIF`) por asiento.
+- **Trazabilidad**: `source_document_id UUID` + `source_document_type VARCHAR(30)` sin FK referencial; `GetBySourceDocument()` para auditoría inversa.
+- **Constantes de origen**: `SourceFE`, `SourceDS`, `SourceNA`, `SourceNC`, `SourceND`, `SourceNOM`, `SourceINV`, `SourceOC`, `SourceLC`, `SourceAF`.
+- **Cierre de año** (`CloseYear`): saldos P&G → cero; diferencia → 3605 Utilidad o 3610 Pérdida; cierra todos los períodos del año.
+- **Apertura de año** (`OpenYear`): balance general al 31-dic → asiento 01-ene del año nuevo.
+
+### 4.2 Retenciones (withholdings/)
+
+- Catálogo de **16 conceptos** de Retefuente, Reteiva y Reteica con tarifa en puntos básicos y base mínima en UVT.
+- **Valores UVT** 2020–2025 en centavos (seed idempotente).
+- `Calculate(code, type, base, vendorType, year)`: aplica tarifa solo si base ≥ mínimo UVT; prioriza concepto exacto para NATURAL/JURIDICA sobre BOTH.
+- `CalculateMany(items, year)`: lote de retenciones.
+
+### 4.3 Reportes (reports/)
+
+| Reporte | Método | Filtro de libro |
+|---|---|---|
+| Balance de comprobación | `TrialBalance(ctx, companyID, from, to, book?)` | ✅ variádico |
+| Libro mayor | `GeneralLedger(ctx, companyID, accountCode, from, to)` | — |
+| Estado de resultados | `IncomeStatement(ctx, companyID, from, to, book?)` | ✅ variádico |
+| Balance general | `BalanceSheet(ctx, companyID, asOf, book?)` | ✅ variádico |
+| Auxiliar por tercero | `AuxiliaryByThird(ctx, companyID, accountCode, nit, from, to)` | — |
+| Saldo por tercero | `TerceroBalance(ctx, companyID, accountCode, from, to)` | — |
+| Medios magnéticos | `MediosMagneticos(ctx, companyID, year)` | — |
+| Centro de costo | `CostCenterBalance(ctx, companyID, from, to)` | — |
+
+El parámetro `book ...string` es variádico — los llamadores actuales sin argumento funcionan igual (retrocompatible).
+
+### 4.4 Activos fijos (assets/)
+
+- Registro de PPE con cuentas de activo, gasto depreciación y depreciación acumulada.
+- **Depreciación línea recta**: `RunDepreciation(companyID, date)` — calcula el mínimo entre la cuota mensual y el valor en libros restante; genera asiento automático con comprobante tipo `"DA"`.
+- Protección contra doble-corrida: `UNIQUE` parcial en `depreciation_runs WHERE status='COMPLETED'`.
+- **Baja de activo** (`Dispose`): maneja escritura total (proceeds=0), venta con ganancia (3605) y venta con pérdida (5290).
+- Trazabilidad al DS/FE de compra que originó el activo (`SourceDocumentID / Type`).
+
+### 4.5 IVA (iva/)
+
+- Lectura de movimientos de cuentas `2408*` (IVA generado/descontable) y `1365*` (Reteiva a favor) excluendo asientos propios de pago de IVA.
+- `GenerateForm300(companyID, from, to)`: estructura `F300` con saldo a pagar o a favor.
+- Ciclo `DRAFT → FILED → PAID → CORRECTED` en `iva_declarations`.
+- `CreatePaymentEntry`: asiento de pago IVA con `source = "iva_payment"` para no contar doble en el siguiente F300.
+
+### 4.6 Cartera (cartera/)
+
+- **Aging FIFO** (`AgeByThird`): créditos absorben los débitos más antiguos primero; saldo restante clasificado en 6 cubetas colombianas estándar (corriente, 1-30, 31-60, 61-90, 91-180, >180 días).
+- **Estimación de provisiones** según tasas del Art. 145 ET: 0 % / 5 % / 10 % / 15 % / 25 % / 50 %.
+- **Conciliación bidireccional** (`Reconcile`): marca las dos líneas como conciliadas en una transacción; si la segunda falla revierte la primera.
+
+### 4.7 Conciliación bancaria (banking/)
+
+- Registro de cuentas bancarias con su cuenta PUC asociada.
+- Importación de extracto en lote.
+- Cruce extracto ↔ asiento contable; informe de partidas sin cruzar y diferencia.
+
+### 4.8 Presupuesto vs. real (budget/)
+
+- **Encabezado** (`budgets`): por empresa, año y nombre; estados `DRAFT → APPROVED → CLOSED`.
+- **Líneas mensuales** (`budget_lines`): columnas `jan`–`dec` en centavos; `UNIQUE(budget_id, account_id)` para upsert limpio.
+- `SetLine`: rechaza modificación si el presupuesto ya está `APPROVED`.
+- **`BvR(companyID, budgetID, fromMonth, toMonth)`**: merge en memoria de líneas presupuestadas y actuals de `journal_entries POSTED`; incluye cuentas con ejecución real sin línea presupuestada (varianza = 100 % no planificada).
+
+### 4.9 Doble libro PCGA / NIIF (000015)
+
+- Campo `book VARCHAR(10) NOT NULL DEFAULT 'BOTH'` en `journal_entries`.
+- `CHECK (book IN ('PCGA', 'NIIF', 'BOTH'))` + índice parcial `WHERE book != 'BOTH'`.
+- Constantes `BookBoth`, `BookPCGA`, `BookNIIF` en `journals/journal.go`.
+- `PostRequest.Book` propagado por `Service.Post`; vacío normaliza a `BOTH`.
+- `IncomeStatement`, `BalanceSheet`, `TrialBalance` aceptan `book ...string` variádico.
+
+---
+
+## 5. Evaluación de madurez — julio 2026
+
+**Avance estimado: ~60 % para uso en producción con empresas colombianas.**
+
+Lo implementado es correcto y profesional en todo lo que toca: aritmética de centavos, partida doble exacta, PUC real, migraciones idempotentes, separación de paquetes por dominio. Lo que falta es ortogonal — no rompe lo existente, se agrega encima.
+
+### ✅ Funcional hoy para
+
+- Microempresas en **régimen ordinario simple** sin empleados formales ni inventarios.
+- **Registro automático** de asientos de FE y DS desde apidian.
+- **Reportes gerenciales** básicos (P&G, balance general, libro mayor) con filtro de libro PCGA/NIIF.
+- Cierres de año y aperturas contables.
+
+### ❌ No funcional aún para la PYME colombiana típica
+
+| Área faltante | Por qué es crítico |
 |---|---|
-| `accounts` | PUC colombiano — 2 502 cuentas con código, nombre, categoría, nivel, is_posting |
-| `accounting_periods` | Períodos mensuales por empresa (OPEN / CLOSED) |
-| `journal_entries` | Cabecera de asiento: fecha, descripción, tipo, estado, empresa |
-| `journal_lines` | Líneas: cuenta, débito, crédito, centro de costo |
-| `bank_accounts` | Cuentas bancarias vinculadas a su cuenta PUC (ej. 1110) |
-| `bank_statement_lines` | Líneas del extracto bancario, marcables como conciliadas |
+| **Nómina** | Parafiscales (SENA 2 %, ICBF 3 %, Caja 4 %), aportes salud (8.5 %/4 %) y pensión (12 %/4 %), cesantías, vacaciones. Sin esto no se pueden registrar asientos de nómina. |
+| **Inventarios** | Métodos PEPS/Promedio ponderado, kardex, costeo automático de ventas (Costo de Mercancía Vendida). Obligatorio para empresas comerciales e industriales. |
+| **Declaraciones de impuestos completas** | Solo hay F300 (IVA). Falta F210 (Renta personas jurídicas), F220 (Retención en la fuente anual), F260 (Renta naturales), F490 (ICA por municipio). |
+| **Moneda extranjera** | Sin diferencial cambiario, sin cuentas en USD/EUR. Indispensable para importadores/exportadores. |
+| **Posting rules configurables** | Las reglas de contabilización están hardcodeadas en el mapper de apidian. Deben vivir en base de datos (por tipo de documento, categoría de producto/proveedor). |
+| **Cuentas de orden** | El PUC las incluye (clase 8 y 9) pero el motor las trata igual que cualquier otra. Requieren tratamiento especial (no afectan el balance). |
+| **Sucursales / establecimientos** | El ICA varía por municipio; sin soporte multi-establecimiento no se puede calcular correctamente. |
 
 ---
 
-## 4. Lo que YA está implementado ✅
+## 6. Pendientes en `apidian/internal/integrations/accounting/`
 
-### Motor contable
-- Registro de asientos con validación estricta de partida doble
-- Naturaleza de las 6 clases de cuentas del PUC (Activo, Pasivo, Patrimonio, Ingresos, Gastos, Costos)
-- Mínimo 2 líneas por asiento; exactamente uno de débito o crédito por línea
-- Períodos contables mensuales con bloqueo de escritura al cerrar
-- Tipos de asiento: Manual, Automático, Ajuste, Cierre, Apertura
+El adaptador entre apidian y la librería contable tiene bugs activos y no aprovecha las nuevas funcionalidades. Estado actual: **no compila** contra la versión actual de `accounting/`.
 
-### Cierre y apertura de año
-- `CloseYear` — calcula saldos de P&G del año, genera asiento de cierre que lleva
-  Ingresos/Gastos/Costos a cero y registra la diferencia en **3605 Utilidad del ejercicio**
-  o **3610 Pérdida del ejercicio**; cierra todos los períodos del año automáticamente
-- `OpenYear` — toma el balance general al 31-dic del año anterior y genera el asiento
-  de apertura al 01-ene del año nuevo
+### 6.1 Bug crítico — no compila
 
-### Reportes
-- Balance de comprobación (`TrialBalance`) — suma débitos y créditos por cuenta en un rango
-- Libro mayor (`GeneralLedger`) — movimientos de una cuenta con saldo acumulado
-- Estado de resultados (`IncomeStatement`) — Ingresos − Gastos/Costos = Utilidad neta
-- Balance general (`BalanceSheet`) — Activos = Pasivos + Patrimonio a fecha de corte
-- Reporte por centro de costo (`CostCenterBalance`) — débito/crédito/saldo por CC
+`mapper.go` divide los centavos entre 100 y pasa el resultado `float64` a campos `int64`:
 
-### Conciliación bancaria
-- Registro de cuentas bancarias vinculadas a su cuenta PUC
-- Importación de extractos en lote (`ImportStatementLines`)
-- Cruce línea a línea extracto ↔ asiento (`Reconcile` / `Unreconcile`)
-- Informe de conciliación: saldo extracto, partidas sin cruzar, saldo libros, diferencia
+```go
+// ACTUAL (roto)
+totalCOP := float64(doc.Totals.PayableCents) / 100  // ← float64
+LineRequest{Debit: totalCOP}                         // ← int64: error de tipos
 
----
-
-## 5. Lo que FALTA para uso profesional en Colombia 🔴🟡
-
-### 🔴 Crítico — sin esto no funciona en producción
-
-#### 5.1 Tercero (NIT) en cada línea contable
-En Colombia todo movimiento contable debe estar asociado al NIT del tercero involucrado
-(proveedor, cliente, empleado, banco). Es obligatorio para:
-- **Medios Magnéticos / Información Exógena** (reporte anual a la DIAN por NIT)
-- Conciliación de saldos con clientes y proveedores
-- Libro auxiliar por tercero
-
-**Lo que se necesita:** campo `tercero_nit VARCHAR(20)` en `journal_lines` +
-`GetAuxiliaryByThird(ctx, companyID, accountCode, nit, from, to)` en Reports.
-
----
-
-#### 5.2 Retenciones (Retefuente, Reteiva, Reteica)
-Cualquier pago o abono a un proveedor en Colombia genera retención automática según:
-- **Concepto de retención** (tabla de conceptos con base mínima y tarifa)
-- **Tipo de proveedor** (persona natural vs. jurídica, declarante vs. no declarante)
-- **Monto base** del pago
-
-Sin esto es imposible registrar una compra o pago a proveedor correctamente.
-
-Cuentas involucradas del PUC:
-- `2365` Retefuente por pagar
-- `2367` Reteiva por pagar
-- `2368` Reteica por pagar
-- `1355` Anticipo de impuestos y contribuciones (retención que nos practican)
-
-**Lo que se necesita:** tabla `withholding_concepts` (concepto, base mínima, tarifa,
-tipo de tercero) + lógica `CalculateWithholdings(paymentAmount, conceptCode, vendorType)`.
-
----
-
-#### 5.3 Tipo de dato monetario — `int64` en lugar de `float64`
-El módulo usa `float64` para débitos y créditos. En contabilidad esto es un bug latente:
-`0.1 + 0.2 = 0.30000000000000004` en punto flotante. El parche actual
-(`math.Abs(d-c) > 0.01`) enmascara el problema sin resolverlo.
-
-**Lo que se necesita:** migrar todos los campos monetarios a `int64` (centavos),
-igual que ya lo hace `apidian` con `PayableCents int64`.
-
----
-
-#### 5.4 Número de comprobante consecutivo
-La regulación colombiana exige numeración consecutiva de comprobantes de diario
-(Decreto 2649). Actualmente los asientos solo tienen UUID.
-
-**Lo que se necesita:** secuencia por empresa+año (`comprobante_seq`) +
-campo `consecutive int NOT NULL` en `journal_entries`.
-
----
-
-### 🟡 Importante — necesario para uso real
-
-#### 5.5 Activos fijos y depreciación
-No hay registro de activos fijos ni cálculo automático de depreciación mensual.
-Cuentas: `15xx` (propiedades y equipo), `159505` (depreciación acumulada).
-
-#### 5.6 IVA — descontable vs. generado
-No hay distinción entre IVA descontable (compras) e IVA generado (ventas), ni apoyo
-para generar la declaración bimestral (Formulario 300).
-Cuentas: `2408` IVA por pagar, `2409` IVA régimen común.
-
-#### 5.7 Cartera — aging por tercero
-No hay reporte de cartera vencida (aging) por cliente ni conciliación de saldos
-por proveedor.
-
-#### 5.8 Trazabilidad al documento fuente
-El campo `source string` es solo texto. Debería poder apuntar al UUID del documento
-que originó el asiento (factura, DS, nómina, orden de compra).
-
-#### 5.9 Presupuesto (Budget)
-No hay módulo de presupuesto ni comparación real vs. presupuestado por cuenta/CC.
-
-#### 5.10 NIIF vs. PCGA local
-Colombia migró a NIIF desde 2015–2016. Muchas empresas mantienen dos libros
-(local PCGA + NIIF). El módulo no distingue el marco normativo del asiento.
-
----
-
-## 6. Orden de implementación propuesto
-
-| # | Feature | Prioridad | Impacto |
-|---|---|---|---|
-| 1 | `int64` centavos (migración de tipos) | 🔴 | Base para todo lo demás |
-| 2 | Tercero NIT en líneas + libro auxiliar | 🔴 | Medios magnéticos |
-| 3 | Conceptos de retención + cálculo automático | 🔴 | Compras/pagos reales |
-| 4 | Número de comprobante consecutivo | 🔴 | Cumplimiento Dec. 2649 |
-| 5 | Activos fijos + depreciación automática | 🟡 | Patrimonio correcto |
-| 6 | IVA descontable/generado + Form. 300 | 🟡 | Declaraciones tributarias |
-| 7 | Cartera aging + conciliación por tercero | 🟡 | Gestión de cobro |
-| 8 | Trazabilidad a documento fuente (UUID) | 🟡 | Auditoría completa |
-| 9 | Presupuesto vs. real | 🟢 | Gestión gerencial |
-| 10 | NIIF vs. PCGA (doble libro) | 🟢 | Empresas grandes |
-
----
-
-## 7. Integración con otros módulos del ERP
-
-Una vez que el motor contable esté completo, cada módulo genera asientos automáticos:
-
-```
-Facturación (apidian)  →  Ingresos + Cartera + IVA generado
-Compras / DS           →  Gastos + Proveedores + Retefuente + IVA descontable
-Nómina (payroll)       →  Gastos laborales + Provisiones + Aportes + Retefuente
-Inventario             →  Costo de mercancía + Inventario + Variaciones
-Tesorería              →  Bancos + Caja + Anticipos
+// CORRECTO
+LineRequest{Debit: doc.Totals.PayableCents}          // pasar centavos directo
 ```
 
-El campo `source` de `journal_entries` + `entry_type = AUTOMATIC` es el puente
-entre cada módulo y el motor contable.
+Esto rompió cuando los campos monetarios de `journals.LineRequest` migraron a `int64` centavos. **Requiere corrección inmediata.**
+
+### 6.2 ThirdPartyNIT faltante en las líneas
+
+Las líneas de los asientos generados no incluyen el NIT del cliente (FE) ni del proveedor (DS). Sin eso:
+- `MediosMagneticos` no reporta esos asientos por NIT.
+- `AuxiliaryByThird` no los encuentra.
+- Los asientos quedan incompletos para Información Exógena DIAN.
+
+**Corrección**: leer `doc.Customer.TaxID` (FE) o `doc.Supplier.TaxID` (DS) y asignarlo a `ThirdPartyNIT` en las líneas que tocan la cuenta del tercero (130505 / 220505).
+
+### 6.3 SourceDocumentID / SourceDocumentType no enlazado
+
+Existe desde migración 000013 y `PostRequest` ya lo soporta, pero el mapper no lo envía. Sin él, `core.Journals.GetBySourceDocument(ctx, companyID, docUUID, "FE")` devuelve vacío.
+
+**Corrección**:
+
+```go
+// En fromInvoice:
+SourceDocumentID:   uuid.MustParse(doc.ID),
+SourceDocumentType: journals.SourceFE,
+
+// En fromSupportDocument:
+SourceDocumentID:   uuid.MustParse(doc.ID),
+SourceDocumentType: journals.SourceDS,
+```
+
+### 6.4 Retenciones no calculadas
+
+Si la FE o DS incluyen Retefuente/Reteiva/Reteica, el mapper actual las ignora. El módulo `withholdings` ya tiene toda la lógica; solo falta llamarlo desde el adaptador:
+
+```go
+// Después de construir las líneas base:
+result, err := core.Withholdings.Calculate(ctx, "COMPRAS_GENERALES", withholdings.TypeRetefuente,
+    doc.Totals.LineExtensionCents, withholdings.VendorJuridica, doc.IssueDate.Year())
+if err == nil && result != nil {
+    lines = append(lines,
+        journals.LineRequest{AccountCode: result.AccountReceivable, Debit: result.Amount, ...},
+        journals.LineRequest{AccountCode: result.AccountPayable, Credit: result.Amount, ...},
+    )
+}
+```
+
+### 6.5 VoucherType no asignado
+
+Los asientos de FE y DS deberían tener comprobante consecutivo. El módulo de vouchers está listo; el mapper solo necesita pasar `VoucherType: "FE"` o `"DS"` en el `PostRequest` para que `Service.Post` asigne el número automáticamente.
+
+---
+
+## 7. Integración con los demás módulos del ERP
+
+Cada módulo futuro genera asientos automáticos via `core.Journals.Post()` con el `SourceDocumentType` correspondiente:
+
+```
+apidian (FE/DS)  → SourceFE / SourceDS    → Ingresos, Cartera, IVA, Retenciones
+payroll          → SourceNOM              → Gastos laborales, Parafiscales, Provisiones
+inventory        → SourceINV              → CMV, Inventario, Variaciones de costo
+purchasing       → SourceOC               → Proveedores, Gastos, IVA descontable
+assets           → SourceAF               → PPE, Depreciación acumulada
+```
+
+El campo `book` distingue si el asiento es PCGA, NIIF o ambos — vital para la convergencia NIIF que exige la Superintendencia de Sociedades.
 
 ---
 
 ## 8. Referencias
 
-- `accounting/` — código fuente del módulo
-- `docs/contabilidad-colombia/` — material de investigación base (transcripciones de videos)
-- Decreto 2649 de 1993 — principios de contabilidad generalmente aceptados en Colombia
-- Decreto 2420 de 2015 — adopción de NIIF en Colombia
-- Resolución DIAN — Información Exógena (Medios Magnéticos, actualización anual)
+- `accounting/` — código fuente del módulo contable
+- `apidian/internal/integrations/accounting/` — adaptador apidian ↔ contabilidad
+- Decreto 2649 de 1993 — principios de contabilidad colombianos (PCGA)
+- Decreto 2420 de 2015 — adopción de NIIF en Colombia (Grupo 1, 2 y 3)
+- Resolución DIAN anual — Información Exógena / Medios Magnéticos
+- Art. 145 E.T. — provisión de cartera deducible
