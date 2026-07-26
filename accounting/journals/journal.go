@@ -23,19 +23,21 @@ const (
 
 // JournalEntry es la cabecera de un asiento contable.
 type JournalEntry struct {
-	ID            uuid.UUID
-	CompanyID     uuid.UUID
-	PeriodID      uuid.UUID
-	Date          time.Time
-	Description   string
-	Status        Status
-	Source        string
-	EntryType     EntryType
-	VoucherType   string // código del tipo de comprobante (CE, CI, NC…)
-	VoucherNumber string // número de comprobante formateado (CE-2025-00001)
-	Lines         []*JournalLine
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                 uuid.UUID
+	CompanyID          uuid.UUID
+	PeriodID           uuid.UUID
+	Date               time.Time
+	Description        string
+	Status             Status
+	Source             string
+	EntryType          EntryType
+	VoucherType        string    // código del tipo de comprobante (CE, CI, NC…)
+	VoucherNumber      string    // número de comprobante formateado (CE-2025-00001)
+	SourceDocumentID   uuid.UUID // UUID del documento que originó el asiento (uuid.Nil si ninguno)
+	SourceDocumentType string    // discriminador: "FE", "DS", "NC", "NOM", etc.
+	Lines              []*JournalLine
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // JournalLine es una línea del asiento — exactamente uno de Debit o Credit > 0.
@@ -58,13 +60,15 @@ type JournalLine struct {
 
 // PostRequest contiene los datos necesarios para registrar un asiento nuevo.
 type PostRequest struct {
-	CompanyID   uuid.UUID
-	Date        time.Time
-	Description string
-	Source      string
-	EntryType   EntryType
-	VoucherType string // opcional: si se indica, se asigna el siguiente número consecutivo
-	Lines       []LineRequest
+	CompanyID          uuid.UUID
+	Date               time.Time
+	Description        string
+	Source             string
+	EntryType          EntryType
+	VoucherType        string    // opcional: si se indica, se asigna el siguiente número consecutivo
+	SourceDocumentID   uuid.UUID // UUID del documento fuente (FE, DS, NC…); uuid.Nil si no aplica
+	SourceDocumentType string    // discriminador del tipo de documento fuente
+	Lines              []LineRequest
 }
 
 // LineRequest referencia la cuenta por código para que el servicio resuelva el UUID.

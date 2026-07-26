@@ -85,14 +85,16 @@ func (s *Service) Post(ctx context.Context, req PostRequest) (*JournalEntry, err
 	}
 
 	entry := JournalEntry{
-		CompanyID:   req.CompanyID,
-		PeriodID:    period.ID,
-		Date:        req.Date,
-		Description: req.Description,
-		Status:      StatusPosted,
-		Source:      source,
-		EntryType:   entryType,
-		Lines:       resolvedLines,
+		CompanyID:          req.CompanyID,
+		PeriodID:           period.ID,
+		Date:               req.Date,
+		Description:        req.Description,
+		Status:             StatusPosted,
+		Source:             source,
+		EntryType:          entryType,
+		SourceDocumentID:   req.SourceDocumentID,
+		SourceDocumentType: req.SourceDocumentType,
+		Lines:              resolvedLines,
 	}
 
 	if req.VoucherType != "" {
@@ -147,4 +149,10 @@ func (s *Service) RegisterVoucherType(ctx context.Context, cfg VoucherTypeConfig
 // ListVoucherTypes devuelve los tipos de comprobante activos de una empresa.
 func (s *Service) ListVoucherTypes(ctx context.Context, companyID uuid.UUID) ([]*VoucherTypeConfig, error) {
 	return s.repo.ListVoucherTypes(ctx, companyID)
+}
+
+// GetBySourceDocument devuelve los asientos originados por un documento específico.
+// Útil para auditoría: dado el UUID de una FE o DS, listar todos sus asientos contables.
+func (s *Service) GetBySourceDocument(ctx context.Context, companyID, sourceDocID uuid.UUID, sourceDocType string) ([]*JournalEntry, error) {
+	return s.repo.GetBySourceDocument(ctx, companyID, sourceDocID, sourceDocType)
 }

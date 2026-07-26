@@ -32,6 +32,10 @@ type Repository interface {
 	// hasta la fecha indicada. Solo incluye cuentas con saldo distinto de cero.
 	GetBSBalances(ctx context.Context, companyID uuid.UUID, asOf time.Time) ([]PLBalance, error)
 
+	// GetBySourceDocument devuelve todos los asientos (sin líneas) originados por un
+	// documento específico. Útil para auditoría: dado un UUID de factura, listar asientos.
+	GetBySourceDocument(ctx context.Context, companyID, sourceDocID uuid.UUID, sourceDocType string) ([]*JournalEntry, error)
+
 	// NextVoucherSeq incrementa atómicamente el contador para (companyID, code, year)
 	// y devuelve el nuevo valor. Crea la fila del contador si no existe aún.
 	NextVoucherSeq(ctx context.Context, companyID uuid.UUID, code string, year int) (int, error)

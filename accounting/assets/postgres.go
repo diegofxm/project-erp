@@ -35,9 +35,10 @@ func (r *PostgresRepository) Create(ctx context.Context, asset FixedAsset) (*Fix
 			 gain_account, loss_account,
 			 acquisition_date, acquisition_cost, salvage_value,
 			 useful_life_months, depreciation_method, status,
-			 third_party_nit, created_at, updated_at)
+			 third_party_nit, source_document_id, source_document_type,
+			 created_at, updated_at)
 		VALUES
-			($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+			($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
 		asset.ID, asset.CompanyID, asset.Code, asset.Name,
 		nullableString(asset.Description),
 		asset.AssetAccount, asset.DepreciationAccount, asset.AccumulatedAccount,
@@ -45,6 +46,7 @@ func (r *PostgresRepository) Create(ctx context.Context, asset FixedAsset) (*Fix
 		asset.AcquisitionDate.UTC(), asset.AcquisitionCost, asset.SalvageValue,
 		asset.UsefulLifeMonths, string(asset.DepreciationMethod), string(asset.Status),
 		nullableString(asset.ThirdPartyNIT),
+		nullableUUID(asset.SourceDocumentID), nullableString(asset.SourceDocumentType),
 		asset.CreatedAt, asset.UpdatedAt,
 	)
 	if err != nil {
@@ -60,7 +62,8 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*FixedA
 		       gain_account, loss_account,
 		       acquisition_date, acquisition_cost, salvage_value,
 		       useful_life_months, depreciation_method, status,
-		       third_party_nit, created_at, updated_at
+		       third_party_nit, source_document_id, source_document_type,
+		       created_at, updated_at
 		FROM accounting.fixed_assets WHERE id = $1`, id)
 	return scanAsset(row)
 }
@@ -72,7 +75,8 @@ func (r *PostgresRepository) ListByCompany(ctx context.Context, companyID uuid.U
 		       gain_account, loss_account,
 		       acquisition_date, acquisition_cost, salvage_value,
 		       useful_life_months, depreciation_method, status,
-		       third_party_nit, created_at, updated_at
+		       third_party_nit, source_document_id, source_document_type,
+		       created_at, updated_at
 		FROM accounting.fixed_assets
 		WHERE company_id = $1`
 	if activeOnly {
@@ -210,14 +214,16 @@ type scannable interface {
 
 func scanAsset(row scannable) (*FixedAsset, error) {
 	var a FixedAsset
-	var description, thirdPartyNIT *string
+	var description, thirdPartyNIT, sourceDocType *string
+	var sourceDocID *uuid.UUID
 	err := row.Scan(
 		&a.ID, &a.CompanyID, &a.Code, &a.Name, &description,
 		&a.AssetAccount, &a.DepreciationAccount, &a.AccumulatedAccount,
 		&a.GainAccount, &a.LossAccount,
 		&a.AcquisitionDate, &a.AcquisitionCost, &a.SalvageValue,
 		&a.UsefulLifeMonths, &a.DepreciationMethod, &a.Status,
-		&thirdPartyNIT, &a.CreatedAt, &a.UpdatedAt,
+		&thirdPartyNIT, &sourceDocID, &sourceDocType,
+		&a.CreatedAt, &a.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrAssetNotFound
@@ -231,6 +237,12 @@ func scanAsset(row scannable) (*FixedAsset, error) {
 	if thirdPartyNIT != nil {
 		a.ThirdPartyNIT = *thirdPartyNIT
 	}
+	if sourceDocID != nil {
+		a.SourceDocumentID = *sourceDocID
+	}
+	if sourceDocType != nil {
+		a.SourceDocumentType = *sourceDocType
+	}
 	return &a, nil
 }
 
@@ -239,4 +251,11 @@ func nullableString(s string) any {
 		return nil
 	}
 	return s
+}
+
+func nullableUUID(id uuid.UUID) any {
+	if id == uuid.Nil {
+		return nil
+	}
+	return id
 }

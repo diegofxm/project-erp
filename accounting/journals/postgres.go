@@ -37,11 +37,13 @@ func (r *PostgresRepository) Create(ctx context.Context, entry JournalEntry) (*J
 	_, err = tx.Exec(ctx, `
 		INSERT INTO accounting.journal_entries
 			(id, company_id, period_id, date, description, status, source, entry_type,
-			 voucher_type, voucher_number, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+			 voucher_type, voucher_number, source_document_id, source_document_type,
+			 created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
 		entry.ID, entry.CompanyID, entry.PeriodID, entry.Date.UTC(),
 		entry.Description, entry.Status, entry.Source, entry.EntryType,
 		nullableString(entry.VoucherType), nullableString(entry.VoucherNumber),
+		nullableUUID(entry.SourceDocumentID), nullableString(entry.SourceDocumentType),
 		entry.CreatedAt, entry.UpdatedAt,
 	)
 	if err != nil {
@@ -80,15 +82,17 @@ func (r *PostgresRepository) Create(ctx context.Context, entry JournalEntry) (*J
 func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*JournalEntry, error) {
 	row := r.pool.QueryRow(ctx, `
 		SELECT id, company_id, period_id, date, description, status, source, entry_type,
-		       voucher_type, voucher_number, created_at, updated_at
+		       voucher_type, voucher_number, source_document_id, source_document_type,
+		       created_at, updated_at
 		FROM accounting.journal_entries WHERE id = $1`, id)
 
 	var e JournalEntry
-	var voucherType, voucherNumber *string
+	var voucherType, voucherNumber, sourceDocType *string
+	var sourceDocID *uuid.UUID
 	err := row.Scan(
 		&e.ID, &e.CompanyID, &e.PeriodID, &e.Date,
 		&e.Description, &e.Status, &e.Source, &e.EntryType,
-		&voucherType, &voucherNumber,
+		&voucherType, &voucherNumber, &sourceDocID, &sourceDocType,
 		&e.CreatedAt, &e.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -102,6 +106,12 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Journa
 	}
 	if voucherNumber != nil {
 		e.VoucherNumber = *voucherNumber
+	}
+	if sourceDocID != nil {
+		e.SourceDocumentID = *sourceDocID
+	}
+	if sourceDocType != nil {
+		e.SourceDocumentType = *sourceDocType
 	}
 
 	lines, err := r.loadLines(ctx, id)
@@ -169,7 +179,8 @@ func (r *PostgresRepository) Void(ctx context.Context, id uuid.UUID) error {
 func (r *PostgresRepository) ListByCompany(ctx context.Context, companyID uuid.UUID, limit, offset int) ([]*JournalEntry, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, company_id, period_id, date, description, status, source, entry_type,
-		       voucher_type, voucher_number, created_at, updated_at
+		       voucher_type, voucher_number, source_document_id, source_document_type,
+		       created_at, updated_at
 		FROM accounting.journal_entries
 		WHERE company_id = $1
 		ORDER BY date DESC, created_at DESC
@@ -184,11 +195,12 @@ func (r *PostgresRepository) ListByCompany(ctx context.Context, companyID uuid.U
 	var out []*JournalEntry
 	for rows.Next() {
 		var e JournalEntry
-		var voucherType, voucherNumber *string
+		var voucherType, voucherNumber, sourceDocType *string
+		var sourceDocID *uuid.UUID
 		if err := rows.Scan(
 			&e.ID, &e.CompanyID, &e.PeriodID, &e.Date,
 			&e.Description, &e.Status, &e.Source, &e.EntryType,
-			&voucherType, &voucherNumber,
+			&voucherType, &voucherNumber, &sourceDocID, &sourceDocType,
 			&e.CreatedAt, &e.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan journal: %w", err)
@@ -198,6 +210,59 @@ func (r *PostgresRepository) ListByCompany(ctx context.Context, companyID uuid.U
 		}
 		if voucherNumber != nil {
 			e.VoucherNumber = *voucherNumber
+		}
+		if sourceDocID != nil {
+			e.SourceDocumentID = *sourceDocID
+		}
+		if sourceDocType != nil {
+			e.SourceDocumentType = *sourceDocType
+		}
+		out = append(out, &e)
+	}
+	return out, rows.Err()
+}
+
+func (r *PostgresRepository) GetBySourceDocument(ctx context.Context, companyID, sourceDocID uuid.UUID, sourceDocType string) ([]*JournalEntry, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, company_id, period_id, date, description, status, source, entry_type,
+		       voucher_type, voucher_number, source_document_id, source_document_type,
+		       created_at, updated_at
+		FROM accounting.journal_entries
+		WHERE company_id = $1
+		  AND source_document_id = $2
+		  AND source_document_type = $3
+		ORDER BY date ASC, created_at ASC`,
+		companyID, sourceDocID, sourceDocType,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get by source document: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*JournalEntry
+	for rows.Next() {
+		var e JournalEntry
+		var voucherType, voucherNumber, sourceDocTypeCol *string
+		var sourceDocIDCol *uuid.UUID
+		if err := rows.Scan(
+			&e.ID, &e.CompanyID, &e.PeriodID, &e.Date,
+			&e.Description, &e.Status, &e.Source, &e.EntryType,
+			&voucherType, &voucherNumber, &sourceDocIDCol, &sourceDocTypeCol,
+			&e.CreatedAt, &e.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan journal by source doc: %w", err)
+		}
+		if voucherType != nil {
+			e.VoucherType = *voucherType
+		}
+		if voucherNumber != nil {
+			e.VoucherNumber = *voucherNumber
+		}
+		if sourceDocIDCol != nil {
+			e.SourceDocumentID = *sourceDocIDCol
+		}
+		if sourceDocTypeCol != nil {
+			e.SourceDocumentType = *sourceDocTypeCol
 		}
 		out = append(out, &e)
 	}
@@ -345,4 +410,11 @@ func nullableString(s string) any {
 		return nil
 	}
 	return s
+}
+
+func nullableUUID(id uuid.UUID) any {
+	if id == uuid.Nil {
+		return nil
+	}
+	return id
 }

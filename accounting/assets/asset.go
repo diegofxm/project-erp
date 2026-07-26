@@ -42,7 +42,9 @@ type FixedAsset struct {
 	UsefulLifeMonths    int
 	DepreciationMethod  DepreciationMethod
 	Status              AssetStatus
-	ThirdPartyNIT       string // NIT del proveedor del activo
+	ThirdPartyNIT       string    // NIT del proveedor del activo
+	SourceDocumentID    uuid.UUID // UUID del DS/FE de compra que originó el activo; uuid.Nil si ninguno
+	SourceDocumentType  string    // discriminador: "FE", "DS", etc.
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 }
