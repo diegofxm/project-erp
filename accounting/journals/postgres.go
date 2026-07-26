@@ -180,6 +180,70 @@ func (r *PostgresRepository) ListByCompany(ctx context.Context, companyID uuid.U
 	return out, rows.Err()
 }
 
+func (r *PostgresRepository) GetYearPLBalances(ctx context.Context, companyID uuid.UUID, year int) ([]PLBalance, error) {
+	from := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(year, 12, 31, 23, 59, 59, 999999999, time.UTC)
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT a.id, a.code, a.name, a.category,
+		       COALESCE(SUM(jl.debit) - SUM(jl.credit), 0) AS balance
+		FROM accounting.accounts a
+		JOIN accounting.journal_lines jl ON jl.account_id = a.id
+		JOIN accounting.journal_entries je ON je.id = jl.journal_id
+		WHERE je.company_id = $1
+		  AND je.status     = 'POSTED'
+		  AND je.date      >= $2
+		  AND je.date      <= $3
+		  AND a.category   IN ('Ingresos', 'Gastos', 'Costos', 'Costo de Producción')
+		GROUP BY a.id, a.code, a.name, a.category
+		HAVING COALESCE(SUM(jl.debit) - SUM(jl.credit), 0) != 0
+		ORDER BY a.code`,
+		companyID, from, to,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("year pl balances: %w", err)
+	}
+	defer rows.Close()
+
+	return scanPLBalances(rows)
+}
+
+func (r *PostgresRepository) GetBSBalances(ctx context.Context, companyID uuid.UUID, asOf time.Time) ([]PLBalance, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT a.id, a.code, a.name, a.category,
+		       COALESCE(SUM(jl.debit) - SUM(jl.credit), 0) AS balance
+		FROM accounting.accounts a
+		JOIN accounting.journal_lines jl ON jl.account_id = a.id
+		JOIN accounting.journal_entries je ON je.id = jl.journal_id
+		WHERE je.company_id = $1
+		  AND je.status     = 'POSTED'
+		  AND je.date      <= $2
+		  AND a.category   IN ('Activo', 'Pasivo', 'Patrimonio')
+		GROUP BY a.id, a.code, a.name, a.category
+		HAVING COALESCE(SUM(jl.debit) - SUM(jl.credit), 0) != 0
+		ORDER BY a.code`,
+		companyID, asOf.UTC(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("bs balances: %w", err)
+	}
+	defer rows.Close()
+
+	return scanPLBalances(rows)
+}
+
+func scanPLBalances(rows pgx.Rows) ([]PLBalance, error) {
+	var out []PLBalance
+	for rows.Next() {
+		var b PLBalance
+		if err := rows.Scan(&b.AccountID, &b.AccountCode, &b.AccountName, &b.Category, &b.Balance); err != nil {
+			return nil, fmt.Errorf("scan pl balance: %w", err)
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
 func nullableString(s string) any {
 	if s == "" {
 		return nil

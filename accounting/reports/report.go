@@ -44,9 +44,23 @@ type BalanceSheetRow struct {
 
 // BalanceSheet agrupa activos, pasivos y patrimonio.
 type BalanceSheet struct {
-	Assets      []BalanceSheetRow
-	Liabilities []BalanceSheetRow
-	Equity      []BalanceSheetRow
-	TotalAssets float64
+	Assets                    []BalanceSheetRow
+	Liabilities               []BalanceSheetRow
+	Equity                    []BalanceSheetRow
+	TotalAssets               float64
 	TotalLiabilitiesAndEquity float64
+}
+
+// CostCenterRow es una fila del reporte por centro de costo.
+type CostCenterRow struct {
+	CostCenter  string
+	TotalDebit  float64
+	TotalCredit float64
+	Balance     float64 // debit - credit
+}
+
+// CostCenterReport agrupa las filas y el balance neto.
+type CostCenterReport struct {
+	Rows    []*CostCenterRow
+	NetDebt float64 // suma de balance positivo (gastos netos por centro)
 }

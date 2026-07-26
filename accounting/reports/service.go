@@ -142,6 +142,48 @@ func (s *Service) IncomeStatement(ctx context.Context, companyID uuid.UUID, from
 	return is, nil
 }
 
+// CostCenterBalance devuelve el movimiento débito/crédito por centro de costo en un rango de fechas.
+// Solo incluye líneas que tengan cost_center no nulo.
+func (s *Service) CostCenterBalance(ctx context.Context, companyID uuid.UUID, from, to time.Time) (*CostCenterReport, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT
+			jl.cost_center,
+			COALESCE(SUM(jl.debit), 0)           AS total_debit,
+			COALESCE(SUM(jl.credit), 0)           AS total_credit,
+			COALESCE(SUM(jl.debit) - SUM(jl.credit), 0) AS balance
+		FROM accounting.journal_lines jl
+		JOIN accounting.journal_entries je ON je.id = jl.journal_id
+		WHERE je.company_id = $1
+		  AND je.status    = 'POSTED'
+		  AND je.date     >= $2
+		  AND je.date     <= $3
+		  AND jl.cost_center IS NOT NULL
+		GROUP BY jl.cost_center
+		ORDER BY jl.cost_center`,
+		companyID, from.UTC(), to.UTC(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cost center balance: %w", err)
+	}
+	defer rows.Close()
+
+	report := &CostCenterReport{}
+	for rows.Next() {
+		var r CostCenterRow
+		if err := rows.Scan(&r.CostCenter, &r.TotalDebit, &r.TotalCredit, &r.Balance); err != nil {
+			return nil, fmt.Errorf("scan cost center: %w", err)
+		}
+		if r.Balance > 0 {
+			report.NetDebt += r.Balance
+		}
+		report.Rows = append(report.Rows, &r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return report, nil
+}
+
 // BalanceSheet devuelve el balance general a una fecha de corte.
 func (s *Service) BalanceSheet(ctx context.Context, companyID uuid.UUID, asOf time.Time) (*BalanceSheet, error) {
 	rows, err := s.pool.Query(ctx, `

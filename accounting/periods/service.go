@@ -55,3 +55,9 @@ func (s *Service) Close(ctx context.Context, id uuid.UUID) error {
 	}
 	return s.repo.Close(ctx, id)
 }
+
+// CloseYear cierra todos los periodos abiertos de un año para una empresa.
+// Llamado como paso final del cierre contable anual, después de registrar el asiento de cierre.
+func (s *Service) CloseYear(ctx context.Context, companyID uuid.UUID, year int) error {
+	return s.repo.CloseAllForYear(ctx, companyID, year)
+}

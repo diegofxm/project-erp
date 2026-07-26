@@ -95,6 +95,20 @@ func (r *PostgresRepository) Close(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (r *PostgresRepository) CloseAllForYear(ctx context.Context, companyID uuid.UUID, year int) error {
+	now := time.Now().UTC()
+	_, err := r.pool.Exec(ctx, `
+		UPDATE accounting.accounting_periods
+		SET status = $1, closed_at = $2, updated_at = $3
+		WHERE company_id = $4 AND year = $5 AND status = 'OPEN'`,
+		StatusClosed, now, now, companyID, year,
+	)
+	if err != nil {
+		return fmt.Errorf("close all periods for year: %w", err)
+	}
+	return nil
+}
+
 func scanPeriod(row pgx.Row) (*AccountingPeriod, error) {
 	var p AccountingPeriod
 	var closedAt *time.Time
