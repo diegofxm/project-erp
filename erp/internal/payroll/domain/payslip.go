@@ -1,8 +1,5 @@
 // Package payroll gestiona el ciclo completo de nómina colombiana.
-// Ver _legacy/payroll/ para la implementación de referencia:
-//   - Calculator: función pura (sin DB) que aplica la ley laboral colombiana
-//   - Conceptos: SALARIO, AUX_TRANSPORTE, SALUD_EMP, PENSION_EMP, SALUD_EMPL,
-//     PENSION_EMPL, ARL (por clase de riesgo I-V), CAJA (4%), SENA (2%), ICBF (3%)
+// Ver _legacy/payroll/ para la implementación de referencia.
 package domain
 
 import (
@@ -11,63 +8,58 @@ import (
 	"github.com/google/uuid"
 )
 
-type ContractType string
-
-const (
-	ContractFijo       ContractType = "fijo"
-	ContractIndefinido ContractType = "indefinido"
-	ContractObra       ContractType = "obra"
-	ContractServicios  ContractType = "servicios"
-)
-
-type SalaryType string
-
-const (
-	SalaryOrdinary SalaryType = "ordinary"
-	SalaryIntegral SalaryType = "integral"
-)
-
-type WorkRiskClass string
-
-const (
-	RiskClassI   WorkRiskClass = "I"
-	RiskClassII  WorkRiskClass = "II"
-	RiskClassIII WorkRiskClass = "III"
-	RiskClassIV  WorkRiskClass = "IV"
-	RiskClassV   WorkRiskClass = "V"
-)
-
-type Payslip struct {
-	ID         uuid.UUID
-	CompanyID  uuid.UUID
-	EmployeeID uuid.UUID
-	Period     string // "2026-01"
-
-	WorkedDays  int
-	SalaryCents int64
-
-	TotalEarnedCents   int64
-	TotalDeductedCents int64
-	NetPayCents        int64
-
-	Lines  []PayslipLine
-	Status string // "draft", "approved", "paid", "voided"
-
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
 type ConceptType string
 
 const (
-	ConceptEarned              ConceptType = "earned"
-	ConceptDeduction           ConceptType = "deduction"
+	ConceptEarned               ConceptType = "earned"
+	ConceptDeduction            ConceptType = "deduction"
 	ConceptEmployerContribution ConceptType = "employer_contribution"
 )
 
+type PayslipStatus string
+
+const (
+	PayslipDraft    PayslipStatus = "draft"
+	PayslipApproved PayslipStatus = "approved"
+	PayslipPaid     PayslipStatus = "paid"
+	PayslipVoided   PayslipStatus = "voided"
+)
+
 type PayslipLine struct {
+	ID          uuid.UUID
+	PayslipID   uuid.UUID
 	ConceptCode string
 	ConceptName string
 	ConceptType ConceptType
+	Quantity    float64
 	AmountCents int64
+	CreatedAt   time.Time
+}
+
+type Payslip struct {
+	ID                 uuid.UUID
+	CompanyID          uuid.UUID
+	EmployeeID         uuid.UUID
+	ContractID         uuid.UUID
+	PeriodYear         int
+	PeriodMonth        int
+	WorkedDays         int
+	Status             PayslipStatus
+	TotalEarnedCents   int64
+	TotalDeductedCents int64
+	NetPayCents        int64
+	JournalID          *uuid.UUID
+	PaidAt             *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Lines              []*PayslipLine
+}
+
+type CreatePayslipInput struct {
+	CompanyID   uuid.UUID
+	EmployeeID  uuid.UUID
+	ContractID  uuid.UUID
+	PeriodYear  int
+	PeriodMonth int
+	WorkedDays  int
 }

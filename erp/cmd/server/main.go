@@ -37,6 +37,10 @@ import (
 	electroniccompany "github.com/diegofxm/erp/internal/electronic/infrastructure/company"
 	electronicpostgres "github.com/diegofxm/erp/internal/electronic/infrastructure/persistence/postgres"
 	electronichttp "github.com/diegofxm/erp/internal/electronic/interfaces/http"
+	payrollapp "github.com/diegofxm/erp/internal/payroll/application"
+	payrollpostgres "github.com/diegofxm/erp/internal/payroll/infrastructure/persistence/postgres"
+	payrollseed "github.com/diegofxm/erp/internal/payroll/infrastructure/persistence/postgres/seed"
+	payrollhttp "github.com/diegofxm/erp/internal/payroll/interfaces/http"
 	salesapp "github.com/diegofxm/erp/internal/sales/application"
 	salespostgres "github.com/diegofxm/erp/internal/sales/infrastructure/persistence/postgres"
 	saleshttp "github.com/diegofxm/erp/internal/sales/interfaces/http"
@@ -79,6 +83,7 @@ func main() {
 	mustMigrate("sales", salespostgres.Migrate(databaseURL))
 	mustMigrate("accounting", accountingpostgres.Migrate(databaseURL))
 	mustMigrate("electronic", electronicpostgres.Migrate(databaseURL))
+	mustMigrate("payroll", payrollpostgres.Migrate(databaseURL))
 
 	// ── Bus de eventos ──────────────────────────────────────────────────────────
 	bus := events.NewBus()
@@ -90,6 +95,9 @@ func main() {
 	}
 	if err := accountingseed.All(context.Background(), pool); err != nil {
 		log.Fatalf("seed accounting: %v", err)
+	}
+	if err := payrollseed.All(context.Background(), pool); err != nil {
+		log.Fatalf("seed payroll: %v", err)
 	}
 
 	// ── JWT ──────────────────────────────────────────────────────────────────────
@@ -153,6 +161,16 @@ func main() {
 	electronicListUC        := electronicapp.NewListDocumentsUseCase(electronicDocRepo)
 	electronicNumberingUC   := electronicapp.NewManageNumberingUseCase(electronicNumRepo)
 
+	// ── Repositorios — payroll ──────────────────────────────────────────────────
+	payrollEmpRepo      := payrollpostgres.NewEmployeeRepository(pool)
+	payrollContractRepo := payrollpostgres.NewContractRepository(pool)
+	payrollPayslipRepo  := payrollpostgres.NewPayslipRepository(pool)
+
+	// ── Casos de uso — payroll ──────────────────────────────────────────────────
+	payrollEmpUC      := payrollapp.NewEmployeeUseCase(payrollEmpRepo)
+	payrollContractUC := payrollapp.NewContractUseCase(payrollContractRepo, payrollEmpRepo)
+	payrollPayslipUC  := payrollapp.NewPayslipUseCase(payrollPayslipRepo, payrollContractRepo, payrollEmpRepo)
+
 	// ── Casos de uso — inventory ────────────────────────────────────────────────
 	moveInventoryUC := inventoryapp.NewMoveUseCase(inventoryRepo)
 	getInventoryUC  := inventoryapp.NewGetUseCase(inventoryRepo)
@@ -203,6 +221,7 @@ func main() {
 	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC).RegisterRoutes(mux)
 	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo).RegisterRoutes(mux)
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC).RegisterRoutes(mux)
+	payrollhttp.NewHandler(payrollEmpUC, payrollContractUC, payrollPayslipUC).RegisterRoutes(mux)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
