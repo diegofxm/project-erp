@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS accounting.bank_statement_lines;
+DROP TABLE IF EXISTS accounting.bank_accounts;
+DROP TABLE IF EXISTS accounting.voucher_counters;
+DROP TABLE IF EXISTS accounting.voucher_types;
+DROP TABLE IF EXISTS accounting.journal_lines;
+DROP TABLE IF EXISTS accounting.journal_entries;
+DROP TABLE IF EXISTS accounting.accounting_periods;
+DROP TABLE IF EXISTS accounting.accounts;
+DROP SCHEMA IF EXISTS accounting;

@@ -104,5 +104,8 @@ func (c *Core) Seed(ctx context.Context) error {
 	if err := seed.WithholdingConcepts(ctx, c.pool); err != nil {
 		return err
 	}
-	return seed.UVT(ctx, c.pool)
+	if err := seed.UVT(ctx, c.pool); err != nil {
+		return err
+	}
+	return seed.IncomeTaxRates(ctx, c.pool)
 }

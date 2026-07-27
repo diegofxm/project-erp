@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-//go:embed accounts.csv withholding_concepts.csv uvt.csv
+//go:embed accounts.csv withholding_concepts.csv uvt.csv income_tax_rates.csv
 var seedFS embed.FS
 
 // Accounts carga el PUC completo en accounting.accounts en un único bulk upsert.
@@ -231,6 +231,58 @@ func UVT(ctx context.Context, pool *pgxpool.Pool) error {
 	)
 	if err != nil {
 		return fmt.Errorf("seed uvt: bulk upsert: %w", err)
+	}
+	return nil
+}
+
+// IncomeTaxRates carga las tasas históricas de renta (F210).
+// Son datos normativos de ley — se actualizan aquí cuando la DIAN publica una nueva tasa.
+// Es idempotente: ON CONFLICT (year) DO UPDATE.
+func IncomeTaxRates(ctx context.Context, pool *pgxpool.Pool) error {
+	f, err := seedFS.Open("income_tax_rates.csv")
+	if err != nil {
+		return fmt.Errorf("seed income_tax_rates: open csv: %w", err)
+	}
+	defer f.Close()
+
+	r := csv.NewReader(f)
+	r.FieldsPerRecord = -1
+	if _, err := r.Read(); err != nil {
+		return fmt.Errorf("seed income_tax_rates: read header: %w", err)
+	}
+
+	var years []int32
+	var ratesBP []int32
+
+	for {
+		rec, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("seed income_tax_rates: read row: %w", err)
+		}
+		if len(rec) < 2 {
+			continue
+		}
+		year, _ := strconv.Atoi(rec[0])
+		rateBP, _ := strconv.Atoi(rec[1])
+		years = append(years, int32(year))
+		ratesBP = append(ratesBP, int32(rateBP))
+	}
+
+	if len(years) == 0 {
+		return nil
+	}
+
+	_, err = pool.Exec(ctx, `
+		INSERT INTO accounting.income_tax_rates (year, rate_bp)
+		SELECT UNNEST($1::int[]), UNNEST($2::int[])
+		ON CONFLICT (year) DO UPDATE SET rate_bp = EXCLUDED.rate_bp`,
+		years, ratesBP,
+	)
+	if err != nil {
+		return fmt.Errorf("seed income_tax_rates: bulk upsert: %w", err)
 	}
 	return nil
 }

@@ -33,6 +33,7 @@ CREATE TABLE edocuments.documents (
     customer_id                 UUID        REFERENCES edocuments.customers(id) ON DELETE SET NULL,
     vendor                      JSONB,
     vendor_id                   UUID        REFERENCES edocuments.vendors(id)   ON DELETE SET NULL,
+    operation_type_code         VARCHAR(2),
     lines                       JSONB       NOT NULL,
     payment_means               JSONB       NOT NULL DEFAULT '[]',
     withholding_taxes           JSONB,
