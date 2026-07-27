@@ -7,10 +7,13 @@
 /go.work
 /go.work.sum
 
-# Credenciales y configuración local de apidian
+# Credenciales y configuración local
 apidian/.env
 apidian/.env.*
 !apidian/.env.example
+erp/.env
+erp/.env.*
+!erp/.env.example
 
 # Binarios compilados
 apidian.exe

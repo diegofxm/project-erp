@@ -1,0 +1,12 @@
+code,name,description
+11,Registro Civil,Documento de identidad para menores sin Tarjeta de Identidad
+12,Tarjeta de Identidad,Documento de identidad para menores de edad
+13,Cédula de Ciudadanía,Documento de identidad para personas naturales colombianas
+21,Tarjeta de Extranjería,Documento de identidad para extranjeros residentes (temporal)
+22,Cédula de Extranjería,Documento de identidad para extranjeros residentes
+31,NIT,Número de Identificación Tributaria - documento de identificación tributaria para empresas
+41,Pasaporte,Documento de identidad internacional
+42,Documento de Identificación Extranjero,Para extranjeros sin los documentos anteriores
+47,NIT de otro país,NIT emitido por otro país
+50,NIT de la DIAN,Casos especiales asignados directamente por la DIAN
+91,NUIP,Número Único de Identificación Personal
