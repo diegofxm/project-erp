@@ -116,7 +116,7 @@ func (r *PostgresRepository) Assign(ctx context.Context, issuerID, planID uuid.U
 func (r *PostgresRepository) CountDocumentsThisMonth(ctx context.Context, issuerID uuid.UUID) (int, error) {
 	var count int
 	err := r.pool.QueryRow(ctx, `
-		SELECT COUNT(*) FROM documents
+		SELECT COUNT(*) FROM edocuments.documents
 		WHERE issuer_id = $1
 		  AND status NOT IN ('draft', 'rejected', 'send_error')
 		  AND DATE_TRUNC('month', issue_date) = DATE_TRUNC('month', CURRENT_DATE)

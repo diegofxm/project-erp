@@ -323,7 +323,7 @@ func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUI
 				billing_reference->>'number'  AS ref_number,
 				SUM(CASE WHEN dian_document_type_code = '91' THEN 1 ELSE 0 END)::int AS nc_count,
 				SUM(CASE WHEN dian_document_type_code = '92' THEN 1 ELSE 0 END)::int AS nd_count
-			FROM documents
+			FROM edocuments.documents
 			WHERE issuer_id = $1 AND billing_reference IS NOT NULL
 			GROUP BY ref_prefix, ref_number`, issuerID)
 		if err == nil {
@@ -609,7 +609,7 @@ func (r *PostgresRepository) GetBillingStats(ctx context.Context, issuerID uuid.
 			COUNT(*) FILTER (
 				WHERE issue_date >= date_trunc('year', now() AT TIME ZONE 'America/Bogota')::date
 				  AND status = 'accepted')
-		FROM documents
+		FROM edocuments.documents
 		WHERE issuer_id = $1`,
 		issuerID,
 	).Scan(
@@ -636,7 +636,7 @@ func (r *PostgresRepository) GetBillingStats(ctx context.Context, issuerID uuid.
 			dian_document_type_code,
 			COUNT(*) FILTER (WHERE status != 'draft'),
 			COALESCE(SUM(totals_payable_cents) FILTER (WHERE status = 'accepted'), 0)
-		FROM documents
+		FROM edocuments.documents
 		WHERE issuer_id = $1
 		  AND issue_date >= date_trunc('month', now() AT TIME ZONE 'America/Bogota')::date
 		GROUP BY dian_document_type_code
@@ -680,7 +680,7 @@ func (r *PostgresRepository) GetBillingStats(ctx context.Context, issuerID uuid.
 			COUNT(*) FILTER (WHERE status != 'draft'),
 			COUNT(*) FILTER (WHERE status = 'accepted'),
 			COALESCE(SUM(totals_payable_cents) FILTER (WHERE status = 'accepted'), 0)
-		FROM documents
+		FROM edocuments.documents
 		WHERE issuer_id = $1
 		  AND issue_date >= (date_trunc('month', now() AT TIME ZONE 'America/Bogota') - INTERVAL '11 months')::date
 		  AND status != 'draft'
@@ -717,7 +717,7 @@ func (r *PostgresRepository) GetRelatedNotes(ctx context.Context, issuerID uuid.
 		SELECT id, dian_document_type_code,
 		       COALESCE(prefix, ''), COALESCE(number, 0),
 		       totals_payable_cents, status, issue_date
-		FROM documents
+		FROM edocuments.documents
 		WHERE issuer_id = $1
 		  AND billing_reference->>'prefix' = $2
 		  AND billing_reference->>'number' = $3
