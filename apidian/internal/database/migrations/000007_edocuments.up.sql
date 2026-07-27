@@ -71,14 +71,14 @@ CREATE TABLE edocuments.vendors (
 CREATE INDEX idx_vendors_issuer ON edocuments.vendors(issuer_id);
 
 -- ── Productos / servicios ────────────────────────────────────────────────────────────────────
--- unit_measure_code ahora sí tiene FK real a catalogs.unit_measures (antes no la tenía).
+-- unit_code con FK real a catalogs.unit_measures.
 -- tax_type_code referencia catalogs.dian_tax_types (el catálogo DIAN, no accounting/tax).
 -- item_code único por emisor cuando no es NULL (un código puede repetirse entre emisores).
 CREATE TABLE edocuments.products (
     id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     issuer_id             UUID        NOT NULL,
     description           TEXT        NOT NULL,
-    unit_measure_code     VARCHAR(3)  NOT NULL REFERENCES catalogs.unit_measures(code),
+    unit_code             VARCHAR(3)  NOT NULL REFERENCES catalogs.unit_measures(code),
     unit_price_cents      BIGINT      NOT NULL DEFAULT 0,
     item_code             TEXT,
     item_type_code        TEXT,
