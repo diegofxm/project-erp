@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Factura electrónica emitida</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+    .header { background: #0e9f6e; color: #fff; padding: 32px 40px; }
+    .header h1 { margin: 0; font-size: 22px; }
+    .body { padding: 32px 40px; color: #333; line-height: 1.6; }
+    .detail { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px 20px; margin: 20px 0; }
+    .detail p { margin: 6px 0; font-size: 14px; }
+    .detail strong { display: inline-block; width: 140px; color: #555; }
+    .footer { background: #f0f0f0; padding: 16px 40px; font-size: 12px; color: #888; text-align: center; }
+    .total { font-size: 18px; font-weight: bold; color: #0e9f6e; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Factura Electrónica {{.DocumentNumber}}</h1>
+    </div>
+    <div class="body">
+      <p>Estimado/a <strong>{{.CustomerName}}</strong>,</p>
+      <p>Le informamos que ha sido emitida la siguiente factura electrónica a su nombre:</p>
+      <div class="detail">
+        <p><strong>Número:</strong> {{.DocumentNumber}}</p>
+        <p><strong>Fecha:</strong> {{.IssueDate}}</p>
+        <p><strong>Emisor:</strong> {{.IssuerName}}</p>
+        <p><strong>NIT emisor:</strong> {{.IssuerNIT}}</p>
+        <p class="total">Total: {{.Currency}} {{.Total}}</p>
+      </div>
+      <p>El documento electrónico DIAN está adjunto a este correo en formato XML y PDF.</p>
+    </div>
+    <div class="footer">{{.IssuerName}} · {{.IssuerAddress}}</div>
+  </div>
+</body>
+</html>

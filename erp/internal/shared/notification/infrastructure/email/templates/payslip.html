@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Desprendible de nómina</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+    .header { background: #7e3af2; color: #fff; padding: 32px 40px; }
+    .header h1 { margin: 0; font-size: 22px; }
+    .body { padding: 32px 40px; color: #333; line-height: 1.6; }
+    .detail { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px 20px; margin: 20px 0; }
+    .detail p { margin: 6px 0; font-size: 14px; }
+    .detail strong { display: inline-block; width: 160px; color: #555; }
+    .net { font-size: 20px; font-weight: bold; color: #7e3af2; margin-top: 12px; }
+    .footer { background: #f0f0f0; padding: 16px 40px; font-size: 12px; color: #888; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Desprendible de Nómina — {{.Period}}</h1>
+    </div>
+    <div class="body">
+      <p>Hola <strong>{{.EmployeeName}}</strong>,</p>
+      <p>Tu liquidación de nómina para el período <strong>{{.Period}}</strong> ha sido procesada:</p>
+      <div class="detail">
+        <p><strong>Cargo:</strong> {{.Position}}</p>
+        <p><strong>Días trabajados:</strong> {{.WorkedDays}}</p>
+        <p><strong>Total devengado:</strong> ${{.TotalEarned}}</p>
+        <p><strong>Total deducido:</strong> ${{.TotalDeducted}}</p>
+        <p class="net">Neto a pagar: ${{.NetPay}}</p>
+      </div>
+      <p>El desprendible completo con el detalle de conceptos está adjunto a este correo.</p>
+    </div>
+    <div class="footer">{{.CompanyName}} · Recursos Humanos</div>
+  </div>
+</body>
+</html>

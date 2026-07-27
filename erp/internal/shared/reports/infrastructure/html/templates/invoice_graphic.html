@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Factura Electrónica</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #222; padding: 24px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a56db; padding-bottom: 12px; margin-bottom: 16px; }
+    .company h1 { font-size: 16px; color: #1a56db; }
+    .company p { font-size: 10px; color: #555; margin-top: 2px; }
+    .doc-box { border: 2px solid #1a56db; border-radius: 6px; padding: 10px 16px; text-align: center; min-width: 180px; }
+    .doc-box h2 { font-size: 13px; color: #1a56db; }
+    .doc-box .number { font-size: 18px; font-weight: bold; color: #1a56db; margin-top: 4px; }
+    .doc-box p { font-size: 10px; color: #555; margin-top: 2px; }
+    .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .party-box { background: #f0f4ff; border: 1px solid #c7d7fd; border-radius: 6px; padding: 10px 14px; }
+    .party-box h3 { font-size: 11px; color: #1a56db; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+    .party-box p { font-size: 10px; color: #444; margin-bottom: 2px; }
+    .party-box strong { display: inline-block; width: 80px; color: #666; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    thead th { background: #1a56db; color: #fff; padding: 7px 8px; text-align: left; font-size: 10px; }
+    tbody td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; font-size: 10px; }
+    tbody tr:nth-child(even) td { background: #f9fafb; }
+    .totals-section { display: flex; justify-content: space-between; gap: 16px; }
+    .taxes-box { flex: 1; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; }
+    .taxes-box h3 { font-size: 11px; color: #555; margin-bottom: 6px; }
+    .taxes-box p { font-size: 10px; display: flex; justify-content: space-between; margin-bottom: 3px; }
+    .total-box { min-width: 200px; background: #eff6ff; border: 2px solid #1a56db; border-radius: 6px; padding: 10px 14px; }
+    .total-box .row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px; }
+    .total-box .grand { font-size: 14px; font-weight: bold; color: #1a56db; padding-top: 6px; border-top: 1px solid #1a56db; margin-top: 6px; }
+    .cufe-box { margin-top: 16px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 8px 12px; }
+    .cufe-box label { font-size: 9px; color: #888; display: block; margin-bottom: 2px; text-transform: uppercase; }
+    .cufe-box span { font-size: 9px; word-break: break-all; color: #444; }
+    .footer { margin-top: 16px; font-size: 9px; color: #aaa; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 8px; }
+    .dian-badge { display: inline-block; background: #0e9f6e; color: #fff; font-size: 9px; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="company">
+      <h1>{{.IssuerName}}</h1>
+      <p>NIT: {{.IssuerNIT}}-{{.IssuerNITDV}}</p>
+      <p>{{.IssuerAddress}}</p>
+      <p>{{.IssuerCity}}, Colombia</p>
+      <p>{{.IssuerEmail}}</p>
+    </div>
+    <div class="doc-box">
+      <h2>{{.DocumentTypeName}}</h2>
+      <div class="number">{{.DocumentNumber}}</div>
+      <p>Fecha: {{.IssueDate}}</p>
+      <p>Vence: {{.DueDate}}</p>
+    </div>
+  </div>
+
+  <div class="parties">
+    <div class="party-box">
+      <h3>Emisor</h3>
+      <p><strong>Razón social:</strong> {{.IssuerName}}</p>
+      <p><strong>NIT:</strong> {{.IssuerNIT}}-{{.IssuerNITDV}}</p>
+      <p><strong>Dirección:</strong> {{.IssuerAddress}}</p>
+      <p><strong>Ciudad:</strong> {{.IssuerCity}}</p>
+      <p><strong>Correo:</strong> {{.IssuerEmail}}</p>
+    </div>
+    <div class="party-box">
+      <h3>Adquirente / {{.CustomerLabel}}</h3>
+      <p><strong>Nombre:</strong> {{.CustomerName}}</p>
+      <p><strong>NIT/CC:</strong> {{.CustomerID}}</p>
+      <p><strong>Dirección:</strong> {{.CustomerAddress}}</p>
+      <p><strong>Ciudad:</strong> {{.CustomerCity}}</p>
+      <p><strong>Correo:</strong> {{.CustomerEmail}}</p>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Descripción</th>
+        <th style="text-align:right">Cant.</th>
+        <th style="text-align:right">V. Unitario</th>
+        <th style="text-align:right">Descuento</th>
+        <th style="text-align:right">IVA</th>
+        <th style="text-align:right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range $i, $l := .Lines}}
+      <tr>
+        <td>{{add $i 1}}</td>
+        <td>{{$l.Description}}</td>
+        <td style="text-align:right">{{$l.Quantity}}</td>
+        <td style="text-align:right">{{$l.UnitPrice}}</td>
+        <td style="text-align:right">{{$l.Discount}}</td>
+        <td style="text-align:right">{{$l.Tax}}</td>
+        <td style="text-align:right">{{$l.Total}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <div class="totals-section">
+    <div class="taxes-box">
+      <h3>Impuestos</h3>
+      {{range .Taxes}}
+      <p><span>{{.Name}} {{.Percent}}%</span><span>{{.Amount}}</span></p>
+      {{end}}
+      <p><span>Base gravable</span><span>{{.TaxableBase}}</span></p>
+    </div>
+    <div class="total-box">
+      <div class="row"><span>Subtotal:</span><span>{{.Subtotal}}</span></div>
+      <div class="row"><span>Descuentos:</span><span>-{{.TotalDiscounts}}</span></div>
+      <div class="row"><span>Impuestos:</span><span>{{.TotalTaxes}}</span></div>
+      <div class="row grand"><span>TOTAL {{.Currency}}:</span><span>{{.GrandTotal}}</span></div>
+    </div>
+  </div>
+
+  <div class="cufe-box">
+    {{if .CUFE}}<label>CUFE</label><span>{{.CUFE}}</span>{{end}}
+    {{if .CUDE}}<label>CUDE</label><span>{{.CUDE}}</span>{{end}}
+    {{if .CUDS}}<label>CUDS</label><span>{{.CUDS}}</span>{{end}}
+  </div>
+
+  <div class="footer">
+    <span class="dian-badge">Documento Electrónico DIAN</span><br>
+    {{.IssuerName}} · NIT {{.IssuerNIT}} · {{.IssuerCity}}, Colombia
+  </div>
+</body>
+</html>

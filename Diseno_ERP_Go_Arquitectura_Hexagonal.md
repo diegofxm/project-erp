@@ -1,5 +1,66 @@
 # Diseño de un ERP en Go con Arquitectura Hexagonal
 
+---
+
+## Estado de implementación
+
+### ✅ Módulos completos (build limpio, commiteados en `v2/db-architecture`)
+
+| Módulo | Descripción |
+|---|---|
+| `catalog/` | Catálogos DIAN, países, monedas, unidades, tipos de documento |
+| `security/` | Usuarios, JWT, invitaciones, perfiles, multi-empresa |
+| `company/` | Empresa (NIT, configuración fiscal, certificado DIAN, logo) |
+| `customer/` | Clientes con datos tributarios |
+| `supplier/` | Proveedores |
+| `product/` | Productos con unidad, categoría, precios |
+| `inventory/` | Movimientos de inventario (entrada, salida, ajuste) |
+| `purchase/` | Órdenes de compra |
+| `sales/` | Ventas + evento `SaleConfirmed → Accounting` |
+| `accounting/` | Plan de cuentas, períodos, libro diario, posteo automático |
+| `electronic/` | Facturación electrónica DIAN: FE, NC, ND, DS, NA — motor cofacture |
+| `payroll/` | Nómina colombiana: empleados, contratos, liquidaciones, seed SMMLV/ARL |
+| `hr/` | Gestión de ausencias (vacaciones, incapacidades, licencias) |
+| `shared/tenant/` | Multi-tenancy por contexto — `GetCompanyID(ctx)` |
+| `shared/events/` | Bus de eventos en memoria |
+| `shared/money/` | Tipo Money (cents + currency) |
+| `shared/cryptutil/` | AES-256-GCM para datos sensibles |
+| `shared/timeutil/` | Zona horaria Colombia (America/Bogota) |
+
+### 🔲 Pendiente
+
+#### Eventos inter-módulo (bus ya existe, faltan los suscriptores)
+
+| Evento | Publicador | Suscriptor faltante |
+|---|---|---|
+| `InvoiceConfirmed` | `sales` | `inventory` — descontar stock |
+| `InvoiceConfirmed` | `sales` | `electronic` — generar XML y enviar DIAN |
+| `PurchaseReceived` | `purchase` | `inventory` — entrada de mercancía |
+| `PurchaseReceived` | `purchase` | `accounting` — asiento de compra |
+| `StockMoved` | `inventory` | `accounting` — asiento de movimiento |
+| `PayrollGenerated` | `payroll` | `accounting` — gasto de personal |
+
+#### Sub-entidades pendientes por módulo
+
+| Módulo | Falta |
+|---|---|
+| `sales/` | Cotizaciones, cartera (cuentas por cobrar), pagos recibidos |
+| `payroll/` | Primas, cesantías, liquidación definitiva, vacaciones acumuladas |
+| `hr/` | Control de asistencia, reclutamiento, hoja de vida del empleado |
+| `company/` | Sucursales, bodegas adicionales, parámetros de configuración |
+| `inventory/` | Lotes/vencimientos, seriales |
+| `electronic/` | Nómina electrónica DIAN (tipos 102/103) |
+
+#### Módulos nuevos por implementar
+
+| Módulo | Descripción |
+|---|---|
+| `shared/notification/` | Motor multicanal: Email (SMTP/Mox/Resend/SES), SMS, WhatsApp, Push, Slack, Teams |
+| `shared/reports/` | Motor de documentos: PDF, Excel, CSV, HTML, Word — con templates por módulo |
+| `shared/queries/` | Capa de lectura CQRS: balance, estado de resultados, cartera, inventario valorado |
+
+---
+
 ## Filosofía
 
 Si fuera a diseñar un ERP moderno en Go pensando en que dure 15 o 20 años, **no haría un monolito tradicional**, pero tampoco empezaría con microservicios. Haría un **Monolito Modular (Modular Monolith)** usando **Arquitectura Hexagonal (Ports & Adapters)** y **DDD (Domain Driven Design)**.
@@ -521,6 +582,119 @@ catalog/
     document_types/
 ```
 
+### Notification (shared — motor multicanal)
+
+El correo es solo un canal. El módulo `notification/` es el motor de comunicaciones del ERP: cualquier módulo emite un evento y `notification/` decide qué canal usar y qué implementación concreta despacharlo.
+
+```text
+shared/
+    notification/
+        domain/
+            notifier.go         ← puerto: Send(ctx, Message) error
+            message.go          ← Message{To, Subject, Body, Channel, TemplateID, Data map}
+            channel.go          ← Channel: "email" | "sms" | "whatsapp" | "push" | "slack" | "teams"
+        application/
+            send.go             ← SendUseCase: resuelve canal → proveedor → despacha
+        infrastructure/
+            email/
+                smtp/
+                    sender.go
+                mox/
+                    sender.go   ← preferido para correo transaccional propio
+                resend/
+                    sender.go
+                ses/
+                    sender.go
+            sms/
+                twilio/
+                    sender.go
+            whatsapp/
+                meta/
+                    sender.go
+            push/
+                fcm/
+                    sender.go
+        templates/
+            email/
+                welcome.html
+                invoice_issued.html
+                payroll_slip.html
+                password_reset.html
+                purchase_order.html
+                absence_approved.html
+            sms/
+                otp.txt
+                invoice_notification.txt
+            whatsapp/
+                invoice_notification.txt
+```
+
+**Principio clave:** ningún módulo de negocio importa `smtp`, `resend`, ni nada de infraestructura de correo. Solo conocen el puerto `Notifier` y emiten eventos como `InvoiceIssued` o `PayrollProcessed`. El módulo `notification/` escucha esos eventos y decide canal + proveedor + template. Cambiar de Mox a Resend no toca una sola línea de negocio.
+
+### Reports (shared — motor de documentos)
+
+El PDF es solo uno de los formatos de salida. `reports/` es el motor de documentos compartido del ERP: recibe datos + template y produce el formato que se pida.
+
+```text
+shared/
+    reports/
+        domain/
+            renderer.go         ← puerto: Render(tpl string, data any) ([]byte, error)
+            exporter.go         ← puerto: Export(content []byte, format Format) ([]byte, error)
+            format.go           ← Format: "pdf" | "excel" | "csv" | "html" | "word"
+        application/
+            generate.go         ← GenerateUseCase: cargar template → render → exportar formato
+        infrastructure/
+            pdf/
+                generator.go    ← chromedp/wkhtmltopdf sobre HTML renderizado
+                fonts/
+                images/
+            excel/
+                generator.go    ← excelize
+            csv/
+                generator.go
+            html/
+                renderer.go
+        templates/
+            accounting/
+                balance_sheet.html
+                income_statement.html
+                journal_entry.html
+                ledger.html
+            payroll/
+                payslip.html
+                liquidation.html
+                labor_certificate.html
+                income_certificate.html
+            sales/
+                invoice.html
+                quotation.html
+                remission.html
+            purchase/
+                purchase_order.html
+                reception.html
+            electronic/
+                invoice_graphic.html  ← representación gráfica FE (exigida por DIAN)
+                support_doc.html
+            inventory/
+                kardex.html
+                physical_count.html
+                label.html
+            hr/
+                contract.html
+                absence_certificate.html
+```
+
+**Quién lo usa:** prácticamente todos los módulos — ventas (facturas, cotizaciones), contabilidad (comprobantes, balance), nómina (desprendibles, certificados), RRHH (contratos, cartas), documentos electrónicos (representación gráfica exigida por DIAN), inventario (kardex, etiquetas).
+
+**Separación de responsabilidades dentro de `reports/`:**
+- `templates/` — solo administra las plantillas HTML/Markdown
+- `infrastructure/pdf/` — renderiza HTML → PDF
+- `infrastructure/excel/` — exporta datos estructurados → .xlsx
+- `application/generate.go` — orquesta: carga template + data → render HTML → exporta al formato pedido
+
+Un Balance General se genera una sola vez (render HTML) y se exporta en el formato que pida el cliente — sin duplicar lógica.
+
 ### Security
 
 ```text
@@ -630,19 +804,20 @@ Cada módulo es responsable de sus propias migraciones y de no hacer queries dir
 
 ---
 
-## Pila tecnológica v1
+## Pila tecnológica
 
-| Necesidad | Decisión v1 | Cuándo cambiar |
+| Necesidad | Decisión | Alternativas / Cuándo cambiar |
 |---|---|---|
-| Base de datos | PostgreSQL (schemas) | No cambiar |
-| HTTP | `net/http` estándar | Si se necesita routing avanzado: chi/gorilla |
-| Eventos | Bus en memoria (goroutines) | Cuando haya caso real de durabilidad o sistemas externos |
-| Email | SMTP directo | Cuando el volumen exija un servicio transaccional (Resend/SES) |
+| Base de datos | PostgreSQL (schemas por módulo) | No cambiar |
+| HTTP | `net/http` estándar | chi/gorilla si se necesita routing avanzado |
+| Eventos | Bus en memoria (`shared/events/`) | RabbitMQ/NATS cuando haya garantía de entrega o sistemas externos |
+| Notificaciones | `shared/notification/` — Mox por defecto | Intercambiable: SMTP, Resend, SES, Twilio, Meta — sin tocar negocio |
+| Documentos/reportes | `shared/reports/` — HTML → PDF vía chromedp | Excel: excelize; CSV: stdlib |
 | Caché | Sin caché | Cuando haya consultas medibles y costosas |
-| Cola | Sin cola | Cuando haya integración con sistemas externos que requieran async |
+| Cola | Sin cola | Cuando haya integración async con sistemas externos |
 | ORM | Sin ORM — pgx directo | No cambiar |
 | DI | Manual en main.go | No cambiar |
-| gRPC | No en v1 | Si se expone API para terceros o se extrae algún módulo |
+| gRPC | No por ahora | Si se expone API para terceros o se extrae algún módulo |
 
 ---
 
