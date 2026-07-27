@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/diegofxm/apidian/internal/api/middleware"
-	"github.com/diegofxm/apidian/internal/customers"
+	"github.com/diegofxm/apidian/internal/edocuments/customers"
 	"github.com/google/uuid"
 
 	"github.com/diegofxm/apidian/internal/api/response"

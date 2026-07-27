@@ -8,7 +8,7 @@ import (
 
 	"github.com/diegofxm/apidian/internal/api/middleware"
 	"github.com/diegofxm/apidian/internal/issuers"
-	"github.com/diegofxm/apidian/internal/numbering"
+	"github.com/diegofxm/apidian/internal/edocuments/numbering"
 	"github.com/google/uuid"
 
 	"github.com/diegofxm/apidian/internal/api/response"

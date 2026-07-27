@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/diegofxm/apidian/internal/numbering"
+	"github.com/diegofxm/apidian/internal/edocuments/numbering"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

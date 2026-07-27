@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/diegofxm/accounting/journals"
-	"github.com/diegofxm/apidian/internal/documents"
+	"github.com/diegofxm/apidian/internal/edocuments/documents"
 	"github.com/google/uuid"
 )
 

@@ -3,11 +3,11 @@ package documents
 import (
 	"context"
 
-	"github.com/diegofxm/apidian/internal/customers"
+	"github.com/diegofxm/apidian/internal/edocuments/customers"
 	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
-	"github.com/diegofxm/apidian/internal/numbering"
-	"github.com/diegofxm/apidian/internal/vendors"
+	"github.com/diegofxm/apidian/internal/edocuments/numbering"
+	"github.com/diegofxm/apidian/internal/edocuments/vendors"
 	"github.com/google/uuid"
 )
 

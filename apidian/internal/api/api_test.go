@@ -24,13 +24,13 @@ import (
 	"github.com/diegofxm/apidian/internal/api"
 	"github.com/diegofxm/apidian/internal/auth"
 	"github.com/diegofxm/apidian/internal/catalogs"
-	"github.com/diegofxm/apidian/internal/customers"
-	"github.com/diegofxm/apidian/internal/documents"
+	"github.com/diegofxm/apidian/internal/edocuments/customers"
+	"github.com/diegofxm/apidian/internal/edocuments/documents"
 	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
-	"github.com/diegofxm/apidian/internal/numbering"
-	"github.com/diegofxm/apidian/internal/products"
-	"github.com/diegofxm/apidian/internal/vendors"
+	"github.com/diegofxm/apidian/internal/edocuments/numbering"
+	"github.com/diegofxm/apidian/internal/edocuments/products"
+	"github.com/diegofxm/apidian/internal/edocuments/vendors"
 )
 
 // ── Setup ────────────────────────────────────────────────────────────────────────────────────

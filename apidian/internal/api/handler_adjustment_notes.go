@@ -6,7 +6,7 @@ import (
 
 	"github.com/diegofxm/apidian/internal/api/middleware"
 	"github.com/diegofxm/apidian/internal/api/response"
-	"github.com/diegofxm/apidian/internal/documents"
+	"github.com/diegofxm/apidian/internal/edocuments/documents"
 )
 
 // issueAdjustmentNoteRequest es el payload público de la Nota de Ajuste al DS.

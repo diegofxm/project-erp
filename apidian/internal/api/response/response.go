@@ -6,13 +6,13 @@ import (
 	"net/http"
 
 	"github.com/diegofxm/apidian/internal/auth"
-	"github.com/diegofxm/apidian/internal/customers"
-	"github.com/diegofxm/apidian/internal/documents"
+	"github.com/diegofxm/apidian/internal/edocuments/customers"
+	"github.com/diegofxm/apidian/internal/edocuments/documents"
 	"github.com/diegofxm/apidian/internal/issuers"
-	"github.com/diegofxm/apidian/internal/numbering"
-	"github.com/diegofxm/apidian/internal/products"
+	"github.com/diegofxm/apidian/internal/edocuments/numbering"
+	"github.com/diegofxm/apidian/internal/edocuments/products"
 	"github.com/diegofxm/apidian/internal/prospects"
-	"github.com/diegofxm/apidian/internal/vendors"
+	"github.com/diegofxm/apidian/internal/edocuments/vendors"
 )
 
 // Error es el JSON body devuelto en respuestas no-2xx.

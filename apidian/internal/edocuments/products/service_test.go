@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/diegofxm/apidian/internal/products"
+	"github.com/diegofxm/apidian/internal/edocuments/products"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

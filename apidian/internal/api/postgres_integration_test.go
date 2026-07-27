@@ -22,9 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/diegofxm/apidian/internal/catalogs"
-	"github.com/diegofxm/apidian/internal/documents"
+	"github.com/diegofxm/apidian/internal/edocuments/documents"
 	"github.com/diegofxm/apidian/internal/issuers"
-	"github.com/diegofxm/apidian/internal/numbering"
+	"github.com/diegofxm/apidian/internal/edocuments/numbering"
 )
 
 // testSecretsKey es la clave AES-256 que usan los repositorios Postgres para cifrar

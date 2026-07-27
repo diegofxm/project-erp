@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/diegofxm/apidian/internal/issuers"
-	"github.com/diegofxm/apidian/internal/numbering"
+	"github.com/diegofxm/apidian/internal/edocuments/numbering"
 	"github.com/diegofxm/apidian/internal/pdf"
 	"github.com/diegofxm/cofacture/domain"
 	"github.com/diegofxm/cofacture/qr"

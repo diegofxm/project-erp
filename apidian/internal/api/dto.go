@@ -1,7 +1,7 @@
 package api
 
 import (
-	"github.com/diegofxm/apidian/internal/documents"
+	"github.com/diegofxm/apidian/internal/edocuments/documents"
 	"github.com/diegofxm/cofacture/domain"
 )
 

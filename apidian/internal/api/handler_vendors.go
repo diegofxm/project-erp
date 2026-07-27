@@ -7,7 +7,7 @@ import (
 
 	"github.com/diegofxm/apidian/internal/api/middleware"
 	"github.com/diegofxm/apidian/internal/api/response"
-	"github.com/diegofxm/apidian/internal/vendors"
+	"github.com/diegofxm/apidian/internal/edocuments/vendors"
 	"github.com/google/uuid"
 )
 
