@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS sales.sale_lines;
+DROP TABLE IF EXISTS sales.sales;
+DROP SCHEMA IF EXISTS sales;

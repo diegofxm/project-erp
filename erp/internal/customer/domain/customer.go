@@ -1,52 +1,47 @@
-// Package customer gestiona el catálogo de clientes del emisor.
-// Patrón completo en: domain/ application/ infrastructure/ interfaces/
 package domain
 
 import (
-	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
 
+// Customer es un tercero receptor de documentos electrónicos (comprador, beneficiario).
+// Pertenece a un tenant (company_id).
 type Customer struct {
 	ID        uuid.UUID
-	CompanyID uuid.UUID // tenant
+	CompanyID uuid.UUID
 
-	// Identificación
+	// Identificación fiscal DIAN
+	IdentificationTypeCode string // 31=NIT, 13=Cédula, 22=CE, 91=NUIP…
 	IdentificationNumber   string
-	IdentificationTypeCode string
-	VerificationCode       string // dígito de verificación NIT (derivado, no ingresado)
+	CheckDigit             string // solo para NIT (tipo 31)
 
-	// Datos fiscales
-	Name           string
+	// Nombre
+	Name string // razón social o nombre completo
+
+	// Clasificación tributaria DIAN
 	TaxSchemeCode  string
 	TaxSchemeName  string
+	TaxRegimeCode  *string
 	LiabilityCodes []string
-	TaxRegimeCode  string
 
-	// Contacto y ubicación
-	Email            string
-	Phone            string
-	AddressLine      string
-	MunicipalityCode string
+	// Ubicación
 	DepartmentCode   string
+	MunicipalityCode string
+	AddressLine      string
+
+	// Contacto
+	Email string
+	Phone string
 
 	IsActive  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-type Repository interface {
-	Save(ctx context.Context, c Customer) (*Customer, error)
-	Update(ctx context.Context, c Customer) (*Customer, error)
-	Delete(ctx context.Context, companyID, id uuid.UUID) error
-	GetByID(ctx context.Context, id uuid.UUID) (*Customer, error)
-	ListByCompany(ctx context.Context, companyID uuid.UUID) ([]*Customer, error)
-}
-
-// CatalogPort es lo que Customer necesita de catalog/ — no importa catalog/ directamente.
-type CatalogPort interface {
-	GetTaxTypeName(code string) (string, bool, error)
-	IsValidLiabilityCode(code string) (bool, error)
-}
+var (
+	ErrCustomerNotFound  = errors.New("cliente no encontrado")
+	ErrDuplicateCustomer = errors.New("ya existe un cliente con ese número de identificación")
+)

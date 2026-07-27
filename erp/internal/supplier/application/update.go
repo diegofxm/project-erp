@@ -1,0 +1,41 @@
+package application
+
+import (
+	"context"
+
+	"github.com/google/uuid"
+
+	"github.com/diegofxm/erp/internal/supplier/domain"
+)
+
+type UpdateUseCase struct {
+	repo domain.Repository
+}
+
+func NewUpdateUseCase(repo domain.Repository) *UpdateUseCase {
+	return &UpdateUseCase{repo: repo}
+}
+
+func (uc *UpdateUseCase) Execute(ctx context.Context, companyID, id uuid.UUID, req SaveRequest) (*domain.Supplier, error) {
+	existing, err := uc.repo.GetByID(ctx, companyID, id)
+	if err != nil {
+		return nil, err
+	}
+
+	existing.IdentificationTypeCode = req.IdentificationTypeCode
+	existing.IdentificationNumber = req.IdentificationNumber
+	existing.CheckDigit = req.CheckDigit
+	existing.Name = req.Name
+	existing.TaxSchemeCode = req.TaxSchemeCode
+	existing.TaxSchemeName = req.TaxSchemeName
+	existing.TaxRegimeCode = req.TaxRegimeCode
+	existing.LiabilityCodes = req.LiabilityCodes
+	existing.DepartmentCode = req.DepartmentCode
+	existing.MunicipalityCode = req.MunicipalityCode
+	existing.AddressLine = req.AddressLine
+	existing.Email = req.Email
+	existing.Phone = req.Phone
+	existing.PaymentTermsDays = req.PaymentTermsDays
+
+	return uc.repo.Update(ctx, *existing)
+}

@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS accounting.budget_lines CASCADE;
+DROP TABLE IF EXISTS accounting.budgets CASCADE;
+DROP TABLE IF EXISTS accounting.exchange_rates CASCADE;
+DROP TABLE IF EXISTS accounting.reconciliation_marks CASCADE;
+DROP TABLE IF EXISTS accounting.iva_declarations CASCADE;
+DROP TABLE IF EXISTS accounting.depreciation_entries CASCADE;
+DROP TABLE IF EXISTS accounting.depreciation_runs CASCADE;
+DROP TABLE IF EXISTS accounting.fixed_assets CASCADE;
+DROP TABLE IF EXISTS accounting.uvt_values CASCADE;
+DROP TABLE IF EXISTS accounting.withholding_concepts CASCADE;

@@ -1,49 +1,115 @@
-// Package accounting es el corazón del ERP: todo movimiento de dinero genera un asiento.
-// Motor central: PostDocument(event) recibe eventos de otros módulos y crea asientos.
-// Ver _legacy/accounting/ para la implementación de referencia (plan de cuentas colombiano).
 package domain
 
 import (
-	"context"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-// JournalEntry es un asiento contable: un conjunto de líneas (débitos y créditos)
-// que siempre deben sumar cero (principio de partida doble).
+type JournalStatus string
+type EntryType string
+type Book string
+
+const (
+	StatusDraft  JournalStatus = "DRAFT"
+	StatusPosted JournalStatus = "POSTED"
+	StatusVoid   JournalStatus = "VOID"
+
+	EntryManual     EntryType = "MANUAL"
+	EntryAutomatic  EntryType = "AUTOMATIC"
+	EntryAdjustment EntryType = "ADJUSTMENT"
+	EntryClosing    EntryType = "CLOSING"
+	EntryOpening    EntryType = "OPENING"
+
+	BookBoth Book = "BOTH"
+	BookPCGA Book = "PCGA"
+	BookNIIF Book = "NIIF"
+
+	VoucherExpense = "CE"
+	VoucherIncome  = "CI"
+	VoucherNote    = "NC"
+	VoucherPayroll = "NI"
+	VoucherClosing = "CJ"
+	VoucherOpening = "AP"
+)
+
 type JournalEntry struct {
-	ID          uuid.UUID
-	CompanyID   uuid.UUID
-	PeriodID    uuid.UUID
-	Reference   string    // "FE-SETP-001", "NOM-2026-01", etc.
-	Description string
-	PostedAt    time.Time
-	Lines       []JournalLine
+	ID                 uuid.UUID
+	CompanyID          uuid.UUID
+	PeriodID           uuid.UUID
+	Date               time.Time
+	Description        string
+	Status             JournalStatus
+	Source             string
+	EntryType          EntryType
+	VoucherType        string
+	VoucherNumber      string
+	SourceDocumentID   uuid.UUID
+	SourceDocumentType string
+	Book               Book
+	Lines              []*JournalLine
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
-// JournalLine es una línea del asiento (un movimiento en una cuenta contable).
 type JournalLine struct {
-	ID          uuid.UUID
-	EntryID     uuid.UUID
-	AccountCode string // código del plan de cuentas
+	ID              uuid.UUID
+	JournalID       uuid.UUID
+	AccountID       uuid.UUID
+	AccountCode     string
+	Debit           int64
+	Credit          int64
+	ThirdPartyNIT   string
+	CostCenter      string
+	Description     string
+	ForeignAmount   int64
+	ForeignCurrency string
+	CreatedAt       time.Time
+}
+
+// PostRequest son los datos de entrada para registrar un asiento.
+// Debit y Credit en centavos (int64). AccountCode se resuelve en el use case.
+type PostRequest struct {
+	CompanyID          uuid.UUID
+	Date               time.Time
+	Description        string
+	Source             string
+	EntryType          EntryType
+	VoucherType        string
+	SourceDocumentID   uuid.UUID
+	SourceDocumentType string
+	Book               Book
+	Lines              []LineRequest
+}
+
+type LineRequest struct {
+	AccountCode     string
+	Debit           int64
+	Credit          int64
+	ThirdPartyNIT   string
+	CostCenter      string
+	Description     string
+	ForeignAmount   int64
+	ForeignCurrency string
+}
+
+// PLBalance es el saldo neto de una cuenta en centavos.
+// Balance = SUM(debit) - SUM(credit); negativo = saldo acreedor.
+type PLBalance struct {
+	AccountID   uuid.UUID
+	AccountCode string
 	AccountName string
-	DebitCents  int64
-	CreditCents int64
-	Description string
+	Category    string
+	Balance     int64
 }
 
-type Repository interface {
-	SaveEntry(ctx context.Context, e JournalEntry) (*JournalEntry, error)
-	GetEntry(ctx context.Context, id uuid.UUID) (*JournalEntry, error)
-	ListByPeriod(ctx context.Context, companyID, periodID uuid.UUID) ([]*JournalEntry, error)
-}
-
-// PostingEngine recibe eventos de dominio y genera los asientos contables correspondientes.
-// Cada método sabe la mecánica contable de su evento (qué cuentas debitar/acreditar y por qué).
-type PostingEngine interface {
-	PostInvoice(ctx context.Context, invoiceID, companyID uuid.UUID) error
-	PostPayroll(ctx context.Context, payrollID, companyID uuid.UUID) error
-	PostPayment(ctx context.Context, paymentID, companyID uuid.UUID) error
-	PostPurchase(ctx context.Context, purchaseID, companyID uuid.UUID) error
+type VoucherTypeConfig struct {
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	Code           string
+	Name           string
+	ResetsAnnually bool
+	IsActive       bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }

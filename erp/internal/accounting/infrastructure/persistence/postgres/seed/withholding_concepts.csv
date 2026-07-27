@@ -1,0 +1,20 @@
+code,name,type,rate_bp,min_base_uvt,account_payable,account_receivable,applicable_to
+01,Compras generales (declarante),RETEFUENTE,250,27,236540,135505,JURIDICA
+01,Compras generales (no declarante),RETEFUENTE,350,27,236540,135505,NATURAL
+02,Servicios generales (declarante),RETEFUENTE,400,4,236525,135505,JURIDICA
+02,Servicios generales (no declarante),RETEFUENTE,600,4,236525,135505,NATURAL
+03,Honorarios y comisiones (persona jurídica),RETEFUENTE,1100,0,236515,135505,JURIDICA
+03,Honorarios y comisiones (persona natural),RETEFUENTE,1000,0,236515,135505,NATURAL
+04,Arrendamiento de bienes muebles,RETEFUENTE,400,0,236530,135505,BOTH
+05,Arrendamiento de bienes inmuebles (declarante),RETEFUENTE,350,27,236530,135505,JURIDICA
+05,Arrendamiento de bienes inmuebles (no declarante),RETEFUENTE,350,27,236530,135505,NATURAL
+07,Rendimientos financieros,RETEFUENTE,700,0,236535,135505,BOTH
+09,Transporte de carga (declarante),RETEFUENTE,100,27,236525,135505,JURIDICA
+09,Transporte de carga (no declarante),RETEFUENTE,150,27,236525,135505,NATURAL
+10,Transporte de pasajeros,RETEFUENTE,350,27,236525,135505,BOTH
+12,Contratos de construcción,RETEFUENTE,200,27,236540,135505,BOTH
+16,Loterías rifas apuestas y similares,RETEFUENTE,2000,48,236595,135505,BOTH
+IVA,Retención de IVA (15% del IVA facturado),RETEIVA,1500,0,240802,136502,BOTH
+ICA-C,ICA — Actividades comerciales (tarifa ref. Bogotá 10‰),RETEICA,1000,0,2368,135518,BOTH
+ICA-S,ICA — Servicios (tarifa ref. Bogotá 10‰),RETEICA,1000,0,2368,135518,BOTH
+ICA-I,ICA — Actividades industriales (tarifa ref. Bogotá 8‰),RETEICA,800,0,2368,135518,BOTH
