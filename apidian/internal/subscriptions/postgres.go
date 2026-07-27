@@ -199,7 +199,7 @@ func (r *PostgresRepository) BillingSummary(ctx context.Context) ([]BillingEntry
 			ROUND(COUNT(d.id) * COALESCE(s.price_per_document_cop, 150) * 1.19)::INT AS total
 		FROM issuers i
 		LEFT JOIN issuer_settings s ON s.issuer_id = i.id
-		LEFT JOIN documents d ON d.issuer_id = i.id
+		LEFT JOIN edocuments.documents d ON d.issuer_id = i.id
 			AND d.status NOT IN ('draft', 'rejected', 'send_error')
 			AND DATE_TRUNC('month', d.issue_date) = DATE_TRUNC('month', CURRENT_DATE)
 		GROUP BY i.id, i.business_name, i.nit, s.price_per_document_cop
