@@ -1,4 +1,6 @@
-ALTER TABLE users DROP COLUMN IF EXISTS is_superadmin;
+DROP TABLE IF EXISTS audit_events;
+DROP TABLE IF EXISTS prospects;
+DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS issuer_settings;
 DROP TABLE IF EXISTS subscriptions;
 DROP TABLE IF EXISTS plans;

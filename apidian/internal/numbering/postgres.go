@@ -61,7 +61,7 @@ func (r *PostgresRepository) Create(ctx context.Context, nr NumberingRange) (*Nu
 	}
 
 	_, err = r.pool.Exec(ctx, `
-		INSERT INTO numbering_ranges (`+numberingColumns+`)
+		INSERT INTO edocuments.numbering_ranges (`+numberingColumns+`)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
 		nr.ID, nr.IssuerID, nr.DianDocumentTypeCode, nr.Prefix, resNum, resDate,
 		nr.RangeFrom, nr.RangeTo, nr.CurrentNumber, vFrom, vTo, string(nr.Environment),
@@ -74,7 +74,7 @@ func (r *PostgresRepository) Create(ctx context.Context, nr NumberingRange) (*Nu
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*NumberingRange, error) {
-	row := r.pool.QueryRow(ctx, `SELECT `+numberingColumns+` FROM numbering_ranges WHERE id = $1`, id)
+	row := r.pool.QueryRow(ctx, `SELECT `+numberingColumns+` FROM edocuments.numbering_ranges WHERE id = $1`, id)
 	return r.scan(row)
 }
 
@@ -85,7 +85,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Number
 func (r *PostgresRepository) ClaimNext(ctx context.Context, id uuid.UUID) (int64, error) {
 	var claimed int64
 	err := r.pool.QueryRow(ctx, `
-		UPDATE numbering_ranges
+		UPDATE edocuments.numbering_ranges
 		SET current_number = current_number + 1, updated_at = NOW()
 		WHERE id = $1
 		  AND is_active = TRUE
@@ -115,7 +115,7 @@ func (r *PostgresRepository) ClaimNext(ctx context.Context, id uuid.UUID) (int64
 // no es seguro retroceder, alguien más avanzó").
 func (r *PostgresRepository) ReleaseIfCurrent(ctx context.Context, id uuid.UUID, number int64) error {
 	_, err := r.pool.Exec(ctx, `
-		UPDATE numbering_ranges
+		UPDATE edocuments.numbering_ranges
 		SET current_number = current_number - 1, updated_at = NOW()
 		WHERE id = $1 AND current_number = $2`,
 		id, number,
@@ -129,7 +129,7 @@ func (r *PostgresRepository) ReleaseIfCurrent(ctx context.Context, id uuid.UUID,
 // ClearTestSetID — ver Repository.ClearTestSetID.
 func (r *PostgresRepository) ClearTestSetID(ctx context.Context, id uuid.UUID) error {
 	_, err := r.pool.Exec(ctx, `
-		UPDATE numbering_ranges
+		UPDATE edocuments.numbering_ranges
 		SET test_set_id = '', updated_at = NOW()
 		WHERE id = $1`,
 		id,
@@ -143,7 +143,7 @@ func (r *PostgresRepository) ClearTestSetID(ctx context.Context, id uuid.UUID) e
 // Deactivate — ver Repository.Deactivate.
 func (r *PostgresRepository) Deactivate(ctx context.Context, id uuid.UUID) error {
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE numbering_ranges SET is_active = FALSE, updated_at = NOW() WHERE id = $1`,
+		UPDATE edocuments.numbering_ranges SET is_active = FALSE, updated_at = NOW() WHERE id = $1`,
 		id,
 	)
 	if err != nil {
@@ -158,7 +158,7 @@ func (r *PostgresRepository) Deactivate(ctx context.Context, id uuid.UUID) error
 // Activate — ver Repository.Activate.
 func (r *PostgresRepository) Activate(ctx context.Context, id uuid.UUID) error {
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE numbering_ranges SET is_active = TRUE, updated_at = NOW() WHERE id = $1`,
+		UPDATE edocuments.numbering_ranges SET is_active = TRUE, updated_at = NOW() WHERE id = $1`,
 		id,
 	)
 	if err != nil {
@@ -171,7 +171,7 @@ func (r *PostgresRepository) Activate(ctx context.Context, id uuid.UUID) error {
 }
 
 func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error) {
-	query := `SELECT ` + numberingColumns + ` FROM numbering_ranges WHERE issuer_id = $1`
+	query := `SELECT ` + numberingColumns + ` FROM edocuments.numbering_ranges WHERE issuer_id = $1`
 	args := []any{issuerID}
 	if dianDocumentTypeCode != "" {
 		args = append(args, dianDocumentTypeCode)

@@ -1,4 +1,5 @@
--- Fase 2.1: fundamentos — extensiones base del orquestador
+-- Extensiones y trigger reutilizable para updated_at.
+-- Todos los módulos usan el mismo set_updated_at() definido aquí.
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 

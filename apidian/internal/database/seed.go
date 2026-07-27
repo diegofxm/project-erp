@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -34,26 +35,35 @@ var seedFS embed.FS
 // corregirse.
 func (d *DB) Seed(ctx context.Context) error {
 	tables := []struct {
-		name string
+		name string // tabla SQL calificada (schema.table)
+		csv  string // nombre del archivo CSV en seed/ (sin extensión); vacío = última parte de name
 		cols []string
 	}{
-		{"currencies", []string{"code", "name", "symbol"}},
-		{"departments", []string{"code", "name", "description"}},
-		{"identification_types", []string{"code", "name", "description"}},
-		{"municipalities", []string{"code", "name", "department_code", "description"}},
-		{"payment_methods", []string{"code", "name", "description"}},
-		{"tax_types", []string{"code", "name", "description"}},
-		{"unit_measures", []string{"code", "name", "description"}},
-		{"dian_document_types", []string{"code", "name", "description"}},
-		{"payment_terms", []string{"code", "name", "description"}},
-		{"tax_regimes", []string{"code", "name", "description"}},
-		{"liability_codes", []string{"code", "name", "description"}},
-		{"item_standards", []string{"code", "name", "agency_id", "description"}},
-		{"ciiu_codes", []string{"code", "description"}},
+		{"catalogs.currencies", "", []string{"code", "name", "symbol"}},
+		{"catalogs.departments", "", []string{"code", "name", "description"}},
+		{"catalogs.identification_types", "", []string{"code", "name", "description"}},
+		{"catalogs.municipalities", "", []string{"code", "name", "department_code", "description"}},
+		{"catalogs.payment_methods", "", []string{"code", "name", "description"}},
+		{"catalogs.dian_tax_types", "dian_tax_types", []string{"code", "name", "description"}},
+		{"catalogs.unit_measures", "", []string{"code", "name", "description"}},
+		{"catalogs.dian_document_types", "", []string{"code", "name", "description"}},
+		{"catalogs.payment_terms", "", []string{"code", "name", "description"}},
+		{"catalogs.tax_regimes", "", []string{"code", "name", "description"}},
+		{"catalogs.liability_codes", "", []string{"code", "name", "description"}},
+		{"catalogs.item_standards", "", []string{"code", "name", "agency_id", "description"}},
+		{"catalogs.ciiu_codes", "", []string{"code", "description"}},
 	}
 
 	for _, t := range tables {
-		if err := d.seedTable(ctx, t.name, t.cols); err != nil {
+		csvName := t.csv
+		if csvName == "" {
+			if i := strings.LastIndex(t.name, "."); i >= 0 {
+				csvName = t.name[i+1:]
+			} else {
+				csvName = t.name
+			}
+		}
+		if err := d.seedTable(ctx, t.name, csvName, t.cols); err != nil {
 			return fmt.Errorf("seed %s: %w", t.name, err)
 		}
 	}
@@ -61,8 +71,8 @@ func (d *DB) Seed(ctx context.Context) error {
 	return nil
 }
 
-func (d *DB) seedTable(ctx context.Context, table string, cols []string) error {
-	rows, err := readSeedCSV(table, cols)
+func (d *DB) seedTable(ctx context.Context, table, csvName string, cols []string) error {
+	rows, err := readSeedCSV(csvName, cols)
 	if err != nil {
 		return err
 	}
@@ -199,7 +209,7 @@ func (d *DB) SeedPlans(ctx context.Context) error {
 
 	for _, p := range plans {
 		_, err := d.Pool.Exec(ctx, `
-			INSERT INTO plans (name, description, max_documents_per_month, max_issuers, price_cop)
+			INSERT INTO public.plans (name, description, max_documents_per_month, max_issuers, price_cop)
 			VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (name) DO UPDATE SET
 				description               = EXCLUDED.description,

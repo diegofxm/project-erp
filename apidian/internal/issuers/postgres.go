@@ -49,9 +49,9 @@ const issuerSelectWithNames = `
 	       i.ne_software_id, i.ne_software_pin,
 	       i.logo, i.logo_content_type, i.is_active,
 	       i.created_at, i.updated_at
-	FROM issuers i
-	JOIN departments d ON d.code = i.department_code
-	JOIN municipalities m ON m.code = i.municipality_code`
+	FROM public.issuers i
+	JOIN catalogs.departments d ON d.code = i.department_code
+	JOIN catalogs.municipalities m ON m.code = i.municipality_code`
 
 func (r *PostgresRepository) Create(ctx context.Context, iss Issuer) (*Issuer, error) {
 	if iss.ID == uuid.Nil {
@@ -100,7 +100,7 @@ func (r *PostgresRepository) Create(ctx context.Context, iss Issuer) (*Issuer, e
 		iss.Logo, iss.LogoContentType,
 		iss.IsActive, iss.CreatedAt, iss.UpdatedAt,
 	}
-	_, err = r.pool.Exec(ctx, `INSERT INTO issuers (`+issuerColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
+	_, err = r.pool.Exec(ctx, `INSERT INTO public.issuers (`+issuerColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
 	if err != nil {
 		if isDuplicateKey(err) {
 			return nil, ErrNITAlreadyExists
@@ -133,7 +133,7 @@ func (r *PostgresRepository) Update(ctx context.Context, iss Issuer) (*Issuer, e
 	}
 
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE issuers SET
+		UPDATE public.issuers SET
 			software_id = $1, software_pin = $2, certificate = $3, certificate_password = $4,
 			ne_software_id = $5, ne_software_pin = $6,
 			logo = $7, logo_content_type = $8, updated_at = $9
@@ -164,7 +164,7 @@ func (r *PostgresRepository) UpdateProfile(ctx context.Context, iss Issuer) (*Is
 	}
 
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE issuers SET
+		UPDATE public.issuers SET
 			business_name = $1, trade_name = $2,
 			department_code = $3, municipality_code = $4, address_line = $5,
 			email = $6, phone = $7,

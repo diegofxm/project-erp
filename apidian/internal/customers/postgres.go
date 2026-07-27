@@ -65,7 +65,7 @@ func (r *PostgresRepository) Create(ctx context.Context, c Customer) (*Customer,
 	}
 
 	args := partyArgs(c.ID, c.IssuerID, c.Party, c.CreatedAt, c.UpdatedAt)
-	_, err := r.pool.Exec(ctx, `INSERT INTO customers (`+customerColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
+	_, err := r.pool.Exec(ctx, `INSERT INTO edocuments.customers (`+customerColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("create customer: %w", err)
 	}
@@ -73,12 +73,12 @@ func (r *PostgresRepository) Create(ctx context.Context, c Customer) (*Customer,
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Customer, error) {
-	row := r.pool.QueryRow(ctx, `SELECT `+customerColumns+` FROM customers WHERE id = $1`, id)
+	row := r.pool.QueryRow(ctx, `SELECT `+customerColumns+` FROM edocuments.customers WHERE id = $1`, id)
 	return scanCustomer(row)
 }
 
 func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUID) ([]*Customer, error) {
-	rows, err := r.pool.Query(ctx, `SELECT `+customerColumns+` FROM customers WHERE issuer_id = $1 ORDER BY created_at DESC`, issuerID)
+	rows, err := r.pool.Query(ctx, `SELECT `+customerColumns+` FROM edocuments.customers WHERE issuer_id = $1 ORDER BY created_at DESC`, issuerID)
 	if err != nil {
 		return nil, fmt.Errorf("list customers: %w", err)
 	}
@@ -103,7 +103,7 @@ func (r *PostgresRepository) Update(ctx context.Context, issuerID, id uuid.UUID,
 	now := time.Now().UTC()
 
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE customers SET
+		UPDATE edocuments.customers SET
 			entity_type_code = $1,
 			identification_number = $2,
 			identification_type_code = $3,
@@ -141,7 +141,7 @@ func (r *PostgresRepository) Update(ctx context.Context, issuerID, id uuid.UUID,
 }
 
 func (r *PostgresRepository) Delete(ctx context.Context, issuerID, id uuid.UUID) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM customers WHERE id = $1 AND issuer_id = $2`, id, issuerID)
+	tag, err := r.pool.Exec(ctx, `DELETE FROM edocuments.customers WHERE id = $1 AND issuer_id = $2`, id, issuerID)
 	if err != nil {
 		return fmt.Errorf("delete customer: %w", err)
 	}

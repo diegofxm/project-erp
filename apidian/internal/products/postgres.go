@@ -53,7 +53,7 @@ func (r *PostgresRepository) Create(ctx context.Context, p Product) (*Product, e
 		nullableString(p.TaxTypeCode), nullableString(p.TaxTypeName), p.TaxPercent,
 		p.CreatedAt, p.UpdatedAt,
 	}
-	_, err := r.pool.Exec(ctx, `INSERT INTO products (`+productColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
+	_, err := r.pool.Exec(ctx, `INSERT INTO edocuments.products (`+productColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
 	if err != nil {
 		if isDuplicateItemCode(err) {
 			return nil, ErrDuplicateItemCode
@@ -64,12 +64,12 @@ func (r *PostgresRepository) Create(ctx context.Context, p Product) (*Product, e
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Product, error) {
-	row := r.pool.QueryRow(ctx, `SELECT `+productColumns+` FROM products WHERE id = $1`, id)
+	row := r.pool.QueryRow(ctx, `SELECT `+productColumns+` FROM edocuments.products WHERE id = $1`, id)
 	return scanProduct(row)
 }
 
 func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUID) ([]*Product, error) {
-	rows, err := r.pool.Query(ctx, `SELECT `+productColumns+` FROM products WHERE issuer_id = $1 ORDER BY created_at DESC`, issuerID)
+	rows, err := r.pool.Query(ctx, `SELECT `+productColumns+` FROM edocuments.products WHERE issuer_id = $1 ORDER BY created_at DESC`, issuerID)
 	if err != nil {
 		return nil, fmt.Errorf("list products: %w", err)
 	}
@@ -88,7 +88,7 @@ func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUI
 
 func (r *PostgresRepository) Update(ctx context.Context, issuerID, id uuid.UUID, p Product) (*Product, error) {
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE products SET
+		UPDATE edocuments.products SET
 			description = $1,
 			unit_code = $2,
 			unit_price_cents = $3,
@@ -119,7 +119,7 @@ func (r *PostgresRepository) Update(ctx context.Context, issuerID, id uuid.UUID,
 }
 
 func (r *PostgresRepository) Delete(ctx context.Context, issuerID, id uuid.UUID) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM products WHERE id = $1 AND issuer_id = $2`, id, issuerID)
+	tag, err := r.pool.Exec(ctx, `DELETE FROM edocuments.products WHERE id = $1 AND issuer_id = $2`, id, issuerID)
 	if err != nil {
 		return fmt.Errorf("delete product: %w", err)
 	}

@@ -67,7 +67,7 @@ func (r *PostgresRepository) Create(ctx context.Context, v Vendor) (*Vendor, err
 	v.UpdatedAt = now
 
 	args := partyArgs(v.ID, v.IssuerID, v.Party, v.CreatedAt, v.UpdatedAt)
-	_, err := r.pool.Exec(ctx, `INSERT INTO vendors (`+vendorColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
+	_, err := r.pool.Exec(ctx, `INSERT INTO edocuments.vendors (`+vendorColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("create vendor: %w", err)
 	}
@@ -75,12 +75,12 @@ func (r *PostgresRepository) Create(ctx context.Context, v Vendor) (*Vendor, err
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Vendor, error) {
-	row := r.pool.QueryRow(ctx, `SELECT `+vendorColumns+` FROM vendors WHERE id = $1`, id)
+	row := r.pool.QueryRow(ctx, `SELECT `+vendorColumns+` FROM edocuments.vendors WHERE id = $1`, id)
 	return scanVendor(row)
 }
 
 func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUID) ([]*Vendor, error) {
-	rows, err := r.pool.Query(ctx, `SELECT `+vendorColumns+` FROM vendors WHERE issuer_id = $1 ORDER BY created_at DESC`, issuerID)
+	rows, err := r.pool.Query(ctx, `SELECT `+vendorColumns+` FROM edocuments.vendors WHERE issuer_id = $1 ORDER BY created_at DESC`, issuerID)
 	if err != nil {
 		return nil, fmt.Errorf("list vendors: %w", err)
 	}
@@ -105,7 +105,7 @@ func (r *PostgresRepository) Update(ctx context.Context, issuerID, id uuid.UUID,
 	now := time.Now().UTC()
 
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE vendors SET
+		UPDATE edocuments.vendors SET
 			entity_type_code = $1,
 			identification_number = $2,
 			identification_type_code = $3,
@@ -143,7 +143,7 @@ func (r *PostgresRepository) Update(ctx context.Context, issuerID, id uuid.UUID,
 }
 
 func (r *PostgresRepository) Delete(ctx context.Context, issuerID, id uuid.UUID) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM vendors WHERE id = $1 AND issuer_id = $2`, id, issuerID)
+	tag, err := r.pool.Exec(ctx, `DELETE FROM edocuments.vendors WHERE id = $1 AND issuer_id = $2`, id, issuerID)
 	if err != nil {
 		return fmt.Errorf("delete vendor: %w", err)
 	}

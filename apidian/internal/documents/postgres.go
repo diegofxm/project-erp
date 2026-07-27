@@ -124,7 +124,7 @@ func (r *PostgresRepository) Create(ctx context.Context, d Document) (*Document,
 		d.UpdatedAt,
 	}
 
-	_, err = r.pool.Exec(ctx, `INSERT INTO documents (`+documentColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
+	_, err = r.pool.Exec(ctx, `INSERT INTO edocuments.documents (`+documentColumns+`) VALUES (`+sqlutil.Placeholders(len(args))+`)`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("create document: %w", err)
 	}
@@ -132,18 +132,18 @@ func (r *PostgresRepository) Create(ctx context.Context, d Document) (*Document,
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*Document, error) {
-	row := r.pool.QueryRow(ctx, `SELECT `+documentColumns+` FROM documents WHERE id = $1`, id)
+	row := r.pool.QueryRow(ctx, `SELECT `+documentColumns+` FROM edocuments.documents WHERE id = $1`, id)
 	return scanDocument(row)
 }
 
 func (r *PostgresRepository) GetByDocumentKey(ctx context.Context, issuerID uuid.UUID, key string) (*Document, error) {
-	row := r.pool.QueryRow(ctx, `SELECT `+documentColumns+` FROM documents WHERE issuer_id = $1 AND document_key = $2`, issuerID, key)
+	row := r.pool.QueryRow(ctx, `SELECT `+documentColumns+` FROM edocuments.documents WHERE issuer_id = $1 AND document_key = $2`, issuerID, key)
 	return scanDocument(row)
 }
 
 func (r *PostgresRepository) UpdateDianStatus(ctx context.Context, id uuid.UUID, status Status, trackID, statusCode, statusDescription, statusMessage, applicationResponseXML string) error {
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE documents
+		UPDATE edocuments.documents
 		SET status = $1, dian_track_id = $2, dian_status_code = $3, dian_status_description = $4,
 		    dian_status_message = $5, application_response_xml = $6, updated_at = NOW()
 		WHERE id = $7`,
@@ -170,7 +170,7 @@ func (r *PostgresRepository) UpdateDraft(ctx context.Context, d Document) (*Docu
 	}
 
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE documents SET
+		UPDATE edocuments.documents SET
 			numbering_range_id = $1,
 			currency_code = $2,
 			customer = $3,
@@ -213,7 +213,7 @@ func (r *PostgresRepository) UpdateDraft(ctx context.Context, d Document) (*Docu
 // si ya no lo es, ej. una doble confirmación concurrente).
 func (r *PostgresRepository) Confirm(ctx context.Context, d Document) (*Document, error) {
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE documents SET
+		UPDATE edocuments.documents SET
 			prefix = $1,
 			number = $2,
 			document_key = $3,
@@ -238,7 +238,7 @@ func (r *PostgresRepository) Confirm(ctx context.Context, d Document) (*Document
 
 // Delete elimina un borrador — acota WHERE status = 'draft', mismo criterio que UpdateDraft.
 func (r *PostgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM documents WHERE id = $1 AND status = 'draft'`, id)
+	tag, err := r.pool.Exec(ctx, `DELETE FROM edocuments.documents WHERE id = $1 AND status = 'draft'`, id)
 	if err != nil {
 		return fmt.Errorf("delete draft: %w", err)
 	}
@@ -249,7 +249,7 @@ func (r *PostgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUID, filter ListFilter) ([]*Document, error) {
-	query := `SELECT ` + documentColumns + ` FROM documents WHERE issuer_id = $1`
+	query := `SELECT ` + documentColumns + ` FROM edocuments.documents WHERE issuer_id = $1`
 	args := []any{issuerID}
 
 	if filter.DianDocumentTypeCode != "" {
@@ -266,7 +266,7 @@ func (r *PostgresRepository) ListByIssuer(ctx context.Context, issuerID uuid.UUI
 		args = append(args, *filter.SourceDocumentID)
 		query += fmt.Sprintf(`
 			AND (billing_reference->>'prefix', billing_reference->>'number') = (
-				SELECT prefix, number::text FROM documents WHERE id = $%d AND issuer_id = $1
+				SELECT prefix, number::text FROM edocuments.documents WHERE id = $%d AND issuer_id = $1
 			)`, len(args))
 	}
 	if !filter.From.IsZero() {

@@ -44,43 +44,43 @@ func (r *PostgresRepository) listEntries(ctx context.Context, table string) ([]E
 }
 
 func (r *PostgresRepository) ListDepartments(ctx context.Context) ([]Entry, error) {
-	return r.listEntries(ctx, "departments")
+	return r.listEntries(ctx, "catalogs.departments")
 }
 
 func (r *PostgresRepository) ListIdentificationTypes(ctx context.Context) ([]Entry, error) {
-	return r.listEntries(ctx, "identification_types")
+	return r.listEntries(ctx, "catalogs.identification_types")
 }
 
 func (r *PostgresRepository) ListTaxTypes(ctx context.Context) ([]Entry, error) {
-	return r.listEntries(ctx, "tax_types")
+	return r.listEntries(ctx, "catalogs.dian_tax_types")
 }
 
 func (r *PostgresRepository) ListPaymentMethods(ctx context.Context) ([]Entry, error) {
-	return r.listEntries(ctx, "payment_methods")
+	return r.listEntries(ctx, "catalogs.payment_methods")
 }
 
 func (r *PostgresRepository) ListPaymentTerms(ctx context.Context) ([]Entry, error) {
-	return r.listEntries(ctx, "payment_terms")
+	return r.listEntries(ctx, "catalogs.payment_terms")
 }
 
 func (r *PostgresRepository) ListUnitMeasures(ctx context.Context) ([]Entry, error) {
-	return r.listEntries(ctx, "unit_measures")
+	return r.listEntries(ctx, "catalogs.unit_measures")
 }
 
 func (r *PostgresRepository) ListTaxRegimes(ctx context.Context) ([]Entry, error) {
-	return r.listEntries(ctx, "tax_regimes")
+	return r.listEntries(ctx, "catalogs.tax_regimes")
 }
 
 func (r *PostgresRepository) ListLiabilityCodes(ctx context.Context) ([]Entry, error) {
-	return r.listEntries(ctx, "liability_codes")
+	return r.listEntries(ctx, "catalogs.liability_codes")
 }
 
 func (r *PostgresRepository) ListDianDocumentTypes(ctx context.Context) ([]Entry, error) {
-	return r.listEntries(ctx, "dian_document_types")
+	return r.listEntries(ctx, "catalogs.dian_document_types")
 }
 
 func (r *PostgresRepository) ListCurrencies(ctx context.Context) ([]Currency, error) {
-	rows, err := r.pool.Query(ctx, "SELECT code, name, symbol FROM currencies ORDER BY code")
+	rows, err := r.pool.Query(ctx, "SELECT code, name, symbol FROM catalogs.currencies ORDER BY code")
 	if err != nil {
 		return nil, fmt.Errorf("listar currencies: %w", err)
 	}
@@ -101,7 +101,7 @@ func (r *PostgresRepository) ListCurrencies(ctx context.Context) ([]Currency, er
 // departamento (lo que de verdad necesita un select dependiente departamento→municipio en un
 // frontend; sin el filtro, sería forzar a transferir y filtrar 1.122 filas en el cliente).
 func (r *PostgresRepository) ListMunicipalities(ctx context.Context, departmentCode string) ([]Municipality, error) {
-	query := "SELECT code, name, department_code, description FROM municipalities"
+	query := "SELECT code, name, department_code, description FROM catalogs.municipalities"
 	args := []any{}
 	if departmentCode != "" {
 		query += " WHERE department_code = $1"
@@ -129,7 +129,7 @@ func (r *PostgresRepository) ListMunicipalities(ctx context.Context, departmentC
 // ListItemStandards devuelve las 4 filas fijas de la tabla 13.3.5 (sección 9.45) — usado por
 // el frontend para construir el selector de estándar de clasificación de ítems.
 func (r *PostgresRepository) ListItemStandards(ctx context.Context) ([]ItemStandard, error) {
-	rows, err := r.pool.Query(ctx, "SELECT code, name, agency_id, description FROM item_standards ORDER BY code")
+	rows, err := r.pool.Query(ctx, "SELECT code, name, agency_id, description FROM catalogs.item_standards ORDER BY code")
 	if err != nil {
 		return nil, fmt.Errorf("listar item_standards: %w", err)
 	}
@@ -150,59 +150,59 @@ func (r *PostgresRepository) ListItemStandards(ctx context.Context) ([]ItemStand
 // en internal/documents/ports.go sobre por qué hace falta esto (payment_means vive en JSONB,
 // nunca pudo tener un FK real).
 func (r *PostgresRepository) IsValidPaymentTerm(ctx context.Context, code string) (bool, error) {
-	return r.exists(ctx, "payment_terms", code)
+	return r.exists(ctx, "catalogs.payment_terms", code)
 }
 
 func (r *PostgresRepository) IsValidPaymentMethod(ctx context.Context, code string) (bool, error) {
-	return r.exists(ctx, "payment_methods", code)
+	return r.exists(ctx, "catalogs.payment_methods", code)
 }
 
 // IsValidLiabilityCode implementa issuers.CatalogPort/customers.CatalogPort/
 // documents.CatalogPort — ver el comentario en Repository sobre por qué hace falta esto
 // (liability_codes es TEXT[], sin FK posible contra cada elemento).
 func (r *PostgresRepository) IsValidLiabilityCode(ctx context.Context, code string) (bool, error) {
-	return r.exists(ctx, "liability_codes", code)
+	return r.exists(ctx, "catalogs.liability_codes", code)
 }
 
 // GetTaxTypeName implementa issuers.CatalogPort/customers.CatalogPort/products.CatalogPort/
 // documents.CatalogPort — ver el comentario en Repository.
 func (r *PostgresRepository) GetTaxTypeName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "tax_types", code)
+	return r.getName(ctx, "catalogs.dian_tax_types", code)
 }
 
 // GetPaymentTermName/GetPaymentMethodName implementan documents.CatalogPort — ver el
 // comentario en Repository.
 func (r *PostgresRepository) GetPaymentTermName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "payment_terms", code)
+	return r.getName(ctx, "catalogs.payment_terms", code)
 }
 
 func (r *PostgresRepository) GetPaymentMethodName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "payment_methods", code)
+	return r.getName(ctx, "catalogs.payment_methods", code)
 }
 
 func (r *PostgresRepository) GetIdentificationTypeName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "identification_types", code)
+	return r.getName(ctx, "catalogs.identification_types", code)
 }
 
 func (r *PostgresRepository) GetTaxRegimeName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "tax_regimes", code)
+	return r.getName(ctx, "catalogs.tax_regimes", code)
 }
 
 func (r *PostgresRepository) GetLiabilityCodeName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "liability_codes", code)
+	return r.getName(ctx, "catalogs.liability_codes", code)
 }
 
 // GetItemStandardName implementa documents.CatalogPort/products.CatalogPort — ver el
 // comentario en Repository (sección 9.45).
 func (r *PostgresRepository) GetItemStandardName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "item_standards", code)
+	return r.getName(ctx, "catalogs.item_standards", code)
 }
 
 // GetItemStandardAgencyID — separado de GetItemStandardName porque agency_id puede ser ""
 // con found=true (fila 999, donde el atributo no debe usarse en el XML).
 func (r *PostgresRepository) GetItemStandardAgencyID(ctx context.Context, code string) (string, bool, error) {
 	var agencyID string
-	err := r.pool.QueryRow(ctx, "SELECT agency_id FROM item_standards WHERE code = $1", code).Scan(&agencyID)
+	err := r.pool.QueryRow(ctx, "SELECT agency_id FROM catalogs.item_standards WHERE code = $1", code).Scan(&agencyID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", false, nil
 	}
@@ -228,7 +228,7 @@ func (r *PostgresRepository) getName(ctx context.Context, table, code string) (s
 }
 
 func (r *PostgresRepository) ListCiiuCodes(ctx context.Context) ([]CiiuCode, error) {
-	rows, err := r.pool.Query(ctx, "SELECT code, description FROM ciiu_codes ORDER BY code")
+	rows, err := r.pool.Query(ctx, "SELECT code, description FROM catalogs.ciiu_codes ORDER BY code")
 	if err != nil {
 		return nil, fmt.Errorf("listar ciiu_codes: %w", err)
 	}
@@ -247,7 +247,7 @@ func (r *PostgresRepository) ListCiiuCodes(ctx context.Context) ([]CiiuCode, err
 
 func (r *PostgresRepository) GetCiiuDescription(ctx context.Context, code string) (string, bool, error) {
 	var desc string
-	err := r.pool.QueryRow(ctx, "SELECT description FROM ciiu_codes WHERE code = $1", code).Scan(&desc)
+	err := r.pool.QueryRow(ctx, "SELECT description FROM catalogs.ciiu_codes WHERE code = $1", code).Scan(&desc)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", false, nil
 	}
