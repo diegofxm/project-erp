@@ -37,6 +37,9 @@ import (
 	electroniccompany "github.com/diegofxm/erp/internal/electronic/infrastructure/company"
 	electronicpostgres "github.com/diegofxm/erp/internal/electronic/infrastructure/persistence/postgres"
 	electronichttp "github.com/diegofxm/erp/internal/electronic/interfaces/http"
+	hrapp "github.com/diegofxm/erp/internal/hr/application"
+	hrpostgres "github.com/diegofxm/erp/internal/hr/infrastructure/persistence/postgres"
+	hrhttp "github.com/diegofxm/erp/internal/hr/interfaces/http"
 	payrollapp "github.com/diegofxm/erp/internal/payroll/application"
 	payrollpostgres "github.com/diegofxm/erp/internal/payroll/infrastructure/persistence/postgres"
 	payrollseed "github.com/diegofxm/erp/internal/payroll/infrastructure/persistence/postgres/seed"
@@ -84,6 +87,7 @@ func main() {
 	mustMigrate("accounting", accountingpostgres.Migrate(databaseURL))
 	mustMigrate("electronic", electronicpostgres.Migrate(databaseURL))
 	mustMigrate("payroll", payrollpostgres.Migrate(databaseURL))
+	mustMigrate("hr", hrpostgres.Migrate(databaseURL))
 
 	// ── Bus de eventos ──────────────────────────────────────────────────────────
 	bus := events.NewBus()
@@ -161,6 +165,12 @@ func main() {
 	electronicListUC        := electronicapp.NewListDocumentsUseCase(electronicDocRepo)
 	electronicNumberingUC   := electronicapp.NewManageNumberingUseCase(electronicNumRepo)
 
+	// ── Repositorios — hr ──────────────────────────────────────────────────────
+	hrAbsenceRepo := hrpostgres.NewAbsenceRepository(pool)
+
+	// ── Casos de uso — hr ───────────────────────────────────────────────────────
+	hrAbsenceUC := hrapp.NewAbsenceUseCase(hrAbsenceRepo)
+
 	// ── Repositorios — payroll ──────────────────────────────────────────────────
 	payrollEmpRepo      := payrollpostgres.NewEmployeeRepository(pool)
 	payrollContractRepo := payrollpostgres.NewContractRepository(pool)
@@ -222,6 +232,7 @@ func main() {
 	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo).RegisterRoutes(mux)
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC).RegisterRoutes(mux)
 	payrollhttp.NewHandler(payrollEmpUC, payrollContractUC, payrollPayslipUC).RegisterRoutes(mux)
+	hrhttp.NewHandler(hrAbsenceUC).RegisterRoutes(mux)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
