@@ -11,7 +11,7 @@ import (
 	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
 	"github.com/diegofxm/apidian/internal/edocuments/numbering"
-	"github.com/diegofxm/apidian/internal/pdf"
+	"github.com/diegofxm/apidian/internal/edocuments/pdf"
 	"github.com/diegofxm/cofacture/domain"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

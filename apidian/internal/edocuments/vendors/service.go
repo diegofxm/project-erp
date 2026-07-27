@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/diegofxm/apidian/internal/nit"
+	"github.com/diegofxm/apidian/internal/catalogs/nit"
 	"github.com/diegofxm/cofacture/domain"
 	"github.com/google/uuid"
 )

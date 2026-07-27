@@ -10,7 +10,7 @@ import (
 
 	"github.com/beevik/etree"
 	"github.com/diegofxm/apidian/internal/issuers"
-	"github.com/diegofxm/apidian/internal/nit"
+	"github.com/diegofxm/apidian/internal/catalogs/nit"
 	"github.com/diegofxm/apidian/internal/edocuments/numbering"
 	"github.com/diegofxm/cofacture/builder"
 	"github.com/diegofxm/cofacture/cude"

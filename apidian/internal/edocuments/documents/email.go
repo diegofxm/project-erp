@@ -15,7 +15,7 @@ import (
 	"github.com/beevik/etree"
 	"github.com/diegofxm/apidian/internal/email"
 	"github.com/diegofxm/apidian/internal/issuers"
-	"github.com/diegofxm/apidian/internal/pdf"
+	"github.com/diegofxm/apidian/internal/edocuments/pdf"
 	"github.com/diegofxm/cofacture/builder"
 	"github.com/diegofxm/cofacture/domain"
 	"github.com/diegofxm/cofacture/signer"

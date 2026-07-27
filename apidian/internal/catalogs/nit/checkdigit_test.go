@@ -3,7 +3,7 @@ package nit_test
 import (
 	"testing"
 
-	"github.com/diegofxm/apidian/internal/nit"
+	"github.com/diegofxm/apidian/internal/catalogs/nit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

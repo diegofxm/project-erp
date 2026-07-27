@@ -14,7 +14,7 @@ import (
 	"github.com/diegofxm/apidian/internal/config"
 	"github.com/diegofxm/apidian/internal/database"
 	"github.com/diegofxm/apidian/internal/logger"
-	"github.com/diegofxm/apidian/internal/pdf"
+	"github.com/diegofxm/apidian/internal/edocuments/pdf"
 	"github.com/diegofxm/apidian/internal/server"
 )
 
