@@ -3,31 +3,51 @@ package tenant
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 )
 
-type contextKey struct{}
+type companyKey struct{}
+type userKey struct{}
 
-// WithCompanyID inyecta el company_id en el contexto de la request.
-func WithCompanyID(ctx context.Context, id uuid.UUID) context.Context {
-	return context.WithValue(ctx, contextKey{}, id)
+// Verifier verifica un JWT y devuelve userID y companyID.
+// Implementado por security/infrastructure/jwt.TokenService.
+type Verifier interface {
+	Verify(raw string) (userID, companyID uuid.UUID, err error)
 }
 
-// GetCompanyID extrae el company_id del contexto. Devuelve uuid.Nil si no fue inyectado
-// (nunca debería ocurrir en handlers protegidos — el middleware lo garantiza).
+func WithCompanyID(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, companyKey{}, id)
+}
+
 func GetCompanyID(ctx context.Context) uuid.UUID {
-	id, _ := ctx.Value(contextKey{}).(uuid.UUID)
+	id, _ := ctx.Value(companyKey{}).(uuid.UUID)
 	return id
 }
 
-// Middleware extrae el company_id del JWT (vía security/) y lo inyecta al contexto.
-// Toda request a rutas protegidas pasa por aquí antes de llegar a cualquier handler.
-// TODO: cuando security/ esté implementado, reemplazar este placeholder con la
-// extracción real del claim "company_id" del token JWT.
-func Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// placeholder: sin JWT todavía
-		next.ServeHTTP(w, r)
-	})
+func WithUserID(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, userKey{}, id)
+}
+
+func GetUserID(ctx context.Context) uuid.UUID {
+	id, _ := ctx.Value(userKey{}).(uuid.UUID)
+	return id
+}
+
+// Middleware extrae el JWT del header Authorization e inyecta userID y companyID en el contexto.
+// Es silencioso si no hay token o es inválido — las rutas protegidas llaman requireAuth.
+func Middleware(v Verifier) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if raw != "" {
+				if userID, companyID, err := v.Verify(raw); err == nil {
+					r = r.WithContext(WithUserID(r.Context(), userID))
+					r = r.WithContext(WithCompanyID(r.Context(), companyID))
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }

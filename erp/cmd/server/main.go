@@ -32,6 +32,11 @@ import (
 	accountingpostgres "github.com/diegofxm/erp/internal/accounting/infrastructure/persistence/postgres"
 	accountingseed "github.com/diegofxm/erp/internal/accounting/infrastructure/persistence/postgres/seed"
 	accountinghttp "github.com/diegofxm/erp/internal/accounting/interfaces/http"
+	electronicapp "github.com/diegofxm/erp/internal/electronic/application"
+	electroniccofacture "github.com/diegofxm/erp/internal/electronic/infrastructure/cofacture"
+	electroniccompany "github.com/diegofxm/erp/internal/electronic/infrastructure/company"
+	electronicpostgres "github.com/diegofxm/erp/internal/electronic/infrastructure/persistence/postgres"
+	electronichttp "github.com/diegofxm/erp/internal/electronic/interfaces/http"
 	salesapp "github.com/diegofxm/erp/internal/sales/application"
 	salespostgres "github.com/diegofxm/erp/internal/sales/infrastructure/persistence/postgres"
 	saleshttp "github.com/diegofxm/erp/internal/sales/interfaces/http"
@@ -73,6 +78,7 @@ func main() {
 	mustMigrate("purchase", purchasepostgres.Migrate(databaseURL))
 	mustMigrate("sales", salespostgres.Migrate(databaseURL))
 	mustMigrate("accounting", accountingpostgres.Migrate(databaseURL))
+	mustMigrate("electronic", electronicpostgres.Migrate(databaseURL))
 
 	// ── Bus de eventos ──────────────────────────────────────────────────────────
 	bus := events.NewBus()
@@ -105,6 +111,12 @@ func main() {
 	accountingPeriodRepo   := accountingpostgres.NewPeriodRepository(pool)
 	accountingJournalRepo  := accountingpostgres.NewJournalRepository(pool)
 
+	// ── Repositorios — electronic ───────────────────────────────────────────────
+	electronicDocRepo      := electronicpostgres.NewDocumentRepository(pool)
+	electronicNumRepo      := electronicpostgres.NewNumberingRepository(pool, encryptionKey)
+	electronicCompanyPort  := electroniccompany.New(companyRepo)
+	electronicAdapter      := electroniccofacture.New()
+
 	// ── Casos de uso — security ─────────────────────────────────────────────────
 	registerUC      := securityapp.NewRegisterUseCase(securityRepo, jwtSvc)
 	loginUC         := securityapp.NewLoginUseCase(securityRepo, jwtSvc)
@@ -133,6 +145,13 @@ func main() {
 	managePeriodUC  := accountingapp.NewManagePeriodUseCase(accountingPeriodRepo)
 	onSaleConfirmed := accountingapp.NewOnSaleConfirmed(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onSaleConfirmed.Register(bus)
+
+	// ── Casos de uso — electronic ───────────────────────────────────────────────
+	electronicCreateDraftUC := electronicapp.NewCreateDraftUseCase(electronicDocRepo, electronicNumRepo, electronicCompanyPort, catalogRepo)
+	electronicConfirmUC     := electronicapp.NewConfirmUseCase(electronicDocRepo, electronicNumRepo, electronicCompanyPort, electronicAdapter, electronicAdapter, electronicAdapter)
+	electronicGetUC         := electronicapp.NewGetDocumentUseCase(electronicDocRepo)
+	electronicListUC        := electronicapp.NewListDocumentsUseCase(electronicDocRepo)
+	electronicNumberingUC   := electronicapp.NewManageNumberingUseCase(electronicNumRepo)
 
 	// ── Casos de uso — inventory ────────────────────────────────────────────────
 	moveInventoryUC := inventoryapp.NewMoveUseCase(inventoryRepo)
@@ -183,6 +202,7 @@ func main() {
 	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC).RegisterRoutes(mux)
 	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC).RegisterRoutes(mux)
 	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo).RegisterRoutes(mux)
+	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC).RegisterRoutes(mux)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
