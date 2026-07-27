@@ -376,4 +376,89 @@ Módulos más pequeños; `hr` alimenta a `payroll`, `purchasing` cierra el ciclo
 
 ---
 
+---
+
+## Regla obligatoria al crear un módulo nuevo
+
+Todo módulo nuevo (`payroll/`, `inventory/`, etc.) **debe incluir un test de integración de
+esquema** antes de su primer commit. El test garantiza que las migraciones SQL y el código Go
+siempre están alineados — sin este test, las discrepancias solo se descubren en producción
+(experiencia vivida en la sesión de julio 2026: `unit_measure_code` vs `unit_code`, columnas
+faltantes en `user_issuers`, `FROM documents` sin prefijo de esquema).
+
+### Cómo hacerlo (patrón establecido)
+
+**1. Crea `<módulo>/schema_test.go`** con build tag `integration`:
+
+```go
+//go:build integration
+
+package payroll_test
+
+import (
+    "context"
+    "os"
+    "testing"
+
+    payroll "github.com/diegofxm/payroll"
+    "github.com/jackc/pgx/v5/pgxpool"
+)
+
+func TestPayrollSchemaMatchesCode(t *testing.T) {
+    url := os.Getenv("DATABASE_URL")
+    if url == "" {
+        t.Skip("DATABASE_URL no configurada")
+    }
+    ctx := context.Background()
+    if err := payroll.Migrate(url); err != nil {
+        t.Fatalf("migrar: %v", err)
+    }
+    pool, _ := pgxpool.New(ctx, url)
+    defer pool.Close()
+
+    tables := []struct{ name, query string }{
+        {
+            "payroll.employees",
+            // columnas exactas del INSERT en employees/postgres.go
+            `SELECT id, company_id, name, ... FROM payroll.employees LIMIT 0`,
+        },
+        // una entrada por cada tabla del módulo
+    }
+    for _, tt := range tables {
+        t.Run(tt.name, func(t *testing.T) {
+            if _, err := pool.Exec(ctx, tt.query); err != nil {
+                t.Errorf("esquema no coincide con el código: %v", err)
+            }
+        })
+    }
+}
+```
+
+**2. El SELECT del test debe ser copia literal de las columnas del `postgres.go`**, no
+inventadas. Leer el `INSERT INTO` o la constante `*Cols` del repositorio correspondiente y
+copiarlas al test. Si el test se escribe con columnas distintas a las del código, no sirve.
+
+**3. Correrlo una vez después de escribir migración + repositorio**:
+
+```bash
+export DATABASE_URL='postgres://...'
+go test -tags integration -v ./<módulo>/
+```
+
+Si pasa → migración y código están alineados → commit. Si falla → hay una discrepancia que
+hubiera causado un 500 en producción.
+
+**4. Volver a correrlo solo en dos situaciones**:
+- Cuando se renombra o agrega una columna en la migración.
+- Después de un reset de base de datos, para confirmar que el esquema nuevo está correcto.
+
+### Módulos existentes con su test
+
+| Módulo | Test |
+|---|---|
+| `apidian` | `apidian/internal/database/schema_test.go` — 12 tablas |
+| `accounting` | `accounting/schema_test.go` — 23 tablas + seed |
+
+---
+
 *Actualizado: julio 2026. Actualizar cuando cambien decisiones de arquitectura o avance el estado de un módulo.*
