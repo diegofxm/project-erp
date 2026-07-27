@@ -16,6 +16,8 @@ import (
 	"context"
 	"os"
 	"testing"
+
+	"github.com/diegofxm/apidian/internal/database"
 )
 
 func TestSchemaMatchesCode(t *testing.T) {
@@ -25,7 +27,7 @@ func TestSchemaMatchesCode(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	db, err := New(ctx, Config{URL: url, MaxConn: 2, MinConn: 1})
+	db, err := database.New(ctx, database.Config{URL: url, MaxConn: 2, MinConn: 1})
 	if err != nil {
 		t.Fatalf("conectar BD: %v", err)
 	}

@@ -5,7 +5,7 @@ package accounting_test
 // TestAccountingSchemaMatchesCode verifica que las 3 migraciones del módulo contable
 // generan exactamente las columnas que usa el código Go.  Ejecutar con:
 //
-//	DATABASE_URL="postgres://..." go test -tags integration -v .
+//	DATABASE_URL="postgres://..." go test -tags integration -v ./accounting/
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"os"
 	"testing"
 
+	accounting "github.com/diegofxm/accounting"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -24,7 +25,7 @@ func TestAccountingSchemaMatchesCode(t *testing.T) {
 
 	ctx := context.Background()
 
-	if err := Migrate(url); err != nil {
+	if err := accounting.Migrate(url); err != nil {
 		t.Fatalf("migrar accounting: %v", err)
 	}
 
@@ -48,7 +49,8 @@ func TestAccountingSchemaMatchesCode(t *testing.T) {
 		},
 		{
 			name: "accounting.accounting_periods",
-			query: `SELECT id, company_id, name, start_date, end_date, status,
+			// mirrors periods/postgres.go : periodCols
+			query: `SELECT id, company_id, year, month, status, opened_at, closed_at,
 			        created_at, updated_at
 			        FROM accounting.accounting_periods LIMIT 0`,
 		},
@@ -65,30 +67,35 @@ func TestAccountingSchemaMatchesCode(t *testing.T) {
 			name: "accounting.journal_lines",
 			// mirrors journals/postgres.go : INSERT column list
 			query: `SELECT id, journal_id, account_id, debit, credit,
-			        third_party_nit, cost_center, description,
+			        cost_center, description, third_party_nit,
 			        foreign_amount, foreign_currency, created_at
 			        FROM accounting.journal_lines LIMIT 0`,
 		},
 		{
 			name: "accounting.voucher_types",
-			query: `SELECT code, name, book, created_at FROM accounting.voucher_types LIMIT 0`,
+			// mirrors journals/postgres.go : INSERT INTO accounting.voucher_types
+			query: `SELECT id, company_id, code, name, resets_annually, is_active,
+			        created_at, updated_at
+			        FROM accounting.voucher_types LIMIT 0`,
 		},
 		{
 			name: "accounting.voucher_counters",
-			query: `SELECT company_id, code, year, last_seq, updated_at
+			// mirrors journals/postgres.go : INSERT INTO accounting.voucher_counters
+			query: `SELECT company_id, code, year, last_seq
 			        FROM accounting.voucher_counters LIMIT 0`,
 		},
 		{
 			name: "accounting.bank_accounts",
-			// mirrors banking/postgres.go
-			query: `SELECT id, company_id, name, account_code, bank_name,
-			        account_number, currency, is_active, created_at, updated_at
+			// mirrors banking/postgres.go : INSERT INTO accounting.bank_accounts
+			query: `SELECT id, company_id, name, bank_name, account_no, account_id,
+			        is_active, created_at, updated_at
 			        FROM accounting.bank_accounts LIMIT 0`,
 		},
 		{
 			name: "accounting.bank_statement_lines",
-			query: `SELECT id, bank_account_id, date, description, amount,
-			        reference, journal_id, created_at
+			// mirrors banking/postgres.go : INSERT + SELECT
+			query: `SELECT id, bank_account_id, date, description, debit, credit,
+			        reference, is_reconciled, journal_line_id, created_at
 			        FROM accounting.bank_statement_lines LIMIT 0`,
 		},
 
@@ -103,48 +110,58 @@ func TestAccountingSchemaMatchesCode(t *testing.T) {
 		},
 		{
 			name: "accounting.uvt_values",
-			// mirrors seed/seed.go : UVT INSERT column list
-			query: `SELECT year, value_cents, created_at FROM accounting.uvt_values LIMIT 0`,
+			// mirrors seed/seed.go : UVT INSERT — sin created_at (no está en la tabla)
+			query: `SELECT year, value_cents FROM accounting.uvt_values LIMIT 0`,
 		},
 		{
 			name: "accounting.fixed_assets",
-			query: `SELECT id, company_id, name, account_code, acquisition_date,
-			        acquisition_cost, salvage_value, useful_life_months, depreciation_method,
-			        source_document_id, source_document_type, journal_id,
+			// mirrors assets/postgres.go : INSERT INTO accounting.fixed_assets
+			query: `SELECT id, company_id, code, name, description,
+			        asset_account, depreciation_account, accumulated_account,
+			        gain_account, loss_account,
+			        acquisition_date, acquisition_cost, salvage_value,
+			        useful_life_months, depreciation_method, status,
+			        third_party_nit, source_document_id, source_document_type,
 			        created_at, updated_at
 			        FROM accounting.fixed_assets LIMIT 0`,
 		},
 		{
 			name: "accounting.depreciation_runs",
-			query: `SELECT id, company_id, period_id, run_date, journal_id, created_at
+			// mirrors assets/postgres.go : INSERT INTO accounting.depreciation_runs
+			query: `SELECT id, company_id, period_id, run_date, status, journal_id, created_at
 			        FROM accounting.depreciation_runs LIMIT 0`,
 		},
 		{
 			name: "accounting.depreciation_entries",
-			query: `SELECT id, run_id, asset_id, period_months, amount,
-			        accumulated, book_value, created_at
+			// mirrors assets/postgres.go : INSERT INTO accounting.depreciation_entries
+			query: `SELECT id, run_id, asset_id, amount, created_at
 			        FROM accounting.depreciation_entries LIMIT 0`,
 		},
 		{
-			name: "accounting.exchange_rates",
-			// mirrors forex/postgres.go
-			query: `SELECT id, company_id, currency, rate_date, rate, source, created_at
-			        FROM accounting.exchange_rates LIMIT 0`,
-		},
-		{
 			name: "accounting.reconciliation_marks",
-			query: `SELECT id, journal_line_id, matched_line_id, matched_at
+			// mirrors cartera/postgres.go : INSERT INTO accounting.reconciliation_marks
+			query: `SELECT id, company_id, journal_line_id, reconciled_with, note, reconciled_at
 			        FROM accounting.reconciliation_marks LIMIT 0`,
 		},
 		{
+			name: "accounting.exchange_rates",
+			// mirrors forex/postgres.go : INSERT INTO accounting.exchange_rates
+			query: `SELECT id, rate_date, from_currency, to_currency, rate_x10000, source, created_at
+			        FROM accounting.exchange_rates LIMIT 0`,
+		},
+		{
 			name: "accounting.budgets",
-			query: `SELECT id, company_id, fiscal_year, name, status, created_at, updated_at
+			// mirrors budget/postgres.go : INSERT INTO accounting.budgets
+			query: `SELECT id, company_id, year, name, status, created_at, updated_at
 			        FROM accounting.budgets LIMIT 0`,
 		},
 		{
 			name: "accounting.budget_lines",
-			query: `SELECT id, budget_id, account_code, jan, feb, mar, apr, may, jun,
-			        jul, aug, sep, oct, nov, dec, created_at, updated_at
+			// mirrors budget/postgres.go : INSERT INTO accounting.budget_lines
+			query: `SELECT id, budget_id, account_id,
+			        jan, feb, mar, apr, may, jun,
+			        jul, aug, sep, oct, nov, dec,
+			        created_at, updated_at
 			        FROM accounting.budget_lines LIMIT 0`,
 		},
 
@@ -152,7 +169,7 @@ func TestAccountingSchemaMatchesCode(t *testing.T) {
 		{
 			name: "accounting.income_tax_rates",
 			// mirrors seed/seed.go : IncomeTaxRates INSERT column list
-			query: `SELECT year, rate_bp, created_at FROM accounting.income_tax_rates LIMIT 0`,
+			query: `SELECT year, rate_bp FROM accounting.income_tax_rates LIMIT 0`,
 		},
 		{
 			name: "accounting.income_tax_declarations",
@@ -204,7 +221,7 @@ func TestAccountingSeedLoads(t *testing.T) {
 
 	ctx := context.Background()
 
-	if err := Migrate(url); err != nil {
+	if err := accounting.Migrate(url); err != nil {
 		t.Fatalf("migrar: %v", err)
 	}
 
@@ -214,12 +231,11 @@ func TestAccountingSeedLoads(t *testing.T) {
 	}
 	defer pool.Close()
 
-	core := New(pool)
+	core := accounting.New(pool)
 	if err := core.Seed(ctx); err != nil {
 		t.Fatalf("seed falló: %v", err)
 	}
 
-	// Verifica que al menos una fila fue cargada en cada catálogo.
 	catalogs := []struct{ table, pk string }{
 		{"accounting.accounts", "code"},
 		{"accounting.withholding_concepts", "id"},
