@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -61,54 +61,62 @@ import (
 	securitypostgres "github.com/diegofxm/erp/internal/security/infrastructure/persistence/postgres"
 	securityhttp "github.com/diegofxm/erp/internal/security/interfaces/http"
 	"github.com/diegofxm/erp/internal/shared/events"
+	"github.com/diegofxm/erp/internal/shared/logger"
 	"github.com/diegofxm/erp/internal/shared/tenant"
 )
 
 func main() {
-	// Carga erp/.env si existe; en producción las variables vienen del entorno directamente.
 	_ = godotenv.Load()
 
-	databaseURL := mustEnv("DATABASE_URL")
-	addr := envOr("ADDR", ":8080")
+	log := logger.New("server")
 
-	// ENCRYPTION_KEY: hex de 32 bytes (64 chars hex) para AES-256-GCM
-	encryptionKey := mustHexKey("ENCRYPTION_KEY")
+	databaseURL := mustEnv(log, "DATABASE_URL")
+	addr := envOr("ADDR", ":8080")
+	encryptionKey := mustHexKey(log, "ENCRYPTION_KEY")
 
 	// ── Base de datos ──────────────────────────────────────────────────────────
-	pool := mustOpenDB(databaseURL)
+	pool := mustOpenDB(log, databaseURL)
 	defer pool.Close()
 
 	// ── Migraciones ─────────────────────────────────────────────────────────────
-	mustMigrate("catalog", catalogpostgres.Migrate(databaseURL))
-	mustMigrate("security", securitypostgres.Migrate(databaseURL))
-	mustMigrate("company", companypostgres.Migrate(databaseURL))
-	mustMigrate("customer", customerpostgres.Migrate(databaseURL))
-	mustMigrate("supplier", supplierpostgres.Migrate(databaseURL))
-	mustMigrate("product", productpostgres.Migrate(databaseURL))
-	mustMigrate("inventory", inventorypostgres.Migrate(databaseURL))
-	mustMigrate("purchase", purchasepostgres.Migrate(databaseURL))
-	mustMigrate("sales", salespostgres.Migrate(databaseURL))
-	mustMigrate("accounting", accountingpostgres.Migrate(databaseURL))
-	mustMigrate("electronic", electronicpostgres.Migrate(databaseURL))
-	mustMigrate("payroll", payrollpostgres.Migrate(databaseURL))
-	mustMigrate("hr", hrpostgres.Migrate(databaseURL))
+	mlog := logger.New("migrate")
+	mustMigrate(mlog, "catalog",    catalogpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "security",   securitypostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "company",    companypostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "customer",   customerpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "supplier",   supplierpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "product",    productpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "inventory",  inventorypostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "purchase",   purchasepostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "sales",      salespostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "accounting", accountingpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "electronic", electronicpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "payroll",    payrollpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "hr",         hrpostgres.Migrate(databaseURL))
 
 	// ── Bus de eventos ──────────────────────────────────────────────────────────
 	bus := events.NewBus()
 
 	// ── Seed ────────────────────────────────────────────────────────────────────
+	slog := logger.New("seed")
 	if err := seed.All(context.Background(), pool); err != nil {
-		log.Fatalf("seed catálogos: %v", err)
+		slog.Error("seed catálogos fallido", "error", err)
+		os.Exit(1)
 	}
+	slog.Info("catalog OK")
 	if err := accountingseed.All(context.Background(), pool); err != nil {
-		log.Fatalf("seed accounting: %v", err)
+		slog.Error("seed accounting fallido", "error", err)
+		os.Exit(1)
 	}
+	slog.Info("accounting OK")
 	if err := payrollseed.All(context.Background(), pool); err != nil {
-		log.Fatalf("seed payroll: %v", err)
+		slog.Error("seed payroll fallido", "error", err)
+		os.Exit(1)
 	}
+	slog.Info("payroll OK")
 
 	// ── JWT ──────────────────────────────────────────────────────────────────────
-	jwtSvc := securityjwt.NewTokenService([]byte(mustEnv("JWT_SECRET")))
+	jwtSvc := securityjwt.NewTokenService([]byte(mustEnv(log, "JWT_SECRET")))
 
 	// ── Repositorios ────────────────────────────────────────────────────────────
 	catalogRepo  := catalogpostgres.NewRepository(pool)
@@ -120,6 +128,9 @@ func main() {
 	inventoryRepo  := inventorypostgres.NewRepository(pool)
 	purchaseRepo   := purchasepostgres.NewRepository(pool)
 	salesRepo      := salespostgres.NewRepository(pool)
+	warehouseRepo  := companypostgres.NewWarehouseRepository(pool)
+	quoteRepo      := salespostgres.NewQuoteRepository(pool)
+	paymentRepo    := salespostgres.NewPaymentRepository(pool)
 
 	// ── Repositorios — accounting ───────────────────────────────────────────────
 	accountingAccountRepo  := accountingpostgres.NewAccountRepository(pool)
@@ -153,6 +164,8 @@ func main() {
 	getSaleUC     := salesapp.NewGetUseCase(salesRepo)
 	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus)
 	cancelSaleUC  := salesapp.NewCancelUseCase(salesRepo)
+	quoteUC       := salesapp.NewQuoteUseCase(quoteRepo, salesRepo)
+	paymentUC     := salesapp.NewPaymentUseCase(paymentRepo, salesRepo)
 
 	// ── Casos de uso — accounting ───────────────────────────────────────────────
 	postJournalUC   := accountingapp.NewPostJournalUseCase(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
@@ -163,12 +176,10 @@ func main() {
 	onSaleConfirmed.Register(bus)
 	inventoryOnSaleConfirmed := inventoryapp.NewOnSaleConfirmed(inventoryRepo)
 	inventoryOnSaleConfirmed.Register(bus)
-
 	onPurchaseReceived := accountingapp.NewOnPurchaseReceived(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onPurchaseReceived.Register(bus)
 	inventoryOnPurchaseReceived := inventoryapp.NewOnPurchaseReceived(inventoryRepo)
 	inventoryOnPurchaseReceived.Register(bus)
-
 	onPayrollGenerated := accountingapp.NewOnPayrollGenerated(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onPayrollGenerated.Register(bus)
 
@@ -178,79 +189,56 @@ func main() {
 	electronicGetUC         := electronicapp.NewGetDocumentUseCase(electronicDocRepo)
 	electronicListUC        := electronicapp.NewListDocumentsUseCase(electronicDocRepo)
 	electronicNumberingUC   := electronicapp.NewManageNumberingUseCase(electronicNumRepo)
+	fromSaleUC              := electronicapp.NewCreateFromSaleUseCase(electronicCreateDraftUC, salesRepo, customerRepo, productRepo)
 
 	// ── Renderer de reportes ─────────────────────────────────────────────────────
 	htmlRenderer, err := htmlreports.NewRenderer()
 	if err != nil {
-		log.Fatalf("renderer HTML: %v", err)
+		log.Error("renderer HTML fallido", "error", err)
+		os.Exit(1)
 	}
-	pdfGenerator := pdfreports.NewGenerator(htmlRenderer)
+	pdfGenerator  := pdfreports.NewGenerator(htmlRenderer)
 	multiRenderer := multireports.New(map[reportsdomain.Format]reportsdomain.Renderer{
 		reportsdomain.FormatHTML: htmlRenderer,
 		reportsdomain.FormatPDF:  pdfGenerator,
 	})
 	electronicPDFUC := electronicapp.NewGetDocumentPDFUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer)
 
-	// ── Repositorios — hr ──────────────────────────────────────────────────────
-	hrAbsenceRepo := hrpostgres.NewAbsenceRepository(pool)
+	// ── Casos de uso — hr / payroll / company / inventory / supplier / product / customer ──
+	hrAbsenceRepo   := hrpostgres.NewAbsenceRepository(pool)
+	hrAbsenceUC     := hrapp.NewAbsenceUseCase(hrAbsenceRepo)
 
-	// ── Casos de uso — hr ───────────────────────────────────────────────────────
-	hrAbsenceUC := hrapp.NewAbsenceUseCase(hrAbsenceRepo)
-
-	// ── Repositorios — payroll ──────────────────────────────────────────────────
 	payrollEmpRepo      := payrollpostgres.NewEmployeeRepository(pool)
 	payrollContractRepo := payrollpostgres.NewContractRepository(pool)
 	payrollPayslipRepo  := payrollpostgres.NewPayslipRepository(pool)
+	payrollEmpUC        := payrollapp.NewEmployeeUseCase(payrollEmpRepo)
+	payrollContractUC   := payrollapp.NewContractUseCase(payrollContractRepo, payrollEmpRepo)
+	payrollPayslipUC    := payrollapp.NewPayslipUseCase(payrollPayslipRepo, payrollContractRepo, payrollEmpRepo, bus)
 
-	// ── Casos de uso — payroll ──────────────────────────────────────────────────
-	payrollEmpUC      := payrollapp.NewEmployeeUseCase(payrollEmpRepo)
-	payrollContractUC := payrollapp.NewContractUseCase(payrollContractRepo, payrollEmpRepo)
-	payrollPayslipUC  := payrollapp.NewPayslipUseCase(payrollPayslipRepo, payrollContractRepo, payrollEmpRepo, bus)
-
-	// ── Casos de uso — inventory ────────────────────────────────────────────────
 	moveInventoryUC := inventoryapp.NewMoveUseCase(inventoryRepo)
 	getInventoryUC  := inventoryapp.NewGetUseCase(inventoryRepo)
 
-	// ── Casos de uso — supplier ─────────────────────────────────────────────────
 	createSupplierUC := supplierapp.NewCreateUseCase(supplierRepo)
 	getSupplierUC    := supplierapp.NewGetUseCase(supplierRepo)
 	updateSupplierUC := supplierapp.NewUpdateUseCase(supplierRepo)
 	deleteSupplierUC := supplierapp.NewDeleteUseCase(supplierRepo)
 
-	// ── Casos de uso — product ──────────────────────────────────────────────────
 	createProductUC := productapp.NewCreateUseCase(productRepo)
 	getProductUC    := productapp.NewGetUseCase(productRepo)
 	updateProductUC := productapp.NewUpdateUseCase(productRepo)
 	deleteProductUC := productapp.NewDeleteUseCase(productRepo)
 
-	// ── Casos de uso — customer ─────────────────────────────────────────────────
 	createCustomerUC := customerapp.NewCreateUseCase(customerRepo)
 	getCustomerUC    := customerapp.NewGetUseCase(customerRepo)
 	updateCustomerUC := customerapp.NewUpdateUseCase(customerRepo)
 	deleteCustomerUC := customerapp.NewDeleteUseCase(customerRepo)
 
-	// ── Repositorios — company (extra) ─────────────────────────────────────────
-	warehouseRepo := companypostgres.NewWarehouseRepository(pool)
-
-	// ── Repositorios — sales (extra) ────────────────────────────────────────────
-	quoteRepo   := salespostgres.NewQuoteRepository(pool)
-	paymentRepo := salespostgres.NewPaymentRepository(pool)
-
-	// ── Casos de uso — company ──────────────────────────────────────────────────
-	// securityRepo satisface MembershipLinker estructuralmente (AddCompany toma string)
 	createCompanyUC      := companyapp.NewCreateUseCase(companyRepo, securityRepo)
 	getCompanyUC         := companyapp.NewGetUseCase(companyRepo)
 	updateCompanyProfile := companyapp.NewUpdateProfileUseCase(companyRepo)
 	updateCompanyCreds   := companyapp.NewUpdateCredentialsUseCase(companyRepo)
 	updateCompanyLogo    := companyapp.NewUpdateLogoUseCase(companyRepo)
-	warehouseUC := companyapp.NewWarehouseUseCase(warehouseRepo)
-
-	// ── Casos de uso — sales (extra) ────────────────────────────────────────────
-	quoteUC   := salesapp.NewQuoteUseCase(quoteRepo, salesRepo)
-	paymentUC := salesapp.NewPaymentUseCase(paymentRepo, salesRepo)
-
-	// ── Casos de uso — electronic (from-sale) ───────────────────────────────────
-	fromSaleUC := electronicapp.NewCreateFromSaleUseCase(electronicCreateDraftUC, salesRepo, customerRepo, productRepo)
+	warehouseUC          := companyapp.NewWarehouseUseCase(warehouseRepo)
 
 	// ── Handlers HTTP ────────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
@@ -276,22 +264,28 @@ func main() {
 	payrollhttp.NewHandler(payrollEmpUC, payrollContractUC, payrollPayslipUC).RegisterRoutes(mux)
 	hrhttp.NewHandler(hrAbsenceUC).RegisterRoutes(mux)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok","service":"erp"}`))
 	})
 
-	// ── Middleware ───────────────────────────────────────────────────────────────
-	handler := tenant.Middleware(jwtSvc)(mux)
+	// ── Middleware (orden: logger → tenant/JWT) ──────────────────────────────────
+	handler := logger.Middleware(logger.New("http"))(tenant.Middleware(jwtSvc)(mux))
 
-	log.Printf("servidor ERP en %s", addr)
+	log.Info("ERP iniciado", "addr", addr)
 	if err := http.ListenAndServe(addr, handler); err != nil {
-		log.Fatal(err)
+		log.Error("servidor detenido", "error", err)
+		os.Exit(1)
 	}
 }
 
-func mustEnv(key string) string {
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+func mustEnv(log *slog.Logger, key string) string {
 	v := os.Getenv(key)
 	if v == "" {
-		log.Fatalf("variable de entorno requerida: %s", key)
+		log.Error("variable de entorno requerida", "key", key)
+		os.Exit(1)
 	}
 	return v
 }
@@ -303,22 +297,22 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-// mustHexKey decodifica una clave hex de 64 chars (32 bytes) para AES-256.
-func mustHexKey(envVar string) []byte {
-	raw := mustEnv(envVar)
+func mustHexKey(log *slog.Logger, envVar string) []byte {
+	raw := mustEnv(log, envVar)
 	key, err := hex.DecodeString(raw)
 	if err != nil || len(key) != 32 {
-		log.Fatalf("%s debe ser exactamente 64 caracteres hexadecimales (32 bytes)", envVar)
+		log.Error("clave inválida: se esperan 64 caracteres hex (32 bytes)", "key", envVar)
+		os.Exit(1)
 	}
 	return key
 }
 
-func mustOpenDB(url string) *pgxpool.Pool {
+func mustOpenDB(log *slog.Logger, url string) *pgxpool.Pool {
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
-		log.Fatalf("parsear DATABASE_URL: %v", err)
+		log.Error("parsear DATABASE_URL", "error", err)
+		os.Exit(1)
 	}
-	// Todas las conexiones operan en hora de Colombia (UTC-5).
 	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		_, err := conn.Exec(ctx, "SET TIME ZONE 'America/Bogota'")
 		return err
@@ -327,16 +321,21 @@ func mustOpenDB(url string) *pgxpool.Pool {
 	defer cancel()
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
-		log.Fatalf("abrir base de datos: %v", err)
+		log.Error("abrir base de datos", "error", err)
+		os.Exit(1)
 	}
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("ping base de datos: %v", err)
+		log.Error("ping base de datos", "error", err)
+		os.Exit(1)
 	}
+	log.Info("base de datos conectada")
 	return pool
 }
 
-func mustMigrate(module string, err error) {
+func mustMigrate(log *slog.Logger, module string, err error) {
 	if err != nil {
-		log.Fatalf("migración %s: %v", module, err)
+		log.Error("fallida", "module", module, "error", err)
+		os.Exit(1)
 	}
+	log.Info("OK", "module", module)
 }
