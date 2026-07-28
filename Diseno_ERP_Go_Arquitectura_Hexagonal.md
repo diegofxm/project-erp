@@ -43,6 +43,76 @@
 
 ### 🔲 Pendiente — segunda fase
 
+#### Módulo `security/` — gestión de usuarios, roles y seeds
+
+**Estado actual del módulo:**
+
+El módulo existe y funciona para el flujo básico: registro, login, JWT, invitaciones, selección de empresa. Lo que falta es la capa de administración completa.
+
+---
+
+**Seeds de usuarios — no existen todavía**
+
+Actualmente no hay ningún script de seed para `security.users`. El primer usuario se crea manualmente vía `POST /auth/register` desde el frontend. Esto debe cambiar:
+
+| Seed | Descripción | Prioridad |
+|---|---|---|
+| `superadmin` | Dueño de la plataforma SaaS — acceso total, puede ver todas las empresas, gestionar suscripciones | Alta |
+| `admin` (owner) | Dueño de una empresa tenant — crea la empresa, invita usuarios, configura credenciales DIAN | Alta |
+| `counter` | Contador — acceso solo a módulos contables, electrónicos y nómina; sin acceso a configuración de la empresa ni al panel SaaS | Media |
+| `user` | Empleado operativo — acceso solo a ventas, compras, inventario; sin módulos financieros ni configuración | Media |
+
+Los seeds deben ir en `erp/internal/security/infrastructure/persistence/postgres/seed/` (mismo patrón que los otros módulos que ya tienen seed). El `superadmin` debe tener una contraseña tomada de una variable de entorno (`SUPERADMIN_PASSWORD`) para no hardcodearla.
+
+---
+
+**Endpoints pendientes del módulo `security/`:**
+
+| Método | Path | Descripción | Estado |
+|---|---|---|---|
+| `GET` | `/api/v1/users` | Listar usuarios de la empresa activa | 🔲 Falta handler HTTP (el `repo.List()` existe en Go) |
+| `GET` | `/api/v1/users/{id}` | Perfil de un usuario específico | 🔲 |
+| `PUT` | `/api/v1/users/{id}/activate` | Activar/desactivar usuario | 🔲 |
+| `DELETE` | `/api/v1/users/{id}` | Dar de baja usuario de la empresa | 🔲 |
+| `GET` | `/api/v1/auth/companies` | Listar empresas del usuario actual | ⚠️ Es un stub — devuelve `{user_id, name}` en vez de la lista real |
+| `POST` | `/api/v1/auth/refresh` | Renovar JWT sin re-login | 🔲 |
+
+---
+
+**Problemas conocidos:**
+
+- `POST /auth/invite` — crea el usuario y genera el `invite_token` en DB, pero **no envía el correo** (TODO pendiente en el código). El token queda en la base de datos; para que funcione hoy hay que sacarlo manualmente de la DB o exponerlo temporalmente en la respuesta.
+- `GET /auth/companies` — stub que no lista las empresas reales del usuario. Afecta el caso de un usuario con múltiples empresas: el login auto-selecciona la empresa solo cuando hay exactamente una; con más de una empresa el JWT queda con `cid=nil` y no hay pantalla de selección funcional.
+- **Sin RBAC por módulo** — el campo `role` existe en `security.users` y `security.user_companies` (`owner/admin/member`) pero no hay middleware que lo aplique. Todos los usuarios autenticados acceden a todos los endpoints del tenant. La granularidad por módulo (counter solo ve contabilidad, user solo ve ventas) aún no está implementada.
+
+---
+
+**Diseño propuesto de roles:**
+
+```text
+superadmin     ← plataforma SaaS (transversal a todos los tenants)
+  └─ puede listar/ver todos los tenants
+  └─ puede gestionar suscripciones y planes
+  └─ no tiene acceso a datos de negocio de cada tenant
+
+owner          ← empresa (alias "admin" en el JWT actual)
+  └─ configura la empresa: NIT, certificado DIAN, software DIAN, logo
+  └─ invita y gestiona usuarios de su empresa
+  └─ acceso total a todos los módulos del tenant
+
+counter        ← contabilidad y documentos electrónicos
+  └─ módulos: accounting/, electronic/, payroll/
+  └─ sin acceso a: company/credentials, security/users
+
+user           ← operativo
+  └─ módulos: sales/, purchase/, inventory/, customers/, suppliers/, products/
+  └─ sin acceso a: accounting/, payroll/, hr/, electronic/, configuración
+```
+
+El middleware de autorización por rol debe ir en `shared/tenant/` como una segunda capa después de la autenticación: `AuthMiddleware → RoleMiddleware(requiredRole)`.
+
+---
+
 #### Eventos aún no cableados
 
 | Evento | Publicador | Suscriptor pendiente | Motivo |
@@ -71,9 +141,29 @@
 | Resumen de ventas por período | 🔲 Pendiente |
 | Reporte de nómina consolidado | 🔲 Pendiente |
 
-#### Frontend
+#### Frontend — integración completada (commit b634d18) y pendientes
 
-El frontend no fue objetivo de esta fase. El API backend está completamente definido y listo para ser consumido.
+**Completado:**
+
+| Archivo | Cambio |
+|---|---|
+| `lib/types.ts` | Tipo `Company` (espeja `safeCompany`), `Issuer = Company` como alias, `AuthResult` coincide con respuesta ERP |
+| `context/AuthContext.tsx` | Migración completa de modelo issuer/apidian a company/ERP; `verifySession` usa `GET /auth/me`; `createIssuer` hace `POST /companies` → `POST /auth/select-company` |
+| `lib/documents.ts` | Prefijo `/electronic/` en todos los paths de documentos |
+| `lib/numberingRanges.ts` | Prefijo `/electronic/` en rangos de numeración |
+| `lib/vendors.ts` | `/vendors` → `/suppliers` |
+| `lib/catalogs.ts` | `dian-document-types` → `document-types` |
+
+**Pendiente frontend — segunda fase:**
+
+| Feature | Descripción |
+|---|---|
+| Panel de usuarios | Página para listar, invitar y desactivar usuarios de la empresa (requiere los endpoints `GET/PUT/DELETE /users` en el ERP) |
+| Selector de empresa | Cuando un usuario tiene >1 empresa, `GET /auth/companies` debe devolver la lista real para que el frontend muestre un selector |
+| Módulos nuevos | Ventas, cotizaciones, pagos, compras, inventario, contabilidad, nómina, RRHH — no tienen páginas frontend aún |
+| Actualización de borrador (PUT) | Los endpoints `PUT /electronic/invoices/{id}`, `/credit-notes/{id}`, etc. aún no existen en el ERP |
+| XML / Clone / Send-email | `GET /documents/{id}/xml`, `POST /documents/{id}/clone`, `POST /documents/{id}/send-email` — pendientes en el ERP |
+| Panel admin SaaS | Estadísticas, gestión de suscripciones, auditoría — requiere endpoints y páginas nuevas |
 
 ---
 
