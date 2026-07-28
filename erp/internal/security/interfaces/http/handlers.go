@@ -207,10 +207,14 @@ func respondAuth(w http.ResponseWriter, result *domain.AuthResult, err error) {
 		respondError(w, err)
 		return
 	}
+	var companyID any
+	if result.CompanyID != uuid.Nil {
+		companyID = result.CompanyID
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"token":      result.Token,
-		"company_id": result.CompanyID,
+		"company_id": companyID,
 		"user": map[string]any{
 			"id":    result.User.ID,
 			"email": result.User.Email,

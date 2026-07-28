@@ -11,6 +11,7 @@ import "net/http"
 //   PUT    /api/v1/companies/active/logo        — subir logo (tenant, body = bytes raw)
 //   DELETE /api/v1/companies/active/logo        — eliminar logo (tenant)
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/v1/companies", h.handleListForUser)
 	mux.HandleFunc("POST /api/v1/companies", h.handleCreate)
 	mux.HandleFunc("GET /api/v1/companies/active", h.handleGetActive)
 	mux.HandleFunc("PUT /api/v1/companies/active", h.handleUpdateProfile)

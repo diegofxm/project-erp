@@ -23,3 +23,7 @@ func (uc *GetUseCase) ByID(ctx context.Context, id uuid.UUID) (*domain.Company, 
 func (uc *GetUseCase) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.Company, error) {
 	return uc.repo.ListByIDs(ctx, ids)
 }
+
+func (uc *GetUseCase) ListByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Company, error) {
+	return uc.repo.ListByUserID(ctx, userID)
+}

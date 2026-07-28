@@ -163,10 +163,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await verifySession();
   }, [verifySession]);
 
-  // listIssuers: devuelve la empresa activa como array (o [] si no hay empresa).
+  // listIssuers: devuelve todas las empresas del usuario autenticado.
   const listIssuers = useCallback(async () => {
-    const company = await fetchCompany();
-    return company ? [company] : [];
+    try {
+      return await apiClient.get<Company[]>("/companies");
+    } catch {
+      return [];
+    }
   }, []);
 
   const createIssuer = useCallback(

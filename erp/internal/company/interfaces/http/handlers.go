@@ -57,6 +57,23 @@ func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusCreated, safeCompany(c))
 }
 
+func (h *Handler) handleListForUser(w http.ResponseWriter, r *http.Request) {
+	userID, ok := requireAuth(w, r)
+	if !ok {
+		return
+	}
+	companies, err := h.get.ListByUserID(r.Context(), userID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	out := make([]map[string]any, len(companies))
+	for i := range companies {
+		out[i] = safeCompany(&companies[i])
+	}
+	respond(w, http.StatusOK, out)
+}
+
 func (h *Handler) handleGetActive(w http.ResponseWriter, r *http.Request) {
 	companyID, ok := requireTenant(w, r)
 	if !ok {

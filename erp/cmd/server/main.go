@@ -53,14 +53,17 @@ import (
 	securityjwt "github.com/diegofxm/erp/internal/security/infrastructure/jwt"
 	securitypostgres "github.com/diegofxm/erp/internal/security/infrastructure/persistence/postgres"
 	securityhttp "github.com/diegofxm/erp/internal/security/interfaces/http"
-	"github.com/diegofxm/erp/internal/shared/events"
 	"github.com/diegofxm/erp/internal/shared/cors"
+	"github.com/diegofxm/erp/internal/shared/events"
 	"github.com/diegofxm/erp/internal/shared/logger"
 	reportsdomain "github.com/diegofxm/erp/internal/shared/reports/domain"
 	htmlreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/html"
 	multireports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/multi"
 	pdfreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/pdf"
 	"github.com/diegofxm/erp/internal/shared/tenant"
+	statsapp "github.com/diegofxm/erp/internal/stats/application"
+	statspostgres "github.com/diegofxm/erp/internal/stats/infrastructure/persistence/postgres"
+	statshttp "github.com/diegofxm/erp/internal/stats/interfaces/http"
 	supplierapp "github.com/diegofxm/erp/internal/supplier/application"
 	supplierpostgres "github.com/diegofxm/erp/internal/supplier/infrastructure/persistence/postgres"
 	supplierhttp "github.com/diegofxm/erp/internal/supplier/interfaces/http"
@@ -262,6 +265,7 @@ func main() {
 	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC).RegisterRoutes(mux)
 	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo).RegisterRoutes(mux)
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC).RegisterRoutes(mux)
+	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)
 	payrollhttp.NewHandler(payrollEmpUC, payrollContractUC, payrollPayslipUC).RegisterRoutes(mux)
 	hrhttp.NewHandler(hrAbsenceUC).RegisterRoutes(mux)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
