@@ -18,75 +18,79 @@ func NewHandler(repo domain.Repository) *Handler {
 
 func (h *Handler) listCurrencies(w http.ResponseWriter, r *http.Request) {
 	data, err := h.repo.ListCurrencies(r.Context())
-	respond(w, data, err)
+	respondKeyed(w, "currencies", data, err)
 }
 
 func (h *Handler) listDepartments(w http.ResponseWriter, r *http.Request) {
 	data, err := h.repo.ListDepartments(r.Context())
-	respond(w, data, err)
+	respondKeyed(w, "departments", data, err)
 }
 
 func (h *Handler) listMunicipalities(w http.ResponseWriter, r *http.Request) {
-	dept := r.URL.Query().Get("department")
+	dept := r.URL.Query().Get("department_code")
+	if dept == "" {
+		dept = r.URL.Query().Get("department")
+	}
 	data, err := h.repo.ListMunicipalities(r.Context(), dept)
-	respond(w, data, err)
+	respondKeyed(w, "municipalities", data, err)
 }
 
 func (h *Handler) listIdentificationTypes(w http.ResponseWriter, r *http.Request) {
 	data, err := h.repo.ListIdentificationTypes(r.Context())
-	respond(w, data, err)
+	respondKeyed(w, "identification_types", data, err)
 }
 
 func (h *Handler) listTaxTypes(w http.ResponseWriter, r *http.Request) {
 	data, err := h.repo.ListTaxTypes(r.Context())
-	respond(w, data, err)
+	respondKeyed(w, "tax_types", data, err)
 }
 
 func (h *Handler) listPaymentMethods(w http.ResponseWriter, r *http.Request) {
 	data, err := h.repo.ListPaymentMethods(r.Context())
-	respond(w, data, err)
+	respondKeyed(w, "payment_methods", data, err)
 }
 
 func (h *Handler) listPaymentTerms(w http.ResponseWriter, r *http.Request) {
 	data, err := h.repo.ListPaymentTerms(r.Context())
-	respond(w, data, err)
+	respondKeyed(w, "payment_terms", data, err)
 }
 
 func (h *Handler) listUnitMeasures(w http.ResponseWriter, r *http.Request) {
 	data, err := h.repo.ListUnitMeasures(r.Context())
-	respond(w, data, err)
+	respondKeyed(w, "unit_measures", data, err)
 }
 
 func (h *Handler) listTaxRegimes(w http.ResponseWriter, r *http.Request) {
 	data, err := h.repo.ListTaxRegimes(r.Context())
-	respond(w, data, err)
+	respondKeyed(w, "tax_regimes", data, err)
 }
 
 func (h *Handler) listLiabilityCodes(w http.ResponseWriter, r *http.Request) {
 	data, err := h.repo.ListLiabilityCodes(r.Context())
-	respond(w, data, err)
+	respondKeyed(w, "liability_codes", data, err)
 }
 
 func (h *Handler) listDocumentTypes(w http.ResponseWriter, r *http.Request) {
 	data, err := h.repo.ListDianDocumentTypes(r.Context())
-	respond(w, data, err)
+	respondKeyed(w, "document_types", data, err)
 }
 
 func (h *Handler) listItemStandards(w http.ResponseWriter, r *http.Request) {
 	data, err := h.repo.ListItemStandards(r.Context())
-	respond(w, data, err)
+	respondKeyed(w, "item_standards", data, err)
 }
 
 func (h *Handler) listCiiuCodes(w http.ResponseWriter, r *http.Request) {
 	data, err := h.repo.ListCiiuCodes(r.Context())
-	respond(w, data, err)
+	respondKeyed(w, "ciiu_codes", data, err)
 }
 
-func respond(w http.ResponseWriter, data any, err error) {
+// respondKeyed envuelve la lista en un objeto {key: [...]} — patrón estándar del API.
+func respondKeyed(w http.ResponseWriter, key string, data any, err error) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
+	json.NewEncoder(w).Encode(map[string]any{key: data})
 }

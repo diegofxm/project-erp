@@ -74,3 +74,17 @@ func (uc *ManageNumberingUseCase) Deactivate(ctx context.Context, companyID, id 
 	}
 	return uc.numbering.Deactivate(ctx, id)
 }
+
+func (uc *ManageNumberingUseCase) Activate(ctx context.Context, companyID, id uuid.UUID) (*domain.NumberingRange, error) {
+	nr, err := uc.numbering.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if nr.CompanyID != companyID {
+		return nil, domain.ErrRangeNotFound
+	}
+	if err := uc.numbering.Activate(ctx, id); err != nil {
+		return nil, err
+	}
+	return uc.numbering.GetByID(ctx, id)
+}

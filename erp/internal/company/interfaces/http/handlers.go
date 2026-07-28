@@ -1,9 +1,9 @@
 package http
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -108,6 +108,7 @@ func (h *Handler) handleUpdateCredentials(w http.ResponseWriter, r *http.Request
 	var body struct {
 		SoftwareID          string `json:"software_id"`
 		SoftwarePIN         string `json:"software_pin"`
+		CertificateBase64   string `json:"certificate_base64"`
 		CertificatePassword string `json:"certificate_password"`
 		NeSoftwareID        string `json:"ne_software_id"`
 		NeSoftwarePIN       string `json:"ne_software_pin"`
@@ -117,9 +118,20 @@ func (h *Handler) handleUpdateCredentials(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	var certBytes []byte
+	if body.CertificateBase64 != "" {
+		var err error
+		certBytes, err = base64.StdEncoding.DecodeString(body.CertificateBase64)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "certificate_base64 inválido")
+			return
+		}
+	}
+
 	req := application.UpdateCredentialsRequest{
 		SoftwareID:          body.SoftwareID,
 		SoftwarePIN:         body.SoftwarePIN,
+		Certificate:         certBytes,
 		CertificatePassword: body.CertificatePassword,
 		NeSoftwareID:        body.NeSoftwareID,
 		NeSoftwarePIN:       body.NeSoftwarePIN,
@@ -129,7 +141,39 @@ func (h *Handler) handleUpdateCredentials(w http.ResponseWriter, r *http.Request
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respond(w, http.StatusOK, map[string]string{"status": "ok"})
+	c, err := h.get.ByID(r.Context(), companyID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, safeCompany(c))
+}
+
+func (h *Handler) handleGetLogo(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	c, err := h.get.ByID(r.Context(), companyID)
+	if err != nil {
+		if errors.Is(err, domain.ErrCompanyNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if len(c.Logo) == 0 {
+		respondError(w, http.StatusNotFound, "sin logo")
+		return
+	}
+	ct := c.LogoContentType
+	if ct == "" {
+		ct = "image/png"
+	}
+	w.Header().Set("Content-Type", ct)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(c.Logo)
 }
 
 func (h *Handler) handleUpdateLogo(w http.ResponseWriter, r *http.Request) {
@@ -138,17 +182,22 @@ func (h *Handler) handleUpdateLogo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const maxSize = 2 << 20 // 2 MB
-	r.Body = http.MaxBytesReader(w, r.Body, maxSize)
-
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
-		respondError(w, http.StatusRequestEntityTooLarge, "imagen demasiado grande (máx 2 MB)")
+	var body struct {
+		LogoBase64  string `json:"logo_base64"`
+		ContentType string `json:"logo_content_type"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
 		return
 	}
 
-	contentType := r.Header.Get("Content-Type")
-	if err := h.logo.Update(r.Context(), companyID, data, contentType); err != nil {
+	data, err := base64.StdEncoding.DecodeString(body.LogoBase64)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "logo_base64 inválido")
+		return
+	}
+
+	if err := h.logo.Update(r.Context(), companyID, data, body.ContentType); err != nil {
 		if errors.Is(err, application.ErrInvalidLogoType) {
 			respondError(w, http.StatusUnsupportedMediaType, err.Error())
 			return
@@ -156,7 +205,12 @@ func (h *Handler) handleUpdateLogo(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respond(w, http.StatusOK, map[string]string{"status": "ok"})
+	c, err := h.get.ByID(r.Context(), companyID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, safeCompany(c))
 }
 
 func (h *Handler) handleDeleteLogo(w http.ResponseWriter, r *http.Request) {
@@ -169,7 +223,12 @@ func (h *Handler) handleDeleteLogo(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respond(w, http.StatusOK, map[string]string{"status": "ok"})
+	c, err := h.get.ByID(r.Context(), companyID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, safeCompany(c))
 }
 
 // ── Bodegas ───────────────────────────────────────────────────────────────────────────────
@@ -323,7 +382,10 @@ func safeCompany(c *domain.Company) map[string]any {
 		"tax_regime_code":                 c.TaxRegimeCode,
 		"industry_classification_codes":   c.IndustryClassificationCodes,
 		"merchant_registration_number":    c.MerchantRegistrationNumber,
+		"software_id":                     c.SoftwareID,
+		"has_software_credentials":        c.SoftwareID != "",
 		"ne_software_id":                  c.NeSoftwareID,
+		"has_ne_software_credentials":     c.NeSoftwareID != "",
 		"has_certificate":                 len(c.Certificate) > 0,
 		"has_logo":                        len(c.Logo) > 0,
 		"logo_content_type":               c.LogoContentType,

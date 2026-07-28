@@ -38,8 +38,8 @@ export const listLiabilityCodes = memoized(async () => {
 });
 
 export const listDianDocumentTypes = memoized(async () => {
-  const res = await apiClient.get<{ dian_document_types: CatalogEntry[] }>("/catalogs/dian-document-types");
-  return res.dian_document_types;
+  const res = await apiClient.get<{ document_types: CatalogEntry[] }>("/catalogs/document-types");
+  return res.document_types;
 });
 
 // payment_terms (forma de pago: "1" contado/"2" crédito) y payment_methods (medio de pago:

@@ -1,5 +1,5 @@
-// Formas de los DTOs que expone apidian — ver apidian/internal/api/handler_auth.go y
-// handler_issuers.go. Mantener en sincronía a mano (no hay generación automática todavía).
+// Formas de los DTOs que expone el ERP — ver erp/internal/*/interfaces/http/handlers.go.
+// Mantener en sincronía a mano (no hay generación automática todavía).
 
 export interface User {
   id: string;
@@ -11,7 +11,8 @@ export interface User {
 
 export type IssuerEnvironment = "1" | "2"; // 1 = producción, 2 = habilitación
 
-export interface Issuer {
+// Company espeja safeCompany() de erp/internal/company/interfaces/http/handlers.go.
+export interface Company {
   id: string;
   nit: string;
   check_digit: string;
@@ -38,32 +39,32 @@ export interface Issuer {
   industry_classification_codes?: string[];
   merchant_registration_number?: string;
 
-  // Credenciales DIAN — los IDs no son secretos; PINs/cert nunca viajan de vuelta.
-  // FE y DS comparten el mismo software; NE tiene software independiente.
+  // Credenciales DIAN
   software_id?: string;
   has_software_credentials: boolean;
   ne_software_id?: string;
   has_ne_software_credentials: boolean;
-  // Certificado digital compartido entre FE/DS/NE:
   has_certificate: boolean;
-  // Metadatos del certificado derivados en memoria por issuers.Service.enrichCertMetadata —
-  // sin datos sensibles. Solo presentes cuando has_certificate es true.
+  // Metadatos del certificado — solo presentes cuando has_certificate es true y el ERP los soporta.
   certificate_subject?: string;
   certificate_issuer_cn?: string;
   certificate_expires_at?: string; // ISO 8601
-
-  // has_logo: el logo en sí se sirve aparte (GET /issuers/me/logo) — ver
-  // docs/apidian-architecture.md sección 9.39.
   has_logo: boolean;
+  logo_content_type?: string;
 
   is_active: boolean;
   created_at: string;
+  updated_at: string;
 }
 
+// Retrocompatibilidad: todos los componentes siguen usando Issuer.
+export type Issuer = Company;
+
+// AuthResult espeja la respuesta de /auth/login, /auth/register, /auth/select-company.
 export interface AuthResult {
   token: string;
+  company_id?: string;
   user: User;
-  issuer?: Issuer;
 }
 
 export interface RegisterPayload {
@@ -77,11 +78,8 @@ export interface LoginPayload {
   password: string;
 }
 
-// Payload de creación de empresa — todo lo que la DIAN exige del emisor mismo, completo
-// salvo la configuración técnica (software_id/software_pin/certificate_base64), que se
-// completa después en una fase de configuración aparte (PUT /issuers/me, ver
-// issuers.UpdateIssuerRequest). Espejo de createIssuerRequest en
-// apidian/internal/api/handler_issuers.go, sin esos 4 campos.
+// Payload de creación de empresa — espeja CreateRequest en
+// erp/internal/company/application/create.go (POST /api/v1/companies).
 export interface CreateIssuerPayload {
   nit: string;
   check_digit: string;
@@ -96,6 +94,7 @@ export interface CreateIssuerPayload {
   environment: IssuerEnvironment;
   entity_type_code?: string;
   tax_scheme_code?: string;
+  tax_scheme_name?: string;
   liability_codes?: string[];
   tax_regime_code?: string;
   industry_classification_codes?: string[];
@@ -107,9 +106,8 @@ export interface ListIssuersResult {
   count: number;
 }
 
-// Completar software/PIN/certificado DESPUÉS de creada la empresa — PUT /issuers/me. Cada
-// campo es independiente (omitido = "no tocar"), espejo de issuers.UpdateIssuerRequest. Nunca
-// se manda "" para un campo que el usuario no llenó — se omite la llave entera.
+// Actualizar credenciales DIAN — PUT /api/v1/companies/active/credentials.
+// Si logo_base64 está presente se enruta a PUT /api/v1/companies/active/logo.
 export interface UpdateIssuerPayload {
   // FE y DS comparten el mismo software
   software_id?: string;
@@ -120,14 +118,12 @@ export interface UpdateIssuerPayload {
   // Certificado compartido entre FE/DS/NE
   certificate_base64?: string;
   certificate_password?: string;
-  // logo_base64/logo_content_type: para la representación gráfica en PDF.
+  // logo: enruta a PUT /companies/active/logo
   logo_base64?: string;
   logo_content_type?: string;
 }
 
-// Editar perfil de empresa (razón social, dirección, datos fiscales) — PATCH /issuers/me/profile.
-// Separado de UpdateIssuerPayload que toca solo credenciales técnicas (PUT /issuers/me).
-// TaxRegimeCode/MerchantRegistrationNumber son nullable: null = borrar, "code" = asignar.
+// Editar perfil de empresa — PUT /api/v1/companies/active.
 export interface UpdateIssuerProfilePayload {
   business_name: string;
   trade_name: string;
@@ -138,6 +134,7 @@ export interface UpdateIssuerProfilePayload {
   phone: string;
   entity_type_code: string;
   tax_scheme_code: string;
+  tax_scheme_name?: string;
   liability_codes: string[];
   tax_regime_code: string | null;
   industry_classification_codes: string[];

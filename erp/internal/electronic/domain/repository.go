@@ -27,5 +27,6 @@ type NumberingRepository interface {
 	ReleaseIfCurrent(ctx context.Context, id uuid.UUID, number int64) error
 	ClearTestSetID(ctx context.Context, id uuid.UUID) error
 	Deactivate(ctx context.Context, id uuid.UUID) error
+	Activate(ctx context.Context, id uuid.UUID) error
 	ListByCompany(ctx context.Context, companyID uuid.UUID, dianDocumentTypeCode string) ([]*NumberingRange, error)
 }

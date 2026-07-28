@@ -125,6 +125,18 @@ func (r *NumberingRepository) Deactivate(ctx context.Context, id uuid.UUID) erro
 	return nil
 }
 
+func (r *NumberingRepository) Activate(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE electronic.numbering_ranges SET is_active = TRUE, updated_at = NOW() WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrRangeNotFound
+	}
+	return nil
+}
+
 func (r *NumberingRepository) ListByCompany(ctx context.Context, companyID uuid.UUID, dianDocType string) ([]*domain.NumberingRange, error) {
 	q := `SELECT ` + numberingCols + ` FROM electronic.numbering_ranges WHERE company_id = $1`
 	args := []any{companyID}

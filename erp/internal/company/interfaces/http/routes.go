@@ -15,6 +15,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/companies/active", h.handleGetActive)
 	mux.HandleFunc("PUT /api/v1/companies/active", h.handleUpdateProfile)
 	mux.HandleFunc("PUT /api/v1/companies/active/credentials", h.handleUpdateCredentials)
+	mux.HandleFunc("GET /api/v1/companies/active/logo", h.handleGetLogo)
 	mux.HandleFunc("PUT /api/v1/companies/active/logo", h.handleUpdateLogo)
 	mux.HandleFunc("DELETE /api/v1/companies/active/logo", h.handleDeleteLogo)
 

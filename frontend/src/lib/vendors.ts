@@ -4,24 +4,24 @@ import { apiClient } from "./apiClient";
 import type { ListVendorsResult, Vendor, VendorPayload } from "./types";
 
 export async function listVendors(): Promise<Vendor[]> {
-  const res = await apiClient.get<ListVendorsResult>("/vendors");
+  const res = await apiClient.get<ListVendorsResult>("/suppliers");
   return res.vendors;
 }
 
 export function fetchVendor(id: string): Promise<Vendor> {
-  return apiClient.get<Vendor>(`/vendors/${id}`);
+  return apiClient.get<Vendor>(`/suppliers/${id}`);
 }
 
 export function createVendor(payload: VendorPayload): Promise<Vendor> {
-  return apiClient.post<Vendor>("/vendors", payload);
+  return apiClient.post<Vendor>("/suppliers", payload);
 }
 
 export function updateVendor(id: string, payload: VendorPayload): Promise<Vendor> {
-  return apiClient.put<Vendor>(`/vendors/${id}`, payload);
+  return apiClient.put<Vendor>(`/suppliers/${id}`, payload);
 }
 
 export function deleteVendor(id: string): Promise<void> {
-  return apiClient.del<void>(`/vendors/${id}`);
+  return apiClient.del<void>(`/suppliers/${id}`);
 }
 
 // vendorToPayload despoja id/created_at/updated_at — usado para precargar VendorSection en

@@ -23,4 +23,5 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/electronic/numbering-ranges", h.handleListNumberingRanges)
 	mux.HandleFunc("POST /api/v1/electronic/numbering-ranges", h.handleCreateNumberingRange)
 	mux.HandleFunc("DELETE /api/v1/electronic/numbering-ranges/{id}", h.handleDeactivateRange)
+	mux.HandleFunc("PUT /api/v1/electronic/numbering-ranges/{id}/activate", h.handleActivateRange)
 }

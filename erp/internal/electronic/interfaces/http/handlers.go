@@ -437,6 +437,24 @@ func (h *Handler) handleDeactivateRange(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) handleActivateRange(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	nr, err := h.numbering.Activate(r.Context(), companyID, id)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, nr)
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────────────────
 
 func mustTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {

@@ -5,20 +5,18 @@ import type { CreateNumberingRangePayload, ListNumberingRangesResult, NumberingR
 
 export async function listNumberingRanges(dianDocumentTypeCode?: string): Promise<NumberingRange[]> {
   const query = dianDocumentTypeCode ? `?dian_document_type_code=${encodeURIComponent(dianDocumentTypeCode)}` : "";
-  const res = await apiClient.get<ListNumberingRangesResult>(`/numbering-ranges${query}`);
+  const res = await apiClient.get<ListNumberingRangesResult>(`/electronic/numbering-ranges${query}`);
   return res.numbering_ranges;
 }
 
 export function createNumberingRange(payload: CreateNumberingRangePayload): Promise<NumberingRange> {
-  return apiClient.post<NumberingRange>("/numbering-ranges", payload);
+  return apiClient.post<NumberingRange>("/electronic/numbering-ranges", payload);
 }
 
-// "Borrar" un rango es desactivarlo (is_active=false) — nunca un DELETE real, ver
-// numbering.Repository.Deactivate en apidian.
 export function deactivateNumberingRange(id: string): Promise<void> {
-  return apiClient.del<void>(`/numbering-ranges/${id}`);
+  return apiClient.del<void>(`/electronic/numbering-ranges/${id}`);
 }
 
 export function activateNumberingRange(id: string): Promise<NumberingRange> {
-  return apiClient.put<NumberingRange>(`/numbering-ranges/${id}/activate`, undefined);
+  return apiClient.put<NumberingRange>(`/electronic/numbering-ranges/${id}/activate`, undefined);
 }

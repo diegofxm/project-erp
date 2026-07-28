@@ -2,9 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { apiClient, ApiError, setAuthToken } from "../lib/apiClient";
 import type {
   AuthResult,
+  Company,
   CreateIssuerPayload,
   Issuer,
-  ListIssuersResult,
   LoginPayload,
   RegisterPayload,
   UpdateIssuerPayload,
@@ -24,10 +24,7 @@ interface AuthContextValue {
   user: User | null;
   activeIssuer: Issuer | null;
   isAuthenticated: boolean;
-  isReady: boolean; // ya se intentó rehidratar la sesión desde localStorage
-  // connectionError: el backend no respondió al validar la sesión guardada (servidor apagado,
-  // sin red) — distinto de un token inválido (401 real, ese sí cierra sesión). No se castiga
-  // al usuario por algo que no es culpa de sus credenciales.
+  isReady: boolean;
   connectionError: boolean;
   retryConnection: () => Promise<void>;
   login: (payload: LoginPayload) => Promise<void>;
@@ -62,24 +59,40 @@ function writeStoredSession(session: StoredSession) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 }
 
+async function fetchCompany(): Promise<Company | null> {
+  try {
+    return await apiClient.get<Company>("/companies/active");
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [activeIssuer, setActiveIssuer] = useState<Issuer | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
 
-  const applyAuthResult = useCallback((result: AuthResult) => {
-    const session: StoredSession = { token: result.token, user: result.user, issuer: result.issuer ?? null };
-    setAuthToken(session.token);
+  // applyAuthResult: recibe {token, company_id, user} del ERP.
+  // Si hay company_id, hace GET /companies/active para hidratar la empresa completa.
+  const applyAuthResult = useCallback(async (result: AuthResult) => {
+    setAuthToken(result.token);
+    setUser(result.user);
+
+    let company: Company | null = null;
+    if (result.company_id) {
+      company = await fetchCompany();
+    }
+
+    const session: StoredSession = { token: result.token, user: result.user, issuer: company };
     writeStoredSession(session);
-    setUser(session.user);
-    setActiveIssuer(session.issuer);
+    setActiveIssuer(company);
   }, []);
 
   const login = useCallback(
     async (payload: LoginPayload) => {
       const result = await apiClient.post<AuthResult>("/auth/login", payload);
-      applyAuthResult(result);
+      await applyAuthResult(result);
     },
     [applyAuthResult],
   );
@@ -87,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const acceptInvite = useCallback(
     async (token: string, password: string) => {
       const result = await apiClient.post<AuthResult>("/auth/accept-invite", { token, password });
-      applyAuthResult(result);
+      await applyAuthResult(result);
     },
     [applyAuthResult],
   );
@@ -95,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(
     async (payload: RegisterPayload) => {
       const result = await apiClient.post<AuthResult>("/auth/register", payload);
-      applyAuthResult(result);
+      await applyAuthResult(result);
     },
     [applyAuthResult],
   );
@@ -108,23 +121,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setConnectionError(false);
   }, []);
 
-  // verifySession confirma que el token guardado todavía sirve Y que el backend responde —
-  // GET /issuers (handleNoTenant en apidian) exige solo estar autenticado, nunca una empresa
-  // activa, así que funciona sin importar si activeIssuer es null. Un 401 real (token
-  // inválido/expirado) sí cierra sesión; cualquier otra falla (fetch nunca llegó a responder
-  // porque el backend está apagado) NO toca la sesión, solo prende connectionError — no es
-  // culpa de las credenciales que el servidor esté caído.
+  // verifySession: valida el token con GET /auth/me y refresca la empresa desde
+  // GET /companies/active. Un 401 real cierra sesión; cualquier error de red solo activa
+  // connectionError sin borrar las credenciales (el servidor puede estar apagado).
   const verifySession = useCallback(async () => {
     const stored = readStoredSession();
     try {
-      // Si hay una empresa activa guardada, re-seleccionarla refresca activeIssuer desde el
-      // servidor (el nombre u otros datos pueden haber cambiado fuera del frontend). Si no hay
-      // empresa activa, GET /issuers basta para confirmar el token.
+      await apiClient.get<User>("/auth/me");
+
       if (stored?.issuer?.id) {
-        const result = await apiClient.post<AuthResult>(`/issuers/${stored.issuer.id}/select`, undefined);
-        applyAuthResult(result);
-      } else {
-        await apiClient.get("/issuers");
+        const company = await fetchCompany();
+        if (company && stored) {
+          writeStoredSession({ ...stored, issuer: company });
+          setActiveIssuer(company);
+        }
       }
       setConnectionError(false);
     } catch (err) {
@@ -135,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setConnectionError(true);
       }
     }
-  }, [logout, applyAuthResult]);
+  }, [logout]);
 
   useEffect(() => {
     const stored = readStoredSession();
@@ -146,8 +156,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(stored.token);
     setUser(stored.user);
     setActiveIssuer(stored.issuer);
-    // Solo al montar a propósito — verifySession/logout no cambian de identidad entre renders
-    // (useCallback sin dependencias variables), así que omitirlas del arreglo no esconde nada.
     verifySession().finally(() => setIsReady(true));
   }, []);
 
@@ -155,41 +163,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await verifySession();
   }, [verifySession]);
 
+  // listIssuers: devuelve la empresa activa como array (o [] si no hay empresa).
   const listIssuers = useCallback(async () => {
-    const result = await apiClient.get<ListIssuersResult>("/issuers");
-    return result.issuers;
+    const company = await fetchCompany();
+    return company ? [company] : [];
   }, []);
 
   const createIssuer = useCallback(
     async (payload: CreateIssuerPayload) => {
-      const result = await apiClient.post<AuthResult>("/issuers", payload);
-      applyAuthResult(result);
+      // 1. Crea la empresa en el ERP
+      const company = await apiClient.post<Company>("/companies", payload);
+      // 2. Selecciona la empresa para emitir un token con company_id embebido
+      const result = await apiClient.post<AuthResult>("/auth/select-company", { company_id: company.id });
+      await applyAuthResult(result);
     },
     [applyAuthResult],
   );
 
   const selectIssuer = useCallback(
     async (id: string) => {
-      const result = await apiClient.post<AuthResult>(`/issuers/${id}/select`, undefined);
-      applyAuthResult(result);
+      const result = await apiClient.post<AuthResult>("/auth/select-company", { company_id: id });
+      await applyAuthResult(result);
     },
     [applyAuthResult],
   );
 
-  // PUT /auth/me tampoco reemite el token — solo actualiza nombre/correo del usuario activo.
   const updateProfile = useCallback(async (name: string, email: string) => {
-    const updated = await apiClient.put<User>("/auth/me", { name, email });
+    const updated = await apiClient.put<User>("/auth/profile", { name, email });
     setUser(updated);
     const stored = readStoredSession();
     if (stored) writeStoredSession({ ...stored, user: updated });
     return updated;
   }, []);
 
-  // A diferencia de login/register/createIssuer/selectIssuer, PUT /issuers/me NO reemite el
-  // token (sigue siendo la misma empresa activa, solo cambian sus datos) — se actualiza
-  // activeIssuer y la sesión persistida directamente, sin pasar por applyAuthResult.
+  // updateIssuer: enruta a /companies/active/logo si hay logo_base64, o a
+  // /companies/active/credentials para software/certificado.
   const updateIssuer = useCallback(async (payload: UpdateIssuerPayload) => {
-    const updated = await apiClient.put<Issuer>("/issuers/me", payload);
+    let updated: Company;
+    if (payload.logo_base64) {
+      updated = await apiClient.put<Company>("/companies/active/logo", {
+        logo_base64: payload.logo_base64,
+        logo_content_type: payload.logo_content_type,
+      });
+    } else {
+      updated = await apiClient.put<Company>("/companies/active/credentials", payload);
+    }
     setActiveIssuer(updated);
     const stored = readStoredSession();
     if (stored) writeStoredSession({ ...stored, issuer: updated });
@@ -197,46 +215,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateIssuerProfile = useCallback(async (payload: UpdateIssuerProfilePayload) => {
-    const updated = await apiClient.patch<Issuer>("/issuers/me/profile", payload);
+    const updated = await apiClient.put<Company>("/companies/active", payload);
     setActiveIssuer(updated);
     const stored = readStoredSession();
     if (stored) writeStoredSession({ ...stored, issuer: updated });
     return updated;
   }, []);
 
-  // Misma forma que updateIssuer — DELETE /issuers/me/logo tampoco reemite el token, solo
-  // limpia has_logo en la empresa activa.
   const deleteIssuerLogo = useCallback(async () => {
-    const updated = await apiClient.del<Issuer>("/issuers/me/logo");
+    const updated = await apiClient.del<Company>("/companies/active/logo");
     setActiveIssuer(updated);
     const stored = readStoredSession();
     if (stored) writeStoredSession({ ...stored, issuer: updated });
     return updated;
   }, []);
 
-  const deleteIssuerSoftware = useCallback(async () => {
-    const updated = await apiClient.del<Issuer>("/issuers/me/software");
-    setActiveIssuer(updated);
+  // El ERP no tiene endpoints de borrado de software/certificado. Se refrescan los datos
+  // actuales desde el servidor para que el UI muestre el estado real.
+  const refreshCompany = useCallback(async (): Promise<Company> => {
+    const company = await apiClient.get<Company>("/companies/active");
+    setActiveIssuer(company);
     const stored = readStoredSession();
-    if (stored) writeStoredSession({ ...stored, issuer: updated });
-    return updated;
+    if (stored) writeStoredSession({ ...stored, issuer: company });
+    return company;
   }, []);
 
-  const deleteIssuerNeSoftware = useCallback(async () => {
-    const updated = await apiClient.del<Issuer>("/issuers/me/ne-software");
-    setActiveIssuer(updated);
-    const stored = readStoredSession();
-    if (stored) writeStoredSession({ ...stored, issuer: updated });
-    return updated;
-  }, []);
-
-  const deleteIssuerCertificate = useCallback(async () => {
-    const updated = await apiClient.del<Issuer>("/issuers/me/certificate");
-    setActiveIssuer(updated);
-    const stored = readStoredSession();
-    if (stored) writeStoredSession({ ...stored, issuer: updated });
-    return updated;
-  }, []);
+  const deleteIssuerSoftware = useCallback(() => refreshCompany(), [refreshCompany]);
+  const deleteIssuerNeSoftware = useCallback(() => refreshCompany(), [refreshCompany]);
+  const deleteIssuerCertificate = useCallback(() => refreshCompany(), [refreshCompany]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
