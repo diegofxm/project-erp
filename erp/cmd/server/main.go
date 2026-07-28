@@ -12,6 +12,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 
+	accountingapp "github.com/diegofxm/erp/internal/accounting/application"
+	accountingpostgres "github.com/diegofxm/erp/internal/accounting/infrastructure/persistence/postgres"
+	accountingseed "github.com/diegofxm/erp/internal/accounting/infrastructure/persistence/postgres/seed"
+	accountinghttp "github.com/diegofxm/erp/internal/accounting/interfaces/http"
 	catalogpostgres "github.com/diegofxm/erp/internal/catalog/infrastructure/persistence/postgres"
 	"github.com/diegofxm/erp/internal/catalog/infrastructure/persistence/postgres/seed"
 	cataloghttp "github.com/diegofxm/erp/internal/catalog/interfaces/http"
@@ -21,48 +25,45 @@ import (
 	customerapp "github.com/diegofxm/erp/internal/customer/application"
 	customerpostgres "github.com/diegofxm/erp/internal/customer/infrastructure/persistence/postgres"
 	customerhttp "github.com/diegofxm/erp/internal/customer/interfaces/http"
-	inventoryapp "github.com/diegofxm/erp/internal/inventory/application"
-	inventorypostgres "github.com/diegofxm/erp/internal/inventory/infrastructure/persistence/postgres"
-	inventoryhttp "github.com/diegofxm/erp/internal/inventory/interfaces/http"
-	productapp "github.com/diegofxm/erp/internal/product/application"
-	purchaseapp "github.com/diegofxm/erp/internal/purchase/application"
-	purchasepostgres "github.com/diegofxm/erp/internal/purchase/infrastructure/persistence/postgres"
-	purchasehttp "github.com/diegofxm/erp/internal/purchase/interfaces/http"
-	accountingapp "github.com/diegofxm/erp/internal/accounting/application"
-	accountingpostgres "github.com/diegofxm/erp/internal/accounting/infrastructure/persistence/postgres"
-	accountingseed "github.com/diegofxm/erp/internal/accounting/infrastructure/persistence/postgres/seed"
-	accountinghttp "github.com/diegofxm/erp/internal/accounting/interfaces/http"
 	electronicapp "github.com/diegofxm/erp/internal/electronic/application"
 	electroniccofacture "github.com/diegofxm/erp/internal/electronic/infrastructure/cofacture"
 	electroniccompany "github.com/diegofxm/erp/internal/electronic/infrastructure/company"
 	electronicpostgres "github.com/diegofxm/erp/internal/electronic/infrastructure/persistence/postgres"
 	electronichttp "github.com/diegofxm/erp/internal/electronic/interfaces/http"
-	reportsdomain "github.com/diegofxm/erp/internal/shared/reports/domain"
-	htmlreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/html"
-	multireports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/multi"
-	pdfreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/pdf"
 	hrapp "github.com/diegofxm/erp/internal/hr/application"
 	hrpostgres "github.com/diegofxm/erp/internal/hr/infrastructure/persistence/postgres"
 	hrhttp "github.com/diegofxm/erp/internal/hr/interfaces/http"
+	inventoryapp "github.com/diegofxm/erp/internal/inventory/application"
+	inventorypostgres "github.com/diegofxm/erp/internal/inventory/infrastructure/persistence/postgres"
+	inventoryhttp "github.com/diegofxm/erp/internal/inventory/interfaces/http"
 	payrollapp "github.com/diegofxm/erp/internal/payroll/application"
 	payrollpostgres "github.com/diegofxm/erp/internal/payroll/infrastructure/persistence/postgres"
 	payrollseed "github.com/diegofxm/erp/internal/payroll/infrastructure/persistence/postgres/seed"
 	payrollhttp "github.com/diegofxm/erp/internal/payroll/interfaces/http"
+	productapp "github.com/diegofxm/erp/internal/product/application"
+	productpostgres "github.com/diegofxm/erp/internal/product/infrastructure/persistence/postgres"
+	producthttp "github.com/diegofxm/erp/internal/product/interfaces/http"
+	purchaseapp "github.com/diegofxm/erp/internal/purchase/application"
+	purchasepostgres "github.com/diegofxm/erp/internal/purchase/infrastructure/persistence/postgres"
+	purchasehttp "github.com/diegofxm/erp/internal/purchase/interfaces/http"
 	salesapp "github.com/diegofxm/erp/internal/sales/application"
 	salespostgres "github.com/diegofxm/erp/internal/sales/infrastructure/persistence/postgres"
 	saleshttp "github.com/diegofxm/erp/internal/sales/interfaces/http"
-	productpostgres "github.com/diegofxm/erp/internal/product/infrastructure/persistence/postgres"
-	producthttp "github.com/diegofxm/erp/internal/product/interfaces/http"
 	securityapp "github.com/diegofxm/erp/internal/security/application"
-	supplierapp "github.com/diegofxm/erp/internal/supplier/application"
-	supplierpostgres "github.com/diegofxm/erp/internal/supplier/infrastructure/persistence/postgres"
-	supplierhttp "github.com/diegofxm/erp/internal/supplier/interfaces/http"
 	securityjwt "github.com/diegofxm/erp/internal/security/infrastructure/jwt"
 	securitypostgres "github.com/diegofxm/erp/internal/security/infrastructure/persistence/postgres"
 	securityhttp "github.com/diegofxm/erp/internal/security/interfaces/http"
 	"github.com/diegofxm/erp/internal/shared/events"
+	"github.com/diegofxm/erp/internal/shared/cors"
 	"github.com/diegofxm/erp/internal/shared/logger"
+	reportsdomain "github.com/diegofxm/erp/internal/shared/reports/domain"
+	htmlreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/html"
+	multireports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/multi"
+	pdfreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/pdf"
 	"github.com/diegofxm/erp/internal/shared/tenant"
+	supplierapp "github.com/diegofxm/erp/internal/supplier/application"
+	supplierpostgres "github.com/diegofxm/erp/internal/supplier/infrastructure/persistence/postgres"
+	supplierhttp "github.com/diegofxm/erp/internal/supplier/interfaces/http"
 )
 
 func main() {
@@ -80,19 +81,19 @@ func main() {
 
 	// ── Migraciones ─────────────────────────────────────────────────────────────
 	mlog := logger.New("migrate")
-	mustMigrate(mlog, "catalog",    catalogpostgres.Migrate(databaseURL))
-	mustMigrate(mlog, "security",   securitypostgres.Migrate(databaseURL))
-	mustMigrate(mlog, "company",    companypostgres.Migrate(databaseURL))
-	mustMigrate(mlog, "customer",   customerpostgres.Migrate(databaseURL))
-	mustMigrate(mlog, "supplier",   supplierpostgres.Migrate(databaseURL))
-	mustMigrate(mlog, "product",    productpostgres.Migrate(databaseURL))
-	mustMigrate(mlog, "inventory",  inventorypostgres.Migrate(databaseURL))
-	mustMigrate(mlog, "purchase",   purchasepostgres.Migrate(databaseURL))
-	mustMigrate(mlog, "sales",      salespostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "catalog", catalogpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "security", securitypostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "company", companypostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "customer", customerpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "supplier", supplierpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "product", productpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "inventory", inventorypostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "purchase", purchasepostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "sales", salespostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "accounting", accountingpostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "electronic", electronicpostgres.Migrate(databaseURL))
-	mustMigrate(mlog, "payroll",    payrollpostgres.Migrate(databaseURL))
-	mustMigrate(mlog, "hr",         hrpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "payroll", payrollpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "hr", hrpostgres.Migrate(databaseURL))
 
 	// ── Bus de eventos ──────────────────────────────────────────────────────────
 	bus := events.NewBus()
@@ -119,59 +120,59 @@ func main() {
 	jwtSvc := securityjwt.NewTokenService([]byte(mustEnv(log, "JWT_SECRET")))
 
 	// ── Repositorios ────────────────────────────────────────────────────────────
-	catalogRepo  := catalogpostgres.NewRepository(pool)
+	catalogRepo := catalogpostgres.NewRepository(pool)
 	securityRepo := securitypostgres.NewRepository(pool)
-	companyRepo  := companypostgres.NewRepository(pool, encryptionKey)
-	customerRepo  := customerpostgres.NewRepository(pool)
-	supplierRepo   := supplierpostgres.NewRepository(pool)
-	productRepo    := productpostgres.NewRepository(pool)
-	inventoryRepo  := inventorypostgres.NewRepository(pool)
-	purchaseRepo   := purchasepostgres.NewRepository(pool)
-	salesRepo      := salespostgres.NewRepository(pool)
-	warehouseRepo  := companypostgres.NewWarehouseRepository(pool)
-	quoteRepo      := salespostgres.NewQuoteRepository(pool)
-	paymentRepo    := salespostgres.NewPaymentRepository(pool)
+	companyRepo := companypostgres.NewRepository(pool, encryptionKey)
+	customerRepo := customerpostgres.NewRepository(pool)
+	supplierRepo := supplierpostgres.NewRepository(pool)
+	productRepo := productpostgres.NewRepository(pool)
+	inventoryRepo := inventorypostgres.NewRepository(pool)
+	purchaseRepo := purchasepostgres.NewRepository(pool)
+	salesRepo := salespostgres.NewRepository(pool)
+	warehouseRepo := companypostgres.NewWarehouseRepository(pool)
+	quoteRepo := salespostgres.NewQuoteRepository(pool)
+	paymentRepo := salespostgres.NewPaymentRepository(pool)
 
 	// ── Repositorios — accounting ───────────────────────────────────────────────
-	accountingAccountRepo  := accountingpostgres.NewAccountRepository(pool)
-	accountingPeriodRepo   := accountingpostgres.NewPeriodRepository(pool)
-	accountingJournalRepo  := accountingpostgres.NewJournalRepository(pool)
+	accountingAccountRepo := accountingpostgres.NewAccountRepository(pool)
+	accountingPeriodRepo := accountingpostgres.NewPeriodRepository(pool)
+	accountingJournalRepo := accountingpostgres.NewJournalRepository(pool)
 
 	// ── Repositorios — electronic ───────────────────────────────────────────────
-	electronicDocRepo      := electronicpostgres.NewDocumentRepository(pool)
-	electronicNumRepo      := electronicpostgres.NewNumberingRepository(pool, encryptionKey)
-	electronicCompanyPort  := electroniccompany.New(companyRepo)
-	electronicAdapter      := electroniccofacture.New()
+	electronicDocRepo := electronicpostgres.NewDocumentRepository(pool)
+	electronicNumRepo := electronicpostgres.NewNumberingRepository(pool, encryptionKey)
+	electronicCompanyPort := electroniccompany.New(companyRepo)
+	electronicAdapter := electroniccofacture.New()
 
 	// ── Casos de uso — security ─────────────────────────────────────────────────
-	registerUC      := securityapp.NewRegisterUseCase(securityRepo, jwtSvc)
-	loginUC         := securityapp.NewLoginUseCase(securityRepo, jwtSvc)
+	registerUC := securityapp.NewRegisterUseCase(securityRepo, jwtSvc)
+	loginUC := securityapp.NewLoginUseCase(securityRepo, jwtSvc)
 	selectCompanyUC := securityapp.NewSelectCompanyUseCase(securityRepo, jwtSvc)
-	inviteUserUC    := securityapp.NewInviteUserUseCase(securityRepo)
-	acceptInviteUC  := securityapp.NewAcceptInviteUseCase(securityRepo, jwtSvc)
+	inviteUserUC := securityapp.NewInviteUserUseCase(securityRepo)
+	acceptInviteUC := securityapp.NewAcceptInviteUseCase(securityRepo, jwtSvc)
 	updateProfileUC := securityapp.NewUpdateProfileUseCase(securityRepo)
-	getProfileUC    := securityapp.NewGetProfileUseCase(securityRepo)
+	getProfileUC := securityapp.NewGetProfileUseCase(securityRepo)
 
 	// ── Casos de uso — purchase ─────────────────────────────────────────────────
-	createPurchaseUC  := purchaseapp.NewCreateUseCase(purchaseRepo)
-	getPurchaseUC     := purchaseapp.NewGetUseCase(purchaseRepo)
+	createPurchaseUC := purchaseapp.NewCreateUseCase(purchaseRepo)
+	getPurchaseUC := purchaseapp.NewGetUseCase(purchaseRepo)
 	confirmPurchaseUC := purchaseapp.NewConfirmUseCase(purchaseRepo)
-	cancelPurchaseUC  := purchaseapp.NewCancelUseCase(purchaseRepo)
+	cancelPurchaseUC := purchaseapp.NewCancelUseCase(purchaseRepo)
 	receivePurchaseUC := purchaseapp.NewReceiveUseCase(purchaseRepo, bus)
 
 	// ── Casos de uso — sales ────────────────────────────────────────────────────
-	createSaleUC  := salesapp.NewCreateUseCase(salesRepo)
-	getSaleUC     := salesapp.NewGetUseCase(salesRepo)
+	createSaleUC := salesapp.NewCreateUseCase(salesRepo)
+	getSaleUC := salesapp.NewGetUseCase(salesRepo)
 	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus)
-	cancelSaleUC  := salesapp.NewCancelUseCase(salesRepo)
-	quoteUC       := salesapp.NewQuoteUseCase(quoteRepo, salesRepo)
-	paymentUC     := salesapp.NewPaymentUseCase(paymentRepo, salesRepo)
+	cancelSaleUC := salesapp.NewCancelUseCase(salesRepo)
+	quoteUC := salesapp.NewQuoteUseCase(quoteRepo, salesRepo)
+	paymentUC := salesapp.NewPaymentUseCase(paymentRepo, salesRepo)
 
 	// ── Casos de uso — accounting ───────────────────────────────────────────────
-	postJournalUC   := accountingapp.NewPostJournalUseCase(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
-	getJournalUC    := accountingapp.NewGetJournalUseCase(accountingJournalRepo)
-	voidJournalUC   := accountingapp.NewVoidJournalUseCase(accountingJournalRepo)
-	managePeriodUC  := accountingapp.NewManagePeriodUseCase(accountingPeriodRepo)
+	postJournalUC := accountingapp.NewPostJournalUseCase(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
+	getJournalUC := accountingapp.NewGetJournalUseCase(accountingJournalRepo)
+	voidJournalUC := accountingapp.NewVoidJournalUseCase(accountingJournalRepo)
+	managePeriodUC := accountingapp.NewManagePeriodUseCase(accountingPeriodRepo)
 	onSaleConfirmed := accountingapp.NewOnSaleConfirmed(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onSaleConfirmed.Register(bus)
 	inventoryOnSaleConfirmed := inventoryapp.NewOnSaleConfirmed(inventoryRepo)
@@ -185,11 +186,11 @@ func main() {
 
 	// ── Casos de uso — electronic ───────────────────────────────────────────────
 	electronicCreateDraftUC := electronicapp.NewCreateDraftUseCase(electronicDocRepo, electronicNumRepo, electronicCompanyPort, catalogRepo)
-	electronicConfirmUC     := electronicapp.NewConfirmUseCase(electronicDocRepo, electronicNumRepo, electronicCompanyPort, electronicAdapter, electronicAdapter, electronicAdapter)
-	electronicGetUC         := electronicapp.NewGetDocumentUseCase(electronicDocRepo)
-	electronicListUC        := electronicapp.NewListDocumentsUseCase(electronicDocRepo)
-	electronicNumberingUC   := electronicapp.NewManageNumberingUseCase(electronicNumRepo)
-	fromSaleUC              := electronicapp.NewCreateFromSaleUseCase(electronicCreateDraftUC, salesRepo, customerRepo, productRepo)
+	electronicConfirmUC := electronicapp.NewConfirmUseCase(electronicDocRepo, electronicNumRepo, electronicCompanyPort, electronicAdapter, electronicAdapter, electronicAdapter)
+	electronicGetUC := electronicapp.NewGetDocumentUseCase(electronicDocRepo)
+	electronicListUC := electronicapp.NewListDocumentsUseCase(electronicDocRepo)
+	electronicNumberingUC := electronicapp.NewManageNumberingUseCase(electronicNumRepo)
+	fromSaleUC := electronicapp.NewCreateFromSaleUseCase(electronicCreateDraftUC, salesRepo, customerRepo, productRepo)
 
 	// ── Renderer de reportes ─────────────────────────────────────────────────────
 	htmlRenderer, err := htmlreports.NewRenderer()
@@ -197,7 +198,7 @@ func main() {
 		log.Error("renderer HTML fallido", "error", err)
 		os.Exit(1)
 	}
-	pdfGenerator  := pdfreports.NewGenerator(htmlRenderer)
+	pdfGenerator := pdfreports.NewGenerator(htmlRenderer)
 	multiRenderer := multireports.New(map[reportsdomain.Format]reportsdomain.Renderer{
 		reportsdomain.FormatHTML: htmlRenderer,
 		reportsdomain.FormatPDF:  pdfGenerator,
@@ -205,40 +206,40 @@ func main() {
 	electronicPDFUC := electronicapp.NewGetDocumentPDFUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer)
 
 	// ── Casos de uso — hr / payroll / company / inventory / supplier / product / customer ──
-	hrAbsenceRepo   := hrpostgres.NewAbsenceRepository(pool)
-	hrAbsenceUC     := hrapp.NewAbsenceUseCase(hrAbsenceRepo)
+	hrAbsenceRepo := hrpostgres.NewAbsenceRepository(pool)
+	hrAbsenceUC := hrapp.NewAbsenceUseCase(hrAbsenceRepo)
 
-	payrollEmpRepo      := payrollpostgres.NewEmployeeRepository(pool)
+	payrollEmpRepo := payrollpostgres.NewEmployeeRepository(pool)
 	payrollContractRepo := payrollpostgres.NewContractRepository(pool)
-	payrollPayslipRepo  := payrollpostgres.NewPayslipRepository(pool)
-	payrollEmpUC        := payrollapp.NewEmployeeUseCase(payrollEmpRepo)
-	payrollContractUC   := payrollapp.NewContractUseCase(payrollContractRepo, payrollEmpRepo)
-	payrollPayslipUC    := payrollapp.NewPayslipUseCase(payrollPayslipRepo, payrollContractRepo, payrollEmpRepo, bus)
+	payrollPayslipRepo := payrollpostgres.NewPayslipRepository(pool)
+	payrollEmpUC := payrollapp.NewEmployeeUseCase(payrollEmpRepo)
+	payrollContractUC := payrollapp.NewContractUseCase(payrollContractRepo, payrollEmpRepo)
+	payrollPayslipUC := payrollapp.NewPayslipUseCase(payrollPayslipRepo, payrollContractRepo, payrollEmpRepo, bus)
 
 	moveInventoryUC := inventoryapp.NewMoveUseCase(inventoryRepo)
-	getInventoryUC  := inventoryapp.NewGetUseCase(inventoryRepo)
+	getInventoryUC := inventoryapp.NewGetUseCase(inventoryRepo)
 
 	createSupplierUC := supplierapp.NewCreateUseCase(supplierRepo)
-	getSupplierUC    := supplierapp.NewGetUseCase(supplierRepo)
+	getSupplierUC := supplierapp.NewGetUseCase(supplierRepo)
 	updateSupplierUC := supplierapp.NewUpdateUseCase(supplierRepo)
 	deleteSupplierUC := supplierapp.NewDeleteUseCase(supplierRepo)
 
 	createProductUC := productapp.NewCreateUseCase(productRepo)
-	getProductUC    := productapp.NewGetUseCase(productRepo)
+	getProductUC := productapp.NewGetUseCase(productRepo)
 	updateProductUC := productapp.NewUpdateUseCase(productRepo)
 	deleteProductUC := productapp.NewDeleteUseCase(productRepo)
 
 	createCustomerUC := customerapp.NewCreateUseCase(customerRepo)
-	getCustomerUC    := customerapp.NewGetUseCase(customerRepo)
+	getCustomerUC := customerapp.NewGetUseCase(customerRepo)
 	updateCustomerUC := customerapp.NewUpdateUseCase(customerRepo)
 	deleteCustomerUC := customerapp.NewDeleteUseCase(customerRepo)
 
-	createCompanyUC      := companyapp.NewCreateUseCase(companyRepo, securityRepo)
-	getCompanyUC         := companyapp.NewGetUseCase(companyRepo)
+	createCompanyUC := companyapp.NewCreateUseCase(companyRepo, securityRepo)
+	getCompanyUC := companyapp.NewGetUseCase(companyRepo)
 	updateCompanyProfile := companyapp.NewUpdateProfileUseCase(companyRepo)
-	updateCompanyCreds   := companyapp.NewUpdateCredentialsUseCase(companyRepo)
-	updateCompanyLogo    := companyapp.NewUpdateLogoUseCase(companyRepo)
-	warehouseUC          := companyapp.NewWarehouseUseCase(warehouseRepo)
+	updateCompanyCreds := companyapp.NewUpdateCredentialsUseCase(companyRepo)
+	updateCompanyLogo := companyapp.NewUpdateLogoUseCase(companyRepo)
+	warehouseUC := companyapp.NewWarehouseUseCase(warehouseRepo)
 
 	// ── Handlers HTTP ────────────────────────────────────────────────────────────
 	mux := http.NewServeMux()
@@ -266,11 +267,11 @@ func main() {
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok","service":"erp"}`))
+		_, _ = w.Write([]byte(`{"status":"ok","service":"cofacture erp"}`))
 	})
 
 	// ── Middleware (orden: logger → tenant/JWT) ──────────────────────────────────
-	handler := logger.Middleware(logger.New("http"))(tenant.Middleware(jwtSvc)(mux))
+	handler := cors.Middleware(logger.Middleware(logger.New("http"))(tenant.Middleware(jwtSvc)(mux)))
 
 	log.Info("ERP iniciado", "addr", addr)
 	if err := http.ListenAndServe(addr, handler); err != nil {

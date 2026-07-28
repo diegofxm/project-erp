@@ -11,7 +11,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func TestElectronicSchema(t *testing.T) {
+func TestSchema_ElectronicTables(t *testing.T) {
 	_ = godotenv.Load("../../../../../../.env")
 	url := os.Getenv("DATABASE_URL")
 	if url == "" {

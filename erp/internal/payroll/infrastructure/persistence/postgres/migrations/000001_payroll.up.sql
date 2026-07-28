@@ -1,18 +1,18 @@
 CREATE SCHEMA IF NOT EXISTS payroll;
 
-CREATE TABLE payroll.smmlv_values (
+CREATE TABLE IF NOT EXISTS payroll.smmlv_values (
     year         SMALLINT PRIMARY KEY,
     amount_cents BIGINT   NOT NULL
 );
 
-CREATE TABLE payroll.arl_rates (
+CREATE TABLE IF NOT EXISTS payroll.arl_rates (
     year       SMALLINT   NOT NULL,
     risk_class VARCHAR(3) NOT NULL,
     rate_bp    INT        NOT NULL,
     PRIMARY KEY (year, risk_class)
 );
 
-CREATE TABLE payroll.employees (
+CREATE TABLE IF NOT EXISTS payroll.employees (
     id                       UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id               UUID        NOT NULL,
     identification_type_code VARCHAR(3)  NOT NULL,
@@ -29,11 +29,11 @@ CREATE TABLE payroll.employees (
     updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX idx_employees_company_id_number
+CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_company_id_number
     ON payroll.employees(company_id, identification_number);
-CREATE INDEX idx_employees_company ON payroll.employees(company_id);
+CREATE INDEX IF NOT EXISTS idx_employees_company ON payroll.employees(company_id);
 
-CREATE TABLE payroll.contracts (
+CREATE TABLE IF NOT EXISTS payroll.contracts (
     id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     employee_id       UUID        NOT NULL REFERENCES payroll.employees(id),
     company_id        UUID        NOT NULL,
@@ -57,10 +57,10 @@ CREATE TABLE payroll.contracts (
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_contracts_employee ON payroll.contracts(employee_id);
-CREATE INDEX idx_contracts_company  ON payroll.contracts(company_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_contracts_employee ON payroll.contracts(employee_id);
+CREATE INDEX IF NOT EXISTS idx_contracts_company  ON payroll.contracts(company_id, is_active);
 
-CREATE TABLE payroll.payslips (
+CREATE TABLE IF NOT EXISTS payroll.payslips (
     id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id           UUID        NOT NULL,
     employee_id          UUID        NOT NULL REFERENCES payroll.employees(id),
@@ -79,11 +79,11 @@ CREATE TABLE payroll.payslips (
     UNIQUE (company_id, employee_id, period_year, period_month)
 );
 
-CREATE INDEX idx_payslips_company_period
+CREATE INDEX IF NOT EXISTS idx_payslips_company_period
     ON payroll.payslips(company_id, period_year, period_month);
-CREATE INDEX idx_payslips_employee ON payroll.payslips(employee_id);
+CREATE INDEX IF NOT EXISTS idx_payslips_employee ON payroll.payslips(employee_id);
 
-CREATE TABLE payroll.payslip_lines (
+CREATE TABLE IF NOT EXISTS payroll.payslip_lines (
     id           UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
     payslip_id   UUID          NOT NULL REFERENCES payroll.payslips(id) ON DELETE CASCADE,
     concept_code VARCHAR(20)   NOT NULL,
@@ -94,4 +94,4 @@ CREATE TABLE payroll.payslip_lines (
     created_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_payslip_lines_payslip ON payroll.payslip_lines(payslip_id);
+CREATE INDEX IF NOT EXISTS idx_payslip_lines_payslip ON payroll.payslip_lines(payslip_id);

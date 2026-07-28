@@ -24,24 +24,24 @@ func NewCreateUseCase(repo domain.Repository, members MembershipLinker) *CreateU
 }
 
 type CreateRequest struct {
-	NIT                         string
-	CheckDigit                  string
-	BusinessName                string
-	TradeName                   string
-	IdentificationTypeCode      string
-	DepartmentCode              string
-	MunicipalityCode            string
-	AddressLine                 string
-	Email                       string
-	Phone                       string
-	Environment                 domain.Environment
-	EntityTypeCode              string
-	TaxSchemeCode               string
-	TaxSchemeName               string
-	LiabilityCodes              []string
-	TaxRegimeCode               *string
-	IndustryClassificationCodes []string
-	MerchantRegistrationNumber  *string
+	NIT                         string             `json:"nit"`
+	CheckDigit                  string             `json:"check_digit"`
+	BusinessName                string             `json:"business_name"`
+	TradeName                   string             `json:"trade_name"`
+	IdentificationTypeCode      string             `json:"identification_type_code"`
+	DepartmentCode              string             `json:"department_code"`
+	MunicipalityCode            string             `json:"municipality_code"`
+	AddressLine                 string             `json:"address_line"`
+	Email                       string             `json:"email"`
+	Phone                       string             `json:"phone"`
+	Environment                 domain.Environment `json:"environment"`
+	EntityTypeCode              string             `json:"entity_type_code"`
+	TaxSchemeCode               string             `json:"tax_scheme_code"`
+	TaxSchemeName               string             `json:"tax_scheme_name"`
+	LiabilityCodes              []string           `json:"liability_codes"`
+	TaxRegimeCode               *string            `json:"tax_regime_code"`
+	IndustryClassificationCodes []string           `json:"industry_classification_codes"`
+	MerchantRegistrationNumber  *string            `json:"merchant_registration_number"`
 }
 
 func (uc *CreateUseCase) Execute(ctx context.Context, creatorID uuid.UUID, req CreateRequest) (*domain.Company, error) {

@@ -17,17 +17,17 @@ func NewCreateUseCase(repo domain.Repository) *CreateUseCase {
 }
 
 type SaveRequest struct {
-	Code             string
-	Name             string
-	Description      string
-	UnitMeasureCode  string
-	StandardCode     string
-	StandardCodeType string
-	IsService        bool
-	TaxSchemeCode    string
-	TaxSchemeName    string
-	TaxRate          float64
-	BasePrice        float64
+	Code             string  `json:"code"`
+	Name             string  `json:"name"`
+	Description      string  `json:"description"`
+	UnitMeasureCode  string  `json:"unit_measure_code"`
+	StandardCode     string  `json:"standard_code"`
+	StandardCodeType string  `json:"standard_code_type"`
+	IsService        bool    `json:"is_service"`
+	TaxSchemeCode    string  `json:"tax_scheme_code"`
+	TaxSchemeName    string  `json:"tax_scheme_name"`
+	TaxRate          float64 `json:"tax_rate"`
+	BasePrice        float64 `json:"base_price"`
 }
 
 func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req SaveRequest) (*domain.Product, error) {

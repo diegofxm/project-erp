@@ -24,19 +24,19 @@ func All(ctx context.Context, pool *pgxpool.Pool) error {
 		csv  string
 		cols []string
 	}{
-		{"catalogs.currencies", "currencies", []string{"code", "name", "symbol"}},
-		{"catalogs.departments", "departments", []string{"code", "name", "description"}},
-		{"catalogs.municipalities", "municipalities", []string{"code", "name", "department_code", "description"}},
-		{"catalogs.identification_types", "identification_types", []string{"code", "name", "description"}},
-		{"catalogs.payment_methods", "payment_methods", []string{"code", "name", "description"}},
-		{"catalogs.payment_terms", "payment_terms", []string{"code", "name", "description"}},
-		{"catalogs.dian_tax_types", "dian_tax_types", []string{"code", "name", "description"}},
-		{"catalogs.tax_regimes", "tax_regimes", []string{"code", "name", "description"}},
-		{"catalogs.liability_codes", "liability_codes", []string{"code", "name", "description"}},
-		{"catalogs.unit_measures", "unit_measures", []string{"code", "name", "description"}},
-		{"catalogs.dian_document_types", "dian_document_types", []string{"code", "name", "description"}},
-		{"catalogs.item_standards", "item_standards", []string{"code", "name", "agency_id", "description"}},
-		{"catalogs.ciiu_codes", "ciiu_codes", []string{"code", "description"}},
+		{"catalog.currencies", "currencies", []string{"code", "name", "symbol"}},
+		{"catalog.departments", "departments", []string{"code", "name", "description"}},
+		{"catalog.municipalities", "municipalities", []string{"code", "name", "department_code", "description"}},
+		{"catalog.identification_types", "identification_types", []string{"code", "name", "description"}},
+		{"catalog.payment_methods", "payment_methods", []string{"code", "name", "description"}},
+		{"catalog.payment_terms", "payment_terms", []string{"code", "name", "description"}},
+		{"catalog.dian_tax_types", "dian_tax_types", []string{"code", "name", "description"}},
+		{"catalog.tax_regimes", "tax_regimes", []string{"code", "name", "description"}},
+		{"catalog.liability_codes", "liability_codes", []string{"code", "name", "description"}},
+		{"catalog.unit_measures", "unit_measures", []string{"code", "name", "description"}},
+		{"catalog.dian_document_types", "dian_document_types", []string{"code", "name", "description"}},
+		{"catalog.item_standards", "item_standards", []string{"code", "name", "agency_id", "description"}},
+		{"catalog.ciiu_codes", "ciiu_codes", []string{"code", "description"}},
 	}
 
 	for _, t := range tables {

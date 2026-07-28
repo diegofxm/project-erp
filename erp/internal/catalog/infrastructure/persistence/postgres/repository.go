@@ -43,43 +43,43 @@ func (r *Repository) listEntries(ctx context.Context, table string) ([]domain.En
 }
 
 func (r *Repository) ListDepartments(ctx context.Context) ([]domain.Entry, error) {
-	return r.listEntries(ctx, "catalogs.departments")
+	return r.listEntries(ctx, "catalog.departments")
 }
 
 func (r *Repository) ListIdentificationTypes(ctx context.Context) ([]domain.Entry, error) {
-	return r.listEntries(ctx, "catalogs.identification_types")
+	return r.listEntries(ctx, "catalog.identification_types")
 }
 
 func (r *Repository) ListTaxTypes(ctx context.Context) ([]domain.Entry, error) {
-	return r.listEntries(ctx, "catalogs.dian_tax_types")
+	return r.listEntries(ctx, "catalog.dian_tax_types")
 }
 
 func (r *Repository) ListPaymentMethods(ctx context.Context) ([]domain.Entry, error) {
-	return r.listEntries(ctx, "catalogs.payment_methods")
+	return r.listEntries(ctx, "catalog.payment_methods")
 }
 
 func (r *Repository) ListPaymentTerms(ctx context.Context) ([]domain.Entry, error) {
-	return r.listEntries(ctx, "catalogs.payment_terms")
+	return r.listEntries(ctx, "catalog.payment_terms")
 }
 
 func (r *Repository) ListUnitMeasures(ctx context.Context) ([]domain.Entry, error) {
-	return r.listEntries(ctx, "catalogs.unit_measures")
+	return r.listEntries(ctx, "catalog.unit_measures")
 }
 
 func (r *Repository) ListTaxRegimes(ctx context.Context) ([]domain.Entry, error) {
-	return r.listEntries(ctx, "catalogs.tax_regimes")
+	return r.listEntries(ctx, "catalog.tax_regimes")
 }
 
 func (r *Repository) ListLiabilityCodes(ctx context.Context) ([]domain.Entry, error) {
-	return r.listEntries(ctx, "catalogs.liability_codes")
+	return r.listEntries(ctx, "catalog.liability_codes")
 }
 
 func (r *Repository) ListDianDocumentTypes(ctx context.Context) ([]domain.Entry, error) {
-	return r.listEntries(ctx, "catalogs.dian_document_types")
+	return r.listEntries(ctx, "catalog.dian_document_types")
 }
 
 func (r *Repository) ListMunicipalities(ctx context.Context, departmentCode string) ([]domain.Municipality, error) {
-	query := "SELECT code, name, department_code, description FROM catalogs.municipalities"
+	query := "SELECT code, name, department_code, description FROM catalog.municipalities"
 	args := []any{}
 	if departmentCode != "" {
 		query += " WHERE department_code = $1"
@@ -105,7 +105,7 @@ func (r *Repository) ListMunicipalities(ctx context.Context, departmentCode stri
 
 func (r *Repository) ListCurrencies(ctx context.Context) ([]domain.Currency, error) {
 	rows, err := r.pool.Query(ctx,
-		"SELECT code, name, symbol FROM catalogs.currencies ORDER BY code",
+		"SELECT code, name, symbol FROM catalog.currencies ORDER BY code",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listar currencies: %w", err)
@@ -124,7 +124,7 @@ func (r *Repository) ListCurrencies(ctx context.Context) ([]domain.Currency, err
 
 func (r *Repository) ListItemStandards(ctx context.Context) ([]domain.ItemStandard, error) {
 	rows, err := r.pool.Query(ctx,
-		"SELECT code, name, agency_id, description FROM catalogs.item_standards ORDER BY code",
+		"SELECT code, name, agency_id, description FROM catalog.item_standards ORDER BY code",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listar item_standards: %w", err)
@@ -143,7 +143,7 @@ func (r *Repository) ListItemStandards(ctx context.Context) ([]domain.ItemStanda
 
 func (r *Repository) ListCiiuCodes(ctx context.Context) ([]domain.CiiuCode, error) {
 	rows, err := r.pool.Query(ctx,
-		"SELECT code, description FROM catalogs.ciiu_codes ORDER BY code",
+		"SELECT code, description FROM catalog.ciiu_codes ORDER BY code",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("listar ciiu_codes: %w", err)
@@ -163,51 +163,51 @@ func (r *Repository) ListCiiuCodes(ctx context.Context) ([]domain.CiiuCode, erro
 // --- Validaciones puntuales ---
 
 func (r *Repository) IsValidPaymentTerm(ctx context.Context, code string) (bool, error) {
-	return r.exists(ctx, "catalogs.payment_terms", code)
+	return r.exists(ctx, "catalog.payment_terms", code)
 }
 
 func (r *Repository) IsValidPaymentMethod(ctx context.Context, code string) (bool, error) {
-	return r.exists(ctx, "catalogs.payment_methods", code)
+	return r.exists(ctx, "catalog.payment_methods", code)
 }
 
 func (r *Repository) IsValidLiabilityCode(ctx context.Context, code string) (bool, error) {
-	return r.exists(ctx, "catalogs.liability_codes", code)
+	return r.exists(ctx, "catalog.liability_codes", code)
 }
 
 // --- Lookups por código ---
 
 func (r *Repository) GetTaxTypeName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "catalogs.dian_tax_types", code)
+	return r.getName(ctx, "catalog.dian_tax_types", code)
 }
 
 func (r *Repository) GetPaymentTermName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "catalogs.payment_terms", code)
+	return r.getName(ctx, "catalog.payment_terms", code)
 }
 
 func (r *Repository) GetPaymentMethodName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "catalogs.payment_methods", code)
+	return r.getName(ctx, "catalog.payment_methods", code)
 }
 
 func (r *Repository) GetIdentificationTypeName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "catalogs.identification_types", code)
+	return r.getName(ctx, "catalog.identification_types", code)
 }
 
 func (r *Repository) GetTaxRegimeName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "catalogs.tax_regimes", code)
+	return r.getName(ctx, "catalog.tax_regimes", code)
 }
 
 func (r *Repository) GetLiabilityCodeName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "catalogs.liability_codes", code)
+	return r.getName(ctx, "catalog.liability_codes", code)
 }
 
 func (r *Repository) GetItemStandardName(ctx context.Context, code string) (string, bool, error) {
-	return r.getName(ctx, "catalogs.item_standards", code)
+	return r.getName(ctx, "catalog.item_standards", code)
 }
 
 func (r *Repository) GetItemStandardAgencyID(ctx context.Context, code string) (string, bool, error) {
 	var agencyID string
 	err := r.pool.QueryRow(ctx,
-		"SELECT agency_id FROM catalogs.item_standards WHERE code = $1", code,
+		"SELECT agency_id FROM catalog.item_standards WHERE code = $1", code,
 	).Scan(&agencyID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", false, nil
@@ -221,7 +221,7 @@ func (r *Repository) GetItemStandardAgencyID(ctx context.Context, code string) (
 func (r *Repository) GetCiiuDescription(ctx context.Context, code string) (string, bool, error) {
 	var desc string
 	err := r.pool.QueryRow(ctx,
-		"SELECT description FROM catalogs.ciiu_codes WHERE code = $1", code,
+		"SELECT description FROM catalog.ciiu_codes WHERE code = $1", code,
 	).Scan(&desc)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", false, nil

@@ -62,7 +62,7 @@ func (r *Repository) Save(ctx context.Context, c domain.Company) (*domain.Compan
 		c.ID, c.NIT, c.CheckDigit, c.BusinessName, c.TradeName,
 		c.IdentificationTypeCode, c.DepartmentCode, c.MunicipalityCode, c.AddressLine, c.Email, c.Phone,
 		string(c.Environment), c.EntityTypeCode, c.TaxSchemeCode, c.TaxSchemeName,
-		c.LiabilityCodes, c.TaxRegimeCode, c.IndustryClassificationCodes, c.MerchantRegistrationNumber,
+		nilToEmpty(c.LiabilityCodes), c.TaxRegimeCode, nilToEmpty(c.IndustryClassificationCodes), c.MerchantRegistrationNumber,
 		c.SoftwareID, pinEnc, c.Certificate, certPwdEnc,
 		c.NeSoftwareID, nePinEnc,
 		c.Logo, c.LogoContentType, c.IsActive, c.CreatedAt, c.UpdatedAt,
@@ -250,4 +250,11 @@ func (r *Repository) scanCompany(s scanner) (*domain.Company, error) {
 		c.IndustryClassificationCodes = []string{}
 	}
 	return &c, nil
+}
+
+func nilToEmpty(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }

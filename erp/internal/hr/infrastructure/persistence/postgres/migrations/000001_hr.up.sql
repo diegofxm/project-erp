@@ -4,7 +4,7 @@ CREATE SCHEMA IF NOT EXISTS hr;
 -- status: 'pending' | 'approved' | 'rejected'
 -- days: calculado al crear (días calendario entre start_date y end_date inclusive)
 
-CREATE TABLE hr.absences (
+CREATE TABLE IF NOT EXISTS hr.absences (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id  UUID        NOT NULL,
     employee_id UUID        NOT NULL,
@@ -19,5 +19,5 @@ CREATE TABLE hr.absences (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_absences_company    ON hr.absences(company_id, status);
-CREATE INDEX idx_absences_employee   ON hr.absences(employee_id);
+CREATE INDEX IF NOT EXISTS idx_absences_company    ON hr.absences(company_id, status);
+CREATE INDEX IF NOT EXISTS idx_absences_employee   ON hr.absences(employee_id);

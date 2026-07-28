@@ -18,12 +18,12 @@ func NewMoveUseCase(repo domain.Repository) *MoveUseCase {
 }
 
 type MoveRequest struct {
-	ProductID   uuid.UUID
-	Warehouse   string
-	Type        domain.MovementType
-	Quantity    float64
-	Reference   string
-	Description string
+	ProductID   uuid.UUID           `json:"product_id"`
+	Warehouse   string              `json:"warehouse"`
+	Type        domain.MovementType `json:"type"`
+	Quantity    float64             `json:"quantity"`
+	Reference   string              `json:"reference"`
+	Description string              `json:"description"`
 }
 
 func (uc *MoveUseCase) Execute(ctx context.Context, companyID uuid.UUID, req MoveRequest) (*domain.Movement, error) {

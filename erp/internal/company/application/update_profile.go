@@ -17,22 +17,22 @@ func NewUpdateProfileUseCase(repo domain.Repository) *UpdateProfileUseCase {
 }
 
 type UpdateProfileRequest struct {
-	BusinessName                string
-	TradeName                   string
-	IdentificationTypeCode      string
-	DepartmentCode              string
-	MunicipalityCode            string
-	AddressLine                 string
-	Email                       string
-	Phone                       string
-	Environment                 domain.Environment
-	EntityTypeCode              string
-	TaxSchemeCode               string
-	TaxSchemeName               string
-	LiabilityCodes              []string
-	TaxRegimeCode               *string
-	IndustryClassificationCodes []string
-	MerchantRegistrationNumber  *string
+	BusinessName                string             `json:"business_name"`
+	TradeName                   string             `json:"trade_name"`
+	IdentificationTypeCode      string             `json:"identification_type_code"`
+	DepartmentCode              string             `json:"department_code"`
+	MunicipalityCode            string             `json:"municipality_code"`
+	AddressLine                 string             `json:"address_line"`
+	Email                       string             `json:"email"`
+	Phone                       string             `json:"phone"`
+	Environment                 domain.Environment `json:"environment"`
+	EntityTypeCode              string             `json:"entity_type_code"`
+	TaxSchemeCode               string             `json:"tax_scheme_code"`
+	TaxSchemeName               string             `json:"tax_scheme_name"`
+	LiabilityCodes              []string           `json:"liability_codes"`
+	TaxRegimeCode               *string            `json:"tax_regime_code"`
+	IndustryClassificationCodes []string           `json:"industry_classification_codes"`
+	MerchantRegistrationNumber  *string            `json:"merchant_registration_number"`
 }
 
 func (uc *UpdateProfileUseCase) Execute(ctx context.Context, id uuid.UUID, req UpdateProfileRequest) (*domain.Company, error) {
