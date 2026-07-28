@@ -63,3 +63,18 @@ type CreatePayslipInput struct {
 	PeriodMonth int
 	WorkedDays  int
 }
+
+// PayrollGenerated se publica cuando un recibo de nómina pasa a estado "approved".
+// accounting/ lo consume para registrar el gasto de personal.
+type PayrollGenerated struct {
+	PayslipID          uuid.UUID
+	CompanyID          uuid.UUID
+	EmployeeID         uuid.UUID
+	PeriodYear         int
+	PeriodMonth        int
+	TotalEarnedCents   int64
+	TotalDeductedCents int64
+	NetPayCents        int64
+}
+
+func (PayrollGenerated) EventName() string { return "payroll.generated" }

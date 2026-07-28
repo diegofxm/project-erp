@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>{{.Copy1.DocumentTitle}} · {{.Copy1.DocNumber}}</title>
+{{if .Copy1.BrandColor}}<style>:root { --accent: {{.Copy1.BrandColor}}; --line: {{.Copy1.BrandColor}}; --accent-tint: color-mix(in srgb, {{.Copy1.BrandColor}} 12%, white); }</style>{{end}}
+<style>
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+@page { size: A4; margin: 0; }
+
+:root {
+  --ink:         #111111;
+  --muted:       #555555;
+  --accent:      #14345C;
+  --line:        var(--accent);
+  --shade:       #EDEDED;
+  --accent-tint: #EAF0F8;
+  --num-red:     #C0392B;
+  --rule-strong: 1pt;
+  --rule:        0.6pt;
+  --hair:        0.4pt;
+}
+
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 7pt;
+  line-height: 1.2;
+  color: var(--ink);
+  background: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.page {
+  padding: 6mm 8mm;
+  position: relative;
+  z-index: 1;
+}
+
+.slip {
+  height: 138mm;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cut-line {
+  position: relative;
+  height: 0;
+  border-top: 1pt dashed var(--accent);
+  margin: 3mm 0;
+}
+
+.cut-line span {
+  position: absolute;
+  top: -2.3mm;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  padding: 0 2.5mm;
+  font-size: 6pt;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ── Cabecera ──────────────────────────── */
+.s-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 4mm;
+  padding-top: 2mm;
+  margin-bottom: 2mm;
+}
+
+.s-co-block { display: flex; gap: 2mm; align-items: flex-start; }
+
+.s-logo-box {
+  width: 12mm;
+  height: 12mm;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.s-logo-box img { width: 100%; height: 100%; object-fit: contain; }
+
+.s-co-name { font-size: 9pt; font-weight: 700; text-transform: uppercase; line-height: 1.15; color: var(--accent); }
+.s-co-nit  { font-size: 6.5pt; font-weight: 700; margin-top: 0.3mm; }
+.s-co-info { font-size: 6pt; color: var(--muted); line-height: 1.3; margin-top: 0.3mm; }
+
+.s-doc-title { text-align: right; flex-shrink: 0; }
+.s-doc-title .t1 { font-size: 8.5pt; font-weight: 700; text-transform: uppercase; color: var(--accent); }
+.s-doc-title .t2 { font-size: 6pt; color: var(--muted); line-height: 1.3; margin-top: 0.5mm; }
+.s-doc-title .t2 b { color: var(--ink); }
+.copy-tag {
+  font-size: 6pt;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 0.8mm;
+}
+
+/* ── Borrador ──────────────────────────── */
+.s-draft-bar {
+  border: var(--rule-strong) solid var(--line);
+  background: var(--shade);
+  padding: 1mm 2mm;
+  margin-bottom: 1.5mm;
+  text-align: center;
+  font-size: 6.5pt;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ── Identidad (adquiriente + número + QR) ── */
+.s-idbox {
+  display: grid;
+  grid-template-columns: 1fr 30mm;
+  border: var(--rule) solid var(--line);
+  margin-bottom: 1.5mm;
+  flex-shrink: 0;
+}
+
+.s-idbox .col + .col { border-left: var(--rule) solid var(--line); }
+
+.s-bar {
+  background: var(--accent);
+  color: #fff;
+  font-size: 6pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.6mm 2mm;
+}
+
+.s-kv-block { padding: 1mm 2mm; }
+
+.s-kv-row { display: flex; gap: 1.5mm; font-size: 6.3pt; line-height: 1.35; }
+.s-kv-row .k { font-weight: 700; flex-shrink: 0; min-width: 12mm; }
+.s-kv-row .v { color: var(--ink); }
+
+.s-docnum {
+  padding: 1.5mm 2mm 1mm 3mm;
+  border-bottom: var(--hair) solid var(--line);
+}
+
+.s-docnum .lbl {
+  font-size: 5.5pt;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.5mm;
+}
+
+.s-docnum .num {
+  font-size: 9pt;
+  font-weight: 400;
+  color: var(--num-red);
+  white-space: nowrap;
+}
+
+.s-qr-wrap { padding: 1.5mm; }
+.s-qr-wrap img { display: block; width: 100%; height: auto; }
+.s-qr-ph {
+  padding: 1.5mm;
+  font-size: 5.5pt;
+  color: #bbb;
+  text-align: center;
+  border: 0.4pt dashed #ccc;
+  margin: 1.5mm;
+}
+
+/* ── Tabla de ítems ──────────────────── */
+.s-items-frame {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  border: var(--rule) solid var(--line);
+  margin-bottom: 1.5mm;
+  min-height: 12mm;
+  overflow: hidden;
+}
+
+table.s-items { width: 100%; border-collapse: collapse; }
+
+table.s-items thead th {
+  background: var(--accent-tint);
+  color: var(--accent);
+  border-bottom: var(--hair) solid var(--accent);
+  font-size: 5.8pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.8mm 1.5mm;
+  text-align: left;
+}
+
+table.s-items thead th:not(:last-child) { border-right: var(--hair) solid var(--accent); }
+table.s-items thead th.r { text-align: right; }
+table.s-items thead th.c { text-align: center; }
+
+table.s-items tbody td {
+  border-bottom: var(--hair) solid var(--line);
+  padding: 0.8mm 1.5mm;
+  font-size: 6.3pt;
+  vertical-align: top;
+}
+
+table.s-items tbody td:not(:last-child) { border-right: var(--hair) solid var(--line); }
+table.s-items tbody td.r { text-align: right; }
+table.s-items tbody td.c { text-align: center; color: var(--muted); }
+
+/* ── Caja financiera (impuestos + totales) ── */
+.s-finbox {
+  display: grid;
+  grid-template-columns: 1fr 55mm;
+  border: var(--rule) solid var(--line);
+  margin-bottom: 1.5mm;
+  flex-shrink: 0;
+}
+
+.s-finbox .col + .col { border-left: var(--rule) solid var(--line); }
+
+table.s-taxes { width: 100%; border-collapse: collapse; font-size: 6pt; }
+
+table.s-taxes th {
+  border-bottom: var(--hair) solid var(--line);
+  padding: 0.6mm 2mm;
+  text-align: left;
+  font-weight: 700;
+}
+
+table.s-taxes td {
+  padding: 0.6mm 2mm;
+  border-bottom: 0.3pt solid #ccc;
+}
+
+table.s-taxes th.r, table.s-taxes td.r { text-align: right; }
+
+.s-t-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.8mm 2mm;
+  font-size: 7pt;
+  border-bottom: 0.3pt solid #ccc;
+}
+
+.s-t-row.grand {
+  border-bottom: none;
+  border-top: var(--rule-strong) solid var(--accent);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 8pt;
+  padding: 1.2mm 2mm;
+}
+
+/* ── Son / Nota ──────────────────────── */
+.s-words { font-size: 6.3pt; margin-bottom: 1mm; }
+.s-note  { font-size: 6.3pt; color: var(--muted); margin-bottom: 1mm; }
+
+/* ── Pie ─────────────────────────────── */
+.s-footer {
+  font-size: 5.3pt;
+  color: var(--muted);
+  line-height: 1.3;
+  hyphens: auto;
+  border-top: var(--hair) solid var(--line);
+  padding-top: 1mm;
+}
+
+.s-footer-cufe { display: block; margin-top: 0.5mm; }
+.s-footer-cufe .k { font-weight: 700; color: var(--ink); }
+.s-footer-cufe .v { color: var(--ink); word-break: break-all; }
+
+/* ── Franja proveedor tecnológico (dentro del margen derecho) ─── */
+.cfbrand {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 10mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 0;
+}
+.cfbrand-text {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: #999999;
+  font-size: 7.5pt;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+/* ── Sello SIN VALOR FISCAL (DS) ─────────── */
+.svf-wrap {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 5;
+}
+.svf-stamp {
+  font-size: 28pt;
+  font-weight: 900;
+  color: rgba(192,57,43,0.13);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transform: rotate(-30deg);
+  white-space: nowrap;
+  border: 2.5pt solid rgba(192,57,43,0.18);
+  padding: 3mm 6mm;
+}
+
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="cfbrand"><span class="cfbrand-text">Proveedor tecnológico: <strong>cofacture</strong> · www.cofacture.co · Firma electrónica: ver en el XML</span></div>
+  {{if .Copy1.IsDS}}<div class="svf-wrap"><span class="svf-stamp">Sin Valor Fiscal</span></div>{{end}}
+
+  {{template "slip" .Copy1}}
+
+  <div class="cut-line"><span>✂ Corte aquí</span></div>
+
+  {{template "slip" .Copy2}}
+
+</div>
+
+{{define "slip"}}
+<div class="slip">
+
+  <div class="s-header">
+    <div class="s-co-block">
+      {{if .LogoDataURL}}
+      <div class="s-logo-box"><img src="{{.LogoDataURL}}" alt=""></div>
+      {{end}}
+      <div>
+        <div class="s-co-name">{{.BusinessName}}</div>
+        <div class="s-co-nit">NIT {{.NIT}}-{{.CheckDigit}}</div>
+        {{if .City}}<div class="s-co-info">{{.City}}</div>{{end}}
+        {{if .Phone}}<div class="s-co-info">{{.Phone}}</div>{{end}}
+      </div>
+    </div>
+    <div class="s-doc-title">
+      <div class="t1">{{.DocumentTitle}}</div>
+      <div class="t2">Emisión: <b>{{.IssueDate}}</b>{{if .Currency}} &middot; Moneda: <b>{{.Currency}}</b>{{end}}</div>
+      <div class="copy-tag">{{.CopyLabel}}</div>
+    </div>
+  </div>
+
+  {{if .IsDraft}}
+  <div class="s-draft-bar">Borrador — Pendiente de confirmación ante la DIAN</div>
+  {{end}}
+
+  <div class="s-idbox">
+    <div class="col">
+      <div class="s-bar">{{if .IsDS}}Proveedor{{else}}Adquiriente{{end}}</div>
+      <div class="s-kv-block">
+        <div class="s-kv-row"><span class="k">Nombre:</span><span class="v">{{.CustomerName}}</span></div>
+        <div class="s-kv-row"><span class="k">{{.CustomerIDType}}:</span><span class="v">{{.CustomerID}}</span></div>
+        {{if .CustomerPhone}}<div class="s-kv-row"><span class="k">Tel:</span><span class="v">{{.CustomerPhone}}</span></div>{{end}}
+        {{if .CustomerEmail}}<div class="s-kv-row"><span class="k">Email:</span><span class="v">{{.CustomerEmail}}</span></div>{{end}}
+      </div>
+      {{if or .PaymentTerm .PaymentMethod .DueDate}}
+      <div class="s-bar">Condiciones de Pago</div>
+      <div class="s-kv-block">
+        {{if .PaymentTerm}}<div class="s-kv-row"><span class="k">Forma:</span><span class="v">{{.PaymentTerm}}</span></div>{{end}}
+        {{if .PaymentMethod}}<div class="s-kv-row"><span class="k">Medio:</span><span class="v">{{.PaymentMethod}}</span></div>{{end}}
+        {{if .DueDate}}<div class="s-kv-row"><span class="k">Vence:</span><span class="v">{{.DueDate}}</span></div>{{end}}
+      </div>
+      {{end}}
+    </div>
+    <div class="col">
+      <div class="s-docnum">
+        <div class="lbl">{{.DocNumberLabel}}</div>
+        <div class="num">{{.DocNumber}}</div>
+      </div>
+      {{if .QR}}
+      <div class="s-qr-wrap"><img src="{{.QR}}" alt="QR DIAN"></div>
+      {{else}}
+      <div class="s-qr-ph">QR al confirmar</div>
+      {{end}}
+    </div>
+  </div>
+
+  <div class="s-items-frame">
+    <table class="s-items">
+      <thead>
+        <tr>
+          <th style="width:6mm">#</th>
+          <th style="width:16mm">Código</th>
+          <th>Descripción</th>
+          <th class="r" style="width:10mm">Cant.</th>
+          <th class="r" style="width:18mm">Vlr. Unit.</th>
+          <th class="c" style="width:9mm">IVA</th>
+          <th class="r" style="width:20mm">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Lines}}
+        <tr>
+          <td class="c">{{.Num}}</td>
+          <td>{{.Code}}</td>
+          <td>{{.Description}}</td>
+          <td class="r">{{.Qty}}</td>
+          <td class="r">{{.UnitPrice}}</td>
+          <td class="c">{{.TaxRate}}</td>
+          <td class="r">{{.LineTotal}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="s-finbox">
+    <div class="col">
+      <div class="s-bar">Desglose de Impuestos</div>
+      <table class="s-taxes">
+        <thead>
+          <tr><th>Impuesto</th><th class="r">Tarifa</th><th class="r">Base</th><th class="r">Valor</th></tr>
+        </thead>
+        <tbody>
+          {{range .Taxes}}
+          <tr>
+            <td>{{.Name}}</td>
+            <td class="r">{{.Rate}}</td>
+            <td class="r">{{.TaxBase}}</td>
+            <td class="r">{{.TaxAmount}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    <div class="col">
+      <div class="s-t-row"><span>Subtotal</span><span>{{.Subtotal}}</span></div>
+      <div class="s-t-row"><span>Impuestos</span><span>{{.TaxTotal}}</span></div>
+      <div class="s-t-row grand"><span>Total {{.Currency}}</span><span>{{.GrandTotal}}</span></div>
+    </div>
+  </div>
+
+  {{if .AmountInWords}}
+  <div class="s-words"><b>Son:</b> {{.AmountInWords}}</div>
+  {{end}}
+
+  {{if .Note}}
+  <div class="s-note"><b>Nota:</b> {{.Note}}</div>
+  {{end}}
+
+  <div class="s-footer">
+    <b>Representación gráfica de {{.DocTitleLower}}.</b>
+    {{if .ResolutionText}} &middot; {{.ResolutionText}}{{end}}
+    {{if .TaxRegime}} &middot; {{.TaxRegime}}{{end}}
+    {{if .Liabilities}} &middot; {{.Liabilities}}{{end}}
+    {{if not .IsDraft}}
+    <span class="s-footer-cufe"><span class="k">{{.HashLabel}}&ensp;</span><span class="v">{{.CUFE}}</span></span>
+    {{end}}
+  </div>
+
+</div>
+{{end}}
+
+</body>
+</html>

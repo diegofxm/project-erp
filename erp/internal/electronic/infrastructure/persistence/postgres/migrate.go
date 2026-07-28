@@ -26,7 +26,7 @@ func Migrate(databaseURL string) error {
 	if strings.Contains(dbURL, "?") {
 		sep = "&"
 	}
-	dbURL += sep + "x-migrations-table=electronic_schema_migrations"
+	dbURL += sep + "search_path=public&x-migrations-table=electronic_schema_migrations"
 	m, err := migrate.NewWithSourceInstance("iofs", src, dbURL)
 	if err != nil {
 		return err

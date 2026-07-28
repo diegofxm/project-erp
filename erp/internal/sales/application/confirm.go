@@ -39,6 +39,7 @@ func (uc *ConfirmUseCase) Execute(ctx context.Context, companyID, id uuid.UUID) 
 		Total:      total,
 		TaxAmount:  tax,
 		IssueDate:  s.IssueDate,
+		Lines:      s.Lines,
 	})
 
 	return s, nil

@@ -1,0 +1,159 @@
+package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/diegofxm/erp/internal/sales/domain"
+)
+
+type QuoteRepository struct{ pool *pgxpool.Pool }
+
+func NewQuoteRepository(pool *pgxpool.Pool) *QuoteRepository {
+	return &QuoteRepository{pool: pool}
+}
+
+var _ domain.QuoteRepository = (*QuoteRepository)(nil)
+
+func (r *QuoteRepository) Save(ctx context.Context, q domain.Quote) (*domain.Quote, error) {
+	now := time.Now()
+	q.CreatedAt = now
+	q.UpdatedAt = now
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("iniciar transacción: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO sales.quotes (id, company_id, customer_id, number, status, issue_date, valid_until, notes, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		q.ID, q.CompanyID, q.CustomerID, q.Number, string(q.Status),
+		q.IssueDate, q.ValidUntil, q.Notes, q.CreatedAt, q.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("guardar cotización: %w", err)
+	}
+	for i := range q.Lines {
+		l := &q.Lines[i]
+		l.ID = uuid.New()
+		l.QuoteID = q.ID
+		_, err = tx.Exec(ctx, `
+			INSERT INTO sales.quote_lines (id, quote_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			l.ID, l.QuoteID, l.ProductID, l.Description,
+			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("guardar línea cotización: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return &q, nil
+}
+
+func (r *QuoteRepository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*domain.Quote, error) {
+	var q domain.Quote
+	var status string
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, company_id, customer_id, number, status, issue_date, valid_until, notes, created_at, updated_at
+		FROM sales.quotes WHERE id=$1 AND company_id=$2`,
+		id, companyID,
+	).Scan(&q.ID, &q.CompanyID, &q.CustomerID, &q.Number, &status,
+		&q.IssueDate, &q.ValidUntil, &q.Notes, &q.CreatedAt, &q.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrQuoteNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("obtener cotización: %w", err)
+	}
+	q.Status = domain.QuoteStatus(status)
+	q.Lines, err = r.loadQuoteLines(ctx, q.ID)
+	return &q, err
+}
+
+func (r *QuoteRepository) List(ctx context.Context, companyID uuid.UUID) ([]domain.Quote, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, company_id, customer_id, number, status, issue_date, valid_until, notes, created_at, updated_at
+		FROM sales.quotes WHERE company_id=$1 ORDER BY created_at DESC`,
+		companyID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("listar cotizaciones: %w", err)
+	}
+	defer rows.Close()
+
+	var out []domain.Quote
+	for rows.Next() {
+		var q domain.Quote
+		var status string
+		if err := rows.Scan(&q.ID, &q.CompanyID, &q.CustomerID, &q.Number, &status,
+			&q.IssueDate, &q.ValidUntil, &q.Notes, &q.CreatedAt, &q.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("leer cotización: %w", err)
+		}
+		q.Status = domain.QuoteStatus(status)
+		out = append(out, q)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].Lines, err = r.loadQuoteLines(ctx, out[i].ID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func (r *QuoteRepository) UpdateStatus(ctx context.Context, companyID, id uuid.UUID, status domain.QuoteStatus) error {
+	_, err := r.pool.Exec(ctx,
+		"UPDATE sales.quotes SET status=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3",
+		string(status), id, companyID,
+	)
+	return err
+}
+
+func (r *QuoteRepository) Delete(ctx context.Context, companyID, id uuid.UUID) error {
+	q, err := r.GetByID(ctx, companyID, id)
+	if err != nil {
+		return err
+	}
+	if q.Status != domain.QuoteStatusDraft {
+		return domain.ErrQuoteNotDraft
+	}
+	_, err = r.pool.Exec(ctx, "DELETE FROM sales.quotes WHERE id=$1 AND company_id=$2", id, companyID)
+	return err
+}
+
+func (r *QuoteRepository) loadQuoteLines(ctx context.Context, quoteID uuid.UUID) ([]domain.QuoteLine, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, quote_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total
+		FROM sales.quote_lines WHERE quote_id=$1`,
+		quoteID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cargar líneas cotización: %w", err)
+	}
+	defer rows.Close()
+
+	var lines []domain.QuoteLine
+	for rows.Next() {
+		var l domain.QuoteLine
+		if err := rows.Scan(&l.ID, &l.QuoteID, &l.ProductID, &l.Description,
+			&l.Quantity, &l.UnitPrice, &l.TaxRate, &l.Subtotal, &l.TaxAmount, &l.Total); err != nil {
+			return nil, fmt.Errorf("leer línea cotización: %w", err)
+		}
+		lines = append(lines, l)
+	}
+	return lines, rows.Err()
+}

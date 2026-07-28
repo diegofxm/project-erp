@@ -61,8 +61,22 @@ func (o *PurchaseOrder) GrandTotal() float64 {
 	return t
 }
 
+// PurchaseReceived se publica cuando la OC pasa a estado "recibida".
+// inventory/ y accounting/ lo consumen.
+type PurchaseReceived struct {
+	PurchaseID uuid.UUID
+	CompanyID  uuid.UUID
+	SupplierID uuid.UUID
+	Total      float64
+	TaxAmount  float64
+	IssueDate  time.Time
+	Lines      []PurchaseLine
+}
+
+func (PurchaseReceived) EventName() string { return "purchase.received" }
+
 var (
-	ErrPurchaseNotFound    = errors.New("orden de compra no encontrada")
-	ErrPurchaseNotDraft    = errors.New("la orden debe estar en borrador para esta operación")
+	ErrPurchaseNotFound     = errors.New("orden de compra no encontrada")
+	ErrPurchaseNotDraft     = errors.New("la orden debe estar en borrador para esta operación")
 	ErrPurchaseNotConfirmed = errors.New("la orden debe estar confirmada para recibir mercancía")
 )

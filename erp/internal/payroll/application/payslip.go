@@ -6,20 +6,23 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/diegofxm/erp/internal/payroll/domain"
+	"github.com/diegofxm/erp/internal/shared/events"
 )
 
 type PayslipUseCase struct {
 	payslips  domain.PayslipRepository
 	contracts domain.ContractRepository
 	employees domain.EmployeeRepository
+	bus       *events.Bus
 }
 
 func NewPayslipUseCase(
 	payslips domain.PayslipRepository,
 	contracts domain.ContractRepository,
 	employees domain.EmployeeRepository,
+	bus *events.Bus,
 ) *PayslipUseCase {
-	return &PayslipUseCase{payslips: payslips, contracts: contracts, employees: employees}
+	return &PayslipUseCase{payslips: payslips, contracts: contracts, employees: employees, bus: bus}
 }
 
 // Generate crea una liquidación en estado draft calculando todos los conceptos de ley.
@@ -90,7 +93,20 @@ func (uc *PayslipUseCase) Approve(ctx context.Context, companyID, id uuid.UUID) 
 	if ps.Status != domain.PayslipDraft {
 		return domain.ErrPayslipNotDraft
 	}
-	return uc.payslips.UpdateStatus(ctx, id, domain.PayslipApproved)
+	if err := uc.payslips.UpdateStatus(ctx, id, domain.PayslipApproved); err != nil {
+		return err
+	}
+	uc.bus.Publish(domain.PayrollGenerated{
+		PayslipID:          ps.ID,
+		CompanyID:          ps.CompanyID,
+		EmployeeID:         ps.EmployeeID,
+		PeriodYear:         ps.PeriodYear,
+		PeriodMonth:        ps.PeriodMonth,
+		TotalEarnedCents:   ps.TotalEarnedCents,
+		TotalDeductedCents: ps.TotalDeductedCents,
+		NetPayCents:        ps.NetPayCents,
+	})
+	return nil
 }
 
 func (uc *PayslipUseCase) MarkPaid(ctx context.Context, companyID, id uuid.UUID) error {

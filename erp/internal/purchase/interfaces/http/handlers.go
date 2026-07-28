@@ -17,6 +17,7 @@ type Handler struct {
 	get     *application.GetUseCase
 	confirm *application.ConfirmUseCase
 	cancel  *application.CancelUseCase
+	receive *application.ReceiveUseCase
 }
 
 func NewHandler(
@@ -24,8 +25,9 @@ func NewHandler(
 	get *application.GetUseCase,
 	confirm *application.ConfirmUseCase,
 	cancel *application.CancelUseCase,
+	receive *application.ReceiveUseCase,
 ) *Handler {
-	return &Handler{create: create, get: get, confirm: confirm, cancel: cancel}
+	return &Handler{create: create, get: get, confirm: confirm, cancel: cancel, receive: receive}
 }
 
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -101,6 +103,32 @@ func (h *Handler) handleConfirm(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, domain.ErrPurchaseNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, o)
+}
+
+func (h *Handler) handleReceive(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	o, err := h.receive.Execute(r.Context(), cid, id)
+	if err != nil {
+		if errors.Is(err, domain.ErrPurchaseNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrPurchaseNotConfirmed) {
 			respondError(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}

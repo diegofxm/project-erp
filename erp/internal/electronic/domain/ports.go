@@ -30,9 +30,11 @@ type CompanyInfo struct {
 	IndustryClassificationCodes []string
 	MerchantRegistrationNumber  *string
 	SoftwareID                  string
-	SoftwarePIN                 string   // en texto plano (ya descifrado por company repo)
-	Certificate                 []byte   // PKCS12
-	CertificatePassword         string   // en texto plano (ya descifrado)
+	SoftwarePIN                 string // en texto plano (ya descifrado por company repo)
+	Certificate                 []byte // PKCS12
+	CertificatePassword         string // en texto plano (ya descifrado)
+	Logo                        []byte
+	LogoContentType             string
 }
 
 // CompanyPort lee la empresa como emisor DIAN.

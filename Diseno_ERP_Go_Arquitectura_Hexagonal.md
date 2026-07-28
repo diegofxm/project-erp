@@ -4,21 +4,24 @@
 
 ## Estado de implementación
 
-### ✅ Módulos completos (build limpio, commiteados en `v2/db-architecture`)
+### ✅ Módulos completos — API backend corriendo en Neon (`v2/db-architecture`)
 
 | Módulo | Descripción |
 |---|---|
 | `catalog/` | Catálogos DIAN, países, monedas, unidades, tipos de documento |
 | `security/` | Usuarios, JWT, invitaciones, perfiles, multi-empresa |
 | `company/` | Empresa (NIT, configuración fiscal, certificado DIAN, logo) |
+| `company/ → warehouses` | Bodegas: CRUD completo bajo `/companies/active/warehouses` |
 | `customer/` | Clientes con datos tributarios |
 | `supplier/` | Proveedores |
-| `product/` | Productos con unidad, categoría, precios |
-| `inventory/` | Movimientos de inventario (entrada, salida, ajuste) |
-| `purchase/` | Órdenes de compra |
-| `sales/` | Ventas + evento `SaleConfirmed → Accounting` |
-| `accounting/` | Plan de cuentas, períodos, libro diario, posteo automático |
-| `electronic/` | Facturación electrónica DIAN: FE, NC, ND, DS, NA — motor cofacture |
+| `product/` | Productos con unidad, clasificación DIAN, precios |
+| `inventory/` | Movimientos de inventario (entrada, salida, ajuste) + stock por bodega |
+| `purchase/` | Órdenes de compra + recepción de mercancía (`POST /purchases/{id}/receive`) |
+| `sales/` | Ventas (draft → confirmed → cancelled) |
+| `sales/ → quotes` | Cotizaciones: draft → sent → accepted/rejected → convert-to-sale |
+| `sales/ → payments` | Pagos recibidos y cartera (cuentas por cobrar) con saldo pendiente |
+| `accounting/` | Plan de cuentas PUC, períodos, libro diario, balance general, estado de resultados |
+| `electronic/` | FE, NC, ND, DS, NA — motor cofacture; PDF (`GET /documents/{id}/pdf`); factura desde venta (`POST /invoices/from-sale/{sale_id}`) |
 | `payroll/` | Nómina colombiana: empleados, contratos, liquidaciones, seed SMMLV/ARL |
 | `hr/` | Gestión de ausencias (vacaciones, incapacidades, licencias) |
 | `shared/tenant/` | Multi-tenancy por contexto — `GetCompanyID(ctx)` |
@@ -26,38 +29,51 @@
 | `shared/money/` | Tipo Money (cents + currency) |
 | `shared/cryptutil/` | AES-256-GCM para datos sensibles |
 | `shared/timeutil/` | Zona horaria Colombia (America/Bogota) |
+| `shared/email/` | Puerto `Sender` + implementación SMTP con TLS/STARTTLS |
+| `shared/notification/` | Motor multicanal implementado: noop, SMTP, Resend |
+| `shared/reports/` | Motor de documentos: HTML (html/template), PDF (chromedp), Excel (excelize), CSV — con templates para factura, nómina, cotización, etc. |
 
-### 🔲 Pendiente
+### ✅ Eventos inter-módulo cableados
 
-#### Eventos inter-módulo (bus ya existe, faltan los suscriptores)
-
-| Evento | Publicador | Suscriptor faltante |
+| Evento | Publicador | Suscriptores activos |
 |---|---|---|
-| `InvoiceConfirmed` | `sales` | `inventory` — descontar stock |
-| `InvoiceConfirmed` | `sales` | `electronic` — generar XML y enviar DIAN |
-| `PurchaseReceived` | `purchase` | `inventory` — entrada de mercancía |
-| `PurchaseReceived` | `purchase` | `accounting` — asiento de compra |
-| `StockMoved` | `inventory` | `accounting` — asiento de movimiento |
-| `PayrollGenerated` | `payroll` | `accounting` — gasto de personal |
+| `sale.confirmed` | `sales` | `inventory` — descuenta stock; `accounting` — asiento CxC/ingresos/IVA |
+| `purchase.received` | `purchase` | `inventory` — entrada de mercancía; `accounting` — asiento inventario/proveedor/IVA descontable |
+| `payroll.generated` | `payroll` | `accounting` — asiento gasto de nómina/deducciones/salarios por pagar |
+
+### 🔲 Pendiente — segunda fase
+
+#### Eventos aún no cableados
+
+| Evento | Publicador | Suscriptor pendiente | Motivo |
+|---|---|---|---|
+| `sale.confirmed` | `sales` | `electronic` — generar FE automáticamente | Requiere que el usuario seleccione rango de numeración; hoy existe como endpoint explícito `POST /electronic/invoices/from-sale/{sale_id}` |
+| `stock.moved` | `inventory` | `accounting` — asiento de movimiento de inventario | Requiere costo unitario del producto en el modelo de datos |
 
 #### Sub-entidades pendientes por módulo
 
 | Módulo | Falta |
 |---|---|
-| `sales/` | Cotizaciones, cartera (cuentas por cobrar), pagos recibidos |
 | `payroll/` | Primas, cesantías, liquidación definitiva, vacaciones acumuladas |
 | `hr/` | Control de asistencia, reclutamiento, hoja de vida del empleado |
-| `company/` | Sucursales, bodegas adicionales, parámetros de configuración |
+| `company/` | Sucursales, parámetros de configuración por empresa |
 | `inventory/` | Lotes/vencimientos, seriales |
 | `electronic/` | Nómina electrónica DIAN (tipos 102/103) |
 
-#### Módulos nuevos por implementar
+#### Reportería cruzada (CQRS)
 
-| Módulo | Descripción |
+| Query | Estado |
 |---|---|
-| `shared/notification/` | Motor multicanal: Email (SMTP/Mox/Resend/SES), SMS, WhatsApp, Push, Slack, Teams |
-| `shared/reports/` | Motor de documentos: PDF, Excel, CSV, HTML, Word — con templates por módulo |
-| `shared/queries/` | Capa de lectura CQRS: balance, estado de resultados, cartera, inventario valorado |
+| Balance general | ✅ `GET /api/v1/accounting/reports/bs` |
+| Estado de resultados | ✅ `GET /api/v1/accounting/reports/pl` |
+| Cartera por vencer | ✅ `GET /api/v1/receivables` |
+| Valoración de inventario | 🔲 Pendiente — necesita costo unitario en el modelo |
+| Resumen de ventas por período | 🔲 Pendiente |
+| Reporte de nómina consolidado | 🔲 Pendiente |
+
+#### Frontend
+
+El frontend no fue objetivo de esta fase. El API backend está completamente definido y listo para ser consumido.
 
 ---
 

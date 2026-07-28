@@ -14,11 +14,12 @@ import (
 )
 
 type Handler struct {
-	create     *application.CreateUseCase
-	get        *application.GetUseCase
-	profile    *application.UpdateProfileUseCase
-	creds      *application.UpdateCredentialsUseCase
-	logo       *application.UpdateLogoUseCase
+	create    *application.CreateUseCase
+	get       *application.GetUseCase
+	profile   *application.UpdateProfileUseCase
+	creds     *application.UpdateCredentialsUseCase
+	logo      *application.UpdateLogoUseCase
+	warehouse *application.WarehouseUseCase
 }
 
 func NewHandler(
@@ -27,8 +28,9 @@ func NewHandler(
 	profile *application.UpdateProfileUseCase,
 	creds *application.UpdateCredentialsUseCase,
 	logo *application.UpdateLogoUseCase,
+	warehouse *application.WarehouseUseCase,
 ) *Handler {
-	return &Handler{create: create, get: get, profile: profile, creds: creds, logo: logo}
+	return &Handler{create: create, get: get, profile: profile, creds: creds, logo: logo, warehouse: warehouse}
 }
 
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -168,6 +170,116 @@ func (h *Handler) handleDeleteLogo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// ── Bodegas ───────────────────────────────────────────────────────────────────────────────
+
+func (h *Handler) handleCreateWarehouse(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var req application.CreateWarehouseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	wh, err := h.warehouse.Create(r.Context(), cid, req)
+	if err != nil {
+		if errors.Is(err, domain.ErrWarehouseCodeTaken) {
+			respondError(w, http.StatusConflict, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, wh)
+}
+
+func (h *Handler) handleListWarehouses(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	list, err := h.warehouse.List(r.Context(), cid)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if list == nil {
+		list = []domain.Warehouse{}
+	}
+	respond(w, http.StatusOK, list)
+}
+
+func (h *Handler) handleGetWarehouse(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	wh, err := h.warehouse.GetByID(r.Context(), cid, id)
+	if err != nil {
+		if errors.Is(err, domain.ErrWarehouseNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, wh)
+}
+
+func (h *Handler) handleUpdateWarehouse(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var req application.UpdateWarehouseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	wh, err := h.warehouse.Update(r.Context(), cid, id, req)
+	if err != nil {
+		if errors.Is(err, domain.ErrWarehouseNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrWarehouseCodeTaken) {
+			respondError(w, http.StatusConflict, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, wh)
+}
+
+func (h *Handler) handleDeactivateWarehouse(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.warehouse.Deactivate(r.Context(), cid, id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]string{"status": "deactivated"})
 }
 
 // --- helpers ---

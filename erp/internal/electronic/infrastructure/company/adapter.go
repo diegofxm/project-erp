@@ -55,6 +55,8 @@ func mapToInfo(c *companydomain.Company) *domain.CompanyInfo {
 		SoftwarePIN:                 c.SoftwarePIN,
 		Certificate:                 c.Certificate,
 		CertificatePassword:         c.CertificatePassword,
+		Logo:                        c.Logo,
+		LogoContentType:             c.LogoContentType,
 	}
 	return info
 }

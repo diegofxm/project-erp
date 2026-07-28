@@ -46,7 +46,7 @@ type SaleLine struct {
 }
 
 // SaleConfirmed es el evento publicado al confirmar una venta.
-// accounting/ y electronic/ lo consumen.
+// accounting/ e inventory/ lo consumen.
 type SaleConfirmed struct {
 	SaleID     uuid.UUID
 	CompanyID  uuid.UUID
@@ -54,6 +54,7 @@ type SaleConfirmed struct {
 	Total      float64
 	TaxAmount  float64
 	IssueDate  time.Time
+	Lines      []SaleLine
 }
 
 func (SaleConfirmed) EventName() string { return "sale.confirmed" }

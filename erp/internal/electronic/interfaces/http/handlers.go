@@ -21,6 +21,8 @@ type Handler struct {
 	get         application.GetDocumentUseCase
 	list        application.ListDocumentsUseCase
 	numbering   application.ManageNumberingUseCase
+	pdf         *application.GetDocumentPDFUseCase
+	fromSale    *application.CreateFromSaleUseCase
 }
 
 func NewHandler(
@@ -29,6 +31,8 @@ func NewHandler(
 	get *application.GetDocumentUseCase,
 	list *application.ListDocumentsUseCase,
 	numbering *application.ManageNumberingUseCase,
+	pdf *application.GetDocumentPDFUseCase,
+	fromSale *application.CreateFromSaleUseCase,
 ) *Handler {
 	return &Handler{
 		createDraft: *createDraft,
@@ -36,6 +40,8 @@ func NewHandler(
 		get:         *get,
 		list:        *list,
 		numbering:   *numbering,
+		pdf:         pdf,
+		fromSale:    fromSale,
 	}
 }
 
@@ -88,6 +94,27 @@ func (h *Handler) handleConfirmDocument(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, doc)
+}
+
+func (h *Handler) handleGetDocumentPDF(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	format := r.URL.Query().Get("format")
+	pdfBytes, err := h.pdf.GetPDF(r.Context(), companyID, id, format)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", `inline; filename="documento.pdf"`)
+	_, _ = w.Write(pdfBytes)
 }
 
 func (h *Handler) handleDeleteDraft(w http.ResponseWriter, r *http.Request) {
@@ -273,6 +300,39 @@ func (h *Handler) handleCreateAdjustmentNoteDraft(w http.ResponseWriter, r *http
 		OperationTypeCode: body.OperationTypeCode, WithholdingTaxes: body.WithholdingTaxes,
 		VendorID: body.VendorID, BillingReference: body.BillingReference,
 		DiscrepancyResponse: body.DiscrepancyResponse,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, doc)
+}
+
+// ── Factura desde venta ───────────────────────────────────────────────────────────────────
+
+type fromSaleBody struct {
+	NumberingRangeID uuid.UUID `json:"numbering_range_id"`
+}
+
+func (h *Handler) handleCreateInvoiceFromSale(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	saleID, err := uuid.Parse(r.PathValue("sale_id"))
+	if err != nil {
+		http.Error(w, "sale_id inválido", http.StatusBadRequest)
+		return
+	}
+	var body fromSaleBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	doc, err := h.fromSale.Execute(r.Context(), application.FromSaleRequest{
+		CompanyID:        companyID,
+		SaleID:           saleID,
+		NumberingRangeID: body.NumberingRangeID,
 	})
 	if err != nil {
 		writeErr(w, err)
