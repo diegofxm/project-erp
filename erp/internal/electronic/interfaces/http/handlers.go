@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,6 +15,12 @@ import (
 	"github.com/diegofxm/erp/internal/shared/tenant"
 )
 
+// AuditLogger es la interfaz mínima para registrar eventos de auditoría.
+// La implementa audit/application.UseCase sin requerir importar ese paquete.
+type AuditLogger interface {
+	Log(ctx context.Context, companyID uuid.UUID, userID *uuid.UUID, action, resourceType string, resourceID *uuid.UUID, metadata map[string]any)
+}
+
 // Handler agrupa todos los handlers del módulo electronic.
 type Handler struct {
 	createDraft application.CreateDraftUseCase
@@ -23,6 +30,7 @@ type Handler struct {
 	numbering   application.ManageNumberingUseCase
 	pdf         *application.GetDocumentPDFUseCase
 	fromSale    *application.CreateFromSaleUseCase
+	audit       AuditLogger
 }
 
 func NewHandler(
@@ -33,6 +41,7 @@ func NewHandler(
 	numbering *application.ManageNumberingUseCase,
 	pdf *application.GetDocumentPDFUseCase,
 	fromSale *application.CreateFromSaleUseCase,
+	audit AuditLogger,
 ) *Handler {
 	return &Handler{
 		createDraft: *createDraft,
@@ -42,6 +51,7 @@ func NewHandler(
 		numbering:   *numbering,
 		pdf:         pdf,
 		fromSale:    fromSale,
+		audit:       audit,
 	}
 }
 
@@ -57,7 +67,13 @@ func (h *Handler) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, docs)
+	if docs == nil {
+		docs = []*domain.Document{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"documents": docs,
+		"count":     len(docs),
+	})
 }
 
 func (h *Handler) handleGetDocument(w http.ResponseWriter, r *http.Request) {
@@ -93,6 +109,7 @@ func (h *Handler) handleConfirmDocument(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, err)
 		return
 	}
+	h.logDoc(r.Context(), companyID, "document.confirmed", doc)
 	writeJSON(w, http.StatusOK, doc)
 }
 
@@ -130,6 +147,14 @@ func (h *Handler) handleDeleteDraft(w http.ResponseWriter, r *http.Request) {
 	if err := h.createDraft.DeleteDraft(r.Context(), companyID, id); err != nil {
 		writeErr(w, err)
 		return
+	}
+	if h.audit != nil {
+		uid := tenant.GetUserID(r.Context())
+		var userID *uuid.UUID
+		if uid != uuid.Nil {
+			userID = &uid
+		}
+		h.audit.Log(r.Context(), companyID, userID, "document.deleted", "document", &id, nil)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -170,6 +195,7 @@ func (h *Handler) handleCreateInvoiceDraft(w http.ResponseWriter, r *http.Reques
 		writeErr(w, err)
 		return
 	}
+	h.logDoc(r.Context(), companyID, "document.created", doc)
 	writeJSON(w, http.StatusCreated, doc)
 }
 
@@ -456,6 +482,33 @@ func (h *Handler) handleActivateRange(w http.ResponseWriter, r *http.Request) {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────────────────
+
+// logDoc registra un evento de auditoría para una operación sobre un documento.
+func (h *Handler) logDoc(ctx context.Context, companyID uuid.UUID, action string, doc *domain.Document) {
+	if h.audit == nil {
+		return
+	}
+	uid := tenant.GetUserID(ctx)
+	var userID *uuid.UUID
+	if uid != uuid.Nil {
+		userID = &uid
+	}
+	meta := map[string]any{
+		"dian_document_type_code": doc.DianDocumentTypeCode,
+	}
+	if doc.Prefix != "" {
+		meta["prefix"] = doc.Prefix
+	}
+	if doc.Number > 0 {
+		meta["number"] = doc.Number
+	}
+	if doc.Customer.Name != "" {
+		meta["customer_name"] = doc.Customer.Name
+	} else if doc.Vendor != nil && doc.Vendor.Name != "" {
+		meta["vendor_name"] = doc.Vendor.Name
+	}
+	h.audit.Log(ctx, companyID, userID, action, "document", &doc.ID, meta)
+}
 
 func mustTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	id := tenant.GetCompanyID(r.Context())

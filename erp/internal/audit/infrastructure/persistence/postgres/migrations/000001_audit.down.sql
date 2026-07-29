@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS audit.events;
+DROP SCHEMA IF EXISTS audit;

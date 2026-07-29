@@ -26,12 +26,15 @@
 | `hr/` | Gestión de ausencias (vacaciones, incapacidades, licencias) |
 | `shared/tenant/` | Multi-tenancy por contexto — `GetCompanyID(ctx)` |
 | `shared/events/` | Bus de eventos en memoria |
+| `shared/logger/` | Logger columnar estructurado (`slog.Handler`) + middleware HTTP con método/ruta/status/duración |
 | `shared/money/` | Tipo Money (cents + currency) |
 | `shared/cryptutil/` | AES-256-GCM para datos sensibles |
 | `shared/timeutil/` | Zona horaria Colombia (America/Bogota) |
 | `shared/email/` | Puerto `Sender` + implementación SMTP con TLS/STARTTLS |
 | `shared/notification/` | Motor multicanal implementado: noop, SMTP, Resend |
 | `shared/reports/` | Motor de documentos: HTML (html/template), PDF (chromedp), Excel (excelize), CSV — con templates para factura, nómina, cotización, etc. |
+| `stats/` | Módulo transversal de lectura — `GET /api/v1/stats/billing`; queries directas sobre `electronic.documents`; diseñado para extenderse a ventas, compras, nómina sin importar módulos Go |
+| `audit/` | Módulo transversal de escritura/lectura — `GET /api/v1/audit-events`; tabla `audit.events`; otros módulos lo consumen vía interfaz `AuditLogger` local (sin importar el paquete audit); `electronic` loguea create/confirm/delete |
 
 ### ✅ Eventos inter-módulo cableados
 
@@ -42,6 +45,43 @@
 | `payroll.generated` | `payroll` | `accounting` — asiento gasto de nómina/deducciones/salarios por pagar |
 
 ### 🔲 Pendiente — segunda fase
+
+#### Módulo `audit/` — integración progresiva en los demás módulos
+
+`audit/` ya existe y está integrado en `electronic/` (create, confirm, delete). Cada módulo nuevo o existente que requiera trazabilidad debe recibir un `AuditLogger` en su handler HTTP e invocarlo después de cada operación relevante. La interfaz se declara localmente en el paquete consumidor para no crear acoplamiento de importación.
+
+Módulos pendientes de integrar cuando se requiera:
+
+| Módulo | Acciones sugeridas |
+|---|---|
+| `company/` | perfil actualizado, credenciales cambiadas, logo subido/eliminado |
+| `security/` | login, registro, invitación aceptada, selección de empresa |
+| `customer/` | creado, actualizado, eliminado |
+| `supplier/` | creado, actualizado, eliminado |
+| `product/` | creado, actualizado, eliminado |
+| `sales/` | venta confirmada, cancelada, pago registrado |
+| `purchase/` | orden confirmada, recepción registrada |
+| `payroll/` | nómina generada, empleado creado/desvinculado |
+| `hr/` | ausencia registrada, aprobada |
+
+Patrón a seguir: ver `electronic/interfaces/http/handlers.go` — interfaz `AuditLogger` local + campo `audit` en `Handler` + helper `logDoc` o equivalente.
+
+---
+
+#### Módulo `stats/` — extensión a otros dominios
+
+`stats/` hoy solo cubre `electronic.documents`. Cuando se requieran KPIs de otros módulos, agregar métodos al repositorio de stats con queries directas sobre los schemas correspondientes (sin importar módulos Go).
+
+Dominios sugeridos:
+
+| Endpoint futuro | Fuente de datos |
+|---|---|
+| `GET /api/v1/stats/sales` | `sales.sales`, `sales.payments` |
+| `GET /api/v1/stats/inventory` | `inventory.movements` |
+| `GET /api/v1/stats/payroll` | `payroll.payslips` |
+| `GET /api/v1/stats/purchases` | `purchase.purchases` |
+
+---
 
 #### Módulo `security/` — gestión de usuarios, roles y seeds
 

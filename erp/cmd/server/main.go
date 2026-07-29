@@ -61,6 +61,9 @@ import (
 	multireports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/multi"
 	pdfreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/pdf"
 	"github.com/diegofxm/erp/internal/shared/tenant"
+	auditapp "github.com/diegofxm/erp/internal/audit/application"
+	auditpostgres "github.com/diegofxm/erp/internal/audit/infrastructure/persistence/postgres"
+	audithttp "github.com/diegofxm/erp/internal/audit/interfaces/http"
 	statsapp "github.com/diegofxm/erp/internal/stats/application"
 	statspostgres "github.com/diegofxm/erp/internal/stats/infrastructure/persistence/postgres"
 	statshttp "github.com/diegofxm/erp/internal/stats/interfaces/http"
@@ -97,6 +100,7 @@ func main() {
 	mustMigrate(mlog, "electronic", electronicpostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "payroll", payrollpostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "hr", hrpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "audit", auditpostgres.Migrate(databaseURL))
 
 	// ── Bus de eventos ──────────────────────────────────────────────────────────
 	bus := events.NewBus()
@@ -187,6 +191,9 @@ func main() {
 	onPayrollGenerated := accountingapp.NewOnPayrollGenerated(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onPayrollGenerated.Register(bus)
 
+	// ── Audit ───────────────────────────────────────────────────────────────────
+	auditUC := auditapp.NewUseCase(auditpostgres.NewRepository(pool), logger.New("audit"))
+
 	// ── Casos de uso — electronic ───────────────────────────────────────────────
 	electronicCreateDraftUC := electronicapp.NewCreateDraftUseCase(electronicDocRepo, electronicNumRepo, electronicCompanyPort, catalogRepo)
 	electronicConfirmUC := electronicapp.NewConfirmUseCase(electronicDocRepo, electronicNumRepo, electronicCompanyPort, electronicAdapter, electronicAdapter, electronicAdapter)
@@ -264,8 +271,9 @@ func main() {
 	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC).RegisterRoutes(mux)
 	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC).RegisterRoutes(mux)
 	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo).RegisterRoutes(mux)
-	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC).RegisterRoutes(mux)
+	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, auditUC).RegisterRoutes(mux)
 	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)
+	audithttp.NewHandler(auditUC).RegisterRoutes(mux)
 	payrollhttp.NewHandler(payrollEmpUC, payrollContractUC, payrollPayslipUC).RegisterRoutes(mux)
 	hrhttp.NewHandler(hrAbsenceUC).RegisterRoutes(mux)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
