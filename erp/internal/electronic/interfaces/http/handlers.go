@@ -492,7 +492,7 @@ func (h *Handler) handleListNumberingRanges(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	docType := r.URL.Query().Get("type")
+	docType := r.URL.Query().Get("dian_document_type_code")
 	ranges, err := h.numbering.List(r.Context(), companyID, docType)
 	if err != nil {
 		writeErr(w, err)
