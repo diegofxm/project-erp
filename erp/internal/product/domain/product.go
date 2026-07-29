@@ -19,9 +19,11 @@ type Product struct {
 	Description string
 
 	// Clasificación DIAN para facturación electrónica
-	UnitMeasureCode  string // código de unidad de medida (catálogo DIAN)
-	StandardCode     string // código UNSPSC, EAN-13, etc.
-	StandardCodeType string // "UNSPSC", "EAN13", "PARTNO", "OTHER"
+	UnitMeasureCode       string // código de unidad de medida (catálogo DIAN)
+	StandardCode          string // valor del código, ej. '10101511' para UNSPSC
+	StandardCodeType      string // nombre del estándar: "UNSPSC", "EAN13", "PARTNO", "OTHER"
+	StandardCodeID        string // @schemeID DIAN: "001"=UNSPSC, "010"=GTIN, "999"=propio
+	StandardCodeAgencyID  string // @schemeAgencyID DIAN: "113" para UNSPSC, "" para propio
 
 	// Tipo
 	IsService bool // true = servicio, false = bien físico

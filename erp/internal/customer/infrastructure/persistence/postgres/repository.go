@@ -30,14 +30,20 @@ func (r *Repository) Save(ctx context.Context, c domain.Customer) (*domain.Custo
 		INSERT INTO customer.customers (
 			id, company_id,
 			identification_type_code, identification_number, check_digit,
+			entity_type_code, merchant_registration_number,
 			name, tax_scheme_code, tax_scheme_name, tax_regime_code, liability_codes,
-			department_code, municipality_code, address_line, email, phone,
+			department_code, municipality_code, address_line,
+			address_city_name, address_state_name, address_country_code, address_country_name,
+			email, phone,
 			is_active, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
 		c.ID, c.CompanyID,
 		c.IdentificationTypeCode, c.IdentificationNumber, c.CheckDigit,
+		c.EntityTypeCode, c.MerchantRegistrationNumber,
 		c.Name, c.TaxSchemeCode, c.TaxSchemeName, c.TaxRegimeCode, c.LiabilityCodes,
-		c.DepartmentCode, c.MunicipalityCode, c.AddressLine, c.Email, c.Phone,
+		c.DepartmentCode, c.MunicipalityCode, c.AddressLine,
+		c.AddressCityName, c.AddressStateName, c.AddressCountryCode, c.AddressCountryName,
+		c.Email, c.Phone,
 		c.IsActive, c.CreatedAt, c.UpdatedAt,
 	)
 	if err != nil {
@@ -92,14 +98,18 @@ func (r *Repository) Update(ctx context.Context, c domain.Customer) (*domain.Cus
 	_, err := r.pool.Exec(ctx, `
 		UPDATE customer.customers SET
 			identification_type_code=$1, identification_number=$2, check_digit=$3,
-			name=$4, tax_scheme_code=$5, tax_scheme_name=$6, tax_regime_code=$7, liability_codes=$8,
-			department_code=$9, municipality_code=$10, address_line=$11, email=$12, phone=$13,
-			updated_at=NOW()
-		WHERE id=$14 AND company_id=$15`,
+			entity_type_code=$4, merchant_registration_number=$5,
+			name=$6, tax_scheme_code=$7, tax_scheme_name=$8, tax_regime_code=$9, liability_codes=$10,
+			department_code=$11, municipality_code=$12, address_line=$13,
+			address_city_name=$14, address_state_name=$15, address_country_code=$16, address_country_name=$17,
+			email=$18, phone=$19, updated_at=NOW()
+		WHERE id=$20 AND company_id=$21`,
 		c.IdentificationTypeCode, c.IdentificationNumber, c.CheckDigit,
+		c.EntityTypeCode, c.MerchantRegistrationNumber,
 		c.Name, c.TaxSchemeCode, c.TaxSchemeName, c.TaxRegimeCode, c.LiabilityCodes,
-		c.DepartmentCode, c.MunicipalityCode, c.AddressLine, c.Email, c.Phone,
-		c.ID, c.CompanyID,
+		c.DepartmentCode, c.MunicipalityCode, c.AddressLine,
+		c.AddressCityName, c.AddressStateName, c.AddressCountryCode, c.AddressCountryName,
+		c.Email, c.Phone, c.ID, c.CompanyID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("actualizar cliente: %w", err)
@@ -126,8 +136,11 @@ func (r *Repository) Delete(ctx context.Context, companyID, id uuid.UUID) error 
 const customerSelect = `
 	SELECT id, company_id,
 	       identification_type_code, identification_number, check_digit,
+	       entity_type_code, merchant_registration_number,
 	       name, tax_scheme_code, tax_scheme_name, tax_regime_code, liability_codes,
-	       department_code, municipality_code, address_line, email, phone,
+	       department_code, municipality_code, address_line,
+	       address_city_name, address_state_name, address_country_code, address_country_name,
+	       email, phone,
 	       is_active, created_at, updated_at
 	FROM customer.customers`
 
@@ -140,8 +153,11 @@ func scanCustomer(s scanner) (*domain.Customer, error) {
 	err := s.Scan(
 		&c.ID, &c.CompanyID,
 		&c.IdentificationTypeCode, &c.IdentificationNumber, &c.CheckDigit,
+		&c.EntityTypeCode, &c.MerchantRegistrationNumber,
 		&c.Name, &c.TaxSchemeCode, &c.TaxSchemeName, &c.TaxRegimeCode, &c.LiabilityCodes,
-		&c.DepartmentCode, &c.MunicipalityCode, &c.AddressLine, &c.Email, &c.Phone,
+		&c.DepartmentCode, &c.MunicipalityCode, &c.AddressLine,
+		&c.AddressCityName, &c.AddressStateName, &c.AddressCountryCode, &c.AddressCountryName,
+		&c.Email, &c.Phone,
 		&c.IsActive, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {

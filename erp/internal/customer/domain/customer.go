@@ -14,9 +14,11 @@ type Customer struct {
 	CompanyID uuid.UUID
 
 	// Identificación fiscal DIAN
-	IdentificationTypeCode string // 31=NIT, 13=Cédula, 22=CE, 91=NUIP…
-	IdentificationNumber   string
-	CheckDigit             string // solo para NIT (tipo 31)
+	IdentificationTypeCode      string // 31=NIT, 13=Cédula, 22=CE, 91=NUIP…
+	IdentificationNumber        string
+	CheckDigit                  string // solo para NIT (tipo 31)
+	EntityTypeCode              string // 1=jurídica, 2=natural (cac:Party DIAN)
+	MerchantRegistrationNumber  string // matrícula mercantil (opcional)
 
 	// Nombre
 	Name string // razón social o nombre completo
@@ -28,9 +30,13 @@ type Customer struct {
 	LiabilityCodes []string
 
 	// Ubicación
-	DepartmentCode   string
-	MunicipalityCode string
-	AddressLine      string
+	DepartmentCode      string
+	MunicipalityCode    string
+	AddressLine         string
+	AddressCityName     string // nombre del municipio para XML DIAN
+	AddressStateName    string // nombre del departamento para XML DIAN
+	AddressCountryCode  string // código ISO país, ej. 'CO'
+	AddressCountryName  string // nombre del país, ej. 'Colombia'
 
 	// Contacto
 	Email string

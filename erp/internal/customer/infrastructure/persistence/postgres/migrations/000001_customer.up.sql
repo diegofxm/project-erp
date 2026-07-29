@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS customer.customers (
     identification_type_code TEXT NOT NULL DEFAULT '13',
     identification_number    TEXT NOT NULL,
     check_digit              TEXT NOT NULL DEFAULT '',
+    entity_type_code         TEXT NOT NULL DEFAULT '1', -- 1=jurídica, 2=natural (DIAN cac:Party)
+    merchant_registration_number TEXT NOT NULL DEFAULT '',
 
     -- Nombre
     name                    TEXT NOT NULL,
@@ -22,6 +24,10 @@ CREATE TABLE IF NOT EXISTS customer.customers (
     department_code         TEXT NOT NULL DEFAULT '',
     municipality_code       TEXT NOT NULL DEFAULT '',
     address_line            TEXT NOT NULL DEFAULT '',
+    address_city_name       TEXT NOT NULL DEFAULT '',
+    address_state_name      TEXT NOT NULL DEFAULT '',
+    address_country_code    TEXT NOT NULL DEFAULT 'CO',
+    address_country_name    TEXT NOT NULL DEFAULT 'Colombia',
 
     -- Contacto
     email                   TEXT NOT NULL DEFAULT '',

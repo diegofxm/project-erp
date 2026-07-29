@@ -32,8 +32,10 @@ func TestSchema_CustomerTables(t *testing.T) {
 	}{
 		{"customer.customers", `id, company_id,
 			identification_type_code, identification_number, check_digit,
+			entity_type_code, merchant_registration_number,
 			name, tax_scheme_code, tax_scheme_name, tax_regime_code, liability_codes,
 			department_code, municipality_code, address_line,
+			address_city_name, address_state_name, address_country_code, address_country_name,
 			email, phone, is_active, created_at, updated_at`},
 	}
 	for _, tt := range tables {

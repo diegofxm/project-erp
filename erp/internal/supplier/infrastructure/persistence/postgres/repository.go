@@ -30,14 +30,20 @@ func (r *Repository) Save(ctx context.Context, s domain.Supplier) (*domain.Suppl
 		INSERT INTO supplier.suppliers (
 			id, company_id,
 			identification_type_code, identification_number, check_digit,
+			entity_type_code, merchant_registration_number,
 			name, tax_scheme_code, tax_scheme_name, tax_regime_code, liability_codes,
-			department_code, municipality_code, address_line, email, phone,
+			department_code, municipality_code, address_line,
+			address_city_name, address_state_name, address_country_code, address_country_name,
+			email, phone,
 			payment_terms_days, is_active, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
 		s.ID, s.CompanyID,
 		s.IdentificationTypeCode, s.IdentificationNumber, s.CheckDigit,
+		s.EntityTypeCode, s.MerchantRegistrationNumber,
 		s.Name, s.TaxSchemeCode, s.TaxSchemeName, s.TaxRegimeCode, s.LiabilityCodes,
-		s.DepartmentCode, s.MunicipalityCode, s.AddressLine, s.Email, s.Phone,
+		s.DepartmentCode, s.MunicipalityCode, s.AddressLine,
+		s.AddressCityName, s.AddressStateName, s.AddressCountryCode, s.AddressCountryName,
+		s.Email, s.Phone,
 		s.PaymentTermsDays, s.IsActive, s.CreatedAt, s.UpdatedAt,
 	)
 	if err != nil {
@@ -92,14 +98,18 @@ func (r *Repository) Update(ctx context.Context, s domain.Supplier) (*domain.Sup
 	_, err := r.pool.Exec(ctx, `
 		UPDATE supplier.suppliers SET
 			identification_type_code=$1, identification_number=$2, check_digit=$3,
-			name=$4, tax_scheme_code=$5, tax_scheme_name=$6, tax_regime_code=$7, liability_codes=$8,
-			department_code=$9, municipality_code=$10, address_line=$11, email=$12, phone=$13,
-			payment_terms_days=$14, updated_at=NOW()
-		WHERE id=$15 AND company_id=$16`,
+			entity_type_code=$4, merchant_registration_number=$5,
+			name=$6, tax_scheme_code=$7, tax_scheme_name=$8, tax_regime_code=$9, liability_codes=$10,
+			department_code=$11, municipality_code=$12, address_line=$13,
+			address_city_name=$14, address_state_name=$15, address_country_code=$16, address_country_name=$17,
+			email=$18, phone=$19, payment_terms_days=$20, updated_at=NOW()
+		WHERE id=$21 AND company_id=$22`,
 		s.IdentificationTypeCode, s.IdentificationNumber, s.CheckDigit,
+		s.EntityTypeCode, s.MerchantRegistrationNumber,
 		s.Name, s.TaxSchemeCode, s.TaxSchemeName, s.TaxRegimeCode, s.LiabilityCodes,
-		s.DepartmentCode, s.MunicipalityCode, s.AddressLine, s.Email, s.Phone,
-		s.PaymentTermsDays,
+		s.DepartmentCode, s.MunicipalityCode, s.AddressLine,
+		s.AddressCityName, s.AddressStateName, s.AddressCountryCode, s.AddressCountryName,
+		s.Email, s.Phone, s.PaymentTermsDays,
 		s.ID, s.CompanyID,
 	)
 	if err != nil {
@@ -125,8 +135,11 @@ func (r *Repository) Delete(ctx context.Context, companyID, id uuid.UUID) error 
 const supplierSelect = `
 	SELECT id, company_id,
 	       identification_type_code, identification_number, check_digit,
+	       entity_type_code, merchant_registration_number,
 	       name, tax_scheme_code, tax_scheme_name, tax_regime_code, liability_codes,
-	       department_code, municipality_code, address_line, email, phone,
+	       department_code, municipality_code, address_line,
+	       address_city_name, address_state_name, address_country_code, address_country_name,
+	       email, phone,
 	       payment_terms_days, is_active, created_at, updated_at
 	FROM supplier.suppliers`
 
@@ -139,8 +152,11 @@ func scanSupplier(s scanner) (*domain.Supplier, error) {
 	err := s.Scan(
 		&sup.ID, &sup.CompanyID,
 		&sup.IdentificationTypeCode, &sup.IdentificationNumber, &sup.CheckDigit,
+		&sup.EntityTypeCode, &sup.MerchantRegistrationNumber,
 		&sup.Name, &sup.TaxSchemeCode, &sup.TaxSchemeName, &sup.TaxRegimeCode, &sup.LiabilityCodes,
-		&sup.DepartmentCode, &sup.MunicipalityCode, &sup.AddressLine, &sup.Email, &sup.Phone,
+		&sup.DepartmentCode, &sup.MunicipalityCode, &sup.AddressLine,
+		&sup.AddressCityName, &sup.AddressStateName, &sup.AddressCountryCode, &sup.AddressCountryName,
+		&sup.Email, &sup.Phone,
 		&sup.PaymentTermsDays, &sup.IsActive, &sup.CreatedAt, &sup.UpdatedAt,
 	)
 	if err != nil {

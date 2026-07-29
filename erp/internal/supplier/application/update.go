@@ -25,6 +25,8 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, companyID, id uuid.UUID, r
 	existing.IdentificationTypeCode = req.IdentificationTypeCode
 	existing.IdentificationNumber = req.IdentificationNumber
 	existing.CheckDigit = req.CheckDigit
+	existing.EntityTypeCode = req.EntityTypeCode
+	existing.MerchantRegistrationNumber = req.MerchantRegistrationNumber
 	existing.Name = req.Name
 	existing.TaxSchemeCode = req.TaxSchemeCode
 	existing.TaxSchemeName = req.TaxSchemeName
@@ -33,6 +35,10 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, companyID, id uuid.UUID, r
 	existing.DepartmentCode = req.DepartmentCode
 	existing.MunicipalityCode = req.MunicipalityCode
 	existing.AddressLine = req.AddressLine
+	existing.AddressCityName = req.AddressCityName
+	existing.AddressStateName = req.AddressStateName
+	existing.AddressCountryCode = req.AddressCountryCode
+	existing.AddressCountryName = req.AddressCountryName
 	existing.Email = req.Email
 	existing.Phone = req.Phone
 	existing.PaymentTermsDays = req.PaymentTermsDays

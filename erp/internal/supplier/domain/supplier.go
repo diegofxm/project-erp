@@ -14,9 +14,11 @@ type Supplier struct {
 	CompanyID uuid.UUID
 
 	// Identificación fiscal
-	IdentificationTypeCode string
-	IdentificationNumber   string
-	CheckDigit             string
+	IdentificationTypeCode      string
+	IdentificationNumber        string
+	CheckDigit                  string
+	EntityTypeCode              string // 1=jurídica, 2=natural (cac:Party DIAN)
+	MerchantRegistrationNumber  string // matrícula mercantil (opcional)
 
 	Name string
 
@@ -27,9 +29,13 @@ type Supplier struct {
 	LiabilityCodes []string
 
 	// Ubicación
-	DepartmentCode   string
-	MunicipalityCode string
-	AddressLine      string
+	DepartmentCode      string
+	MunicipalityCode    string
+	AddressLine         string
+	AddressCityName     string // nombre del municipio para XML DIAN
+	AddressStateName    string // nombre del departamento para XML DIAN
+	AddressCountryCode  string // código ISO país, ej. 'CO'
+	AddressCountryName  string // nombre del país, ej. 'Colombia'
 
 	// Contacto
 	Email string

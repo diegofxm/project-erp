@@ -30,11 +30,13 @@ func (r *Repository) Save(ctx context.Context, p domain.Product) (*domain.Produc
 		INSERT INTO product.products (
 			id, company_id, code, name, description,
 			unit_measure_code, standard_code, standard_code_type,
+			standard_code_id, standard_code_agency_id,
 			is_service, tax_scheme_code, tax_scheme_name, tax_rate,
 			base_price, is_active, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
 		p.ID, p.CompanyID, p.Code, p.Name, p.Description,
 		p.UnitMeasureCode, p.StandardCode, p.StandardCodeType,
+		p.StandardCodeID, p.StandardCodeAgencyID,
 		p.IsService, p.TaxSchemeCode, p.TaxSchemeName, p.TaxRate,
 		p.BasePrice, p.IsActive, p.CreatedAt, p.UpdatedAt,
 	)
@@ -91,11 +93,13 @@ func (r *Repository) Update(ctx context.Context, p domain.Product) (*domain.Prod
 		UPDATE product.products SET
 			code=$1, name=$2, description=$3,
 			unit_measure_code=$4, standard_code=$5, standard_code_type=$6,
-			is_service=$7, tax_scheme_code=$8, tax_scheme_name=$9, tax_rate=$10,
-			base_price=$11, updated_at=NOW()
-		WHERE id=$12 AND company_id=$13`,
+			standard_code_id=$7, standard_code_agency_id=$8,
+			is_service=$9, tax_scheme_code=$10, tax_scheme_name=$11, tax_rate=$12,
+			base_price=$13, updated_at=NOW()
+		WHERE id=$14 AND company_id=$15`,
 		p.Code, p.Name, p.Description,
 		p.UnitMeasureCode, p.StandardCode, p.StandardCodeType,
+		p.StandardCodeID, p.StandardCodeAgencyID,
 		p.IsService, p.TaxSchemeCode, p.TaxSchemeName, p.TaxRate,
 		p.BasePrice,
 		p.ID, p.CompanyID,
@@ -123,6 +127,7 @@ func (r *Repository) Delete(ctx context.Context, companyID, id uuid.UUID) error 
 const productSelect = `
 	SELECT id, company_id, code, name, description,
 	       unit_measure_code, standard_code, standard_code_type,
+	       standard_code_id, standard_code_agency_id,
 	       is_service, tax_scheme_code, tax_scheme_name, tax_rate,
 	       base_price, is_active, created_at, updated_at
 	FROM product.products`
@@ -136,6 +141,7 @@ func scanProduct(s scanner) (*domain.Product, error) {
 	err := s.Scan(
 		&p.ID, &p.CompanyID, &p.Code, &p.Name, &p.Description,
 		&p.UnitMeasureCode, &p.StandardCode, &p.StandardCodeType,
+		&p.StandardCodeID, &p.StandardCodeAgencyID,
 		&p.IsService, &p.TaxSchemeCode, &p.TaxSchemeName, &p.TaxRate,
 		&p.BasePrice, &p.IsActive, &p.CreatedAt, &p.UpdatedAt,
 	)

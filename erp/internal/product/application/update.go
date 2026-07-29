@@ -28,6 +28,8 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, companyID, id uuid.UUID, r
 	existing.UnitMeasureCode = req.UnitMeasureCode
 	existing.StandardCode = req.StandardCode
 	existing.StandardCodeType = req.StandardCodeType
+	existing.StandardCodeID = req.StandardCodeID
+	existing.StandardCodeAgencyID = req.StandardCodeAgencyID
 	existing.IsService = req.IsService
 	existing.TaxSchemeCode = req.TaxSchemeCode
 	existing.TaxSchemeName = req.TaxSchemeName

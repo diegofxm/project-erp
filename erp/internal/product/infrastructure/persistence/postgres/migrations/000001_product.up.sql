@@ -9,9 +9,11 @@ CREATE TABLE IF NOT EXISTS product.products (
     description         TEXT NOT NULL DEFAULT '',
 
     -- Clasificación DIAN
-    unit_measure_code   TEXT NOT NULL DEFAULT '94',  -- 94 = unidad
-    standard_code       TEXT NOT NULL DEFAULT '',
-    standard_code_type  TEXT NOT NULL DEFAULT 'UNSPSC',
+    unit_measure_code        TEXT NOT NULL DEFAULT '94',  -- 94 = unidad
+    standard_code            TEXT NOT NULL DEFAULT '',
+    standard_code_type       TEXT NOT NULL DEFAULT 'UNSPSC', -- nombre del estándar, ej. 'UNSPSC'
+    standard_code_id         TEXT NOT NULL DEFAULT '999',    -- @schemeID DIAN: 001=UNSPSC, 999=propio
+    standard_code_agency_id  TEXT NOT NULL DEFAULT '',       -- @schemeAgencyID DIAN: '113' para UNSPSC
 
     is_service          BOOLEAN NOT NULL DEFAULT FALSE,
 
