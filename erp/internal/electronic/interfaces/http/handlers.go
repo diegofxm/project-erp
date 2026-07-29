@@ -384,6 +384,54 @@ type numberingRangeBody struct {
 	Environment          domain.Environment `json:"environment"`
 	TechnicalKey         string             `json:"technical_key"`
 	TestSetID            string             `json:"test_set_id"`
+	NextNumber           *int64             `json:"next_number"` // próximo número a emitir; nil = iniciar desde range_from
+}
+
+type numberingRangeDTO struct {
+	ID                   uuid.UUID          `json:"id"`
+	CompanyID            uuid.UUID          `json:"company_id"`
+	DianDocumentTypeCode string             `json:"dian_document_type_code"`
+	Prefix               string             `json:"prefix"`
+	ResolutionNumber     string             `json:"resolution_number"`
+	ResolutionDate       string             `json:"resolution_date"`
+	RangeFrom            int64              `json:"range_from"`
+	RangeTo              *int64             `json:"range_to"`
+	CurrentNumber        int64              `json:"current_number"`
+	ValidFrom            string             `json:"valid_from"`
+	ValidTo              string             `json:"valid_to"`
+	Environment          domain.Environment `json:"environment"`
+	IsActive             bool               `json:"is_active"`
+	Status               string             `json:"status"`
+	CreatedAt            time.Time          `json:"created_at"`
+	UpdatedAt            time.Time          `json:"updated_at"`
+}
+
+func formatDate(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format("2006-01-02")
+}
+
+func toNumberingRangeDTO(nr *domain.NumberingRange) numberingRangeDTO {
+	return numberingRangeDTO{
+		ID:                   nr.ID,
+		CompanyID:            nr.CompanyID,
+		DianDocumentTypeCode: nr.DianDocumentTypeCode,
+		Prefix:               nr.Prefix,
+		ResolutionNumber:     nr.ResolutionNumber,
+		ResolutionDate:       formatDate(nr.ResolutionDate),
+		RangeFrom:            nr.RangeFrom,
+		RangeTo:              nr.RangeTo,
+		CurrentNumber:        nr.CurrentNumber,
+		ValidFrom:            formatDate(nr.ValidFrom),
+		ValidTo:              formatDate(nr.ValidTo),
+		Environment:          nr.Environment,
+		IsActive:             nr.IsActive,
+		Status:               nr.Status(),
+		CreatedAt:            nr.CreatedAt,
+		UpdatedAt:            nr.UpdatedAt,
+	}
 }
 
 func (h *Handler) handleCreateNumberingRange(w http.ResponseWriter, r *http.Request) {
@@ -426,13 +474,17 @@ func (h *Handler) handleCreateNumberingRange(w http.ResponseWriter, r *http.Requ
 	if nr.RangeFrom <= 0 {
 		nr.RangeFrom = 1
 	}
-	nr.CurrentNumber = nr.RangeFrom - 1
+	if body.NextNumber != nil && *body.NextNumber >= nr.RangeFrom {
+		nr.CurrentNumber = *body.NextNumber - 1
+	} else {
+		nr.CurrentNumber = nr.RangeFrom - 1
+	}
 	created, err := h.numbering.Create(r.Context(), nr)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, created)
+	writeJSON(w, http.StatusCreated, toNumberingRangeDTO(created))
 }
 
 func (h *Handler) handleListNumberingRanges(w http.ResponseWriter, r *http.Request) {
@@ -446,12 +498,13 @@ func (h *Handler) handleListNumberingRanges(w http.ResponseWriter, r *http.Reque
 		writeErr(w, err)
 		return
 	}
-	if ranges == nil {
-		ranges = []*domain.NumberingRange{}
+	dtos := make([]numberingRangeDTO, len(ranges))
+	for i, nr := range ranges {
+		dtos[i] = toNumberingRangeDTO(nr)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"numbering_ranges": ranges,
-		"count":            len(ranges),
+		"numbering_ranges": dtos,
+		"count":            len(dtos),
 	})
 }
 
@@ -487,7 +540,7 @@ func (h *Handler) handleActivateRange(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, nr)
+	writeJSON(w, http.StatusOK, toNumberingRangeDTO(nr))
 }
 
 func (h *Handler) handleGetDianNumberingRanges(w http.ResponseWriter, r *http.Request) {

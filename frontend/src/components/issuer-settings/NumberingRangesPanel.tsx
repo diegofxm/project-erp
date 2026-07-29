@@ -12,6 +12,7 @@ import { useToast } from "../../context/ToastContext";
 import type { CreateNumberingRangePayload, DianRange, NumberingRange, NumberingRangeStatus } from "../../lib/types";
 import { Button } from "../ui/Button";
 import { Banner } from "../ui/Banner";
+import { InfoTip } from "../ui/InfoTip";
 import { Card } from "../ui/Card";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
@@ -34,13 +35,15 @@ const STATUS_CLASSES: Record<NumberingRangeStatus, string> = {
 const RANGES_PAGE_SIZE = 5;
 
 function wouldBeUsable(r: NumberingRange): boolean {
-  if (new Date(r.valid_to) < new Date()) return false;
+  // empty valid_to means no expiry (NC/ND/NA)
+  if (r.valid_to && new Date(r.valid_to) < new Date()) return false;
   if (r.range_to !== undefined && r.current_number >= r.range_to) return false;
   return true;
 }
 
 function isExpiringSoon(r: NumberingRange): boolean {
   if (r.status !== "active") return false;
+  if (!r.valid_to) return false;
   const daysLeft = (new Date(r.valid_to).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
   return daysLeft <= 30;
 }
@@ -77,7 +80,7 @@ function RangesTable({ rows, docTypeName, onDeactivate, onArchive, onActivate }:
                 <td className="whitespace-nowrap px-3 py-2 font-medium text-(--text-primary)">{docTypeName(r.dian_document_type_code)}</td>
                 <td className="whitespace-nowrap px-3 py-2 font-mono text-(--text-secondary)">{r.prefix} {r.range_from}–{r.range_to ?? "∞"}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-(--text-muted)">{r.current_number}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-(--text-muted)">{r.valid_to}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-(--text-muted)">{r.valid_to || "—"}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-(--text-muted)">{r.environment === "1" ? "Producción" : "Habilitación"}</td>
                 <td className="whitespace-nowrap px-3 py-2">
                   <span className={`rounded px-2 py-0.5 font-medium ${isExpiringSoon(r) ? "bg-(--color-warning-bg) text-(--color-warning-text)" : STATUS_CLASSES[r.status]}`}>
@@ -129,7 +132,7 @@ interface ImportModalProps {
   existingPrefixes: Set<string>;
   docTypes: { code: string; name: string }[];
   environment: string;
-  onImport: (r: DianRange, docTypeCode: string, testSetId: string) => Promise<void>;
+  onImport: (r: DianRange, docTypeCode: string, testSetId: string, nextNumber: number) => Promise<void>;
   onClose: () => void;
 }
 
@@ -140,13 +143,16 @@ function ImportModal({ dianRanges, existingPrefixes, docTypes, environment, onIm
   const [testSetIds, setTestSetIds] = useState<Record<number, string>>(() =>
     Object.fromEntries(dianRanges.map((_, i) => [i, ""]))
   );
+  const [nextNumbers, setNextNumbers] = useState<Record<number, number>>(() =>
+    Object.fromEntries(dianRanges.map((r, i) => [i, r.range_from]))
+  );
   const [importingIdx, setImportingIdx] = useState<number | null>(null);
   const [importedIndices, setImportedIndices] = useState<Set<number>>(new Set());
 
   async function handleImport(r: DianRange, idx: number) {
     setImportingIdx(idx);
     try {
-      await onImport(r, docTypeCodes[idx] ?? "01", testSetIds[idx] ?? "");
+      await onImport(r, docTypeCodes[idx] ?? "01", testSetIds[idx] ?? "", nextNumbers[idx] ?? r.range_from);
       setImportedIndices((prev) => new Set([...prev, idx]));
     } finally {
       setImportingIdx(null);
@@ -204,10 +210,10 @@ function ImportModal({ dianRanges, existingPrefixes, docTypes, environment, onIm
                     <span>Vigente hasta: {r.valid_to}</span>
                   </div>
 
-                  {/* Controles de importación (ocultos si ya fue importado) */}
-                  {!isImported && (
+                  {/* Controles de importación */}
+                  {!isImported && !alreadyExists && (
                     <div className="grid grid-cols-12 gap-3 border-t border-(--border-light) pt-3">
-                      <div className={environment === "2" ? "col-span-12 sm:col-span-6" : "col-span-12"}>
+                      <div className={environment === "2" ? "col-span-12 sm:col-span-4" : "col-span-12 sm:col-span-6"}>
                         <Select
                           label="Tipo de documento"
                           required
@@ -220,7 +226,7 @@ function ImportModal({ dianRanges, existingPrefixes, docTypes, environment, onIm
                         </Select>
                       </div>
                       {environment === "2" && (
-                        <div className="col-span-12 sm:col-span-6">
+                        <div className="col-span-12 sm:col-span-4">
                           <Input
                             label="Set de pruebas"
                             value={testSetIds[i] ?? ""}
@@ -229,6 +235,24 @@ function ImportModal({ dianRanges, existingPrefixes, docTypes, environment, onIm
                           />
                         </div>
                       )}
+                      <div className={environment === "2" ? "col-span-12 sm:col-span-4" : "col-span-12 sm:col-span-6"}>
+                        <label className="flex flex-col gap-1">
+                          <span className="flex items-center gap-1 text-xs font-medium text-(--text-secondary)">
+                            Próximo número a emitir
+                            <InfoTip>
+                              Si es una resolución nueva ingresa el primer número del rango. Si ya emitiste documentos con este rango en otro sistema, ingresa el número siguiente al último utilizado.
+                            </InfoTip>
+                          </span>
+                          <input
+                            type="number"
+                            required
+                            min={r.range_from}
+                            value={nextNumbers[i] ?? r.range_from}
+                            onChange={(e) => setNextNumbers((prev) => ({ ...prev, [i]: Number(e.target.value) }))}
+                            className="w-full rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-xs text-(--text-primary) transition-colors sm:py-1.5"
+                          />
+                        </label>
+                      </div>
                       <div className="col-span-12 flex justify-end">
                         <Button
                           type="button"
@@ -299,7 +323,7 @@ export function NumberingRangesPanel() {
     }
   }
 
-  async function handleImportRange(r: DianRange, docTypeCode: string, testSetId: string) {
+  async function handleImportRange(r: DianRange, docTypeCode: string, testSetId: string, nextNumber: number) {
     const payload: CreateNumberingRangePayload = {
       dian_document_type_code: docTypeCode,
       prefix: r.prefix,
@@ -312,6 +336,7 @@ export function NumberingRangesPanel() {
       environment: activeCompany?.environment ?? "2",
       technical_key: docTypeCode === "01" ? r.technical_key : undefined,
       test_set_id: activeCompany?.environment === "2" ? (testSetId || undefined) : undefined,
+      next_number: nextNumber,
     };
     await createNumberingRange(payload);
     toast.success(`Rango "${r.prefix}" importado correctamente.`);
