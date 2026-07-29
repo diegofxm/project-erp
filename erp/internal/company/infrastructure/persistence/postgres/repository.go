@@ -202,6 +202,17 @@ func (r *Repository) DeleteLogo(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (r *Repository) UpdateBrandColor(ctx context.Context, id uuid.UUID, color string) error {
+	_, err := r.pool.Exec(ctx,
+		"UPDATE company.companies SET brand_color=$1, updated_at=NOW() WHERE id=$2",
+		color, id,
+	)
+	if err != nil {
+		return fmt.Errorf("actualizar brand_color: %w", err)
+	}
+	return nil
+}
+
 // --- helpers ---
 
 const companySelect = `
@@ -211,7 +222,7 @@ const companySelect = `
 	       liability_codes, tax_regime_code, industry_classification_codes, merchant_registration_number,
 	       software_id, software_pin_enc, certificate, certificate_password_enc,
 	       ne_software_id, ne_software_pin_enc,
-	       logo, logo_content_type, is_active, created_at, updated_at
+	       logo, logo_content_type, brand_color, is_active, created_at, updated_at
 	FROM company.companies`
 
 func (r *Repository) scanOne(ctx context.Context, where string, arg any) (*domain.Company, error) {
@@ -239,7 +250,7 @@ func (r *Repository) scanCompany(s scanner) (*domain.Company, error) {
 		&c.LiabilityCodes, &c.TaxRegimeCode, &c.IndustryClassificationCodes, &c.MerchantRegistrationNumber,
 		&c.SoftwareID, &pinEnc, &c.Certificate, &certPwdEnc,
 		&c.NeSoftwareID, &nePinEnc,
-		&c.Logo, &c.LogoContentType, &c.IsActive, &c.CreatedAt, &c.UpdatedAt,
+		&c.Logo, &c.LogoContentType, &c.BrandColor, &c.IsActive, &c.CreatedAt, &c.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("leer empresa: %w", err)

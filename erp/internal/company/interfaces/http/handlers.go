@@ -230,6 +230,46 @@ func (h *Handler) handleUpdateLogo(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusOK, safeCompany(c))
 }
 
+func (h *Handler) handleGetSettings(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	c, err := h.get.ByID(r.Context(), companyID)
+	if err != nil {
+		if errors.Is(err, domain.ErrCompanyNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]any{
+		"brand_color": c.BrandColor,
+	})
+}
+
+func (h *Handler) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		BrandColor string `json:"brand_color"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	if err := h.get.UpdateBrandColor(r.Context(), companyID, body.BrandColor); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]any{
+		"brand_color": body.BrandColor,
+	})
+}
+
 func (h *Handler) handleDeleteLogo(w http.ResponseWriter, r *http.Request) {
 	companyID, ok := requireTenant(w, r)
 	if !ok {

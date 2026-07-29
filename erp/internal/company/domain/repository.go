@@ -16,4 +16,5 @@ type Repository interface {
 	UpdateCredentials(ctx context.Context, id uuid.UUID, softwareID, softwarePIN string, cert []byte, certPwd, neSoftwareID, neSoftwarePIN string) error
 	UpdateLogo(ctx context.Context, id uuid.UUID, logo []byte, contentType string) error
 	DeleteLogo(ctx context.Context, id uuid.UUID) error
+	UpdateBrandColor(ctx context.Context, id uuid.UUID, color string) error
 }

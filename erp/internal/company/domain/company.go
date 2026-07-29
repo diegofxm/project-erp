@@ -56,6 +56,7 @@ type Company struct {
 	// Visual
 	Logo            []byte
 	LogoContentType string
+	BrandColor      string // color principal para PDFs, ej. "#14345C"
 
 	IsActive  bool
 	CreatedAt time.Time

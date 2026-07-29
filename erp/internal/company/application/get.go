@@ -27,3 +27,7 @@ func (uc *GetUseCase) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.
 func (uc *GetUseCase) ListByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Company, error) {
 	return uc.repo.ListByUserID(ctx, userID)
 }
+
+func (uc *GetUseCase) UpdateBrandColor(ctx context.Context, id uuid.UUID, color string) error {
+	return uc.repo.UpdateBrandColor(ctx, id, color)
+}

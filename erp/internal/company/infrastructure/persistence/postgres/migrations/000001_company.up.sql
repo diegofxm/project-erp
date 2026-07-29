@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS company.companies (
     -- Visual
     logo                            BYTEA,
     logo_content_type               TEXT NOT NULL DEFAULT '',
+    brand_color                     TEXT NOT NULL DEFAULT '#14345C',
 
     is_active                       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at                      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
