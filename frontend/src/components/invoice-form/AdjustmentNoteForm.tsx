@@ -13,12 +13,12 @@ import type {
   NumberingRange,
   PaymentMean,
   Tax,
-  VendorPayload,
+  SupplierPayload,
 } from "../../lib/types";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
-import { VendorSection } from "./VendorSection";
+import { SupplierSection } from "./SupplierSection";
 import { LineItemsEditor } from "./LineItemsEditor";
 import { PaymentMeansEditor } from "./PaymentMeansEditor";
 import { WithholdingTaxesEditor } from "./WithholdingTaxesEditor";
@@ -40,7 +40,7 @@ const DISCREPANCY_RESPONSE_OPTIONS = [
   { code: "5", label: "Otros" },
 ];
 
-const NEW_VENDOR: VendorPayload = {
+const NEW_SUPPLIER: SupplierPayload = {
   identification: { number: "", type_code: "13" },
   name: "",
   tax_scheme_code: "ZZ",
@@ -65,8 +65,8 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
 
   const [numberingRangeId, setNumberingRangeId] = useState(initial?.numbering_range_id ?? "");
   const [operationTypeCode, setOperationTypeCode] = useState(initial?.operation_type_code ?? prefill?.operation_type_code ?? "10");
-  const [vendor, setVendor] = useState<VendorPayload>(initial?.vendor ?? prefill?.vendor ?? NEW_VENDOR);
-  const [vendorId, setVendorId] = useState(initial?.vendor_id ?? prefill?.vendor_id ?? "");
+  const [supplier, setSupplier] = useState<SupplierPayload>(initial?.vendor ?? prefill?.vendor ?? NEW_SUPPLIER);
+  const [supplierId, setSupplierId] = useState(initial?.vendor_id ?? prefill?.vendor_id ?? "");
   const [lines, setLines] = useState<DocumentLineInput[]>(
     initial?.lines.map(lineToInput) ?? prefill?.lines.map(lineToInput) ?? []
   );
@@ -110,16 +110,16 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
     onTotalChange?.(previewTotals(lines).payableCents);
   }, [lines]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleVendorChange(next: VendorPayload, nextVendorId: string) {
-    setVendor(next);
-    setVendorId(nextVendorId);
+  function handleSupplierChange(next: SupplierPayload, nextSupplierId: string) {
+    setSupplier(next);
+    setSupplierId(nextSupplierId);
   }
 
   function handleSubmit() {
     onSubmit({
       numbering_range_id: numberingRangeId,
-      vendor_id: vendorId || undefined,
-      vendor,
+      vendor_id: supplierId || undefined,
+      vendor: supplier,
       lines,
       payment_means: paymentMeans.length > 0 ? paymentMeans : undefined,
       note: note || undefined,
@@ -136,7 +136,7 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
   const canSubmit =
     numberingRangeId !== "" &&
     adjustmentConceptCode !== "" &&
-    vendor.identification.number.trim() !== "" &&
+    supplier.identification.number.trim() !== "" &&
     lines.length > 0 &&
     paymentMeans.length > 0;
 
@@ -226,7 +226,7 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
       {/* Tercero no obligado */}
       <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
         <h2 className="text-xs font-semibold text-(--text-primary)">Tercero no obligado a facturar</h2>
-        <VendorSection value={vendor} vendorId={vendorId} onChange={handleVendorChange} />
+        <SupplierSection value={supplier} supplierId={supplierId} onChange={handleSupplierChange} />
       </section>
 
       {/* Líneas */}

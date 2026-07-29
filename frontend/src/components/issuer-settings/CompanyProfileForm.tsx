@@ -12,7 +12,7 @@ import {
 } from "../../lib/catalogs";
 import { listCiiuOptions } from "../../lib/ciiu";
 import { useCatalog } from "../../lib/useCatalog";
-import type { CatalogEntry, IssuerEnvironment, UpdateIssuerProfilePayload } from "../../lib/types";
+import type { CatalogEntry, CompanyEnvironment, UpdateCompanyProfilePayload } from "../../lib/types";
 import { Card } from "../ui/Card";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
@@ -38,7 +38,7 @@ const ID_TYPE_LABEL: Record<string, string> = {
 };
 
 export function CompanyProfileForm() {
-  const { activeIssuer, updateIssuerProfile } = useAuth();
+  const { activeCompany, updateCompanyProfile } = useAuth();
   const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -52,8 +52,8 @@ export function CompanyProfileForm() {
   const [municipalities, setMunicipalities] = useState<CatalogEntry[]>([]);
   const [ciiuPicker, setCiiuPicker] = useState("");
 
-  // Estado del formulario — inicializado desde activeIssuer cuando se abre
-  const [form, setForm] = useState<UpdateIssuerProfilePayload>({
+  // Estado del formulario — inicializado desde activeCompany cuando se abre
+  const [form, setForm] = useState<UpdateCompanyProfilePayload>({
     business_name: "",
     trade_name: "",
     department_code: "",
@@ -72,22 +72,22 @@ export function CompanyProfileForm() {
 
   // Al abrir el formulario, copiar los valores actuales del emisor
   function openForm() {
-    if (!activeIssuer) return;
+    if (!activeCompany) return;
     setForm({
-      business_name: activeIssuer.business_name,
-      trade_name: activeIssuer.trade_name ?? "",
-      department_code: activeIssuer.department_code,
-      municipality_code: activeIssuer.municipality_code,
-      address_line: activeIssuer.address_line,
-      email: activeIssuer.email,
-      phone: activeIssuer.phone ?? "",
-      entity_type_code: activeIssuer.entity_type_code ?? "1",
-      tax_scheme_code: activeIssuer.tax_scheme_code ?? "ZZ",
-      liability_codes: activeIssuer.liability_codes ?? [],
-      tax_regime_code: activeIssuer.tax_regime_code ?? null,
-      industry_classification_codes: activeIssuer.industry_classification_codes ?? [],
-      merchant_registration_number: activeIssuer.merchant_registration_number ?? null,
-      environment: activeIssuer.environment,
+      business_name: activeCompany.business_name,
+      trade_name: activeCompany.trade_name ?? "",
+      department_code: activeCompany.department_code,
+      municipality_code: activeCompany.municipality_code,
+      address_line: activeCompany.address_line,
+      email: activeCompany.email,
+      phone: activeCompany.phone ?? "",
+      entity_type_code: activeCompany.entity_type_code ?? "1",
+      tax_scheme_code: activeCompany.tax_scheme_code ?? "ZZ",
+      liability_codes: activeCompany.liability_codes ?? [],
+      tax_regime_code: activeCompany.tax_regime_code ?? null,
+      industry_classification_codes: activeCompany.industry_classification_codes ?? [],
+      merchant_registration_number: activeCompany.merchant_registration_number ?? null,
+      environment: activeCompany.environment,
     });
     setCiiuPicker("");
     setEditing(true);
@@ -101,7 +101,7 @@ export function CompanyProfileForm() {
       .catch(() => setMunicipalities([]));
   }, [form.department_code]);
 
-  function setField<K extends keyof UpdateIssuerProfilePayload>(key: K, value: UpdateIssuerProfilePayload[K]) {
+  function setField<K extends keyof UpdateCompanyProfilePayload>(key: K, value: UpdateCompanyProfilePayload[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
@@ -136,7 +136,7 @@ export function CompanyProfileForm() {
     }
     setSaving(true);
     try {
-      await updateIssuerProfile({
+      await updateCompanyProfile({
         ...form,
         trade_name: form.trade_name || "",
         phone: form.phone || "",
@@ -152,14 +152,14 @@ export function CompanyProfileForm() {
     }
   }
 
-  if (!activeIssuer) return null;
+  if (!activeCompany) return null;
 
-  const idTypeLabel = ID_TYPE_LABEL[activeIssuer.identification_type_code] ?? activeIssuer.identification_type_code;
+  const idTypeLabel = ID_TYPE_LABEL[activeCompany.identification_type_code] ?? activeCompany.identification_type_code;
   const formattedNit =
-    activeIssuer.identification_type_code === "31"
-      ? `${activeIssuer.nit}-${activeIssuer.check_digit}`
-      : activeIssuer.nit;
-  const envLabel = activeIssuer.environment === "1" ? "Producción" : "Habilitación";
+    activeCompany.identification_type_code === "31"
+      ? `${activeCompany.nit}-${activeCompany.check_digit}`
+      : activeCompany.nit;
+  const envLabel = activeCompany.environment === "1" ? "Producción" : "Habilitación";
 
   return (
     <Card className="flex flex-col gap-3 p-4">
@@ -185,9 +185,9 @@ export function CompanyProfileForm() {
         <div className="flex flex-col gap-3">
           {/* Identidad (inmutable) */}
           <div>
-            <p className="text-sm font-bold leading-tight text-(--text-primary)">{activeIssuer.business_name}</p>
-            {activeIssuer.trade_name && (
-              <p className="mt-0.5 text-xs text-(--text-secondary)">{activeIssuer.trade_name}</p>
+            <p className="text-sm font-bold leading-tight text-(--text-primary)">{activeCompany.business_name}</p>
+            {activeCompany.trade_name && (
+              <p className="mt-0.5 text-xs text-(--text-secondary)">{activeCompany.trade_name}</p>
             )}
             <p className="mt-1 text-xs text-(--text-muted)">
               {idTypeLabel} {formattedNit} · {envLabel}
@@ -196,37 +196,37 @@ export function CompanyProfileForm() {
 
           {/* Campos editables */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-(--border-color) pt-3 text-xs">
-            <Row label="Correo" value={activeIssuer.email} />
-            {activeIssuer.phone && <Row label="Teléfono" value={activeIssuer.phone} />}
+            <Row label="Correo" value={activeCompany.email} />
+            {activeCompany.phone && <Row label="Teléfono" value={activeCompany.phone} />}
             <Row
               label="Dirección"
               value={[
-                activeIssuer.address_line,
-                activeIssuer.municipality_name ?? activeIssuer.municipality_code,
-                activeIssuer.department_name ?? activeIssuer.department_code,
+                activeCompany.address_line,
+                activeCompany.municipality_name ?? activeCompany.municipality_code,
+                activeCompany.department_name ?? activeCompany.department_code,
               ]
                 .filter(Boolean)
                 .join(", ")}
             />
-            {activeIssuer.tax_scheme_code && (
+            {activeCompany.tax_scheme_code && (
               <Row
                 label="Esquema tributario"
-                value={`${activeIssuer.tax_scheme_code}${activeIssuer.tax_scheme_name ? ` – ${activeIssuer.tax_scheme_name}` : ""}`}
+                value={`${activeCompany.tax_scheme_code}${activeCompany.tax_scheme_name ? ` – ${activeCompany.tax_scheme_name}` : ""}`}
               />
             )}
-            {activeIssuer.tax_regime_code && (
+            {activeCompany.tax_regime_code && (
               <Row
                 label="Tipo de régimen"
                 value={(() => {
-                  const name = taxRegimes.find((r) => r.code === activeIssuer.tax_regime_code)?.name;
-                  return name ? `${activeIssuer.tax_regime_code} – ${name}` : activeIssuer.tax_regime_code;
+                  const name = taxRegimes.find((r) => r.code === activeCompany.tax_regime_code)?.name;
+                  return name ? `${activeCompany.tax_regime_code} – ${name}` : activeCompany.tax_regime_code;
                 })()}
               />
             )}
-            {activeIssuer.liability_codes && activeIssuer.liability_codes.length > 0 && (
+            {activeCompany.liability_codes && activeCompany.liability_codes.length > 0 && (
               <Row
                 label="Responsabilidades"
-                value={activeIssuer.liability_codes
+                value={activeCompany.liability_codes
                   .map((c) => {
                     const name = liabilityCatalog.find((l) => l.code === c)?.name;
                     return name ? `${c} – ${name}` : c;
@@ -234,14 +234,14 @@ export function CompanyProfileForm() {
                   .join("\n")}
               />
             )}
-            {activeIssuer.merchant_registration_number && (
-              <Row label="Matrícula mercantil" value={activeIssuer.merchant_registration_number} />
+            {activeCompany.merchant_registration_number && (
+              <Row label="Matrícula mercantil" value={activeCompany.merchant_registration_number} />
             )}
-            {activeIssuer.industry_classification_codes && activeIssuer.industry_classification_codes.length > 0 && (
+            {activeCompany.industry_classification_codes && activeCompany.industry_classification_codes.length > 0 && (
               <div className="col-span-2">
                 <Row
                   label="Códigos CIIU"
-                  value={activeIssuer.industry_classification_codes
+                  value={activeCompany.industry_classification_codes
                     .map((code) => {
                       const opt = ciiuOptions.find((o) => o.value === code);
                       const desc = opt?.label.includes(" - ") ? opt.label.slice(opt.label.indexOf(" - ") + 3) : undefined;
@@ -294,7 +294,7 @@ export function CompanyProfileForm() {
               <Select
                 label="Ambiente DIAN"
                 value={form.environment}
-                onChange={(e) => setField("environment", e.target.value as IssuerEnvironment)}
+                onChange={(e) => setField("environment", e.target.value as CompanyEnvironment)}
               >
                 <option value="2">Habilitación (pruebas)</option>
                 <option value="1">Producción</option>

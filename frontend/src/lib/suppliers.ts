@@ -1,17 +1,16 @@
 import { apiClient } from "./apiClient";
-import type { ListVendorsResult, Vendor, VendorPayload } from "./types";
+import type { ListSuppliersResult, Supplier, SupplierPayload } from "./types";
 
-export async function listVendors(): Promise<Vendor[]> {
-  const res = await apiClient.get<ListVendorsResult>("/suppliers");
+export async function listSuppliers(): Promise<Supplier[]> {
+  const res = await apiClient.get<ListSuppliersResult>("/suppliers");
   return res.vendors;
 }
 
-export function fetchVendor(id: string): Promise<Vendor> {
-  return apiClient.get<Vendor>(`/suppliers/${id}`);
+export function fetchSupplier(id: string): Promise<Supplier> {
+  return apiClient.get<Supplier>(`/suppliers/${id}`);
 }
 
-// Convierte el payload anidado del formulario (VendorPayload) al formato plano del ERP.
-function toERPPayload(p: VendorPayload) {
+function toERPPayload(p: SupplierPayload) {
   return {
     entity_type_code: p.entity_type_code ?? "1",
     identification_type_code: p.identification.type_code,
@@ -36,21 +35,21 @@ function toERPPayload(p: VendorPayload) {
   };
 }
 
-export function createVendor(payload: VendorPayload): Promise<Vendor> {
-  return apiClient.post<Vendor>("/suppliers", toERPPayload(payload));
+export function createSupplier(payload: SupplierPayload): Promise<Supplier> {
+  return apiClient.post<Supplier>("/suppliers", toERPPayload(payload));
 }
 
-export function updateVendor(id: string, payload: VendorPayload): Promise<Vendor> {
-  return apiClient.put<Vendor>(`/suppliers/${id}`, toERPPayload(payload));
+export function updateSupplier(id: string, payload: SupplierPayload): Promise<Supplier> {
+  return apiClient.put<Supplier>(`/suppliers/${id}`, toERPPayload(payload));
 }
 
-export function deleteVendor(id: string): Promise<void> {
+export function deleteSupplier(id: string): Promise<void> {
   return apiClient.del<void>(`/suppliers/${id}`);
 }
 
-// vendorToPayload — convierte un Vendor del catálogo ERP (campos planos) al VendorPayload
+// supplierToPayload — convierte un Supplier del catálogo ERP (campos planos) al SupplierPayload
 // anidado que se embebe en documentos (IssueSupportDocumentPayload.vendor).
-export function vendorToPayload(v: Vendor): VendorPayload {
+export function supplierToPayload(v: Supplier): SupplierPayload {
   return {
     entity_type_code: v.entity_type_code || undefined,
     identification: {

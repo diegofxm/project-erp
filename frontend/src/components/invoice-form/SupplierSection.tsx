@@ -1,20 +1,20 @@
 import { useEffect, useState } from "react";
 import { Pencil, Plus, Repeat } from "lucide-react";
 import { ApiError } from "../../lib/apiClient";
-import { createVendor, listVendors, updateVendor, vendorToPayload } from "../../lib/vendors";
+import { createSupplier, listSuppliers, updateSupplier, supplierToPayload } from "../../lib/suppliers";
 import { useToast } from "../../context/ToastContext";
-import type { Vendor, VendorPayload } from "../../lib/types";
+import type { Supplier, SupplierPayload } from "../../lib/types";
 import { PartyFields } from "../party-fields/PartyFields";
 import { Button } from "../ui/Button";
 import { Combobox } from "../ui/Combobox";
 
-interface VendorSectionProps {
-  value: VendorPayload;
-  vendorId: string;
-  onChange: (next: VendorPayload, vendorId: string) => void;
+interface SupplierSectionProps {
+  value: SupplierPayload;
+  supplierId: string;
+  onChange: (next: SupplierPayload, supplierId: string) => void;
 }
 
-const NEW_VENDOR: VendorPayload = {
+const NEW_SUPPLIER: SupplierPayload = {
   identification: { number: "", type_code: "13" },
   name: "",
   tax_scheme_code: "ZZ",
@@ -24,48 +24,48 @@ const NEW_VENDOR: VendorPayload = {
 
 type Mode = "search" | "summary" | "form";
 
-function hasData(value: VendorPayload): boolean {
+function hasData(value: SupplierPayload): boolean {
   return value.name.trim() !== "" || value.identification.number.trim() !== "";
 }
 
-export function VendorSection({ value, vendorId, onChange }: VendorSectionProps) {
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [loadingVendors, setLoadingVendors] = useState(true);
-  const [mode, setMode] = useState<Mode>(vendorId ? "summary" : hasData(value) ? "form" : "search");
+export function SupplierSection({ value, supplierId, onChange }: SupplierSectionProps) {
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(true);
+  const [mode, setMode] = useState<Mode>(supplierId ? "summary" : hasData(value) ? "form" : "search");
   const [picker, setPicker] = useState("");
-  const [draft, setDraft] = useState<VendorPayload>(value);
+  const [draft, setDraft] = useState<SupplierPayload>(value);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
-    refreshVendors();
+    refreshSuppliers();
   }, []);
 
-  function refreshVendors() {
-    return listVendors()
-      .then(setVendors)
-      .catch(() => setVendors([]))
-      .finally(() => setLoadingVendors(false));
+  function refreshSuppliers() {
+    return listSuppliers()
+      .then(setSuppliers)
+      .catch(() => setSuppliers([]))
+      .finally(() => setLoadingSuppliers(false));
   }
 
-  const selectedVendor = vendors.find((v) => v.id === vendorId);
-  const searchOptions = vendors.map((v) => ({ value: v.id, label: `${v.name} — ${v.identification_number}` }));
+  const selectedSupplier = suppliers.find((s) => s.id === supplierId);
+  const searchOptions = suppliers.map((s) => ({ value: s.id, label: `${s.name} — ${s.identification_number}` }));
 
   function handlePick(id: string) {
-    const vendor = vendors.find((v) => v.id === id);
-    if (!vendor) return;
-    onChange(vendorToPayload(vendor), id);
+    const supplier = suppliers.find((s) => s.id === id);
+    if (!supplier) return;
+    onChange(supplierToPayload(supplier), id);
     setPicker("");
     setMode("summary");
   }
 
-  function handleChangeVendor() {
-    onChange(NEW_VENDOR, "");
+  function handleChangeSupplier() {
+    onChange(NEW_SUPPLIER, "");
     setMode("search");
   }
 
   function startCreate() {
-    setDraft(NEW_VENDOR);
+    setDraft(NEW_SUPPLIER);
     setMode("form");
   }
 
@@ -75,16 +75,16 @@ export function VendorSection({ value, vendorId, onChange }: VendorSectionProps)
   }
 
   function cancelForm() {
-    setMode(vendorId ? "summary" : "search");
+    setMode(supplierId ? "summary" : "search");
   }
 
   async function handleSaveForm() {
     setSaving(true);
     try {
-      const saved = vendorId ? await updateVendor(vendorId, draft) : await createVendor(draft);
-      await refreshVendors();
-      onChange(vendorToPayload(saved), saved.id);
-      toast.success(vendorId ? "Proveedor actualizado." : "Proveedor creado.");
+      const saved = supplierId ? await updateSupplier(supplierId, draft) : await createSupplier(draft);
+      await refreshSuppliers();
+      onChange(supplierToPayload(saved), saved.id);
+      toast.success(supplierId ? "Proveedor actualizado." : "Proveedor creado.");
       setMode("summary");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo guardar el proveedor");
@@ -104,8 +104,8 @@ export function VendorSection({ value, vendorId, onChange }: VendorSectionProps)
                 value={picker}
                 onChange={handlePick}
                 options={searchOptions}
-                placeholder={loadingVendors ? "Cargando proveedores…" : "Nombre o número de identificación…"}
-                disabled={loadingVendors}
+                placeholder={loadingSuppliers ? "Cargando proveedores…" : "Nombre o número de identificación…"}
+                disabled={loadingSuppliers}
               />
             </div>
           </div>
@@ -115,19 +115,19 @@ export function VendorSection({ value, vendorId, onChange }: VendorSectionProps)
         </div>
       )}
 
-      {mode === "summary" && selectedVendor && (
+      {mode === "summary" && selectedSupplier && (
         <div className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-xs">
           <span className="text-(--text-primary)">
-            {selectedVendor.name}
-            <span className="text-(--text-secondary)"> — {selectedVendor.identification_number}</span>
-            {selectedVendor.email && <span className="text-(--text-secondary)"> · {selectedVendor.email}</span>}
-            {selectedVendor.phone && <span className="text-(--text-secondary)"> · {selectedVendor.phone}</span>}
+            {selectedSupplier.name}
+            <span className="text-(--text-secondary)"> — {selectedSupplier.identification_number}</span>
+            {selectedSupplier.email && <span className="text-(--text-secondary)"> · {selectedSupplier.email}</span>}
+            {selectedSupplier.phone && <span className="text-(--text-secondary)"> · {selectedSupplier.phone}</span>}
           </span>
           <div className="flex gap-1">
             <Button type="button" variant="secondary" icon={<Pencil className="h-3.5 w-3.5" />} onClick={startEdit}>
               Editar proveedor
             </Button>
-            <Button type="button" variant="ghost" icon={<Repeat className="h-3.5 w-3.5" />} onClick={handleChangeVendor}>
+            <Button type="button" variant="ghost" icon={<Repeat className="h-3.5 w-3.5" />} onClick={handleChangeSupplier}>
               Cambiar proveedor
             </Button>
           </div>
@@ -142,7 +142,7 @@ export function VendorSection({ value, vendorId, onChange }: VendorSectionProps)
               Cancelar
             </Button>
             <Button type="button" loading={saving} onClick={handleSaveForm}>
-              {vendorId ? "Guardar cambios" : "Guardar proveedor"}
+              {supplierId ? "Guardar cambios" : "Guardar proveedor"}
             </Button>
           </div>
         </div>

@@ -9,7 +9,7 @@ export interface User {
   is_superadmin: boolean;
 }
 
-export type IssuerEnvironment = "1" | "2"; // 1 = producción, 2 = habilitación
+export type CompanyEnvironment = "1" | "2"; // 1 = producción, 2 = habilitación
 
 // Company espeja safeCompany() de erp/internal/company/interfaces/http/handlers.go.
 export interface Company {
@@ -19,7 +19,7 @@ export interface Company {
   business_name: string;
   trade_name?: string;
   identification_type_code: string;
-  environment: IssuerEnvironment;
+  environment: CompanyEnvironment;
 
   // Dirección
   department_code: string;
@@ -57,8 +57,6 @@ export interface Company {
   updated_at: string;
 }
 
-// Retrocompatibilidad: todos los componentes siguen usando Issuer.
-export type Issuer = Company;
 
 // AuthResult espeja la respuesta de /auth/login, /auth/register, /auth/select-company.
 export interface AuthResult {
@@ -80,7 +78,7 @@ export interface LoginPayload {
 
 // Payload de creación de empresa — espeja CreateRequest en
 // erp/internal/company/application/create.go (POST /api/v1/companies).
-export interface CreateIssuerPayload {
+export interface CreateCompanyPayload {
   nit: string;
   check_digit: string;
   business_name: string;
@@ -91,7 +89,7 @@ export interface CreateIssuerPayload {
   address_line: string;
   email: string;
   phone?: string;
-  environment: IssuerEnvironment;
+  environment: CompanyEnvironment;
   entity_type_code?: string;
   tax_scheme_code?: string;
   tax_scheme_name?: string;
@@ -101,14 +99,14 @@ export interface CreateIssuerPayload {
   merchant_registration_number?: string;
 }
 
-export interface ListIssuersResult {
-  issuers: Issuer[];
+export interface ListCompaniesResult {
+  companies: Company[];
   count: number;
 }
 
 // Actualizar credenciales DIAN — PUT /api/v1/companies/active/credentials.
 // Si logo_base64 está presente se enruta a PUT /api/v1/companies/active/logo.
-export interface UpdateIssuerPayload {
+export interface UpdateCompanyPayload {
   // FE y DS comparten el mismo software
   software_id?: string;
   software_pin?: string;
@@ -124,7 +122,7 @@ export interface UpdateIssuerPayload {
 }
 
 // Editar perfil de empresa — PUT /api/v1/companies/active.
-export interface UpdateIssuerProfilePayload {
+export interface UpdateCompanyProfilePayload {
   business_name: string;
   trade_name: string;
   department_code: string;
@@ -139,7 +137,7 @@ export interface UpdateIssuerProfilePayload {
   tax_regime_code: string | null;
   industry_classification_codes: string[];
   merchant_registration_number: string | null;
-  environment: IssuerEnvironment;
+  environment: CompanyEnvironment;
 }
 
 // Plan de suscripción — GET /admin/plans.
@@ -286,7 +284,7 @@ export interface NumberingRange {
   current_number: number;
   valid_from: string;
   valid_to: string;
-  environment: IssuerEnvironment;
+  environment: CompanyEnvironment;
   is_active: boolean;
   status: NumberingRangeStatus;
 }
@@ -327,13 +325,13 @@ export interface CreateNumberingRangePayload {
   range_to?: number;
   valid_from?: string; // YYYY-MM-DD
   valid_to?: string; // YYYY-MM-DD
-  environment: IssuerEnvironment;
+  environment: CompanyEnvironment;
   technical_key?: string;
   test_set_id?: string;
   next_number?: number;
 }
 
-// Espejo de identificationDTO — usado en snapshots de documentos (CustomerPayload/VendorPayload).
+// Espejo de identificationDTO — usado en snapshots de documentos (CustomerPayload/SupplierPayload).
 export interface Identification {
   number: string;
   type_code: string;
@@ -401,9 +399,9 @@ export interface ListCustomersResult {
   count: number;
 }
 
-// VendorPayload — snapshot del proveedor dentro de un Documento Soporte.
+// SupplierPayload — snapshot del proveedor dentro de un Documento Soporte.
 // Mantiene la estructura anidada legacy por las mismas razones que CustomerPayload.
-export interface VendorPayload {
+export interface SupplierPayload {
   entity_type_code?: string;
   identification: Identification;
   name: string;
@@ -416,9 +414,9 @@ export interface VendorPayload {
   email?: string;
 }
 
-// Vendor — espejo de domain.Supplier del ERP (campos planos).
-// Catálogo de proveedores/terceros no obligados; NO confundir con VendorPayload.
-export interface Vendor {
+// Supplier — espejo de domain.Supplier del ERP (campos planos).
+// Catálogo de proveedores/terceros no obligados; NO confundir con SupplierPayload.
+export interface Supplier {
   id: string;
   company_id: string;
   identification_type_code: string;
@@ -446,8 +444,8 @@ export interface Vendor {
   updated_at: string;
 }
 
-export interface ListVendorsResult {
-  vendors: Vendor[];
+export interface ListSuppliersResult {
+  vendors: Supplier[];
   count: number;
 }
 
@@ -607,7 +605,7 @@ export interface IssueDebitNotePayload {
 export interface IssueSupportDocumentPayload {
   numbering_range_id: string;
   vendor_id?: string;
-  vendor: VendorPayload;
+  vendor: SupplierPayload;
   lines: DocumentLineInput[];
   payment_means?: PaymentMean[];
   note?: string;
@@ -622,7 +620,7 @@ export interface IssueSupportDocumentPayload {
 export interface IssueAdjustmentNotePayload {
   numbering_range_id: string;
   vendor_id?: string;
-  vendor: VendorPayload;
+  vendor: SupplierPayload;
   lines: DocumentLineInput[];
   payment_means?: PaymentMean[];
   note?: string;

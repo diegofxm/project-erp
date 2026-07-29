@@ -15,7 +15,7 @@ interface NavbarProps {
 }
 
 export function Navbar({ onToggleSidebar }: NavbarProps) {
-  const { user, activeIssuer, logout } = useAuth();
+  const { user, activeCompany, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -65,7 +65,7 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
       )}
 
       {/* Separador corto alineado exactamente con el borde de la celda de marca (w-48) */}
-      {activeIssuer && (
+      {activeCompany && (
         <span className="hidden md:block h-4 w-px bg-(--navbar-text) opacity-30 self-center" />
       )}
 
@@ -77,11 +77,11 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
             <img src="/logo.svg" alt="cofacture" className="h-5 w-5" />
             <span className="text-base font-semibold">cofacture</span>
           </Link>
-          {activeIssuer && (
+          {activeCompany && (
             <div className="hidden min-w-0 items-center gap-1.5 text-xs opacity-70 sm:flex">
               <Server className="h-3.5 w-3.5 shrink-0" />
               <span className="shrink-0">Empresa:</span>
-              <span className="truncate font-mono">{activeIssuer.business_name}</span>
+              <span className="truncate font-mono">{activeCompany.business_name}</span>
             </div>
           )}
         </div>

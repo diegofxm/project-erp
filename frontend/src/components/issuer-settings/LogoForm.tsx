@@ -5,7 +5,7 @@ import { useConfirm } from "../../context/ConfirmContext";
 import { useToast } from "../../context/ToastContext";
 import { apiClient, ApiError } from "../../lib/apiClient";
 import { fileToBase64 } from "../../lib/fileToBase64";
-import type { UpdateIssuerPayload } from "../../lib/types";
+import type { UpdateCompanyPayload } from "../../lib/types";
 import { AsyncImage } from "../ui/AsyncImage";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
@@ -22,7 +22,7 @@ const CONTENT_TYPE_BY_MIME: Record<string, string> = {
 // SoftwareCertificateForm). Se sirve aparte (GET /issuers/me/logo) para no inflar
 // issuerResponse con bytes de imagen en cada GET/PUT.
 export function LogoForm() {
-  const { activeIssuer, updateIssuer, deleteIssuerLogo } = useAuth();
+  const { activeCompany, updateCompany, deleteCompanyLogo } = useAuth();
   const confirm = useConfirm();
   const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -32,7 +32,7 @@ export function LogoForm() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    if (!activeIssuer?.has_logo) {
+    if (!activeCompany?.has_logo) {
       setPreviewUrl(null);
       return;
     }
@@ -49,7 +49,7 @@ export function LogoForm() {
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [activeIssuer?.has_logo]);
+  }, [activeCompany?.has_logo]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -64,14 +64,14 @@ export function LogoForm() {
       return;
     }
 
-    const payload: UpdateIssuerPayload = {
+    const payload: UpdateCompanyPayload = {
       logo_base64: await fileToBase64(file),
       logo_content_type: contentType,
     };
 
     setLoading(true);
     try {
-      await updateIssuer(payload);
+      await updateCompany(payload);
       toast.success("Logo guardado correctamente.");
       setFile(null);
     } catch (err) {
@@ -85,7 +85,7 @@ export function LogoForm() {
     if (!(await confirm("¿Eliminar el logo de la empresa?", { tone: "danger" }))) return;
     setDeleting(true);
     try {
-      await deleteIssuerLogo();
+      await deleteCompanyLogo();
       toast.success("Logo eliminado.");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el logo");
@@ -98,7 +98,7 @@ export function LogoForm() {
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-semibold text-(--text-primary)">Logo de la empresa</h2>
-        <StatusBadge label="Logo" ok={activeIssuer?.has_logo ?? false} />
+        <StatusBadge label="Logo" ok={activeCompany?.has_logo ?? false} />
       </div>
       <p className="text-xs text-(--text-secondary)">Aparece en la esquina superior izquierda de la representación gráfica (PDF) de tus facturas.</p>
       <form className="flex items-end gap-3" onSubmit={handleSubmit}>
@@ -117,7 +117,7 @@ export function LogoForm() {
         <Button type="submit" loading={loading} icon={<ImageIcon className="h-3.5 w-3.5" />}>
           Guardar
         </Button>
-        {activeIssuer?.has_logo && (
+        {activeCompany?.has_logo && (
           <Button type="button" variant="danger" loading={deleting} icon={<Trash2 className="h-3.5 w-3.5" />} onClick={handleDelete}>
             Eliminar logo
           </Button>

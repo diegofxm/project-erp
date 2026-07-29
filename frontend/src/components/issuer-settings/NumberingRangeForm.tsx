@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { listDianDocumentTypes } from "../../lib/catalogs";
 import { useCatalog } from "../../lib/useCatalog";
-import type { CreateNumberingRangePayload, IssuerEnvironment } from "../../lib/types";
+import type { CreateNumberingRangePayload, CompanyEnvironment } from "../../lib/types";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Button } from "../ui/Button";
@@ -20,7 +20,7 @@ const TODAY = new Date().toISOString().slice(0, 10);
 // a Factura (CUFE); test_set_id solo aplica en habilitación, es el "set de pruebas" que la
 // DIAN asigna para poder confirmar documentos durante el proceso de habilitación.
 export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRangeFormProps) {
-  const { activeIssuer } = useAuth();
+  const { activeCompany } = useAuth();
   const { data: docTypes, loading: loadingDocTypes } = useCatalog(listDianDocumentTypes);
   const [docTypeCode, setDocTypeCode] = useState("01");
   const [prefix, setPrefix] = useState("");
@@ -30,7 +30,7 @@ export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRan
   const [rangeTo, setRangeTo] = useState("");
   const [validFrom, setValidFrom] = useState(TODAY);
   const [validTo, setValidTo] = useState("");
-  const [environment, setEnvironment] = useState<IssuerEnvironment>(activeIssuer?.environment ?? "2");
+  const [environment, setEnvironment] = useState<CompanyEnvironment>(activeCompany?.environment ?? "2");
   const [technicalKey, setTechnicalKey] = useState("");
   const [testSetId, setTestSetId] = useState("");
   const [nextNumber, setNextNumber] = useState("");
@@ -89,7 +89,7 @@ export function NumberingRangeForm({ onSubmit, onCancel, loading }: NumberingRan
           </Select>
         </div>
         <div className="col-span-6 sm:col-span-3">
-          <Select label="Ambiente" required value={environment} onChange={(e) => setEnvironment(e.target.value as IssuerEnvironment)}>
+          <Select label="Ambiente" required value={environment} onChange={(e) => setEnvironment(e.target.value as CompanyEnvironment)}>
             <option value="2">Habilitación</option>
             <option value="1">Producción</option>
           </Select>

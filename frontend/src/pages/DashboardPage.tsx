@@ -164,7 +164,7 @@ function TypeTooltip({ active, payload }: { active?: boolean; payload?: { payloa
 // ── Página principal ──────────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const { activeIssuer } = useAuth();
+  const { activeCompany } = useAuth();
   const [stats, setStats] = useState<BillingStats | null>(null);
   const [recentDocs, setRecentDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,7 +174,7 @@ export function DashboardPage() {
   const { visibleItems, hidden, updateItems, hide, show, reset } = useDashboardLayout();
 
   useEffect(() => {
-    if (!activeIssuer) return;
+    if (!activeCompany) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -183,7 +183,7 @@ export function DashboardPage() {
       .catch((err: Error) => { if (!cancelled) setError(err.message ?? "No se pudieron cargar las métricas"); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [activeIssuer?.id]);
+  }, [activeCompany?.id]);
 
   const cm = stats?.current_month;
   const pm = stats?.previous_month;
@@ -410,11 +410,11 @@ export function DashboardPage() {
       <div className="flex items-center gap-2">
         <LayoutDashboard className="h-4 w-4 shrink-0 text-(--accent-primary)" />
         <h1 className="text-sm font-semibold text-(--text-primary)">Panel de Control</h1>
-        {activeIssuer && (
+        {activeCompany && (
           <span className="mr-2 ml-auto text-xs text-(--text-muted)">
-            {activeIssuer.business_name} ·{" "}
-            <span className={activeIssuer.environment === "1" ? "text-(--color-success)" : "text-(--color-warning-text)"}>
-              {activeIssuer.environment === "1" ? "Producción" : "Habilitación"}
+            {activeCompany.business_name} ·{" "}
+            <span className={activeCompany.environment === "1" ? "text-(--color-success)" : "text-(--color-warning-text)"}>
+              {activeCompany.environment === "1" ? "Producción" : "Habilitación"}
             </span>
           </span>
         )}

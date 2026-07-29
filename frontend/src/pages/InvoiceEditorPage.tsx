@@ -43,7 +43,7 @@ const NOTE_TYPE_LABEL: Record<string, string> = {
 export function InvoiceEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { activeIssuer } = useAuth();
+  const { activeCompany } = useAuth();
   const confirmDialog = useConfirm();
   const toast = useToast();
   const isNew = id === "new";
@@ -176,7 +176,7 @@ export function InvoiceEditorPage() {
     }
   }
 
-  const issuerNotReady = !activeIssuer?.has_software_credentials || !activeIssuer?.has_certificate;
+  const issuerNotReady = !activeCompany?.has_software_credentials || !activeCompany?.has_certificate;
 
   if (loadingDocument) {
     return (

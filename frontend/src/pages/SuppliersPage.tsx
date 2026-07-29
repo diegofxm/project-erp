@@ -1,22 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
-import { createVendor, deleteVendor, listVendors, updateVendor } from "../lib/vendors";
+import { createSupplier, deleteSupplier, listSuppliers, updateSupplier } from "../lib/suppliers";
 import { ApiError } from "../lib/apiClient";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
-import type { Vendor, VendorPayload } from "../lib/types";
+import type { Supplier, SupplierPayload } from "../lib/types";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { Banner } from "../components/ui/Banner";
 import { Spinner } from "../components/ui/Spinner";
 import { Pagination } from "../components/ui/Pagination";
-import { VendorForm } from "../components/vendor-form/VendorForm";
+import { SupplierForm } from "../components/supplier-form/SupplierForm";
 
-type Editing = "new" | Vendor | null;
+type Editing = "new" | Supplier | null;
 const PAGE_SIZE = 10;
 
-export function VendorsPage() {
-  const [vendors, setVendors] = useState<Vendor[] | null>(null);
+export function SuppliersPage() {
+  const [suppliers, setSuppliers] = useState<Supplier[] | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -26,21 +26,21 @@ export function VendorsPage() {
   const toast = useToast();
 
   function refresh() {
-    listVendors()
-      .then(setVendors)
+    listSuppliers()
+      .then(setSuppliers)
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar los proveedores"));
   }
 
   useEffect(() => { refresh(); }, []);
 
   const filtered = useMemo(() => {
-    if (!vendors) return [];
-    if (!search.trim()) return vendors;
+    if (!suppliers) return [];
+    if (!search.trim()) return suppliers;
     const q = search.toLowerCase();
-    return vendors.filter(
-      (v) => v.name.toLowerCase().includes(q) || v.identification_number.toLowerCase().includes(q),
+    return suppliers.filter(
+      (s) => s.name.toLowerCase().includes(q) || s.identification_number.toLowerCase().includes(q),
     );
-  }, [vendors, search]);
+  }, [suppliers, search]);
 
   const page = filtered.slice(offset, offset + PAGE_SIZE);
   const hasNext = offset + PAGE_SIZE < filtered.length;
@@ -50,14 +50,14 @@ export function VendorsPage() {
     setOffset(0);
   }
 
-  async function handleSave(payload: VendorPayload) {
+  async function handleSave(payload: SupplierPayload) {
     setError(null);
     setLoading(true);
     try {
       if (editing === "new") {
-        await createVendor(payload);
+        await createSupplier(payload);
       } else if (editing) {
-        await updateVendor(editing.id, payload);
+        await updateSupplier(editing.id, payload);
       }
       setEditing(null);
       refresh();
@@ -68,10 +68,10 @@ export function VendorsPage() {
     }
   }
 
-  async function handleDelete(vendor: Vendor) {
-    if (!(await confirm(`¿Eliminar a "${vendor.name}"? Esto no afecta documentos ya emitidos.`, { tone: "danger" }))) return;
+  async function handleDelete(supplier: Supplier) {
+    if (!(await confirm(`¿Eliminar a "${supplier.name}"? Esto no afecta documentos ya emitidos.`, { tone: "danger" }))) return;
     try {
-      await deleteVendor(vendor.id);
+      await deleteSupplier(supplier.id);
       toast.success("Proveedor eliminado.");
       refresh();
     } catch (err) {
@@ -110,14 +110,14 @@ export function VendorsPage() {
 
       {editing ? (
         <Card className="mt-3">
-          <VendorForm
+          <SupplierForm
             initial={editing === "new" ? null : editing}
             onSubmit={handleSave}
             onCancel={() => setEditing(null)}
             loading={loading}
           />
         </Card>
-      ) : vendors === null ? (
+      ) : suppliers === null ? (
         <div className="flex min-h-32 items-center justify-center">
           <Spinner className="h-5 w-5 text-(--text-muted)" />
         </div>
@@ -139,19 +139,19 @@ export function VendorsPage() {
                 </tr>
               </thead>
               <tbody>
-                {page.map((v, i) => (
-                  <tr key={v.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
-                    <td className="px-3 py-2 text-(--text-primary)">{v.name}</td>
-                    <td className="px-3 py-2 font-mono text-(--text-secondary)">{v.identification_number}</td>
-                    <td className="px-3 py-2 text-(--text-secondary)">{v.email || "—"}</td>
-                    <td className="px-3 py-2 text-(--text-secondary)">{v.phone || "—"}</td>
+                {page.map((s, i) => (
+                  <tr key={s.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
+                    <td className="px-3 py-2 text-(--text-primary)">{s.name}</td>
+                    <td className="px-3 py-2 font-mono text-(--text-secondary)">{s.identification_number}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{s.email || "—"}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{s.phone || "—"}</td>
                     <td className="px-3 py-2">
                       <div className="flex justify-end gap-1">
-                        <button type="button" title="Editar" onClick={() => setEditing(v)}
+                        <button type="button" title="Editar" onClick={() => setEditing(s)}
                           className="rounded p-1 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)">
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button type="button" title="Eliminar" onClick={() => handleDelete(v)}
+                        <button type="button" title="Eliminar" onClick={() => handleDelete(s)}
                           className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

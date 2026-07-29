@@ -5,7 +5,7 @@ import { useConfirm } from "../../context/ConfirmContext";
 import { useToast } from "../../context/ToastContext";
 import { ApiError } from "../../lib/apiClient";
 import { fileToBase64 } from "../../lib/fileToBase64";
-import type { UpdateIssuerPayload } from "../../lib/types";
+import type { UpdateCompanyPayload } from "../../lib/types";
 import { Card } from "../ui/Card";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
@@ -47,7 +47,7 @@ function CertStatusBadge({ expiresAt }: { expiresAt: string }) {
 }
 
 function SoftwareSection() {
-  const { activeIssuer, updateIssuer, deleteIssuerSoftware } = useAuth();
+  const { activeCompany, updateCompany, deleteCompanySoftware } = useAuth();
   const confirm = useConfirm();
   const toast = useToast();
   const [softwareId, setSoftwareId] = useState("");
@@ -55,7 +55,7 @@ function SoftwareSection() {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const configured = activeIssuer?.has_software_credentials ?? false;
+  const configured = activeCompany?.has_software_credentials ?? false;
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -63,10 +63,10 @@ function SoftwareSection() {
       toast.error("El Software ID y el PIN son obligatorios.");
       return;
     }
-    const payload: UpdateIssuerPayload = { software_id: softwareId.trim(), software_pin: softwarePin.trim() };
+    const payload: UpdateCompanyPayload = { software_id: softwareId.trim(), software_pin: softwarePin.trim() };
     setLoading(true);
     try {
-      await updateIssuer(payload);
+      await updateCompany(payload);
       toast.success("Software guardado correctamente.");
       setSoftwareId("");
       setSoftwarePin("");
@@ -81,7 +81,7 @@ function SoftwareSection() {
     if (!(await confirm("¿Eliminar las credenciales de software? La empresa no podrá emitir documentos hasta volver a configurarlas.", { tone: "danger", title: "Eliminar software DIAN" }))) return;
     setDeleting(true);
     try {
-      await deleteIssuerSoftware();
+      await deleteCompanySoftware();
       toast.success("Credenciales de software eliminadas.");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el software");
@@ -108,7 +108,7 @@ function SoftwareSection() {
         <div className="flex flex-col gap-1.5 rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2.5 text-xs">
           <div className="flex gap-2">
             <span className="w-24 shrink-0 text-(--text-muted)">Software ID</span>
-            <span className="font-mono text-(--text-primary)">{activeIssuer?.software_id ?? "—"}</span>
+            <span className="font-mono text-(--text-primary)">{activeCompany?.software_id ?? "—"}</span>
           </div>
           <div className="flex gap-2">
             <span className="w-24 shrink-0 text-(--text-muted)">PIN</span>
@@ -131,7 +131,7 @@ function SoftwareSection() {
 }
 
 function CertificateSection() {
-  const { activeIssuer, updateIssuer, deleteIssuerCertificate } = useAuth();
+  const { activeCompany, updateCompany, deleteCompanyCertificate } = useAuth();
   const confirm = useConfirm();
   const toast = useToast();
   const [certFile, setCertFile] = useState<File | null>(null);
@@ -139,7 +139,7 @@ function CertificateSection() {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const configured = activeIssuer?.has_certificate ?? false;
+  const configured = activeCompany?.has_certificate ?? false;
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -147,13 +147,13 @@ function CertificateSection() {
       toast.error("El archivo .p12 y la contraseña son obligatorios.");
       return;
     }
-    const payload: UpdateIssuerPayload = {
+    const payload: UpdateCompanyPayload = {
       certificate_base64: await fileToBase64(certFile),
       certificate_password: certPassword.trim(),
     };
     setLoading(true);
     try {
-      await updateIssuer(payload);
+      await updateCompany(payload);
       toast.success("Certificado guardado correctamente.");
       setCertFile(null);
       setCertPassword("");
@@ -168,7 +168,7 @@ function CertificateSection() {
     if (!(await confirm("¿Eliminar el certificado digital? La empresa no podrá firmar ni enviar documentos a la DIAN hasta volver a configurarlo.", { tone: "danger", title: "Eliminar certificado" }))) return;
     setDeleting(true);
     try {
-      await deleteIssuerCertificate();
+      await deleteCompanyCertificate();
       toast.success("Certificado eliminado.");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el certificado");
@@ -193,25 +193,25 @@ function CertificateSection() {
 
       {configured ? (
         <div className="flex flex-col gap-1.5 rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2.5 text-xs">
-          {activeIssuer?.certificate_subject && (
+          {activeCompany?.certificate_subject && (
             <div className="flex gap-2">
               <span className="w-24 shrink-0 text-(--text-muted)">Titular</span>
-              <span className="text-(--text-primary)">{activeIssuer.certificate_subject}</span>
+              <span className="text-(--text-primary)">{activeCompany.certificate_subject}</span>
             </div>
           )}
-          {activeIssuer?.certificate_issuer_cn && (
+          {activeCompany?.certificate_issuer_cn && (
             <div className="flex gap-2">
               <span className="w-24 shrink-0 text-(--text-muted)">Emisor</span>
-              <span className="text-(--text-secondary)">{activeIssuer.certificate_issuer_cn}</span>
+              <span className="text-(--text-secondary)">{activeCompany.certificate_issuer_cn}</span>
             </div>
           )}
-          {activeIssuer?.certificate_expires_at && (
+          {activeCompany?.certificate_expires_at && (
             <div className="flex items-center gap-2">
               <span className="w-24 shrink-0 text-(--text-muted)">Vencimiento</span>
               <span className="text-(--text-secondary)">
-                {new Date(activeIssuer.certificate_expires_at).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" })}
+                {new Date(activeCompany.certificate_expires_at).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" })}
               </span>
-              <CertStatusBadge expiresAt={activeIssuer.certificate_expires_at} />
+              <CertStatusBadge expiresAt={activeCompany.certificate_expires_at} />
             </div>
           )}
         </div>
@@ -239,7 +239,7 @@ function CertificateSection() {
 }
 
 function NeSoftwareSection() {
-  const { activeIssuer, updateIssuer, deleteIssuerNeSoftware } = useAuth();
+  const { activeCompany, updateCompany, deleteCompanyNeSoftware } = useAuth();
   const confirm = useConfirm();
   const toast = useToast();
   const [softwareId, setSoftwareId] = useState("");
@@ -247,7 +247,7 @@ function NeSoftwareSection() {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const configured = activeIssuer?.has_ne_software_credentials ?? false;
+  const configured = activeCompany?.has_ne_software_credentials ?? false;
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -255,10 +255,10 @@ function NeSoftwareSection() {
       toast.error("El Software ID NE y el PIN son obligatorios.");
       return;
     }
-    const payload: UpdateIssuerPayload = { ne_software_id: softwareId.trim(), ne_software_pin: softwarePin.trim() };
+    const payload: UpdateCompanyPayload = { ne_software_id: softwareId.trim(), ne_software_pin: softwarePin.trim() };
     setLoading(true);
     try {
-      await updateIssuer(payload);
+      await updateCompany(payload);
       toast.success("Software NE guardado correctamente.");
       setSoftwareId("");
       setSoftwarePin("");
@@ -273,7 +273,7 @@ function NeSoftwareSection() {
     if (!(await confirm("¿Eliminar las credenciales de software NE? No podrás emitir Nómina Electrónica hasta volver a configurarlas.", { tone: "danger", title: "Eliminar software NE" }))) return;
     setDeleting(true);
     try {
-      await deleteIssuerNeSoftware();
+      await deleteCompanyNeSoftware();
       toast.success("Credenciales de software NE eliminadas.");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el software NE");
@@ -300,7 +300,7 @@ function NeSoftwareSection() {
         <div className="flex flex-col gap-1.5 rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2.5 text-xs">
           <div className="flex gap-2">
             <span className="w-24 shrink-0 text-(--text-muted)">Software ID</span>
-            <span className="font-mono text-(--text-primary)">{activeIssuer?.ne_software_id ?? "—"}</span>
+            <span className="font-mono text-(--text-primary)">{activeCompany?.ne_software_id ?? "—"}</span>
           </div>
           <div className="flex gap-2">
             <span className="w-24 shrink-0 text-(--text-muted)">PIN</span>

@@ -1,18 +1,18 @@
 import { useState, type FormEvent } from "react";
-import { vendorToPayload } from "../../lib/vendors";
-import type { Vendor, VendorPayload } from "../../lib/types";
+import { supplierToPayload } from "../../lib/suppliers";
+import type { Supplier, SupplierPayload } from "../../lib/types";
 import { PartyFields } from "../party-fields/PartyFields";
 import { Button } from "../ui/Button";
 
-interface VendorFormProps {
-  initial: Vendor | null;
-  onSubmit: (payload: VendorPayload) => void;
+interface SupplierFormProps {
+  initial: Supplier | null;
+  onSubmit: (payload: SupplierPayload) => void;
   onCancel: () => void;
   loading: boolean;
 }
 
-function payloadFromVendor(vendor: Vendor | null): VendorPayload {
-  if (!vendor) {
+function payloadFromSupplier(supplier: Supplier | null): SupplierPayload {
+  if (!supplier) {
     return {
       identification: { number: "", type_code: "13" },
       name: "",
@@ -21,11 +21,11 @@ function payloadFromVendor(vendor: Vendor | null): VendorPayload {
       liability_codes: ["O-49"],
     };
   }
-  return vendorToPayload(vendor);
+  return supplierToPayload(supplier);
 }
 
-export function VendorForm({ initial, onSubmit, onCancel, loading }: VendorFormProps) {
-  const [payload, setPayload] = useState<VendorPayload>(() => payloadFromVendor(initial));
+export function SupplierForm({ initial, onSubmit, onCancel, loading }: SupplierFormProps) {
+  const [payload, setPayload] = useState<SupplierPayload>(() => payloadFromSupplier(initial));
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();

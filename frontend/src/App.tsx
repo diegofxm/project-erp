@@ -17,7 +17,7 @@ import { SettingsCompanyPage } from "./pages/SettingsCompanyPage";
 import { SettingsActivityPage } from "./pages/SettingsActivityPage";
 import { IssuersPage } from "./pages/IssuersPage";
 import { CustomersPage } from "./pages/CustomersPage";
-import { VendorsPage } from "./pages/VendorsPage";
+import { SuppliersPage } from "./pages/SuppliersPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { InvoicesPage } from "./pages/InvoicesPage";
 import { InvoiceEditorPage } from "./pages/InvoiceEditorPage";
@@ -56,7 +56,7 @@ function App() {
                     <Route path="/settings/activity" element={<SettingsActivityPage />} />
                     <Route path="/issuers" element={<IssuersPage />} />
                     <Route path="/customers" element={<CustomersPage />} />
-                    <Route path="/vendors" element={<VendorsPage />} />
+                    <Route path="/suppliers" element={<SuppliersPage />} />
                     <Route path="/products" element={<ProductsPage />} />
                     <Route path="/documents/invoices" element={<InvoicesPage />} />
                     <Route path="/documents/invoices/:id" element={<InvoiceEditorPage />} />

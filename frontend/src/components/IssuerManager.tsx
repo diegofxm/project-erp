@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../lib/apiClient";
-import type { CreateIssuerPayload, Issuer } from "../lib/types";
+import type { CreateCompanyPayload, Company } from "../lib/types";
 import { Button } from "./ui/Button";
 import { Banner } from "./ui/Banner";
 import { Spinner } from "./ui/Spinner";
@@ -17,23 +17,23 @@ import { CompanyForm } from "./company-form/CompanyForm";
 // listados y formularios por igual. CompanyForm redistribuye sus propios campos en una grilla
 // auto-fit, no necesita que IssuerManager lo acote.
 export function IssuerManager() {
-  const { listIssuers, selectIssuer, createIssuer, activeIssuer } = useAuth();
-  const [issuers, setIssuers] = useState<Issuer[] | null>(null);
+  const { listCompanies, selectCompany, createCompany, activeCompany } = useAuth();
+  const [companies, setCompanies] = useState<Company[] | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    listIssuers()
-      .then(setIssuers)
+    listCompanies()
+      .then(setCompanies)
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar tus empresas"));
-  }, [listIssuers]);
+  }, [listCompanies]);
 
   async function handleSelect(id: string) {
     setError(null);
     setLoading(true);
     try {
-      await selectIssuer(id);
+      await selectCompany(id);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo seleccionar la empresa");
     } finally {
@@ -41,15 +41,13 @@ export function IssuerManager() {
     }
   }
 
-  async function handleCreate(payload: CreateIssuerPayload) {
+  async function handleCreate(payload: CreateCompanyPayload) {
     setError(null);
     setLoading(true);
     try {
-      await createIssuer(payload);
+      await createCompany(payload);
       setShowForm(false);
-      // listIssuers() de nuevo: la empresa recién creada no está en el `issuers` ya cargado
-      // (a diferencia de handleSelect, que solo cambia cuál está activa entre las mismas).
-      setIssuers(await listIssuers());
+      setCompanies(await listCompanies());
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo crear la empresa");
     } finally {
@@ -57,13 +55,13 @@ export function IssuerManager() {
     }
   }
 
-  const hasIssuers = issuers !== null && issuers.length > 0;
+  const hasIssuers = companies !== null && companies.length > 0;
 
   return (
     <div className="flex flex-col gap-3">
       {error && <Banner tone="danger">{error}</Banner>}
 
-      {issuers === null && (
+      {companies === null && (
         <div className="flex min-h-32 items-center justify-center">
           <Spinner className="h-5 w-5 text-(--text-muted)" />
         </div>
@@ -72,19 +70,19 @@ export function IssuerManager() {
       {hasIssuers && !showForm && (
         <div className="flex flex-col gap-2">
           <p className="text-xs text-(--text-secondary)">Elige con cuál empresa quieres trabajar:</p>
-          {[...issuers].sort((a, b) => (b.id === activeIssuer?.id ? 1 : 0) - (a.id === activeIssuer?.id ? 1 : 0)).map((issuer) => {
-            const isActive = issuer.id === activeIssuer?.id;
+          {[...companies!].sort((a, b) => (b.id === activeCompany?.id ? 1 : 0) - (a.id === activeCompany?.id ? 1 : 0)).map((company) => {
+            const isActive = company.id === activeCompany?.id;
             return (
               <button
-                key={issuer.id}
+                key={company.id}
                 type="button"
                 disabled={loading || isActive}
-                onClick={() => handleSelect(issuer.id)}
+                onClick={() => handleSelect(company.id)}
                 className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-left text-xs cursor-pointer hover:bg-(--bg-hover) disabled:cursor-default disabled:opacity-60"
               >
-                <span className="font-medium text-(--text-primary)">{issuer.business_name}</span>
+                <span className="font-medium text-(--text-primary)">{company.business_name}</span>
                 <span className="flex items-center gap-2">
-                  <span className="text-(--text-muted)">NIT {issuer.nit}</span>
+                  <span className="text-(--text-muted)">NIT {company.nit}</span>
                   {isActive && <span className="rounded bg-(--bg-selected) px-1.5 py-0.5 text-(--accent-primary)">Activa</span>}
                 </span>
               </button>
@@ -96,7 +94,7 @@ export function IssuerManager() {
         </div>
       )}
 
-      {(!hasIssuers || showForm) && issuers !== null && (
+      {(!hasIssuers || showForm) && companies !== null && (
         <>
           {!hasIssuers && <p className="mb-3 text-xs text-(--text-secondary)">Todavía no tienes ninguna empresa — crea la primera.</p>}
           <CompanyForm onSubmit={handleCreate} loading={loading} onCancel={hasIssuers ? () => setShowForm(false) : undefined} />

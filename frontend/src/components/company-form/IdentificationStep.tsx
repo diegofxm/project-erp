@@ -1,12 +1,12 @@
 import { listIdentificationTypes } from "../../lib/catalogs";
 import { useCatalog } from "../../lib/useCatalog";
-import type { CreateIssuerPayload } from "../../lib/types";
+import type { CreateCompanyPayload } from "../../lib/types";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 
 export interface StepProps {
-  form: CreateIssuerPayload;
-  setField: <K extends keyof CreateIssuerPayload>(key: K, value: CreateIssuerPayload[K]) => void;
+  form: CreateCompanyPayload;
+  setField: <K extends keyof CreateCompanyPayload>(key: K, value: CreateCompanyPayload[K]) => void;
 }
 
 export function IdentificationStep({ form, setField }: StepProps) {
@@ -51,7 +51,7 @@ export function IdentificationStep({ form, setField }: StepProps) {
           label="Ambiente"
           required
           value={form.environment}
-          onChange={(e) => setField("environment", e.target.value as CreateIssuerPayload["environment"])}
+          onChange={(e) => setField("environment", e.target.value as CreateCompanyPayload["environment"])}
         >
           <option value="2">Habilitación</option>
           <option value="1">Producción</option>

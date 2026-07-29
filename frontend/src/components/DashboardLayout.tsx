@@ -9,7 +9,7 @@ import { OnboardingPage } from "../pages/OnboardingPage";
 const COLLAPSED_KEY = "apidian.sidebarCollapsed";
 
 export function DashboardLayout() {
-  const { activeIssuer } = useAuth();
+  const { activeCompany } = useAuth();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => {
     const saved = localStorage.getItem(COLLAPSED_KEY);
@@ -35,7 +35,7 @@ export function DashboardLayout() {
     }
   }
 
-  if (!activeIssuer) return <OnboardingPage />;
+  if (!activeCompany) return <OnboardingPage />;
 
   return (
     <div className="flex h-screen flex-col">

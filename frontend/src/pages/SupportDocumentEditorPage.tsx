@@ -19,7 +19,7 @@ import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { SendEmailModal } from "../components/ui/SendEmailModal";
-import { fetchVendor } from "../lib/vendors";
+import { fetchSupplier } from "../lib/suppliers";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { Document, IssueSupportDocumentPayload } from "../lib/types";
 import { BackLink } from "../components/ui/BackLink";
@@ -36,7 +36,7 @@ const OPERATION_LABELS: Record<string, string> = { "10": "Residente", "11": "No 
 export function SupportDocumentEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { activeIssuer } = useAuth();
+  const { activeCompany } = useAuth();
   const confirmDialog = useConfirm();
   const toast = useToast();
   const isNew = id === "new";
@@ -152,7 +152,7 @@ export function SupportDocumentEditorPage() {
     }
   }
 
-  const issuerNotReady = !activeIssuer?.has_software_credentials || !activeIssuer?.has_certificate;
+  const issuerNotReady = !activeCompany?.has_software_credentials || !activeCompany?.has_certificate;
 
   if (loadingDocument) {
     return (
@@ -404,7 +404,7 @@ export function SupportDocumentEditorPage() {
       {showEmailModal && doc && (
         <SendEmailModal
           initialEmail={doc.vendor?.email ?? ""}
-          fetchEmail={doc.vendor_id ? () => fetchVendor(doc.vendor_id!).then((v) => v.email ?? "") : undefined}
+          fetchEmail={doc.vendor_id ? () => fetchSupplier(doc.vendor_id!).then((v) => v.email ?? "") : undefined}
           onSend={handleSendEmailConfirm}
           onClose={() => setShowEmailModal(false)}
         />

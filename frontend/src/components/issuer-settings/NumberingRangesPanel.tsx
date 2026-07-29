@@ -258,7 +258,7 @@ function ImportModal({ dianRanges, existingPrefixes, docTypes, environment, onIm
 // ── Panel principal ───────────────────────────────────────────────────────────────────────────
 
 export function NumberingRangesPanel() {
-  const { activeIssuer } = useAuth();
+  const { activeCompany } = useAuth();
   const [ranges, setRanges] = useState<NumberingRange[] | null>(null);
   const { data: docTypes } = useCatalog(listDianDocumentTypes);
   const [showForm, setShowForm] = useState(false);
@@ -309,9 +309,9 @@ export function NumberingRangesPanel() {
       range_to: r.range_to,
       valid_from: r.valid_from,
       valid_to: r.valid_to,
-      environment: activeIssuer?.environment ?? "2",
+      environment: activeCompany?.environment ?? "2",
       technical_key: docTypeCode === "01" ? r.technical_key : undefined,
-      test_set_id: activeIssuer?.environment === "2" ? (testSetId || undefined) : undefined,
+      test_set_id: activeCompany?.environment === "2" ? (testSetId || undefined) : undefined,
     };
     await createNumberingRange(payload);
     toast.success(`Rango "${r.prefix}" importado correctamente.`);
@@ -445,7 +445,7 @@ export function NumberingRangesPanel() {
           dianRanges={dianRanges}
           existingPrefixes={existingPrefixes}
           docTypes={docTypes}
-          environment={activeIssuer?.environment ?? "2"}
+          environment={activeCompany?.environment ?? "2"}
           onImport={handleImportRange}
           onClose={() => setShowImportModal(false)}
         />

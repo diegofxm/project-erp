@@ -12,12 +12,12 @@ import { Spinner } from "../ui/Spinner";
 // adquiriente sin que nadie tenga que digitarlo por él. El QR se genera en el navegador
 // (paquete qrcode) — no hace falta pedirle nada al backend más allá del link en sí.
 export function PublicRegistrationPanel() {
-  const { activeIssuer } = useAuth();
+  const { activeCompany } = useAuth();
   const [qrDataURL, setQrDataURL] = useState<string | null>(null);
   const [loadingQR, setLoadingQR] = useState(true);
   const [copied, setCopied] = useState(false);
 
-  const link = activeIssuer ? `${window.location.origin}/r/${activeIssuer.id}` : "";
+  const link = activeCompany ? `${window.location.origin}/r/${activeCompany.id}` : "";
 
   useEffect(() => {
     if (!link) {

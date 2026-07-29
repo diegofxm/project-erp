@@ -17,7 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/admin", label: "Comando", icon: <Crown className="h-3.5 w-3.5" />, activePrefix: "/admin", superAdminOnly: true },
   { to: "/documents/invoices", label: "Documentos", icon: <Files className="h-3.5 w-3.5" />, activePrefix: "/documents" },
   { to: "/customers", label: "Clientes", icon: <Users className="h-3.5 w-3.5" />, activePrefix: "/customers" },
-  { to: "/vendors", label: "Proveedores", icon: <Truck className="h-3.5 w-3.5" />, activePrefix: "/vendors" },
+  { to: "/suppliers", label: "Proveedores", icon: <Truck className="h-3.5 w-3.5" />, activePrefix: "/suppliers" },
   { to: "/products", label: "Productos", icon: <Package className="h-3.5 w-3.5" />, activePrefix: "/products" },
   { to: "/settings", label: "Configuración", icon: <Settings className="h-3.5 w-3.5" />, activePrefix: "/settings" },
 ];

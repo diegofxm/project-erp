@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Tabs, type TabItem } from "../ui/Tabs";
 import { Button } from "../ui/Button";
-import type { CreateIssuerPayload } from "../../lib/types";
+import type { CreateCompanyPayload } from "../../lib/types";
 import { IdentificationStep } from "./IdentificationStep";
 import { LocationStep } from "./LocationStep";
 import { TaxStep } from "./TaxStep";
@@ -21,7 +21,7 @@ const TABS: TabItem[] = [
   { id: "review", label: "Revisión" },
 ];
 
-const EMPTY_FORM: CreateIssuerPayload = {
+const EMPTY_FORM: CreateCompanyPayload = {
   nit: "",
   check_digit: "",
   business_name: "",
@@ -46,7 +46,7 @@ const EMPTY_FORM: CreateIssuerPayload = {
 // resto (check_digit/identification_type_code/department_code/municipality_code/address_line/
 // email) son obligatorios a nivel de UX para que la empresa quede realmente lista para emitir,
 // no por una regla del backend.
-function computeMissingFields(form: CreateIssuerPayload): MissingField[] {
+function computeMissingFields(form: CreateCompanyPayload): MissingField[] {
   const missing: MissingField[] = [];
   if (!form.nit.trim()) missing.push({ tab: "identification", label: "NIT" });
   if (!form.check_digit.trim()) missing.push({ tab: "identification", label: "Dígito de verificación" });
@@ -61,16 +61,16 @@ function computeMissingFields(form: CreateIssuerPayload): MissingField[] {
 }
 
 interface CompanyFormProps {
-  onSubmit: (payload: CreateIssuerPayload) => void;
+  onSubmit: (payload: CreateCompanyPayload) => void;
   loading: boolean;
   onCancel?: () => void;
 }
 
 export function CompanyForm({ onSubmit, loading, onCancel }: CompanyFormProps) {
-  const [form, setForm] = useState<CreateIssuerPayload>(EMPTY_FORM);
+  const [form, setForm] = useState<CreateCompanyPayload>(EMPTY_FORM);
   const [activeTab, setActiveTab] = useState<TabId>("identification");
 
-  function setField<K extends keyof CreateIssuerPayload>(key: K, value: CreateIssuerPayload[K]) {
+  function setField<K extends keyof CreateCompanyPayload>(key: K, value: CreateCompanyPayload[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 

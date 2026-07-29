@@ -8,7 +8,7 @@ import {
   listTaxRegimes,
   listTaxTypes,
 } from "../../lib/catalogs";
-import type { CatalogEntry, CreateIssuerPayload, Municipality } from "../../lib/types";
+import type { CatalogEntry, CreateCompanyPayload, Municipality } from "../../lib/types";
 import { Banner } from "../ui/Banner";
 import { Button } from "../ui/Button";
 import type { MissingField, TabId } from "./CompanyForm";
@@ -20,7 +20,7 @@ function findLabel(entries: CatalogEntry[], code: string | undefined): string {
 }
 
 interface ReviewStepProps {
-  form: CreateIssuerPayload;
+  form: CreateCompanyPayload;
   missingFields: MissingField[];
   onEditTab: (tab: TabId) => void;
   onSubmit: () => void;

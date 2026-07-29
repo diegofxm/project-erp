@@ -4,12 +4,12 @@ import { listDepartments, listIdentificationTypes, listLiabilityCodes, listMunic
 import { ApiError } from "../../lib/apiClient";
 import { verifyAcquirer } from "../../lib/dianVerification";
 import { useCatalog } from "../../lib/useCatalog";
-import type { CustomerPayload, VendorPayload, Municipality } from "../../lib/types";
+import type { CustomerPayload, SupplierPayload, Municipality } from "../../lib/types";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 
-type PartyPayload = CustomerPayload | VendorPayload;
+type PartyPayload = CustomerPayload | SupplierPayload;
 
 interface PartyFieldsProps {
   value: PartyPayload;

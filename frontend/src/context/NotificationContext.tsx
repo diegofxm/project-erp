@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "./AuthContext";
 import { listNumberingRanges } from "../lib/numberingRanges";
-import type { Issuer, NumberingRange } from "../lib/types";
+import type { Company, NumberingRange } from "../lib/types";
 
 const READS_KEY = "apidian.notification_reads";
 const DISMISSED_KEY = "apidian.notification_dismissed";
@@ -53,16 +53,16 @@ function docTypeLabel(code: string): string {
   return code === "01" ? "Factura" : code === "91" ? "Nota Crédito" : code === "92" ? "Nota Débito" : code;
 }
 
-function computeNotifications(issuer: Issuer | null, ranges: NumberingRange[], reads: Set<string>, dismissed: Set<string>): AppNotification[] {
+function computeNotifications(company: Company | null, ranges: NumberingRange[], reads: Set<string>, dismissed: Set<string>): AppNotification[] {
   const out: AppNotification[] = [];
 
   // ── Certificado digital ────────────────────────────────────────────────────
-  if (issuer?.has_certificate && issuer.certificate_expires_at) {
-    const days = daysUntil(issuer.certificate_expires_at);
-    const exp = fmtDate(issuer.certificate_expires_at);
+  if (company?.has_certificate && company.certificate_expires_at) {
+    const days = daysUntil(company.certificate_expires_at);
+    const exp = fmtDate(company.certificate_expires_at);
 
     if (days < 0) {
-      const id = `cert_expired:${issuer.certificate_expires_at}`;
+      const id = `cert_expired:${company.certificate_expires_at}`;
       out.push({
         id, tone: "danger",
         title: "Certificado digital vencido",
@@ -71,7 +71,7 @@ function computeNotifications(issuer: Issuer | null, ranges: NumberingRange[], r
         linkTo: "/settings/company",
       });
     } else if (days <= WARN_DAYS) {
-      const id = `cert_expiring:${issuer.certificate_expires_at}`;
+      const id = `cert_expiring:${company.certificate_expires_at}`;
       out.push({
         id, tone: "warning",
         title: `Certificado digital vence en ${days} día${days === 1 ? "" : "s"}`,
@@ -125,19 +125,19 @@ function computeNotifications(issuer: Issuer | null, ranges: NumberingRange[], r
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const { activeIssuer, isAuthenticated } = useAuth();
+  const { activeCompany, isAuthenticated } = useAuth();
   const [ranges, setRanges] = useState<NumberingRange[]>([]);
   const [reads, setReads] = useState<Set<string>>(() => readSet(READS_KEY));
   const [dismissed, setDismissed] = useState<Set<string>>(() => readSet(DISMISSED_KEY));
 
   useEffect(() => {
-    if (!isAuthenticated || !activeIssuer) { setRanges([]); return; }
+    if (!isAuthenticated || !activeCompany) { setRanges([]); return; }
     listNumberingRanges().then(setRanges).catch(() => setRanges([]));
-  }, [isAuthenticated, activeIssuer?.id]);
+  }, [isAuthenticated, activeCompany?.id]);
 
   const notifications = useMemo(
-    () => computeNotifications(activeIssuer, ranges, reads, dismissed),
-    [activeIssuer, ranges, reads, dismissed],
+    () => computeNotifications(activeCompany, ranges, reads, dismissed),
+    [activeCompany, ranges, reads, dismissed],
   );
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.isRead).length, [notifications]);

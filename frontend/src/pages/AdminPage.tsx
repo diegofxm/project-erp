@@ -7,27 +7,27 @@ import { useToast } from "../context/ToastContext";
 import { apiClient, ApiError } from "../lib/apiClient";
 import {
   adminListPlans,
-  adminGetIssuer,
+  adminGetCompany,
   adminGetSubscription,
   adminGetIssuerSettings,
   adminAssignPlan,
   adminUpdatePlan,
   adminApplyPlanIncrement,
   adminUpdateIssuerSettings,
-  adminAffiliateIssuer,
-  adminRenewIssuer,
+  adminAffiliateCompany,
+  adminRenewCompany,
   adminGetBillingSummary,
   adminGetRenewalsSummary,
   adminListUsers,
   adminCreateUser,
-  adminListIssuerPayments,
+  adminListCompanyPayments,
   adminListProspects,
   adminApproveProspect,
   adminRejectProspect,
   adminProspectCedulaUrl,
   adminProspectRutUrl,
 } from "../lib/admin";
-import type { AdminUser, BillingEntry, IssuerSettings, Payment, Plan, Prospect, RenewalEntry, Subscription, Issuer } from "../lib/types";
+import type { AdminUser, BillingEntry, IssuerSettings, Payment, Plan, Prospect, RenewalEntry, Subscription, Company } from "../lib/types";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 
@@ -206,7 +206,7 @@ function RenewalsContent() {
 function IssuerContent() {
   const toast = useToast();
   const [issuerId, setIssuerId] = useState("");
-  const [issuer, setIssuer] = useState<Issuer | null>(null);
+  const [issuer, setIssuer] = useState<Company | null>(null);
   const [sub, setSub] = useState<Subscription | null>(null);
   const [settings, setSettings] = useState<IssuerSettings | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -232,14 +232,14 @@ function IssuerContent() {
     setPaymentsHistory([]);
     try {
       const [issRes, subRes] = await Promise.allSettled([
-        adminGetIssuer(issuerId.trim()),
+        adminGetCompany(issuerId.trim()),
         adminGetSubscription(issuerId.trim()),
       ]);
       if (issRes.status === "fulfilled") {
         setIssuer(issRes.value);
         const [st, pmts] = await Promise.all([
           adminGetIssuerSettings(issRes.value.id).catch(() => null),
-          adminListIssuerPayments(issRes.value.id).catch(() => []),
+          adminListCompanyPayments(issRes.value.id).catch(() => []),
         ]);
         if (st) {
           setSettings(st);
@@ -291,9 +291,9 @@ function IssuerContent() {
     if (isNaN(fee) || fee < 0) { toast.error("Ingresa una tarifa válida."); return; }
     setAffiliating(true);
     try {
-      const st = await adminAffiliateIssuer(issuer.id, fee);
+      const st = await adminAffiliateCompany(issuer.id, fee);
       setSettings(st);
-      adminListIssuerPayments(issuer.id).then(setPaymentsHistory).catch(() => {});
+      adminListCompanyPayments(issuer.id).then(setPaymentsHistory).catch(() => {});
       toast.success(`Afiliación registrada. Vigente hasta ${formatDate(st.renewal_due_at)}.`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo registrar la afiliación");
@@ -308,9 +308,9 @@ function IssuerContent() {
     if (isNaN(fee) || fee < 0) { toast.error("Ingresa una tarifa válida."); return; }
     setRenewing(true);
     try {
-      const st = await adminRenewIssuer(issuer.id, fee);
+      const st = await adminRenewCompany(issuer.id, fee);
       setSettings(st);
-      adminListIssuerPayments(issuer.id).then(setPaymentsHistory).catch(() => {});
+      adminListCompanyPayments(issuer.id).then(setPaymentsHistory).catch(() => {});
       toast.success(`Renovación registrada. Nueva vigencia hasta ${formatDate(st.renewal_due_at)}.`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo registrar la renovación");

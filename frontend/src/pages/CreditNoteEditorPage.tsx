@@ -56,7 +56,7 @@ export function CreditNoteEditorPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { activeIssuer } = useAuth();
+  const { activeCompany } = useAuth();
   const confirmDialog = useConfirm();
   const toast = useToast();
   const isNew = id === "new";
@@ -209,7 +209,7 @@ export function CreditNoteEditorPage() {
     }
   }
 
-  const issuerNotReady = !activeIssuer?.has_software_credentials || !activeIssuer?.has_certificate;
+  const issuerNotReady = !activeCompany?.has_software_credentials || !activeCompany?.has_certificate;
 
   if (loadingDocument) {
     return (

@@ -3,12 +3,11 @@ import { apiClient, ApiError, setAuthToken } from "../lib/apiClient";
 import type {
   AuthResult,
   Company,
-  CreateIssuerPayload,
-  Issuer,
+  CreateCompanyPayload,
   LoginPayload,
   RegisterPayload,
-  UpdateIssuerPayload,
-  UpdateIssuerProfilePayload,
+  UpdateCompanyPayload,
+  UpdateCompanyProfilePayload,
   User,
 } from "../lib/types";
 
@@ -17,12 +16,12 @@ const STORAGE_KEY = "apidian.session";
 interface StoredSession {
   token: string;
   user: User;
-  issuer: Issuer | null;
+  company: Company | null;
 }
 
 interface AuthContextValue {
   user: User | null;
-  activeIssuer: Issuer | null;
+  activeCompany: Company | null;
   isAuthenticated: boolean;
   isReady: boolean;
   connectionError: boolean;
@@ -31,16 +30,16 @@ interface AuthContextValue {
   acceptInvite: (token: string, password: string) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
-  listIssuers: () => Promise<Issuer[]>;
-  createIssuer: (payload: CreateIssuerPayload) => Promise<void>;
-  selectIssuer: (id: string) => Promise<void>;
+  listCompanies: () => Promise<Company[]>;
+  createCompany: (payload: CreateCompanyPayload) => Promise<void>;
+  selectCompany: (id: string) => Promise<void>;
   updateProfile: (name: string, email: string) => Promise<User>;
-  updateIssuer: (payload: UpdateIssuerPayload) => Promise<Issuer>;
-  updateIssuerProfile: (payload: UpdateIssuerProfilePayload) => Promise<Issuer>;
-  deleteIssuerLogo: () => Promise<Issuer>;
-  deleteIssuerSoftware: () => Promise<Issuer>;
-  deleteIssuerNeSoftware: () => Promise<Issuer>;
-  deleteIssuerCertificate: () => Promise<Issuer>;
+  updateCompany: (payload: UpdateCompanyPayload) => Promise<Company>;
+  updateCompanyProfile: (payload: UpdateCompanyProfilePayload) => Promise<Company>;
+  deleteCompanyLogo: () => Promise<Company>;
+  deleteCompanySoftware: () => Promise<Company>;
+  deleteCompanyNeSoftware: () => Promise<Company>;
+  deleteCompanyCertificate: () => Promise<Company>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -49,7 +48,12 @@ function readStoredSession(): StoredSession | null {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as StoredSession;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    // Migración: sesiones antiguas usan la clave "issuer"
+    if ("issuer" in parsed && !("company" in parsed)) {
+      parsed.company = parsed.issuer;
+    }
+    return parsed as unknown as StoredSession;
   } catch {
     return null;
   }
@@ -69,12 +73,10 @@ async function fetchCompany(): Promise<Company | null> {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [activeIssuer, setActiveIssuer] = useState<Issuer | null>(null);
+  const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
 
-  // applyAuthResult: recibe {token, company_id, user} del ERP.
-  // Si hay company_id, hace GET /companies/active para hidratar la empresa completa.
   const applyAuthResult = useCallback(async (result: AuthResult) => {
     setAuthToken(result.token);
     setUser(result.user);
@@ -84,9 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       company = await fetchCompany();
     }
 
-    const session: StoredSession = { token: result.token, user: result.user, issuer: company };
+    const session: StoredSession = { token: result.token, user: result.user, company };
     writeStoredSession(session);
-    setActiveIssuer(company);
+    setActiveCompany(company);
   }, []);
 
   const login = useCallback(
@@ -117,23 +119,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(STORAGE_KEY);
     setAuthToken(null);
     setUser(null);
-    setActiveIssuer(null);
+    setActiveCompany(null);
     setConnectionError(false);
   }, []);
 
-  // verifySession: valida el token con GET /auth/me y refresca la empresa desde
-  // GET /companies/active. Un 401 real cierra sesión; cualquier error de red solo activa
-  // connectionError sin borrar las credenciales (el servidor puede estar apagado).
   const verifySession = useCallback(async () => {
     const stored = readStoredSession();
     try {
       await apiClient.get<User>("/auth/me");
 
-      if (stored?.issuer?.id) {
+      if (stored?.company?.id) {
         const company = await fetchCompany();
         if (company && stored) {
-          writeStoredSession({ ...stored, issuer: company });
-          setActiveIssuer(company);
+          writeStoredSession({ ...stored, company });
+          setActiveCompany(company);
         }
       }
       setConnectionError(false);
@@ -155,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setAuthToken(stored.token);
     setUser(stored.user);
-    setActiveIssuer(stored.issuer);
+    setActiveCompany(stored.company);
     verifySession().finally(() => setIsReady(true));
   }, []);
 
@@ -163,8 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await verifySession();
   }, [verifySession]);
 
-  // listIssuers: devuelve todas las empresas del usuario autenticado.
-  const listIssuers = useCallback(async () => {
+  const listCompanies = useCallback(async () => {
     try {
       return await apiClient.get<Company[]>("/companies");
     } catch {
@@ -172,18 +170,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const createIssuer = useCallback(
-    async (payload: CreateIssuerPayload) => {
-      // 1. Crea la empresa en el ERP
+  const createCompany = useCallback(
+    async (payload: CreateCompanyPayload) => {
       const company = await apiClient.post<Company>("/companies", payload);
-      // 2. Selecciona la empresa para emitir un token con company_id embebido
       const result = await apiClient.post<AuthResult>("/auth/select-company", { company_id: company.id });
       await applyAuthResult(result);
     },
     [applyAuthResult],
   );
 
-  const selectIssuer = useCallback(
+  const selectCompany = useCallback(
     async (id: string) => {
       const result = await apiClient.post<AuthResult>("/auth/select-company", { company_id: id });
       await applyAuthResult(result);
@@ -199,9 +195,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return updated;
   }, []);
 
-  // updateIssuer: enruta a /companies/active/logo si hay logo_base64, o a
-  // /companies/active/credentials para software/certificado.
-  const updateIssuer = useCallback(async (payload: UpdateIssuerPayload) => {
+  const refreshCompanyState = useCallback(async (): Promise<Company> => {
+    const company = await apiClient.get<Company>("/companies/active");
+    setActiveCompany(company);
+    const stored = readStoredSession();
+    if (stored) writeStoredSession({ ...stored, company });
+    return company;
+  }, []);
+
+  const updateCompany = useCallback(async (payload: UpdateCompanyPayload) => {
     let updated: Company;
     if (payload.logo_base64) {
       updated = await apiClient.put<Company>("/companies/active/logo", {
@@ -211,46 +213,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       updated = await apiClient.put<Company>("/companies/active/credentials", payload);
     }
-    setActiveIssuer(updated);
+    setActiveCompany(updated);
     const stored = readStoredSession();
-    if (stored) writeStoredSession({ ...stored, issuer: updated });
+    if (stored) writeStoredSession({ ...stored, company: updated });
     return updated;
   }, []);
 
-  const updateIssuerProfile = useCallback(async (payload: UpdateIssuerProfilePayload) => {
+  const updateCompanyProfile = useCallback(async (payload: UpdateCompanyProfilePayload) => {
     const updated = await apiClient.put<Company>("/companies/active", payload);
-    setActiveIssuer(updated);
+    setActiveCompany(updated);
     const stored = readStoredSession();
-    if (stored) writeStoredSession({ ...stored, issuer: updated });
+    if (stored) writeStoredSession({ ...stored, company: updated });
     return updated;
   }, []);
 
-  const deleteIssuerLogo = useCallback(async () => {
+  const deleteCompanyLogo = useCallback(async () => {
     const updated = await apiClient.del<Company>("/companies/active/logo");
-    setActiveIssuer(updated);
+    setActiveCompany(updated);
     const stored = readStoredSession();
-    if (stored) writeStoredSession({ ...stored, issuer: updated });
+    if (stored) writeStoredSession({ ...stored, company: updated });
     return updated;
   }, []);
 
-  // El ERP no tiene endpoints de borrado de software/certificado. Se refrescan los datos
-  // actuales desde el servidor para que el UI muestre el estado real.
-  const refreshCompany = useCallback(async (): Promise<Company> => {
-    const company = await apiClient.get<Company>("/companies/active");
-    setActiveIssuer(company);
-    const stored = readStoredSession();
-    if (stored) writeStoredSession({ ...stored, issuer: company });
-    return company;
-  }, []);
-
-  const deleteIssuerSoftware = useCallback(() => refreshCompany(), [refreshCompany]);
-  const deleteIssuerNeSoftware = useCallback(() => refreshCompany(), [refreshCompany]);
-  const deleteIssuerCertificate = useCallback(() => refreshCompany(), [refreshCompany]);
+  const deleteCompanySoftware = useCallback(() => refreshCompanyState(), [refreshCompanyState]);
+  const deleteCompanyNeSoftware = useCallback(() => refreshCompanyState(), [refreshCompanyState]);
+  const deleteCompanyCertificate = useCallback(() => refreshCompanyState(), [refreshCompanyState]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      activeIssuer,
+      activeCompany,
       isAuthenticated: user !== null,
       isReady,
       connectionError,
@@ -259,20 +251,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       acceptInvite,
       register,
       logout,
-      listIssuers,
-      createIssuer,
-      selectIssuer,
+      listCompanies,
+      createCompany,
+      selectCompany,
       updateProfile,
-      updateIssuer,
-      updateIssuerProfile,
-      deleteIssuerLogo,
-      deleteIssuerSoftware,
-      deleteIssuerNeSoftware,
-      deleteIssuerCertificate,
+      updateCompany,
+      updateCompanyProfile,
+      deleteCompanyLogo,
+      deleteCompanySoftware,
+      deleteCompanyNeSoftware,
+      deleteCompanyCertificate,
     }),
     [
       user,
-      activeIssuer,
+      activeCompany,
       isReady,
       connectionError,
       retryConnection,
@@ -280,16 +272,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       acceptInvite,
       register,
       logout,
-      listIssuers,
-      createIssuer,
-      selectIssuer,
+      listCompanies,
+      createCompany,
+      selectCompany,
       updateProfile,
-      updateIssuer,
-      updateIssuerProfile,
-      deleteIssuerLogo,
-      deleteIssuerSoftware,
-      deleteIssuerNeSoftware,
-      deleteIssuerCertificate,
+      updateCompany,
+      updateCompanyProfile,
+      deleteCompanyLogo,
+      deleteCompanySoftware,
+      deleteCompanyNeSoftware,
+      deleteCompanyCertificate,
     ],
   );
 
