@@ -552,13 +552,21 @@ func numberingRangeFrom(nr *domain.NumberingRange) cofdom.NumberingRange {
 	if nr.RangeTo != nil {
 		end = strconv.FormatInt(*nr.RangeTo, 10)
 	}
+	startDate := ""
+	if !nr.ValidFrom.IsZero() {
+		startDate = nr.ValidFrom.Format("2006-01-02")
+	}
+	endDate := ""
+	if !nr.ValidTo.IsZero() {
+		endDate = nr.ValidTo.Format("2006-01-02")
+	}
 	return cofdom.NumberingRange{
 		AuthorizedCode: nr.ResolutionNumber,
 		Prefix:         nr.Prefix,
 		StartNumber:    strconv.FormatInt(nr.RangeFrom, 10),
 		EndNumber:      end,
-		StartDate:      nr.ValidFrom.Format("2006-01-02"),
-		EndDate:        nr.ValidTo.Format("2006-01-02"),
+		StartDate:      startDate,
+		EndDate:        endDate,
 	}
 }
 
