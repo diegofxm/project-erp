@@ -195,14 +195,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return updated;
   }, []);
 
-  const refreshCompanyState = useCallback(async (): Promise<Company> => {
-    const company = await apiClient.get<Company>("/companies/active");
-    setActiveCompany(company);
-    const stored = readStoredSession();
-    if (stored) writeStoredSession({ ...stored, company });
-    return company;
-  }, []);
-
   const updateCompany = useCallback(async (payload: UpdateCompanyPayload) => {
     let updated: Company;
     if (payload.logo_base64) {
@@ -235,9 +227,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return updated;
   }, []);
 
-  const deleteCompanySoftware = useCallback(() => refreshCompanyState(), [refreshCompanyState]);
-  const deleteCompanyNeSoftware = useCallback(() => refreshCompanyState(), [refreshCompanyState]);
-  const deleteCompanyCertificate = useCallback(() => refreshCompanyState(), [refreshCompanyState]);
+  const deleteCompanySoftware = useCallback(async () => {
+    const company = await apiClient.del<Company>("/companies/active/credentials/software");
+    setActiveCompany(company);
+    const stored = readStoredSession();
+    if (stored) writeStoredSession({ ...stored, company });
+    return company;
+  }, []);
+
+  const deleteCompanyNeSoftware = useCallback(async () => {
+    const company = await apiClient.del<Company>("/companies/active/credentials/ne-software");
+    setActiveCompany(company);
+    const stored = readStoredSession();
+    if (stored) writeStoredSession({ ...stored, company });
+    return company;
+  }, []);
+
+  const deleteCompanyCertificate = useCallback(async () => {
+    const company = await apiClient.del<Company>("/companies/active/credentials/certificate");
+    setActiveCompany(company);
+    const stored = readStoredSession();
+    if (stored) writeStoredSession({ ...stored, company });
+    return company;
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({

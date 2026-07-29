@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS company.companies (
     software_pin_enc                BYTEA,
     certificate                     BYTEA,
     certificate_password_enc        BYTEA,
+    certificate_subject             TEXT,
+    certificate_issuer_cn           TEXT,
+    certificate_expires_at          TIMESTAMPTZ,
 
     -- Credenciales DIAN — Nómina Electrónica (cifradas)
     ne_software_id                  TEXT NOT NULL DEFAULT '',

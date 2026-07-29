@@ -48,6 +48,10 @@ type Company struct {
 	SoftwarePIN         string // cifrado en DB con AES-256-GCM
 	Certificate         []byte
 	CertificatePassword string // cifrado en DB
+	// Metadatos extraídos del p12 al guardar (solo presentes si has_certificate es true)
+	CertificateSubject   *string
+	CertificateIssuerCN  *string
+	CertificateExpiresAt *time.Time
 
 	// Credenciales DIAN — Nómina Electrónica
 	NeSoftwareID  string

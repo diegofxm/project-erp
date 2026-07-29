@@ -35,4 +35,5 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
+	software.sslmate.com/src/go-pkcs12 v0.7.3 // indirect
 )

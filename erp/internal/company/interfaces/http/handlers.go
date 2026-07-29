@@ -18,6 +18,7 @@ type Handler struct {
 	get       *application.GetUseCase
 	profile   *application.UpdateProfileUseCase
 	creds     *application.UpdateCredentialsUseCase
+	clearCred *application.ClearCredentialUseCase
 	logo      *application.UpdateLogoUseCase
 	warehouse *application.WarehouseUseCase
 }
@@ -27,10 +28,15 @@ func NewHandler(
 	get *application.GetUseCase,
 	profile *application.UpdateProfileUseCase,
 	creds *application.UpdateCredentialsUseCase,
+	clearCred *application.ClearCredentialUseCase,
 	logo *application.UpdateLogoUseCase,
 	warehouse *application.WarehouseUseCase,
 ) *Handler {
-	return &Handler{create: create, get: get, profile: profile, creds: creds, logo: logo, warehouse: warehouse}
+	return &Handler{
+		create: create, get: get, profile: profile,
+		creds: creds, clearCred: clearCred,
+		logo: logo, warehouse: warehouse,
+	}
 }
 
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -155,6 +161,61 @@ func (h *Handler) handleUpdateCredentials(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := h.creds.Execute(r.Context(), companyID, req); err != nil {
+		if errors.Is(err, application.ErrBadCertificate) {
+			respondError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	c, err := h.get.ByID(r.Context(), companyID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, safeCompany(c))
+}
+
+func (h *Handler) handleClearSoftware(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	if err := h.clearCred.Execute(r.Context(), companyID, application.CredentialSoftware); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	c, err := h.get.ByID(r.Context(), companyID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, safeCompany(c))
+}
+
+func (h *Handler) handleClearNeSoftware(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	if err := h.clearCred.Execute(r.Context(), companyID, application.CredentialNeSoftware); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	c, err := h.get.ByID(r.Context(), companyID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, safeCompany(c))
+}
+
+func (h *Handler) handleClearCertificate(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	if err := h.clearCred.Execute(r.Context(), companyID, application.CredentialCertificate); err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -420,35 +481,38 @@ func requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 
 func safeCompany(c *domain.Company) map[string]any {
 	return map[string]any{
-		"id":                              c.ID,
-		"nit":                             c.NIT,
-		"check_digit":                     c.CheckDigit,
-		"business_name":                   c.BusinessName,
-		"trade_name":                      c.TradeName,
-		"identification_type_code":        c.IdentificationTypeCode,
-		"department_code":                 c.DepartmentCode,
-		"municipality_code":               c.MunicipalityCode,
-		"address_line":                    c.AddressLine,
-		"email":                           c.Email,
-		"phone":                           c.Phone,
-		"environment":                     c.Environment,
-		"entity_type_code":                c.EntityTypeCode,
-		"tax_scheme_code":                 c.TaxSchemeCode,
-		"tax_scheme_name":                 c.TaxSchemeName,
-		"liability_codes":                 c.LiabilityCodes,
-		"tax_regime_code":                 c.TaxRegimeCode,
-		"industry_classification_codes":   c.IndustryClassificationCodes,
-		"merchant_registration_number":    c.MerchantRegistrationNumber,
-		"software_id":                     c.SoftwareID,
-		"has_software_credentials":        c.SoftwareID != "",
-		"ne_software_id":                  c.NeSoftwareID,
-		"has_ne_software_credentials":     c.NeSoftwareID != "",
-		"has_certificate":                 len(c.Certificate) > 0,
-		"has_logo":                        len(c.Logo) > 0,
-		"logo_content_type":               c.LogoContentType,
-		"is_active":                       c.IsActive,
-		"created_at":                      c.CreatedAt,
-		"updated_at":                      c.UpdatedAt,
+		"id":                            c.ID,
+		"nit":                           c.NIT,
+		"check_digit":                   c.CheckDigit,
+		"business_name":                 c.BusinessName,
+		"trade_name":                    c.TradeName,
+		"identification_type_code":      c.IdentificationTypeCode,
+		"department_code":               c.DepartmentCode,
+		"municipality_code":             c.MunicipalityCode,
+		"address_line":                  c.AddressLine,
+		"email":                         c.Email,
+		"phone":                         c.Phone,
+		"environment":                   c.Environment,
+		"entity_type_code":              c.EntityTypeCode,
+		"tax_scheme_code":               c.TaxSchemeCode,
+		"tax_scheme_name":               c.TaxSchemeName,
+		"liability_codes":               c.LiabilityCodes,
+		"tax_regime_code":               c.TaxRegimeCode,
+		"industry_classification_codes": c.IndustryClassificationCodes,
+		"merchant_registration_number":  c.MerchantRegistrationNumber,
+		"software_id":                   c.SoftwareID,
+		"has_software_credentials":      c.SoftwareID != "",
+		"ne_software_id":                c.NeSoftwareID,
+		"has_ne_software_credentials":   c.NeSoftwareID != "",
+		"has_certificate":               len(c.Certificate) > 0,
+		"certificate_subject":           c.CertificateSubject,
+		"certificate_issuer_cn":         c.CertificateIssuerCN,
+		"certificate_expires_at":        c.CertificateExpiresAt,
+		"has_logo":                      len(c.Logo) > 0,
+		"logo_content_type":             c.LogoContentType,
+		"is_active":                     c.IsActive,
+		"created_at":                    c.CreatedAt,
+		"updated_at":                    c.UpdatedAt,
 	}
 }
 

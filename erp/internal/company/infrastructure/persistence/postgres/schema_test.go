@@ -36,6 +36,7 @@ func TestSchema_CompanyTables(t *testing.T) {
 			tax_scheme_code, tax_scheme_name, liability_codes, tax_regime_code,
 			industry_classification_codes, merchant_registration_number,
 			software_id, software_pin_enc, certificate, certificate_password_enc,
+			certificate_subject, certificate_issuer_cn, certificate_expires_at,
 			ne_software_id, ne_software_pin_enc,
 			logo, logo_content_type, is_active, created_at, updated_at`},
 		{"company.warehouses", "id, company_id, code, name, address, is_active, created_at, updated_at"},

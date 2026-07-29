@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/diegofxm/erp/internal/company/domain"
+	"github.com/diegofxm/erp/internal/shared/nit"
 )
 
 // MembershipLinker vincula el usuario creador a la empresa recién creada.
@@ -60,10 +61,19 @@ func (uc *CreateUseCase) Execute(ctx context.Context, creatorID uuid.UUID, req C
 		req.TaxSchemeName = "No aplica"
 	}
 
+	// Para NITs (tipo 31) el DV se calcula siempre — aunque el usuario mande uno incorrecto,
+	// la DIAN requiere el dígito exacto o rechaza el documento.
+	checkDigit := req.CheckDigit
+	if req.IdentificationTypeCode == "31" {
+		if dv, err := nit.ComputeCheckDigit(req.NIT); err == nil {
+			checkDigit = dv
+		}
+	}
+
 	c := domain.Company{
 		ID:                          uuid.New(),
 		NIT:                         req.NIT,
-		CheckDigit:                  req.CheckDigit,
+		CheckDigit:                  checkDigit,
 		BusinessName:                req.BusinessName,
 		TradeName:                   req.TradeName,
 		IdentificationTypeCode:      req.IdentificationTypeCode,

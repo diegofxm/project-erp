@@ -443,7 +443,13 @@ func (h *Handler) handleListNumberingRanges(w http.ResponseWriter, r *http.Reque
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, ranges)
+	if ranges == nil {
+		ranges = []*domain.NumberingRange{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"numbering_ranges": ranges,
+		"count":            len(ranges),
+	})
 }
 
 func (h *Handler) handleDeactivateRange(w http.ResponseWriter, r *http.Request) {

@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/diegofxm/erp/internal/company/domain"
+	"github.com/diegofxm/erp/internal/shared/nit"
 )
 
 type UpdateProfileUseCase struct {
@@ -57,6 +58,14 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, id uuid.UUID, req U
 	existing.TaxRegimeCode = req.TaxRegimeCode
 	existing.IndustryClassificationCodes = req.IndustryClassificationCodes
 	existing.MerchantRegistrationNumber = req.MerchantRegistrationNumber
+
+	// Recalcula el DV siempre que sea NIT (tipo 31) — garantiza que el dígito almacenado
+	// sea el correcto aunque el NIT original se registró con un DV errado.
+	if existing.IdentificationTypeCode == "31" {
+		if dv, err := nit.ComputeCheckDigit(existing.NIT); err == nil {
+			existing.CheckDigit = dv
+		}
+	}
 
 	return uc.repo.UpdateProfile(ctx, *existing)
 }

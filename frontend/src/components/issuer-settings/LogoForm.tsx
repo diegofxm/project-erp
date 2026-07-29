@@ -11,11 +11,10 @@ import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { StatusBadge } from "./SoftwareCertificateForm";
 
-// apidian solo acepta estos dos formatos (mismos que internal/pdf necesita para incrustar la
-// imagen, ver issuers.ErrInvalidLogoContentType en docs/apidian-architecture.md sección 9.39).
 const CONTENT_TYPE_BY_MIME: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpeg",
+  "image/png": "image/png",
+  "image/jpeg": "image/jpeg",
+  "image/webp": "image/webp",
 };
 
 // Logo para la representación gráfica en PDF — opcional, no es un secreto (a diferencia de
@@ -39,7 +38,7 @@ export function LogoForm() {
     let objectUrl: string | null = null;
     setLoadingPreview(true);
     apiClient
-      .getBlob("/issuers/me/logo")
+      .getBlob("/companies/active/logo")
       .then((blob) => {
         objectUrl = URL.createObjectURL(blob);
         setPreviewUrl(objectUrl);
@@ -60,7 +59,7 @@ export function LogoForm() {
     }
     const contentType = CONTENT_TYPE_BY_MIME[file.type];
     if (!contentType) {
-      toast.error("El logo debe ser una imagen PNG o JPG.");
+      toast.error("El logo debe ser una imagen PNG, JPG o WebP.");
       return;
     }
 
@@ -106,10 +105,10 @@ export function LogoForm() {
           <AsyncImage src={previewUrl} loading={loadingPreview} alt="Logo actual" className="h-12 w-12" />
         )}
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-(--text-secondary)">Imagen (PNG o JPG)</span>
+          <span className="text-xs font-medium text-(--text-secondary)">Imagen (PNG, JPG o WebP)</span>
           <input
             type="file"
-            accept="image/png,image/jpeg"
+            accept="image/png,image/jpeg,image/webp"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="rounded border border-(--border-color) bg-(--bg-primary) px-3 py-1.5 text-xs text-(--text-primary)"
           />

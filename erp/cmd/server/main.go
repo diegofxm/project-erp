@@ -248,6 +248,7 @@ func main() {
 	getCompanyUC := companyapp.NewGetUseCase(companyRepo)
 	updateCompanyProfile := companyapp.NewUpdateProfileUseCase(companyRepo)
 	updateCompanyCreds := companyapp.NewUpdateCredentialsUseCase(companyRepo)
+	clearCompanyCreds := companyapp.NewClearCredentialUseCase(companyRepo)
 	updateCompanyLogo := companyapp.NewUpdateLogoUseCase(companyRepo)
 	warehouseUC := companyapp.NewWarehouseUseCase(warehouseRepo)
 
@@ -261,7 +262,7 @@ func main() {
 	).RegisterRoutes(mux)
 	companyhttp.NewHandler(
 		createCompanyUC, getCompanyUC,
-		updateCompanyProfile, updateCompanyCreds, updateCompanyLogo,
+		updateCompanyProfile, updateCompanyCreds, clearCompanyCreds, updateCompanyLogo,
 		warehouseUC,
 	).RegisterRoutes(mux)
 	customerhttp.NewHandler(createCustomerUC, getCustomerUC, updateCustomerUC, deleteCustomerUC).RegisterRoutes(mux)

@@ -153,29 +153,101 @@ func (r *Repository) UpdateProfile(ctx context.Context, c domain.Company) (*doma
 	return r.GetByID(ctx, c.ID)
 }
 
-func (r *Repository) UpdateCredentials(ctx context.Context, id uuid.UUID, softwareID, softwarePIN string, cert []byte, certPwd, neSoftwareID, neSoftwarePIN string) error {
-	pinEnc, err := cryptutil.Encrypt(r.key, []byte(softwarePIN))
-	if err != nil {
-		return fmt.Errorf("cifrar software_pin: %w", err)
-	}
-	certPwdEnc, err := cryptutil.Encrypt(r.key, []byte(certPwd))
-	if err != nil {
-		return fmt.Errorf("cifrar certificate_password: %w", err)
-	}
-	nePinEnc, err := cryptutil.Encrypt(r.key, []byte(neSoftwarePIN))
-	if err != nil {
-		return fmt.Errorf("cifrar ne_software_pin: %w", err)
+// UpdateCredentials actualiza solo los grupos de credenciales que estén presentes en p.
+// Si p.SoftwareID == "" no toca software FE; si p.Certificate == nil no toca el certificado;
+// si p.NeSoftwareID == "" no toca software NE.
+func (r *Repository) UpdateCredentials(ctx context.Context, id uuid.UUID, p domain.CredentialsParams) error {
+	var pinEnc []byte
+	if p.SoftwareID != "" {
+		var err error
+		pinEnc, err = cryptutil.Encrypt(r.key, []byte(p.SoftwarePIN))
+		if err != nil {
+			return fmt.Errorf("cifrar software_pin: %w", err)
+		}
 	}
 
-	_, err = r.pool.Exec(ctx, `
+	var certPwdEnc []byte
+	if len(p.Certificate) > 0 {
+		var err error
+		certPwdEnc, err = cryptutil.Encrypt(r.key, []byte(p.CertificatePassword))
+		if err != nil {
+			return fmt.Errorf("cifrar certificate_password: %w", err)
+		}
+	}
+
+	var nePinEnc []byte
+	if p.NeSoftwareID != "" {
+		var err error
+		nePinEnc, err = cryptutil.Encrypt(r.key, []byte(p.NeSoftwarePIN))
+		if err != nil {
+			return fmt.Errorf("cifrar ne_software_pin: %w", err)
+		}
+	}
+
+	// cert es nil cuando no hay certificado nuevo; CASE WHEN $3 IS NOT NULL cubre eso.
+	var cert interface{} = p.Certificate
+	if len(p.Certificate) == 0 {
+		cert = nil
+	}
+
+	// $3::BYTEA fuerza el tipo explícito: pgx pasa nil sin OID y PostgreSQL
+	// no puede resolver el tipo en el CASE WHEN sin el cast.
+	_, err := r.pool.Exec(ctx, `
 		UPDATE company.companies SET
-			software_id=$1, software_pin_enc=$2, certificate=$3, certificate_password_enc=$4,
-			ne_software_id=$5, ne_software_pin_enc=$6, updated_at=NOW()
-		WHERE id=$7`,
-		softwareID, pinEnc, cert, certPwdEnc, neSoftwareID, nePinEnc, id,
+			software_id              = CASE WHEN $1 != '' THEN $1 ELSE software_id END,
+			software_pin_enc         = CASE WHEN $1 != '' THEN $2 ELSE software_pin_enc END,
+			certificate              = CASE WHEN ($3::BYTEA) IS NOT NULL THEN $3::BYTEA ELSE certificate END,
+			certificate_password_enc = CASE WHEN ($3::BYTEA) IS NOT NULL THEN $4 ELSE certificate_password_enc END,
+			certificate_subject      = CASE WHEN ($3::BYTEA) IS NOT NULL THEN $5 ELSE certificate_subject END,
+			certificate_issuer_cn    = CASE WHEN ($3::BYTEA) IS NOT NULL THEN $6 ELSE certificate_issuer_cn END,
+			certificate_expires_at   = CASE WHEN ($3::BYTEA) IS NOT NULL THEN $7 ELSE certificate_expires_at END,
+			ne_software_id           = CASE WHEN $8 != '' THEN $8 ELSE ne_software_id END,
+			ne_software_pin_enc      = CASE WHEN $8 != '' THEN $9 ELSE ne_software_pin_enc END,
+			updated_at               = NOW()
+		WHERE id = $10`,
+		p.SoftwareID, pinEnc,
+		cert, certPwdEnc, p.CertificateSubject, p.CertificateIssuerCN, p.CertificateExpiresAt,
+		p.NeSoftwareID, nePinEnc,
+		id,
 	)
 	if err != nil {
 		return fmt.Errorf("actualizar credenciales: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ClearSoftware(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		"UPDATE company.companies SET software_id='', software_pin_enc=NULL, updated_at=NOW() WHERE id=$1",
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("eliminar software: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ClearNeSoftware(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		"UPDATE company.companies SET ne_software_id='', ne_software_pin_enc=NULL, updated_at=NOW() WHERE id=$1",
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("eliminar software NE: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ClearCertificate(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE company.companies SET
+			certificate=NULL, certificate_password_enc=NULL,
+			certificate_subject=NULL, certificate_issuer_cn=NULL, certificate_expires_at=NULL,
+			updated_at=NOW()
+		WHERE id=$1`, id,
+	)
+	if err != nil {
+		return fmt.Errorf("eliminar certificado: %w", err)
 	}
 	return nil
 }
@@ -221,6 +293,7 @@ const companySelect = `
 	       environment, entity_type_code, tax_scheme_code, tax_scheme_name,
 	       liability_codes, tax_regime_code, industry_classification_codes, merchant_registration_number,
 	       software_id, software_pin_enc, certificate, certificate_password_enc,
+	       certificate_subject, certificate_issuer_cn, certificate_expires_at,
 	       ne_software_id, ne_software_pin_enc,
 	       logo, logo_content_type, brand_color, is_active, created_at, updated_at
 	FROM company.companies`
@@ -249,6 +322,7 @@ func (r *Repository) scanCompany(s scanner) (*domain.Company, error) {
 		&env, &c.EntityTypeCode, &c.TaxSchemeCode, &c.TaxSchemeName,
 		&c.LiabilityCodes, &c.TaxRegimeCode, &c.IndustryClassificationCodes, &c.MerchantRegistrationNumber,
 		&c.SoftwareID, &pinEnc, &c.Certificate, &certPwdEnc,
+		&c.CertificateSubject, &c.CertificateIssuerCN, &c.CertificateExpiresAt,
 		&c.NeSoftwareID, &nePinEnc,
 		&c.Logo, &c.LogoContentType, &c.BrandColor, &c.IsActive, &c.CreatedAt, &c.UpdatedAt,
 	)
