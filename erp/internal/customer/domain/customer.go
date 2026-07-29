@@ -10,41 +10,41 @@ import (
 // Customer es un tercero receptor de documentos electrónicos (comprador, beneficiario).
 // Pertenece a un tenant (company_id).
 type Customer struct {
-	ID        uuid.UUID
-	CompanyID uuid.UUID
+	ID        uuid.UUID `json:"id"`
+	CompanyID uuid.UUID `json:"company_id"`
 
 	// Identificación fiscal DIAN
-	IdentificationTypeCode      string // 31=NIT, 13=Cédula, 22=CE, 91=NUIP…
-	IdentificationNumber        string
-	CheckDigit                  string // solo para NIT (tipo 31)
-	EntityTypeCode              string // 1=jurídica, 2=natural (cac:Party DIAN)
-	MerchantRegistrationNumber  string // matrícula mercantil (opcional)
+	IdentificationTypeCode      string `json:"identification_type_code"`
+	IdentificationNumber        string `json:"identification_number"`
+	CheckDigit                  string `json:"check_digit"`
+	EntityTypeCode              string `json:"entity_type_code"`
+	MerchantRegistrationNumber  string `json:"merchant_registration_number"`
 
 	// Nombre
-	Name string // razón social o nombre completo
+	Name string `json:"name"`
 
 	// Clasificación tributaria DIAN
-	TaxSchemeCode  string
-	TaxSchemeName  string
-	TaxRegimeCode  *string
-	LiabilityCodes []string
+	TaxSchemeCode  string   `json:"tax_scheme_code"`
+	TaxSchemeName  string   `json:"tax_scheme_name"`
+	TaxRegimeCode  *string  `json:"tax_regime_code"`
+	LiabilityCodes []string `json:"liability_codes"`
 
 	// Ubicación
-	DepartmentCode      string
-	MunicipalityCode    string
-	AddressLine         string
-	AddressCityName     string // nombre del municipio para XML DIAN
-	AddressStateName    string // nombre del departamento para XML DIAN
-	AddressCountryCode  string // código ISO país, ej. 'CO'
-	AddressCountryName  string // nombre del país, ej. 'Colombia'
+	DepartmentCode     string `json:"department_code"`
+	MunicipalityCode   string `json:"municipality_code"`
+	AddressLine        string `json:"address_line"`
+	AddressCityName    string `json:"address_city_name"`
+	AddressStateName   string `json:"address_state_name"`
+	AddressCountryCode string `json:"address_country_code"`
+	AddressCountryName string `json:"address_country_name"`
 
 	// Contacto
-	Email string
-	Phone string
+	Email string `json:"email"`
+	Phone string `json:"phone"`
 
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 var (

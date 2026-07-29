@@ -63,7 +63,7 @@ func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
 	if list == nil {
 		list = []domain.Product{}
 	}
-	respond(w, http.StatusOK, list)
+	respond(w, http.StatusOK, map[string]any{"products": list, "count": len(list)})
 }
 
 func (h *Handler) handleGetByID(w http.ResponseWriter, r *http.Request) {

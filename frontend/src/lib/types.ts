@@ -333,14 +333,14 @@ export interface CreateNumberingRangePayload {
   next_number?: number;
 }
 
-// Espejo de identificationDTO (apidian/internal/api/dto.go).
+// Espejo de identificationDTO — usado en snapshots de documentos (CustomerPayload/VendorPayload).
 export interface Identification {
   number: string;
   type_code: string;
   verification_code?: string;
 }
 
-// Espejo de addressDTO.
+// Espejo de addressDTO — usado en snapshots de documentos.
 export interface Address {
   line?: string;
   city_code?: string;
@@ -351,10 +351,9 @@ export interface Address {
   country_name?: string;
 }
 
-// Espejo de partyDTO — usado tal cual por customers (catálogo de adquirientes) y, a futuro,
-// como snapshot del cliente al emitir un documento. Deliberadamente SIN
-// merchant_registration_number: ese campo "siempre es nil para el receptor"
-// (cofacture/domain/types.go) — un cliente nunca lo tiene, no se pide en el formulario.
+// CustomerPayload — snapshot del cliente dentro de un documento electrónico (IssueInvoicePayload).
+// Mantiene la estructura anidada legacy porque el módulo electronic la espera así en el JSONB.
+// Para el catálogo de clientes, ver Customer (campos planos del ERP).
 export interface CustomerPayload {
   entity_type_code?: string;
   identification: Identification;
@@ -368,8 +367,31 @@ export interface CustomerPayload {
   email?: string;
 }
 
-export interface Customer extends CustomerPayload {
+// Customer — espejo de domain.Customer del ERP (campos planos, snake_case).
+// Catálogo de adquirientes; NO confundir con CustomerPayload (snapshot en documentos).
+export interface Customer {
   id: string;
+  company_id: string;
+  identification_type_code: string;
+  identification_number: string;
+  check_digit: string;
+  entity_type_code: string;
+  merchant_registration_number: string;
+  name: string;
+  tax_scheme_code: string;
+  tax_scheme_name: string;
+  tax_regime_code: string | null;
+  liability_codes: string[];
+  department_code: string;
+  municipality_code: string;
+  address_line: string;
+  address_city_name: string;
+  address_state_name: string;
+  address_country_code: string;
+  address_country_name: string;
+  email: string;
+  phone: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -379,8 +401,8 @@ export interface ListCustomersResult {
   count: number;
 }
 
-// Espejo de partyDTO para el catálogo de proveedores/terceros no obligados (Documento Soporte).
-// Misma forma que CustomerPayload — los campos son idénticos porque ambos son domain.Party.
+// VendorPayload — snapshot del proveedor dentro de un Documento Soporte.
+// Mantiene la estructura anidada legacy por las mismas razones que CustomerPayload.
 export interface VendorPayload {
   entity_type_code?: string;
   identification: Identification;
@@ -394,8 +416,32 @@ export interface VendorPayload {
   email?: string;
 }
 
-export interface Vendor extends VendorPayload {
+// Vendor — espejo de domain.Supplier del ERP (campos planos).
+// Catálogo de proveedores/terceros no obligados; NO confundir con VendorPayload.
+export interface Vendor {
   id: string;
+  company_id: string;
+  identification_type_code: string;
+  identification_number: string;
+  check_digit: string;
+  entity_type_code: string;
+  merchant_registration_number: string;
+  name: string;
+  tax_scheme_code: string;
+  tax_scheme_name: string;
+  tax_regime_code: string | null;
+  liability_codes: string[];
+  department_code: string;
+  municipality_code: string;
+  address_line: string;
+  address_city_name: string;
+  address_state_name: string;
+  address_country_code: string;
+  address_country_name: string;
+  email: string;
+  phone: string;
+  payment_terms_days: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -405,28 +451,28 @@ export interface ListVendorsResult {
   count: number;
 }
 
-// Espejo de productRequest/productResponse (apidian/internal/api/handler_products.go).
-// Deliberadamente sin quantity/line_extension_cents/taxes (plural) — eso es dato de USO al
-// armar una línea de documento, no del catálogo (ver products.Product). tax_type_code/
-// tax_percent son un único impuesto por defecto, de conveniencia.
-// item_type_code: selector de @schemeID (tabla 13.3.5, ver ItemStandard) — "001" UNSPSC/"010"
-// GTIN/"020" Partida Arancelaria/"999" propio (vacío = "999"). item_type_name/
-// item_type_agency_id ya NO se mandan: el backend los deriva del catálogo (ver
-// docs/apidian-architecture.md sección 9.45) y solo aparecen en la respuesta (Product, abajo).
+// ProductPayload — payload de creación/edición de producto en el catálogo ERP.
 export interface ProductPayload {
+  code: string;
+  name: string;
   description: string;
-  unit_code: string;
-  unit_price_cents: number;
-  item_code?: string;
-  item_type_code?: string;
-  tax_type_code?: string;
-  tax_percent?: number;
+  unit_measure_code: string;
+  standard_code: string;
+  standard_code_type: string;
+  standard_code_id: string;
+  standard_code_agency_id: string;
+  is_service: boolean;
+  tax_scheme_code: string;
+  tax_scheme_name: string;
+  tax_rate: number;
+  base_price: number;
 }
 
+// Product — espejo de domain.Product del ERP (campos planos).
 export interface Product extends ProductPayload {
   id: string;
-  item_type_name?: string;
-  item_type_agency_id?: string;
+  company_id: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }

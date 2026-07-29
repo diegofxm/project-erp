@@ -40,7 +40,7 @@ export function ProductsPage() {
     if (!search.trim()) return products;
     const q = search.toLowerCase();
     return products.filter(
-      (p) => p.description.toLowerCase().includes(q) || p.unit_code.toLowerCase().includes(q),
+      (p) => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q),
     );
   }, [products, search]);
 
@@ -71,7 +71,7 @@ export function ProductsPage() {
   }
 
   async function handleDelete(product: Product) {
-    if (!(await confirm(`¿Eliminar "${product.description}"? Esto no afecta documentos ya emitidos.`, { tone: "danger" }))) return;
+    if (!(await confirm(`¿Eliminar "${product.name}"? Esto no afecta documentos ya emitidos.`, { tone: "danger" }))) return;
     try {
       await deleteProduct(product.id);
       toast.success("Producto eliminado.");
@@ -100,7 +100,7 @@ export function ProductsPage() {
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-(--text-muted)" />
           <input
             type="text"
-            placeholder="Buscar por descripción o código de unidad…"
+            placeholder="Buscar por nombre o código interno…"
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
             className="w-full rounded border border-(--border-color) bg-(--bg-primary) py-1.5 pl-8 pr-3 text-xs text-(--text-primary) placeholder:text-(--text-muted) transition-colors"
@@ -133,9 +133,9 @@ export function ProductsPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Descripción</th>
-                  <th className="px-3 py-2 font-medium">Unidad</th>
-                  <th className="px-3 py-2 font-medium">Precio unitario</th>
+                  <th className="px-3 py-2 font-medium">Nombre</th>
+                  <th className="px-3 py-2 font-medium">Código</th>
+                  <th className="px-3 py-2 font-medium">Precio base</th>
                   <th className="px-3 py-2 font-medium">Impuesto</th>
                   <th className="px-3 py-2" />
                 </tr>
@@ -143,11 +143,11 @@ export function ProductsPage() {
               <tbody>
                 {page.map((p, i) => (
                   <tr key={p.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
-                    <td className="px-3 py-2 text-(--text-primary)">{p.description}</td>
-                    <td className="px-3 py-2 font-mono text-(--text-secondary)">{p.unit_code}</td>
-                    <td className="px-3 py-2 font-mono text-(--text-secondary)">{formatCOP.format(p.unit_price_cents / 100)}</td>
+                    <td className="px-3 py-2 text-(--text-primary)">{p.name}</td>
+                    <td className="px-3 py-2 font-mono text-(--text-secondary)">{p.code}</td>
+                    <td className="px-3 py-2 font-mono text-(--text-secondary)">{formatCOP.format(p.base_price)}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">
-                      {p.tax_type_code ? `${p.tax_type_code} (${p.tax_percent ?? 0}%)` : "—"}
+                      {p.tax_scheme_code !== "ZZ" ? `${p.tax_scheme_code} (${p.tax_rate ?? 0}%)` : "—"}
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex justify-end gap-1">

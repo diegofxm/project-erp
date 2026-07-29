@@ -49,7 +49,7 @@ export function VendorSection({ value, vendorId, onChange }: VendorSectionProps)
   }
 
   const selectedVendor = vendors.find((v) => v.id === vendorId);
-  const searchOptions = vendors.map((v) => ({ value: v.id, label: `${v.name} — ${v.identification.number}` }));
+  const searchOptions = vendors.map((v) => ({ value: v.id, label: `${v.name} — ${v.identification_number}` }));
 
   function handlePick(id: string) {
     const vendor = vendors.find((v) => v.id === id);
@@ -119,7 +119,7 @@ export function VendorSection({ value, vendorId, onChange }: VendorSectionProps)
         <div className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-xs">
           <span className="text-(--text-primary)">
             {selectedVendor.name}
-            <span className="text-(--text-secondary)"> — {selectedVendor.identification.number}</span>
+            <span className="text-(--text-secondary)"> — {selectedVendor.identification_number}</span>
             {selectedVendor.email && <span className="text-(--text-secondary)"> · {selectedVendor.email}</span>}
             {selectedVendor.phone && <span className="text-(--text-secondary)"> · {selectedVendor.phone}</span>}
           </span>

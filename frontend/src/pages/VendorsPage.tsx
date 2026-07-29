@@ -38,7 +38,7 @@ export function VendorsPage() {
     if (!search.trim()) return vendors;
     const q = search.toLowerCase();
     return vendors.filter(
-      (v) => v.name.toLowerCase().includes(q) || v.identification.number.toLowerCase().includes(q),
+      (v) => v.name.toLowerCase().includes(q) || v.identification_number.toLowerCase().includes(q),
     );
   }, [vendors, search]);
 
@@ -142,7 +142,7 @@ export function VendorsPage() {
                 {page.map((v, i) => (
                   <tr key={v.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
                     <td className="px-3 py-2 text-(--text-primary)">{v.name}</td>
-                    <td className="px-3 py-2 font-mono text-(--text-secondary)">{v.identification.number}</td>
+                    <td className="px-3 py-2 font-mono text-(--text-secondary)">{v.identification_number}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{v.email || "—"}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{v.phone || "—"}</td>
                     <td className="px-3 py-2">

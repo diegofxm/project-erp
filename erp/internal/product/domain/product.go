@@ -10,35 +10,35 @@ import (
 // Product es un bien o servicio que la empresa vende o compra.
 // Pertenece a un tenant (company_id).
 type Product struct {
-	ID        uuid.UUID
-	CompanyID uuid.UUID
+	ID        uuid.UUID `json:"id"`
+	CompanyID uuid.UUID `json:"company_id"`
 
 	// Identificación
-	Code string // código interno del producto
-	Name string
-	Description string
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 
 	// Clasificación DIAN para facturación electrónica
-	UnitMeasureCode       string // código de unidad de medida (catálogo DIAN)
-	StandardCode          string // valor del código, ej. '10101511' para UNSPSC
-	StandardCodeType      string // nombre del estándar: "UNSPSC", "EAN13", "PARTNO", "OTHER"
-	StandardCodeID        string // @schemeID DIAN: "001"=UNSPSC, "010"=GTIN, "999"=propio
-	StandardCodeAgencyID  string // @schemeAgencyID DIAN: "113" para UNSPSC, "" para propio
+	UnitMeasureCode      string `json:"unit_measure_code"`
+	StandardCode         string `json:"standard_code"`
+	StandardCodeType     string `json:"standard_code_type"`
+	StandardCodeID       string `json:"standard_code_id"`
+	StandardCodeAgencyID string `json:"standard_code_agency_id"`
 
 	// Tipo
-	IsService bool // true = servicio, false = bien físico
+	IsService bool `json:"is_service"`
 
 	// Tributación
-	TaxSchemeCode string  // "01" IVA, "ZZ" no aplica, "04" INC
-	TaxSchemeName string
-	TaxRate       float64 // porcentaje: 19.0, 5.0, 0.0
+	TaxSchemeCode string  `json:"tax_scheme_code"`
+	TaxSchemeName string  `json:"tax_scheme_name"`
+	TaxRate       float64 `json:"tax_rate"`
 
-	// Precio base (en la moneda de la empresa, puede sobreescribirse por línea de documento)
-	BasePrice float64
+	// Precio base
+	BasePrice float64 `json:"base_price"`
 
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 var (

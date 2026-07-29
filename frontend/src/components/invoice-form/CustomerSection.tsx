@@ -58,7 +58,7 @@ export function CustomerSection({ value, customerId, onChange }: CustomerSection
   }
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
-  const searchOptions = customers.map((c) => ({ value: c.id, label: `${c.name} — ${c.identification.number}` }));
+  const searchOptions = customers.map((c) => ({ value: c.id, label: `${c.name} — ${c.identification_number}` }));
 
   function handlePick(id: string) {
     const customer = customers.find((c) => c.id === id);
@@ -128,7 +128,7 @@ export function CustomerSection({ value, customerId, onChange }: CustomerSection
         <div className="flex items-center justify-between rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-xs">
           <span className="text-(--text-primary)">
             {selectedCustomer.name}
-            <span className="text-(--text-secondary)"> — {selectedCustomer.identification.number}</span>
+            <span className="text-(--text-secondary)"> — {selectedCustomer.identification_number}</span>
             {selectedCustomer.email && <span className="text-(--text-secondary)"> · {selectedCustomer.email}</span>}
             {selectedCustomer.phone && <span className="text-(--text-secondary)"> · {selectedCustomer.phone}</span>}
           </span>

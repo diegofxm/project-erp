@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setConnectionError(false);
     } catch (err) {
       if (err instanceof ApiError) {
-        if (err.status === 401) logout();
+        if (err.status === 401 || err.status === 404) logout();
         setConnectionError(false);
       } else {
         setConnectionError(true);

@@ -43,14 +43,14 @@ const EMPTY_DRAFT: DraftLine = {
 function draftFromProduct(product: Product): DraftLine {
   return {
     productId: product.id,
-    description: product.description,
-    unitCode: product.unit_code,
+    description: product.name,
+    unitCode: product.unit_measure_code,
     quantity: "1",
-    unitPrice: centsToAmount(product.unit_price_cents),
-    itemCode: product.item_code ?? "",
-    itemTypeCode: product.item_type_code ?? "",
-    taxTypeCode: product.tax_type_code ?? "",
-    taxPercent: product.tax_percent?.toString() ?? "",
+    unitPrice: product.base_price.toString(),
+    itemCode: product.standard_code ?? "",
+    itemTypeCode: product.standard_code_id ?? "",
+    taxTypeCode: product.tax_scheme_code !== "ZZ" ? product.tax_scheme_code : "",
+    taxPercent: product.tax_rate?.toString() ?? "",
   };
 }
 
@@ -84,7 +84,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
       .finally(() => setLoadingProducts(false));
   }, []);
 
-  const productOptions = products.map((p) => ({ value: p.id, label: p.description }));
+  const productOptions = products.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` }));
 
   function handleProductSelect(id: string) {
     if (!id) {

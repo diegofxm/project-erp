@@ -4,6 +4,7 @@ import type { Customer, CustomerPayload } from "../../lib/types";
 import { PartyFields } from "../party-fields/PartyFields";
 import { Button } from "../ui/Button";
 
+
 interface CustomerFormProps {
   initial: Customer | null;
   onSubmit: (payload: CustomerPayload) => void;

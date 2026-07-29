@@ -38,7 +38,7 @@ export function CustomersPage() {
     if (!search.trim()) return customers;
     const q = search.toLowerCase();
     return customers.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.identification.number.toLowerCase().includes(q),
+      (c) => c.name.toLowerCase().includes(q) || c.identification_number.toLowerCase().includes(q),
     );
   }, [customers, search]);
 
@@ -142,7 +142,7 @@ export function CustomersPage() {
                 {page.map((c, i) => (
                   <tr key={c.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
                     <td className="px-3 py-2 text-(--text-primary)">{c.name}</td>
-                    <td className="px-3 py-2 font-mono text-(--text-secondary)">{c.identification.number}</td>
+                    <td className="px-3 py-2 font-mono text-(--text-secondary)">{c.identification_number}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{c.email || "—"}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{c.phone || "—"}</td>
                     <td className="px-3 py-2">

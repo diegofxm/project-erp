@@ -1,10 +1,13 @@
-// Cliente del catálogo de productos/ítems — datos propios del tenant, sin memoización.
 import { apiClient } from "./apiClient";
 import type { ListProductsResult, Product, ProductPayload } from "./types";
 
 export async function listProducts(): Promise<Product[]> {
   const res = await apiClient.get<ListProductsResult>("/products");
   return res.products;
+}
+
+export function fetchProduct(id: string): Promise<Product> {
+  return apiClient.get<Product>(`/products/${id}`);
 }
 
 export function createProduct(payload: ProductPayload): Promise<Product> {
