@@ -24,4 +24,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/electronic/numbering-ranges", h.handleCreateNumberingRange)
 	mux.HandleFunc("DELETE /api/v1/electronic/numbering-ranges/{id}", h.handleDeactivateRange)
 	mux.HandleFunc("PUT /api/v1/electronic/numbering-ranges/{id}/activate", h.handleActivateRange)
+
+	// Consulta directa a la DIAN
+	mux.HandleFunc("GET /api/v1/dian/numbering-ranges", h.handleGetDianNumberingRanges)
 }

@@ -42,7 +42,11 @@ export function TaxStep({ form, setField }: StepProps) {
           label="Tipo de impuesto del régimen"
           disabled={loadingTaxTypes}
           value={form.tax_scheme_code ?? "ZZ"}
-          onChange={(e) => setField("tax_scheme_code", e.target.value)}
+          onChange={(e) => {
+            const name = taxTypes.find((t) => t.code === e.target.value)?.name ?? "";
+            setField("tax_scheme_code", e.target.value);
+            setField("tax_scheme_name", name);
+          }}
         >
           {loadingTaxTypes ? (
             <option>Cargando…</option>

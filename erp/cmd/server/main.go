@@ -200,6 +200,7 @@ func main() {
 	electronicGetUC := electronicapp.NewGetDocumentUseCase(electronicDocRepo)
 	electronicListUC := electronicapp.NewListDocumentsUseCase(electronicDocRepo)
 	electronicNumberingUC := electronicapp.NewManageNumberingUseCase(electronicNumRepo)
+	electronicDianRangesUC := electronicapp.NewGetDianRangesUseCase(electronicCompanyPort, electronicAdapter)
 	fromSaleUC := electronicapp.NewCreateFromSaleUseCase(electronicCreateDraftUC, salesRepo, customerRepo, productRepo)
 
 	// ── Renderer de reportes ─────────────────────────────────────────────────────
@@ -272,7 +273,7 @@ func main() {
 	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC).RegisterRoutes(mux)
 	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC).RegisterRoutes(mux)
 	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo).RegisterRoutes(mux)
-	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, auditUC).RegisterRoutes(mux)
+	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, electronicDianRangesUC, auditUC).RegisterRoutes(mux)
 	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)
 	payrollhttp.NewHandler(payrollEmpUC, payrollContractUC, payrollPayslipUC).RegisterRoutes(mux)

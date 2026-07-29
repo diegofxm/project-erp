@@ -84,3 +84,21 @@ type CatalogPort interface {
 	IsValidLiabilityCode(ctx context.Context, code string) (bool, error)
 	GetTaxTypeName(ctx context.Context, code string) (string, bool, error)
 }
+
+// DianRange es un rango de numeración tal como lo devuelve la DIAN vía GetNumberingRange.
+type DianRange struct {
+	ResolutionNumber     string `json:"resolution_number"`
+	ResolutionDate       string `json:"resolution_date"`
+	Prefix               string `json:"prefix"`
+	RangeFrom            int64  `json:"range_from"`
+	RangeTo              int64  `json:"range_to"`
+	ValidFrom            string `json:"valid_from"`
+	ValidTo              string `json:"valid_to"`
+	TechnicalKey         string `json:"technical_key,omitempty"`
+	SuggestedDocTypeCode string `json:"suggested_doc_type_code,omitempty"`
+}
+
+// DianRangesFetcherPort consulta los rangos autorizados del emisor ante la DIAN.
+type DianRangesFetcherPort interface {
+	GetNumberingRanges(nit, softwareID string, cert []byte, password, environmentCode string) ([]DianRange, error)
+}

@@ -4,6 +4,7 @@ package cofacture
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/beevik/etree"
@@ -24,9 +25,10 @@ type Adapter struct{}
 func New() *Adapter { return &Adapter{} }
 
 var (
-	_ domain.BuilderSignerPort = (*Adapter)(nil)
-	_ domain.ZipperPort        = (*Adapter)(nil)
-	_ domain.SenderPort        = (*Adapter)(nil)
+	_ domain.BuilderSignerPort    = (*Adapter)(nil)
+	_ domain.ZipperPort           = (*Adapter)(nil)
+	_ domain.SenderPort           = (*Adapter)(nil)
+	_ domain.DianRangesFetcherPort = (*Adapter)(nil)
 )
 
 // ── BuilderSignerPort ─────────────────────────────────────────────────────────────────────
@@ -177,6 +179,53 @@ func (a *Adapter) PollStatusZip(zipKey string, cert []byte, password string, env
 		IsTestSetClosed:        interpreted.IsTestSetClosed(),
 		ApplicationResponseXML: string(interpreted.ApplicationResponseXML),
 	}, nil
+}
+
+// ── DianRangesFetcherPort ─────────────────────────────────────────────────────────────────
+
+func (a *Adapter) GetNumberingRanges(nit, softwareID string, cert []byte, password, environmentCode string) ([]domain.DianRange, error) {
+	x509cert, key, err := signer.LoadPKCS12(cert, password)
+	if err != nil {
+		return nil, fmt.Errorf("cargar certificado: %w", err)
+	}
+	client := soap.New(soapURL(environmentCode), x509cert, key)
+	result, err := client.GetNumberingRange(nit, nit, softwareID)
+	if err != nil {
+		return nil, fmt.Errorf("GetNumberingRange DIAN: %w", err)
+	}
+	ranges := make([]domain.DianRange, 0, len(result.ResponseList))
+	for _, r := range result.ResponseList {
+		ranges = append(ranges, domain.DianRange{
+			ResolutionNumber:     r.ResolutionNumber,
+			ResolutionDate:       trimDate(r.ResolutionDate),
+			Prefix:               r.Prefix,
+			RangeFrom:            r.FromNumber,
+			RangeTo:              r.ToNumber,
+			ValidFrom:            trimDate(r.ValidDateFrom),
+			ValidTo:              trimDate(r.ValidDateTo),
+			TechnicalKey:         r.TechnicalKey,
+			SuggestedDocTypeCode: inferDocType(r.Prefix),
+		})
+	}
+	return ranges, nil
+}
+
+func trimDate(s string) string {
+	if i := strings.Index(s, "T"); i > 0 {
+		return s[:i]
+	}
+	return s
+}
+
+func inferDocType(prefix string) string {
+	switch strings.ToUpper(prefix) {
+	case "SETP":
+		return "01"
+	case "SEDS":
+		return "05"
+	default:
+		return ""
+	}
 }
 
 func soapURL(environmentCode string) string {

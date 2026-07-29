@@ -30,6 +30,7 @@ type Handler struct {
 	numbering   application.ManageNumberingUseCase
 	pdf         *application.GetDocumentPDFUseCase
 	fromSale    *application.CreateFromSaleUseCase
+	dianRanges  *application.GetDianRangesUseCase
 	audit       AuditLogger
 }
 
@@ -41,6 +42,7 @@ func NewHandler(
 	numbering *application.ManageNumberingUseCase,
 	pdf *application.GetDocumentPDFUseCase,
 	fromSale *application.CreateFromSaleUseCase,
+	dianRanges *application.GetDianRangesUseCase,
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
@@ -51,6 +53,7 @@ func NewHandler(
 		numbering:   *numbering,
 		pdf:         pdf,
 		fromSale:    fromSale,
+		dianRanges:  dianRanges,
 		audit:       audit,
 	}
 }
@@ -485,6 +488,23 @@ func (h *Handler) handleActivateRange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, nr)
+}
+
+func (h *Handler) handleGetDianNumberingRanges(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	ranges, err := h.dianRanges.Execute(r.Context(), companyID)
+	if err != nil {
+		if errors.Is(err, application.ErrCompanyNotReadyForDian) {
+			writeErr(w, err)
+			return
+		}
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ranges": ranges})
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────────────────
