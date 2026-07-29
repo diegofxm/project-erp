@@ -125,6 +125,7 @@ export interface UpdateCompanyPayload {
 export interface UpdateCompanyProfilePayload {
   business_name: string;
   trade_name: string;
+  identification_type_code: string;
   department_code: string;
   municipality_code: string;
   address_line: string;

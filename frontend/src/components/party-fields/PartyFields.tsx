@@ -237,7 +237,10 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           label="Tipo de impuesto del régimen"
           disabled={loadingTaxTypes}
           value={value.tax_scheme_code ?? "ZZ"}
-          onChange={(e) => onChange({ ...value, tax_scheme_code: e.target.value })}
+          onChange={(e) => {
+            const name = taxTypes.find((t) => t.code === e.target.value)?.name ?? "";
+            onChange({ ...value, tax_scheme_code: e.target.value, tax_scheme_name: name });
+          }}
         >
           {loadingTaxTypes ? <option>Cargando…</option> : (
             taxTypes.map((t) => <option key={t.code} value={t.code}>{t.code} — {t.name}</option>)

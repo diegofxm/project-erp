@@ -56,6 +56,7 @@ export function CompanyProfileForm() {
   const [form, setForm] = useState<UpdateCompanyProfilePayload>({
     business_name: "",
     trade_name: "",
+    identification_type_code: "",
     department_code: "",
     municipality_code: "",
     address_line: "",
@@ -63,6 +64,7 @@ export function CompanyProfileForm() {
     phone: "",
     entity_type_code: "1",
     tax_scheme_code: "ZZ",
+    tax_scheme_name: "",
     liability_codes: [],
     tax_regime_code: null,
     industry_classification_codes: [],
@@ -76,6 +78,7 @@ export function CompanyProfileForm() {
     setForm({
       business_name: activeCompany.business_name,
       trade_name: activeCompany.trade_name ?? "",
+      identification_type_code: activeCompany.identification_type_code,
       department_code: activeCompany.department_code,
       municipality_code: activeCompany.municipality_code,
       address_line: activeCompany.address_line,
@@ -83,6 +86,7 @@ export function CompanyProfileForm() {
       phone: activeCompany.phone ?? "",
       entity_type_code: activeCompany.entity_type_code ?? "1",
       tax_scheme_code: activeCompany.tax_scheme_code ?? "ZZ",
+      tax_scheme_name: activeCompany.tax_scheme_name ?? "",
       liability_codes: activeCompany.liability_codes ?? [],
       tax_regime_code: activeCompany.tax_regime_code ?? null,
       industry_classification_codes: activeCompany.industry_classification_codes ?? [],
@@ -341,7 +345,10 @@ export function CompanyProfileForm() {
                 <span className="text-xs font-medium text-(--text-secondary)">Tipo de impuesto del régimen</span>
                 <select
                   value={form.tax_scheme_code}
-                  onChange={(e) => setField("tax_scheme_code", e.target.value)}
+                  onChange={(e) => {
+                    setField("tax_scheme_code", e.target.value);
+                    setField("tax_scheme_name", taxTypes.find((t) => t.code === e.target.value)?.name ?? "");
+                  }}
                   className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1.5 text-xs text-(--text-primary)"
                 >
                   {taxTypes.map((t) => <option key={t.code} value={t.code}>{t.code} – {t.name}</option>)}
