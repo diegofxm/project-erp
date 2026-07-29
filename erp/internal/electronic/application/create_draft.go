@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"math"
 
 	cofdom "github.com/diegofxm/cofacture/domain"
 	"github.com/google/uuid"
@@ -389,6 +390,88 @@ func computeTotalsDS(lines []cofdom.Line, withholdingTaxes []cofdom.Tax) cofdom.
 		TaxInclusiveCents:  taxInclusive,
 		PayableCents:       taxInclusive,
 	}
+}
+
+// ── cálculo de líneas desde input simplificado ────────────────────────────────────────────
+
+// LineInputData es la forma de entrada de una línea — el servidor calcula
+// line_extension_cents y taxes[] a partir de quantity/unit_price_cents/tax_percent.
+// Mismo contrato que legacy linesFromInput (_legacy/apidian/internal/edocuments/documents/lines.go).
+type LineInputData struct {
+	Description    string
+	Quantity       float64
+	UnitCode       string
+	UnitPriceCents int64
+	ItemCode       string
+	ItemTypeCode   string  // vacío → "999" (estándar propio)
+	TaxTypeCode    string  // vacío → "01" (IVA) con TaxPercent=0
+	TaxPercent     float64
+}
+
+// itemStandards es el catálogo fijo del Anexo Técnico DIAN tabla 13.3.5.
+var itemStandards = map[string]struct{ name, agencyID string }{
+	"001": {"UNSPSC", "113"},
+	"010": {"GTIN", "6"},
+	"020": {"Partida Arancelaria", "9"},
+	"999": {"Estándar de adopción del contribuyente", "ZZ"},
+}
+
+// LinesFromInput computa []cofdom.Line completas desde []LineInputData:
+// - line_extension_cents = round(quantity × unit_price_cents)
+// - tax_amount_cents = round(line_extension × tax_percent / 100)
+// - Si TaxTypeCode vacío → "01" (IVA) al 0%
+// - Resuelve TypeName desde catálogo
+func (uc *CreateDraftUseCase) LinesFromInput(ctx context.Context, inputs []LineInputData) ([]cofdom.Line, error) {
+	lines := make([]cofdom.Line, len(inputs))
+	for i, in := range inputs {
+		lineExt := roundCents(in.Quantity * float64(in.UnitPriceCents))
+		itemTypeCode := in.ItemTypeCode
+		if itemTypeCode == "" {
+			itemTypeCode = "999"
+		}
+		std, ok := itemStandards[itemTypeCode]
+		if !ok {
+			return nil, fmt.Errorf("%w: %q", domain.ErrInvalidItemStandardCode, itemTypeCode)
+		}
+		line := cofdom.Line{
+			Description:        in.Description,
+			Quantity:           in.Quantity,
+			UnitCode:           in.UnitCode,
+			LineExtensionCents: lineExt,
+			UnitPriceCents:     in.UnitPriceCents,
+			ItemCode:           in.ItemCode,
+			ItemTypeCode:       itemTypeCode,
+			ItemTypeName:       std.name,
+			ItemTypeAgencyID:   std.agencyID,
+		}
+		taxTypeCode := in.TaxTypeCode
+		taxPercent := in.TaxPercent
+		if taxTypeCode == "" {
+			taxTypeCode = "01"
+			taxPercent = 0
+		}
+		name, found, err := uc.catalogs.GetTaxTypeName(ctx, taxTypeCode)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			return nil, fmt.Errorf("%w: %q", domain.ErrInvalidTaxTypeCode, taxTypeCode)
+		}
+		taxAmt := roundCents(float64(lineExt) * taxPercent / 100)
+		line.Taxes = []cofdom.Tax{{
+			TaxableAmountCents: lineExt,
+			TaxAmountCents:     taxAmt,
+			Percent:            taxPercent,
+			TypeCode:           taxTypeCode,
+			TypeName:           name,
+		}}
+		lines[i] = line
+	}
+	return lines, nil
+}
+
+func roundCents(v float64) int64 {
+	return int64(math.Round(v))
 }
 
 func applyCustomerDefaults(p *cofdom.Party) {

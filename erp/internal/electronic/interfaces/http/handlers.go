@@ -162,16 +162,164 @@ func (h *Handler) handleDeleteDraft(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ── DTOs de entrada snake_case ────────────────────────────────────────────────────────────
+// cofacture/domain.* no tiene json tags — estos DTOs son el contrato HTTP público.
+
+type identificationInputDTO struct {
+	Number           string `json:"number"`
+	TypeCode         string `json:"type_code"`
+	VerificationCode string `json:"verification_code,omitempty"`
+}
+
+type addressInputDTO struct {
+	Line        string `json:"line,omitempty"`
+	CityCode    string `json:"city_code,omitempty"`
+	CityName    string `json:"city_name,omitempty"`
+	PostalZone  string `json:"postal_zone,omitempty"`
+	StateCode   string `json:"state_code,omitempty"`
+	StateName   string `json:"state_name,omitempty"`
+	CountryCode string `json:"country_code,omitempty"`
+	CountryName string `json:"country_name,omitempty"`
+}
+
+type partyInputDTO struct {
+	EntityTypeCode             string                 `json:"entity_type_code,omitempty"`
+	Identification             identificationInputDTO `json:"identification"`
+	Name                       string                 `json:"name"`
+	Address                    *addressInputDTO       `json:"address,omitempty"`
+	TaxSchemeCode              string                 `json:"tax_scheme_code,omitempty"`
+	TaxSchemeName              string                 `json:"tax_scheme_name,omitempty"`
+	LiabilityCodes             []string               `json:"liability_codes,omitempty"`
+	TaxRegimeCode              string                 `json:"tax_regime_code,omitempty"`
+	Phone                      string                 `json:"phone,omitempty"`
+	Email                      string                 `json:"email,omitempty"`
+	MerchantRegistrationNumber *string                `json:"merchant_registration_number,omitempty"`
+}
+
+func (p partyInputDTO) toCofdom() cofdom.Party {
+	party := cofdom.Party{
+		EntityTypeCode: p.EntityTypeCode,
+		Identification: cofdom.Identification{
+			Number:           p.Identification.Number,
+			TypeCode:         p.Identification.TypeCode,
+			VerificationCode: p.Identification.VerificationCode,
+		},
+		Name:                       p.Name,
+		TaxSchemeCode:              p.TaxSchemeCode,
+		TaxSchemeName:              p.TaxSchemeName,
+		LiabilityCodes:             p.LiabilityCodes,
+		TaxRegimeCode:              p.TaxRegimeCode,
+		Phone:                      p.Phone,
+		Email:                      p.Email,
+		MerchantRegistrationNumber: p.MerchantRegistrationNumber,
+	}
+	if p.Address != nil {
+		party.Address = cofdom.Address{
+			Line:        p.Address.Line,
+			CityCode:    p.Address.CityCode,
+			CityName:    p.Address.CityName,
+			PostalZone:  p.Address.PostalZone,
+			StateCode:   p.Address.StateCode,
+			StateName:   p.Address.StateName,
+			CountryCode: p.Address.CountryCode,
+			CountryName: p.Address.CountryName,
+		}
+	}
+	return party
+}
+
+type lineInputDTO struct {
+	Description    string  `json:"description"`
+	Quantity       float64 `json:"quantity"`
+	UnitCode       string  `json:"unit_code"`
+	UnitPriceCents int64   `json:"unit_price_cents"`
+	ItemCode       string  `json:"item_code,omitempty"`
+	ItemTypeCode   string  `json:"item_type_code,omitempty"`
+	TaxTypeCode    string  `json:"tax_type_code,omitempty"`
+	TaxPercent     float64 `json:"tax_percent,omitempty"`
+}
+
+func (l lineInputDTO) toAppInput() application.LineInputData {
+	return application.LineInputData{
+		Description:    l.Description,
+		Quantity:       l.Quantity,
+		UnitCode:       l.UnitCode,
+		UnitPriceCents: l.UnitPriceCents,
+		ItemCode:       l.ItemCode,
+		ItemTypeCode:   l.ItemTypeCode,
+		TaxTypeCode:    l.TaxTypeCode,
+		TaxPercent:     l.TaxPercent,
+	}
+}
+
+func linesInputToApp(dtos []lineInputDTO) []application.LineInputData {
+	out := make([]application.LineInputData, len(dtos))
+	for i, d := range dtos {
+		out[i] = d.toAppInput()
+	}
+	return out
+}
+
+type paymentMeanInputDTO struct {
+	Code              string `json:"code"`
+	PaymentMethodCode string `json:"payment_method_code"`
+	DueDate           string `json:"due_date,omitempty"`
+	PaymentReference  string `json:"payment_reference,omitempty"`
+}
+
+func (pm paymentMeanInputDTO) toCofdom() cofdom.PaymentMean {
+	return cofdom.PaymentMean{
+		Code:              pm.Code,
+		PaymentMethodCode: pm.PaymentMethodCode,
+		DueDate:           pm.DueDate,
+		PaymentReference:  pm.PaymentReference,
+	}
+}
+
+func paymentMeansInputToCofdom(pms []paymentMeanInputDTO) []cofdom.PaymentMean {
+	out := make([]cofdom.PaymentMean, len(pms))
+	for i, pm := range pms {
+		out[i] = pm.toCofdom()
+	}
+	return out
+}
+
+type taxInputDTO struct {
+	TaxableAmountCents int64   `json:"taxable_amount_cents"`
+	TaxAmountCents     int64   `json:"tax_amount_cents"`
+	Percent            float64 `json:"percent"`
+	TypeCode           string  `json:"type_code"`
+	TypeName           string  `json:"type_name,omitempty"`
+}
+
+func (t taxInputDTO) toCofdom() cofdom.Tax {
+	return cofdom.Tax{
+		TaxableAmountCents: t.TaxableAmountCents,
+		TaxAmountCents:     t.TaxAmountCents,
+		Percent:            t.Percent,
+		TypeCode:           t.TypeCode,
+		TypeName:           t.TypeName,
+	}
+}
+
+func taxesInputToCofdom(taxes []taxInputDTO) []cofdom.Tax {
+	out := make([]cofdom.Tax, len(taxes))
+	for i, t := range taxes {
+		out[i] = t.toCofdom()
+	}
+	return out
+}
+
 // ── Crear borradores ──────────────────────────────────────────────────────────────────────
 
 type invoiceDraftBody struct {
-	NumberingRangeID uuid.UUID        `json:"numbering_range_id"`
-	Customer         cofdom.Party     `json:"customer"`
-	Lines            []cofdom.Line    `json:"lines"`
-	PaymentMeans     []cofdom.PaymentMean `json:"payment_means"`
-	Note             string           `json:"note"`
-	CurrencyCode     string           `json:"currency_code"`
-	CustomerID       *uuid.UUID       `json:"customer_id"`
+	NumberingRangeID uuid.UUID             `json:"numbering_range_id"`
+	Customer         partyInputDTO         `json:"customer"`
+	Lines            []lineInputDTO        `json:"lines"`
+	PaymentMeans     []paymentMeanInputDTO `json:"payment_means"`
+	Note             string                `json:"note"`
+	CurrencyCode     string                `json:"currency_code"`
+	CustomerID       *uuid.UUID            `json:"customer_id"`
 }
 
 func (h *Handler) handleCreateInvoiceDraft(w http.ResponseWriter, r *http.Request) {
@@ -184,12 +332,17 @@ func (h *Handler) handleCreateInvoiceDraft(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	lines, err := h.createDraft.LinesFromInput(r.Context(), linesInputToApp(body.Lines))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
 	doc, err := h.createDraft.CreateInvoiceDraft(r.Context(), application.InvoiceDraftRequest{
 		CompanyID:        companyID,
 		NumberingRangeID: body.NumberingRangeID,
-		Customer:         body.Customer,
-		Lines:            body.Lines,
-		PaymentMeans:     body.PaymentMeans,
+		Customer:         body.Customer.toCofdom(),
+		Lines:            lines,
+		PaymentMeans:     paymentMeansInputToCofdom(body.PaymentMeans),
 		Note:             body.Note,
 		CurrencyCode:     body.CurrencyCode,
 		CustomerID:       body.CustomerID,
@@ -203,16 +356,16 @@ func (h *Handler) handleCreateInvoiceDraft(w http.ResponseWriter, r *http.Reques
 }
 
 type noteDraftBody struct {
-	NumberingRangeID    uuid.UUID                         `json:"numbering_range_id"`
-	Customer            cofdom.Party                      `json:"customer"`
-	Lines               []cofdom.Line                     `json:"lines"`
-	PaymentMeans        []cofdom.PaymentMean              `json:"payment_means"`
-	Note                string                            `json:"note"`
-	CurrencyCode        string                            `json:"currency_code"`
-	CustomerID          *uuid.UUID                        `json:"customer_id"`
-	BillingReference    domain.BillingReferenceInput      `json:"billing_reference"`
-	DiscrepancyResponse *domain.DiscrepancyResponseInput  `json:"discrepancy_response"`
-	CreditNoteTypeCode  string                            `json:"credit_note_type_code"`
+	NumberingRangeID    uuid.UUID                        `json:"numbering_range_id"`
+	Customer            partyInputDTO                    `json:"customer"`
+	Lines               []lineInputDTO                   `json:"lines"`
+	PaymentMeans        []paymentMeanInputDTO            `json:"payment_means"`
+	Note                string                           `json:"note"`
+	CurrencyCode        string                           `json:"currency_code"`
+	CustomerID          *uuid.UUID                       `json:"customer_id"`
+	BillingReference    domain.BillingReferenceInput     `json:"billing_reference"`
+	DiscrepancyResponse *domain.DiscrepancyResponseInput `json:"discrepancy_response"`
+	CreditNoteTypeCode  string                           `json:"credit_note_type_code"`
 }
 
 func (h *Handler) handleCreateCreditNoteDraft(w http.ResponseWriter, r *http.Request) {
@@ -225,12 +378,23 @@ func (h *Handler) handleCreateCreditNoteDraft(w http.ResponseWriter, r *http.Req
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	lines, err := h.createDraft.LinesFromInput(r.Context(), linesInputToApp(body.Lines))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
 	doc, err := h.createDraft.CreateCreditNoteDraft(r.Context(), application.NoteDraftRequest{
-		CompanyID: companyID, NumberingRangeID: body.NumberingRangeID,
-		Customer: body.Customer, Lines: body.Lines, PaymentMeans: body.PaymentMeans,
-		Note: body.Note, CurrencyCode: body.CurrencyCode, CustomerID: body.CustomerID,
-		BillingReference: body.BillingReference, DiscrepancyResponse: body.DiscrepancyResponse,
-		CreditNoteTypeCode: body.CreditNoteTypeCode,
+		CompanyID:           companyID,
+		NumberingRangeID:    body.NumberingRangeID,
+		Customer:            body.Customer.toCofdom(),
+		Lines:               lines,
+		PaymentMeans:        paymentMeansInputToCofdom(body.PaymentMeans),
+		Note:                body.Note,
+		CurrencyCode:        body.CurrencyCode,
+		CustomerID:          body.CustomerID,
+		BillingReference:    body.BillingReference,
+		DiscrepancyResponse: body.DiscrepancyResponse,
+		CreditNoteTypeCode:  body.CreditNoteTypeCode,
 	})
 	if err != nil {
 		writeErr(w, err)
@@ -249,11 +413,22 @@ func (h *Handler) handleCreateDebitNoteDraft(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	lines, err := h.createDraft.LinesFromInput(r.Context(), linesInputToApp(body.Lines))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
 	doc, err := h.createDraft.CreateDebitNoteDraft(r.Context(), application.NoteDraftRequest{
-		CompanyID: companyID, NumberingRangeID: body.NumberingRangeID,
-		Customer: body.Customer, Lines: body.Lines, PaymentMeans: body.PaymentMeans,
-		Note: body.Note, CurrencyCode: body.CurrencyCode, CustomerID: body.CustomerID,
-		BillingReference: body.BillingReference, DiscrepancyResponse: body.DiscrepancyResponse,
+		CompanyID:           companyID,
+		NumberingRangeID:    body.NumberingRangeID,
+		Customer:            body.Customer.toCofdom(),
+		Lines:               lines,
+		PaymentMeans:        paymentMeansInputToCofdom(body.PaymentMeans),
+		Note:                body.Note,
+		CurrencyCode:        body.CurrencyCode,
+		CustomerID:          body.CustomerID,
+		BillingReference:    body.BillingReference,
+		DiscrepancyResponse: body.DiscrepancyResponse,
 	})
 	if err != nil {
 		writeErr(w, err)
@@ -263,15 +438,15 @@ func (h *Handler) handleCreateDebitNoteDraft(w http.ResponseWriter, r *http.Requ
 }
 
 type supportDocBody struct {
-	NumberingRangeID  uuid.UUID            `json:"numbering_range_id"`
-	Vendor            cofdom.Party         `json:"vendor"`
-	Lines             []cofdom.Line        `json:"lines"`
-	PaymentMeans      []cofdom.PaymentMean `json:"payment_means"`
-	Note              string               `json:"note"`
-	CurrencyCode      string               `json:"currency_code"`
-	OperationTypeCode string               `json:"operation_type_code"`
-	WithholdingTaxes  []cofdom.Tax         `json:"withholding_taxes"`
-	VendorID          *uuid.UUID           `json:"vendor_id"`
+	NumberingRangeID  uuid.UUID             `json:"numbering_range_id"`
+	Vendor            partyInputDTO         `json:"vendor"`
+	Lines             []lineInputDTO        `json:"lines"`
+	PaymentMeans      []paymentMeanInputDTO `json:"payment_means"`
+	Note              string                `json:"note"`
+	CurrencyCode      string                `json:"currency_code"`
+	OperationTypeCode string                `json:"operation_type_code"`
+	WithholdingTaxes  []taxInputDTO         `json:"withholding_taxes"`
+	VendorID          *uuid.UUID            `json:"vendor_id"`
 }
 
 func (h *Handler) handleCreateSupportDocDraft(w http.ResponseWriter, r *http.Request) {
@@ -284,12 +459,22 @@ func (h *Handler) handleCreateSupportDocDraft(w http.ResponseWriter, r *http.Req
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	lines, err := h.createDraft.LinesFromInput(r.Context(), linesInputToApp(body.Lines))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
 	doc, err := h.createDraft.CreateSupportDocumentDraft(r.Context(), application.SupportDocumentDraftRequest{
-		CompanyID: companyID, NumberingRangeID: body.NumberingRangeID,
-		Vendor: body.Vendor, Lines: body.Lines, PaymentMeans: body.PaymentMeans,
-		Note: body.Note, CurrencyCode: body.CurrencyCode,
-		OperationTypeCode: body.OperationTypeCode, WithholdingTaxes: body.WithholdingTaxes,
-		VendorID: body.VendorID,
+		CompanyID:         companyID,
+		NumberingRangeID:  body.NumberingRangeID,
+		Vendor:            body.Vendor.toCofdom(),
+		Lines:             lines,
+		PaymentMeans:      paymentMeansInputToCofdom(body.PaymentMeans),
+		Note:              body.Note,
+		CurrencyCode:      body.CurrencyCode,
+		OperationTypeCode: body.OperationTypeCode,
+		WithholdingTaxes:  taxesInputToCofdom(body.WithholdingTaxes),
+		VendorID:          body.VendorID,
 	})
 	if err != nil {
 		writeErr(w, err)
@@ -300,13 +485,13 @@ func (h *Handler) handleCreateSupportDocDraft(w http.ResponseWriter, r *http.Req
 
 type adjustmentNoteBody struct {
 	NumberingRangeID    uuid.UUID                        `json:"numbering_range_id"`
-	Vendor              cofdom.Party                     `json:"vendor"`
-	Lines               []cofdom.Line                    `json:"lines"`
-	PaymentMeans        []cofdom.PaymentMean             `json:"payment_means"`
+	Vendor              partyInputDTO                    `json:"vendor"`
+	Lines               []lineInputDTO                   `json:"lines"`
+	PaymentMeans        []paymentMeanInputDTO            `json:"payment_means"`
 	Note                string                           `json:"note"`
 	CurrencyCode        string                           `json:"currency_code"`
 	OperationTypeCode   string                           `json:"operation_type_code"`
-	WithholdingTaxes    []cofdom.Tax                     `json:"withholding_taxes"`
+	WithholdingTaxes    []taxInputDTO                    `json:"withholding_taxes"`
 	VendorID            *uuid.UUID                       `json:"vendor_id"`
 	BillingReference    domain.BillingReferenceInput     `json:"billing_reference"`
 	DiscrepancyResponse *domain.DiscrepancyResponseInput `json:"discrepancy_response"`
@@ -322,12 +507,23 @@ func (h *Handler) handleCreateAdjustmentNoteDraft(w http.ResponseWriter, r *http
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	lines, err := h.createDraft.LinesFromInput(r.Context(), linesInputToApp(body.Lines))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
 	doc, err := h.createDraft.CreateAdjustmentNoteDraft(r.Context(), application.AdjustmentNoteDraftRequest{
-		CompanyID: companyID, NumberingRangeID: body.NumberingRangeID,
-		Vendor: body.Vendor, Lines: body.Lines, PaymentMeans: body.PaymentMeans,
-		Note: body.Note, CurrencyCode: body.CurrencyCode,
-		OperationTypeCode: body.OperationTypeCode, WithholdingTaxes: body.WithholdingTaxes,
-		VendorID: body.VendorID, BillingReference: body.BillingReference,
+		CompanyID:           companyID,
+		NumberingRangeID:    body.NumberingRangeID,
+		Vendor:              body.Vendor.toCofdom(),
+		Lines:               lines,
+		PaymentMeans:        paymentMeansInputToCofdom(body.PaymentMeans),
+		Note:                body.Note,
+		CurrencyCode:        body.CurrencyCode,
+		OperationTypeCode:   body.OperationTypeCode,
+		WithholdingTaxes:    taxesInputToCofdom(body.WithholdingTaxes),
+		VendorID:            body.VendorID,
+		BillingReference:    body.BillingReference,
 		DiscrepancyResponse: body.DiscrepancyResponse,
 	})
 	if err != nil {

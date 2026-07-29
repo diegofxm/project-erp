@@ -23,4 +23,6 @@ var (
 	ErrInvalidPaymentMethod       = errors.New("medio de pago inválido")
 	ErrInvalidLiabilityCode       = errors.New("código de responsabilidad tributaria inválido")
 	ErrInvalidOperationTypeCode   = errors.New("operation_type_code debe ser '10' o '11'")
+	ErrInvalidTaxTypeCode         = errors.New("tipo de impuesto inválido")
+	ErrInvalidItemStandardCode    = errors.New("código de estándar de producto inválido")
 )
