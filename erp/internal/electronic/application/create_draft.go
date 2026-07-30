@@ -433,13 +433,19 @@ func (uc *CreateDraftUseCase) LinesFromInput(ctx context.Context, inputs []LineI
 		if !ok {
 			return nil, fmt.Errorf("%w: %q", domain.ErrInvalidItemStandardCode, itemTypeCode)
 		}
+		itemCode := in.ItemCode
+		if itemCode == "" {
+			// DIAN exige un valor no vacío en StandardItemIdentification/ID.
+			// Para "999" (estándar propio) usamos el número de línea como código interno.
+			itemCode = fmt.Sprintf("%d", i+1)
+		}
 		line := cofdom.Line{
 			Description:        in.Description,
 			Quantity:           in.Quantity,
 			UnitCode:           in.UnitCode,
 			LineExtensionCents: lineExt,
 			UnitPriceCents:     in.UnitPriceCents,
-			ItemCode:           in.ItemCode,
+			ItemCode:           itemCode,
 			ItemTypeCode:       itemTypeCode,
 			ItemTypeName:       std.name,
 			ItemTypeAgencyID:   std.agencyID,
