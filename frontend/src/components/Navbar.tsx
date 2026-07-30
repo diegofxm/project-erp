@@ -88,7 +88,7 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
 
         <div className="flex items-center gap-1">
           <Link
-            to="/issuers"
+            to="/companies"
             title="Mis empresas"
             className="rounded p-1.5 opacity-80 transition-colors hover:bg-white/10 hover:opacity-100"
           >

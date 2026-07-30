@@ -4,7 +4,7 @@
 // el QR), así que no hace falta ningún cliente especial "sin auth".
 import { apiClient } from "./apiClient";
 
-export interface PublicIssuer {
+export interface PublicCompany {
   business_name: string;
   has_logo: boolean;
 }
@@ -16,17 +16,17 @@ export interface PublicCustomerPayload {
   phone?: string;
 }
 
-export function getPublicIssuer(issuerId: string): Promise<PublicIssuer> {
-  return apiClient.get<PublicIssuer>(`/public/companies/${issuerId}`);
+export function getPublicCompany(companyId: string): Promise<PublicCompany> {
+  return apiClient.get<PublicCompany>(`/public/companies/${companyId}`);
 }
 
-// getPublicIssuerLogoBlobUrl trae el logo en crudo y devuelve un Object URL —
+// getPublicCompanyLogoBlobUrl trae el logo en crudo y devuelve un Object URL —
 // mismo patrón que getInvoicePdfBlobUrl en lib/documents.ts.
-export async function getPublicIssuerLogoBlobUrl(issuerId: string): Promise<string> {
-  const blob = await apiClient.getBlob(`/public/companies/${issuerId}/logo`);
+export async function getPublicCompanyLogoBlobUrl(companyId: string): Promise<string> {
+  const blob = await apiClient.getBlob(`/public/companies/${companyId}/logo`);
   return URL.createObjectURL(blob);
 }
 
-export function registerPublicCustomer(issuerId: string, payload: PublicCustomerPayload): Promise<{ name: string }> {
-  return apiClient.post<{ name: string }>(`/public/companies/${issuerId}/customers`, payload);
+export function registerPublicCustomer(companyId: string, payload: PublicCustomerPayload): Promise<{ name: string }> {
+  return apiClient.post<{ name: string }>(`/public/companies/${companyId}/customers`, payload);
 }

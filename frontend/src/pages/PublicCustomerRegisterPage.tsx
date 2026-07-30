@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "react-router";
 import { CheckCircle2, UserPlus, X } from "lucide-react";
 import { ApiError } from "../lib/apiClient";
-import { getPublicIssuer, getPublicIssuerLogoBlobUrl, registerPublicCustomer } from "../lib/publicRegistration";
+import { getPublicCompany, getPublicCompanyLogoBlobUrl, registerPublicCustomer } from "../lib/publicRegistration";
 import { AsyncImage } from "../components/ui/AsyncImage";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
@@ -20,10 +20,10 @@ const IDENTIFICATION_TYPES = [
 ];
 
 export function PublicCustomerRegisterPage() {
-  const { issuerId } = useParams<{ issuerId: string }>();
+  const { companyId } = useParams<{ companyId: string }>();
   const [businessName, setBusinessName] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [loadingIssuer, setLoadingIssuer] = useState(true);
+  const [loadingCompany, setLoadingCompany] = useState(true);
   const [loadingLogo, setLoadingLogo] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
@@ -38,23 +38,23 @@ export function PublicCustomerRegisterPage() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    if (!issuerId) return;
+    if (!companyId) return;
     let objectUrl: string | null = null;
-    getPublicIssuer(issuerId)
-      .then((iss) => {
-        setBusinessName(iss.business_name);
-        if (iss.has_logo) {
+    getPublicCompany(companyId)
+      .then((c) => {
+        setBusinessName(c.business_name);
+        if (c.has_logo) {
           setLoadingLogo(true);
-          getPublicIssuerLogoBlobUrl(issuerId)
+          getPublicCompanyLogoBlobUrl(companyId)
             .then((url) => { objectUrl = url; setLogoUrl(url); })
             .catch(() => setLogoUrl(null))
             .finally(() => setLoadingLogo(false));
         }
       })
       .catch(() => setNotFound(true))
-      .finally(() => setLoadingIssuer(false));
+      .finally(() => setLoadingCompany(false));
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [issuerId]);
+  }, [companyId]);
 
   function handleFormSubmit(e: FormEvent) {
     e.preventDefault();
@@ -63,11 +63,11 @@ export function PublicCustomerRegisterPage() {
   }
 
   async function doRegister() {
-    if (!issuerId) return;
+    if (!companyId) return;
     setError(null);
     setSubmitting(true);
     try {
-      await registerPublicCustomer(issuerId, {
+      await registerPublicCustomer(companyId, {
         identification: { number, type_code: typeCode },
         name,
         email: email || undefined,
@@ -101,7 +101,7 @@ export function PublicCustomerRegisterPage() {
   return (
     <div className="flex min-h-screen items-start justify-center bg-(--bg-primary) px-4 pt-8 sm:items-center sm:pt-0">
       <Card className="w-full max-w-md">
-        {loadingIssuer ? (
+        {loadingCompany ? (
           <div className="flex min-h-32 items-center justify-center p-4">
             <Spinner className="h-5 w-5 text-(--text-muted)" />
           </div>

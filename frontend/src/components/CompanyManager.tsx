@@ -10,13 +10,13 @@ import { CompanyForm } from "./company-form/CompanyForm";
 
 // Lista las empresas a las que el usuario tiene acceso, deja cambiar de activa y crear una
 // nueva (reusando CompanyForm tal cual) — sin chrome de página propio, para que tanto
-// OnboardingPage (gate sin empresa activa) como IssuersPage (ya dentro del dashboard) lo
+// OnboardingPage (gate sin empresa activa) como CompaniesPage (ya dentro del dashboard) lo
 // envuelvan con su propio header/Card.
 //
 // Regla de ancho (ver docs/frontend-architecture.md): todo a todo el ancho disponible —
 // listados y formularios por igual. CompanyForm redistribuye sus propios campos en una grilla
-// auto-fit, no necesita que IssuerManager lo acote.
-export function IssuerManager() {
+// auto-fit, no necesita que CompanyManager lo acote.
+export function CompanyManager() {
   const { listCompanies, selectCompany, createCompany, activeCompany } = useAuth();
   const [companies, setCompanies] = useState<Company[] | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -55,7 +55,7 @@ export function IssuerManager() {
     }
   }
 
-  const hasIssuers = companies !== null && companies.length > 0;
+  const hasCompanies = companies !== null && companies.length > 0;
 
   return (
     <div className="flex flex-col gap-3">
@@ -67,7 +67,7 @@ export function IssuerManager() {
         </div>
       )}
 
-      {hasIssuers && !showForm && (
+      {hasCompanies && !showForm && (
         <div className="flex flex-col gap-2">
           <p className="text-xs text-(--text-secondary)">Elige con cuál empresa quieres trabajar:</p>
           {[...companies!].sort((a, b) => (b.id === activeCompany?.id ? 1 : 0) - (a.id === activeCompany?.id ? 1 : 0)).map((company) => {
@@ -94,10 +94,10 @@ export function IssuerManager() {
         </div>
       )}
 
-      {(!hasIssuers || showForm) && companies !== null && (
+      {(!hasCompanies || showForm) && companies !== null && (
         <>
-          {!hasIssuers && <p className="mb-3 text-xs text-(--text-secondary)">Todavía no tienes ninguna empresa — crea la primera.</p>}
-          <CompanyForm onSubmit={handleCreate} loading={loading} onCancel={hasIssuers ? () => setShowForm(false) : undefined} />
+          {!hasCompanies && <p className="mb-3 text-xs text-(--text-secondary)">Todavía no tienes ninguna empresa — crea la primera.</p>}
+          <CompanyForm onSubmit={handleCreate} loading={loading} onCancel={hasCompanies ? () => setShowForm(false) : undefined} />
         </>
       )}
     </div>

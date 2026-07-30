@@ -115,43 +115,43 @@ type relatedNoteOutputDTO struct {
 }
 
 type documentResponseDTO struct {
-	ID                    uuid.UUID              `json:"id"`
-	CompanyID             uuid.UUID              `json:"company_id"`
-	NumberingRangeID      uuid.UUID              `json:"numbering_range_id"`
-	DianDocumentTypeCode  string                 `json:"dian_document_type_code"`
-	Status                string                 `json:"status"`
-	Customer              partyInputDTO          `json:"customer"`
-	Lines                 []lineOutputDTO        `json:"lines"`
-	PaymentMeans          []paymentMeanInputDTO  `json:"payment_means,omitempty"`
-	Totals                totalsOutputDTO        `json:"totals"`
-	Note                  string                 `json:"note,omitempty"`
-	CurrencyCode          string                 `json:"currency_code,omitempty"`
-	BillingReference      *billingRefOutputDTO   `json:"billing_reference,omitempty"`
-	DiscrepancyResponse   *discrepancyOutputDTO  `json:"discrepancy_response,omitempty"`
-	NoteTypeCode          string                 `json:"note_type_code,omitempty"`
-	Vendor                *partyInputDTO         `json:"vendor,omitempty"`
-	OperationTypeCode     string                 `json:"operation_type_code,omitempty"`
-	WithholdingTaxes      []taxOutputDTO         `json:"withholding_taxes,omitempty"`
-	Prefix                string                 `json:"prefix,omitempty"`
-	Number                int64                  `json:"number,omitempty"`
-	DocumentKey           string                 `json:"document_key,omitempty"`
-	IssueDate             string                 `json:"issue_date,omitempty"`
-	QRURL                 string                 `json:"qr_url,omitempty"`
-	DianTrackID           string                 `json:"dian_track_id,omitempty"`
-	DianStatusCode        string                 `json:"dian_status_code,omitempty"`
-	DianStatusDescription string                 `json:"dian_status_description,omitempty"`
-	DianStatusMessage     string                 `json:"dian_status_message,omitempty"`
-	CustomerID            *uuid.UUID             `json:"customer_id,omitempty"`
-	VendorID              *uuid.UUID             `json:"vendor_id,omitempty"`
-	NCCount               int                    `json:"nc_count,omitempty"`
-	NDCount               int                    `json:"nd_count,omitempty"`
-	NACount               int                    `json:"na_count,omitempty"`
+	ID                    uuid.UUID             `json:"id"`
+	CompanyID             uuid.UUID             `json:"company_id"`
+	NumberingRangeID      uuid.UUID             `json:"numbering_range_id"`
+	DianDocumentTypeCode  string                `json:"dian_document_type_code"`
+	Status                string                `json:"status"`
+	Customer              partyInputDTO         `json:"customer"`
+	Lines                 []lineOutputDTO       `json:"lines"`
+	PaymentMeans          []paymentMeanInputDTO `json:"payment_means,omitempty"`
+	Totals                totalsOutputDTO       `json:"totals"`
+	Note                  string                `json:"note,omitempty"`
+	CurrencyCode          string                `json:"currency_code,omitempty"`
+	BillingReference      *billingRefOutputDTO  `json:"billing_reference,omitempty"`
+	DiscrepancyResponse   *discrepancyOutputDTO `json:"discrepancy_response,omitempty"`
+	NoteTypeCode          string                `json:"note_type_code,omitempty"`
+	Supplier              *partyInputDTO        `json:"supplier,omitempty"`
+	OperationTypeCode     string                `json:"operation_type_code,omitempty"`
+	WithholdingTaxes      []taxOutputDTO        `json:"withholding_taxes,omitempty"`
+	Prefix                string                `json:"prefix,omitempty"`
+	Number                int64                 `json:"number,omitempty"`
+	DocumentKey           string                `json:"document_key,omitempty"`
+	IssueDate             string                `json:"issue_date,omitempty"`
+	QRURL                 string                `json:"qr_url,omitempty"`
+	DianTrackID           string                `json:"dian_track_id,omitempty"`
+	DianStatusCode        string                `json:"dian_status_code,omitempty"`
+	DianStatusDescription string                `json:"dian_status_description,omitempty"`
+	DianStatusMessage     string                `json:"dian_status_message,omitempty"`
+	CustomerID            *uuid.UUID            `json:"customer_id,omitempty"`
+	SupplierID            *uuid.UUID            `json:"supplier_id,omitempty"`
+	NCCount               int                   `json:"nc_count,omitempty"`
+	NDCount               int                   `json:"nd_count,omitempty"`
+	NACount               int                   `json:"na_count,omitempty"`
 	// Visor didáctico — solo presentes en GET /{id} individual, nunca en el listado.
-	RelatedNotes    []relatedNoteOutputDTO `json:"related_notes,omitempty"`
-	NetPayableCents *int64                 `json:"net_payable_cents,omitempty"`
-	SourceDocumentID *uuid.UUID            `json:"source_document_id,omitempty"`
-	CreatedAt       time.Time              `json:"created_at"`
-	UpdatedAt       time.Time              `json:"updated_at"`
+	RelatedNotes     []relatedNoteOutputDTO `json:"related_notes,omitempty"`
+	NetPayableCents  *int64                 `json:"net_payable_cents,omitempty"`
+	SourceDocumentID *uuid.UUID             `json:"source_document_id,omitempty"`
+	CreatedAt        time.Time              `json:"created_at"`
+	UpdatedAt        time.Time              `json:"updated_at"`
 }
 
 // computeNetPayable calcula el saldo neto de una FE/DS aplicando sus notas relacionadas.
@@ -229,7 +229,7 @@ func toDocumentResponseDTO(d *domain.Document) documentResponseDTO {
 		DocumentKey: d.DocumentKey, QRURL: d.QRURL,
 		DianTrackID: d.DianTrackID, DianStatusCode: d.DianStatusCode,
 		DianStatusDescription: d.DianStatusDescription, DianStatusMessage: d.DianStatusMessage,
-		CustomerID: d.CustomerID, VendorID: d.VendorID,
+		CustomerID: d.CustomerID, SupplierID: d.SupplierID,
 		NCCount: d.NCCount, NDCount: d.NDCount, NACount: d.NACount,
 		CreatedAt: d.CreatedAt, UpdatedAt: d.UpdatedAt,
 	}
@@ -250,9 +250,9 @@ func toDocumentResponseDTO(d *domain.Document) documentResponseDTO {
 	if d.DiscrepancyResponse != nil {
 		dto.DiscrepancyResponse = &discrepancyOutputDTO{ReferenceID: d.DiscrepancyResponse.ReferenceID, ResponseCode: d.DiscrepancyResponse.ResponseCode, Description: d.DiscrepancyResponse.Description}
 	}
-	if d.Vendor != nil {
-		v := partyToOutputDTO(*d.Vendor)
-		dto.Vendor = &v
+	if d.Supplier != nil {
+		v := partyToOutputDTO(*d.Supplier)
+		dto.Supplier = &v
 	}
 	if len(d.WithholdingTaxes) > 0 {
 		dto.WithholdingTaxes = make([]taxOutputDTO, len(d.WithholdingTaxes))
@@ -700,14 +700,14 @@ func (h *Handler) handleCreateDebitNoteDraft(w http.ResponseWriter, r *http.Requ
 
 type supportDocBody struct {
 	NumberingRangeID  uuid.UUID             `json:"numbering_range_id"`
-	Vendor            partyInputDTO         `json:"vendor"`
+	Supplier          partyInputDTO         `json:"supplier"`
 	Lines             []lineInputDTO        `json:"lines"`
 	PaymentMeans      []paymentMeanInputDTO `json:"payment_means"`
 	Note              string                `json:"note"`
 	CurrencyCode      string                `json:"currency_code"`
 	OperationTypeCode string                `json:"operation_type_code"`
 	WithholdingTaxes  []taxInputDTO         `json:"withholding_taxes"`
-	VendorID          *uuid.UUID            `json:"vendor_id"`
+	SupplierID        *uuid.UUID            `json:"supplier_id"`
 }
 
 func (h *Handler) handleCreateSupportDocDraft(w http.ResponseWriter, r *http.Request) {
@@ -728,14 +728,14 @@ func (h *Handler) handleCreateSupportDocDraft(w http.ResponseWriter, r *http.Req
 	doc, err := h.createDraft.CreateSupportDocumentDraft(r.Context(), application.SupportDocumentDraftRequest{
 		CompanyID:         companyID,
 		NumberingRangeID:  body.NumberingRangeID,
-		Vendor:            body.Vendor.toCofdom(),
+		Supplier:          body.Supplier.toCofdom(),
 		Lines:             lines,
 		PaymentMeans:      paymentMeansInputToCofdom(body.PaymentMeans),
 		Note:              body.Note,
 		CurrencyCode:      body.CurrencyCode,
 		OperationTypeCode: body.OperationTypeCode,
 		WithholdingTaxes:  taxesInputToCofdom(body.WithholdingTaxes),
-		VendorID:          body.VendorID,
+		SupplierID:        body.SupplierID,
 	})
 	if err != nil {
 		writeErr(w, err)
@@ -746,14 +746,14 @@ func (h *Handler) handleCreateSupportDocDraft(w http.ResponseWriter, r *http.Req
 
 type adjustmentNoteBody struct {
 	NumberingRangeID    uuid.UUID                        `json:"numbering_range_id"`
-	Vendor              partyInputDTO                    `json:"vendor"`
+	Supplier            partyInputDTO                    `json:"supplier"`
 	Lines               []lineInputDTO                   `json:"lines"`
 	PaymentMeans        []paymentMeanInputDTO            `json:"payment_means"`
 	Note                string                           `json:"note"`
 	CurrencyCode        string                           `json:"currency_code"`
 	OperationTypeCode   string                           `json:"operation_type_code"`
 	WithholdingTaxes    []taxInputDTO                    `json:"withholding_taxes"`
-	VendorID            *uuid.UUID                       `json:"vendor_id"`
+	SupplierID          *uuid.UUID                       `json:"supplier_id"`
 	BillingReference    domain.BillingReferenceInput     `json:"billing_reference"`
 	DiscrepancyResponse *domain.DiscrepancyResponseInput `json:"discrepancy_response"`
 }
@@ -776,14 +776,14 @@ func (h *Handler) handleCreateAdjustmentNoteDraft(w http.ResponseWriter, r *http
 	doc, err := h.createDraft.CreateAdjustmentNoteDraft(r.Context(), application.AdjustmentNoteDraftRequest{
 		CompanyID:           companyID,
 		NumberingRangeID:    body.NumberingRangeID,
-		Vendor:              body.Vendor.toCofdom(),
+		Supplier:            body.Supplier.toCofdom(),
 		Lines:               lines,
 		PaymentMeans:        paymentMeansInputToCofdom(body.PaymentMeans),
 		Note:                body.Note,
 		CurrencyCode:        body.CurrencyCode,
 		OperationTypeCode:   body.OperationTypeCode,
 		WithholdingTaxes:    taxesInputToCofdom(body.WithholdingTaxes),
-		VendorID:            body.VendorID,
+		SupplierID:          body.SupplierID,
 		BillingReference:    body.BillingReference,
 		DiscrepancyResponse: body.DiscrepancyResponse,
 	})
@@ -1040,8 +1040,8 @@ func (h *Handler) logDoc(ctx context.Context, companyID uuid.UUID, action string
 	}
 	if doc.Customer.Name != "" {
 		meta["customer_name"] = doc.Customer.Name
-	} else if doc.Vendor != nil && doc.Vendor.Name != "" {
-		meta["vendor_name"] = doc.Vendor.Name
+	} else if doc.Supplier != nil && doc.Supplier.Name != "" {
+		meta["supplier_name"] = doc.Supplier.Name
 	}
 	h.audit.Log(ctx, companyID, userID, action, "document", &doc.ID, meta)
 }
@@ -1072,7 +1072,7 @@ func writeErr(w http.ResponseWriter, err error) {
 		errors.Is(err, domain.ErrMissingCustomer),
 		errors.Is(err, domain.ErrMissingPaymentMeans),
 		errors.Is(err, domain.ErrMissingBillingReference),
-		errors.Is(err, domain.ErrMissingVendor),
+		errors.Is(err, domain.ErrMissingSupplier),
 		errors.Is(err, domain.ErrRangeCompanyMismatch),
 		errors.Is(err, domain.ErrWrongDocumentType),
 		errors.Is(err, domain.ErrInvalidPaymentTerm),

@@ -22,8 +22,8 @@ func NewHandler(company *companyapp.GetUseCase, customer *customerapp.CreateUseC
 	return &Handler{company: company, customer: customer}
 }
 
-// GET /api/v1/public/issuers/{id}
-func (h *Handler) handleGetIssuer(w http.ResponseWriter, r *http.Request) {
+// GET /api/v1/public/companies/{id}
+func (h *Handler) handleGetCompany(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "id inválido")
@@ -48,8 +48,8 @@ func (h *Handler) handleGetIssuer(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GET /api/v1/public/issuers/{id}/logo
-func (h *Handler) handleGetIssuerLogo(w http.ResponseWriter, r *http.Request) {
+// GET /api/v1/public/companies/{id}/logo
+func (h *Handler) handleGetCompanyLogo(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "id inválido")
@@ -77,7 +77,7 @@ func (h *Handler) handleGetIssuerLogo(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(c.Logo)
 }
 
-// POST /api/v1/public/issuers/{id}/customers
+// POST /api/v1/public/companies/{id}/customers
 func (h *Handler) handleRegisterCustomer(w http.ResponseWriter, r *http.Request) {
 	companyID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {

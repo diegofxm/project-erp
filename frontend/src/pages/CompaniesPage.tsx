@@ -1,8 +1,8 @@
 import { Building2 } from "lucide-react";
 import { Card } from "../components/ui/Card";
-import { IssuerManager } from "../components/IssuerManager";
+import { CompanyManager } from "../components/CompanyManager";
 
-export function IssuersPage() {
+export function CompaniesPage() {
   return (
     <div className="p-4">
       <h1 className="mb-3 flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
@@ -10,7 +10,7 @@ export function IssuersPage() {
         Mis empresas
       </h1>
       <Card className="p-4">
-        <IssuerManager />
+        <CompanyManager />
       </Card>
     </div>
   );

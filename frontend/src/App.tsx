@@ -15,7 +15,7 @@ import { SettingsGeneralPage } from "./pages/SettingsGeneralPage";
 import { SettingsAccountPage } from "./pages/SettingsAccountPage";
 import { SettingsCompanyPage } from "./pages/SettingsCompanyPage";
 import { SettingsActivityPage } from "./pages/SettingsActivityPage";
-import { IssuersPage } from "./pages/IssuersPage";
+import { CompaniesPage } from "./pages/CompaniesPage";
 import { CustomersPage } from "./pages/CustomersPage";
 import { SuppliersPage } from "./pages/SuppliersPage";
 import { ProductsPage } from "./pages/ProductsPage";
@@ -30,7 +30,7 @@ import { SupportDocumentEditorPage } from "./pages/SupportDocumentEditorPage";
 import { AdjustmentNotesPage } from "./pages/AdjustmentNotesPage";
 import { AdjustmentNoteEditorPage } from "./pages/AdjustmentNoteEditorPage";
 import { PublicCustomerRegisterPage } from "./pages/PublicCustomerRegisterPage";
-import { AdminBillingPage, AdminRenewalsPage, AdminIssuerPage, AdminPlansPage, AdminUsersPage, AdminProspectsPage } from "./pages/AdminPage";
+import { AdminBillingPage, AdminRenewalsPage, AdminCompanyPage, AdminPlansPage, AdminUsersPage, AdminProspectsPage } from "./pages/AdminPage";
 
 function App() {
   return (
@@ -45,7 +45,7 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/setup-password" element={<SetupPasswordPage />} />
-                <Route path="/r/:issuerId" element={<PublicCustomerRegisterPage />} />
+                <Route path="/r/:companyId" element={<PublicCustomerRegisterPage />} />
                 <Route element={<ProtectedRoute />}>
                   <Route element={<DashboardLayout />}>
                     <Route path="/" element={<DashboardPage />} />
@@ -54,7 +54,7 @@ function App() {
                     <Route path="/settings/account" element={<SettingsAccountPage />} />
                     <Route path="/settings/company" element={<SettingsCompanyPage />} />
                     <Route path="/settings/activity" element={<SettingsActivityPage />} />
-                    <Route path="/issuers" element={<IssuersPage />} />
+                    <Route path="/companies" element={<CompaniesPage />} />
                     <Route path="/customers" element={<CustomersPage />} />
                     <Route path="/suppliers" element={<SuppliersPage />} />
                     <Route path="/products" element={<ProductsPage />} />
@@ -71,7 +71,7 @@ function App() {
                     <Route path="/admin" element={<Navigate to="/admin/billing" replace />} />
                     <Route path="/admin/billing" element={<AdminBillingPage />} />
                     <Route path="/admin/renewals" element={<AdminRenewalsPage />} />
-                    <Route path="/admin/issuer" element={<AdminIssuerPage />} />
+                    <Route path="/admin/company" element={<AdminCompanyPage />} />
                     <Route path="/admin/plans" element={<AdminPlansPage />} />
                     <Route path="/admin/users" element={<AdminUsersPage />} />
                     <Route path="/admin/prospects" element={<AdminProspectsPage />} />

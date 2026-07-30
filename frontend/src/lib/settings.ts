@@ -1,10 +1,10 @@
 import { apiClient } from "./apiClient";
-import type { IssuerSettings } from "./types";
+import type { CompanySettings } from "./types";
 
-export async function getMySettings(): Promise<IssuerSettings> {
-  return apiClient.get<IssuerSettings>("/companies/active/settings");
+export async function getMySettings(): Promise<CompanySettings> {
+  return apiClient.get<CompanySettings>("/companies/active/settings");
 }
 
-export async function updateMySettings(data: Partial<Pick<IssuerSettings, "brand_color" | "price_per_document_cop">>): Promise<IssuerSettings> {
-  return apiClient.patch<IssuerSettings>("/companies/active/settings", data);
+export async function updateMySettings(data: Partial<Pick<CompanySettings, "brand_color" | "price_per_document_cop">>): Promise<CompanySettings> {
+  return apiClient.patch<CompanySettings>("/companies/active/settings", data);
 }

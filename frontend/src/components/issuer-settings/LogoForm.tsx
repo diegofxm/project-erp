@@ -18,8 +18,8 @@ const CONTENT_TYPE_BY_MIME: Record<string, string> = {
 };
 
 // Logo para la representación gráfica en PDF — opcional, no es un secreto (a diferencia de
-// SoftwareCertificateForm). Se sirve aparte (GET /issuers/me/logo) para no inflar
-// issuerResponse con bytes de imagen en cada GET/PUT.
+// SoftwareCertificateForm). Se sirve aparte (GET /companies/me/logo) para no inflar
+// la respuesta de empresa con bytes de imagen en cada GET/PUT.
 export function LogoForm() {
   const { activeCompany, updateCompany, deleteCompanyLogo } = useAuth();
   const confirm = useConfirm();

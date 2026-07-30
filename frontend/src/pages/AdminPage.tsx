@@ -9,11 +9,11 @@ import {
   adminListPlans,
   adminGetCompany,
   adminGetSubscription,
-  adminGetIssuerSettings,
+  adminGetCompanySettings,
   adminAssignPlan,
   adminUpdatePlan,
   adminApplyPlanIncrement,
-  adminUpdateIssuerSettings,
+  adminUpdateCompanySettings,
   adminAffiliateCompany,
   adminRenewCompany,
   adminGetBillingSummary,
@@ -27,7 +27,7 @@ import {
   adminProspectCedulaUrl,
   adminProspectRutUrl,
 } from "../lib/admin";
-import type { AdminUser, BillingEntry, IssuerSettings, Payment, Plan, Prospect, RenewalEntry, Subscription, Company } from "../lib/types";
+import type { AdminUser, BillingEntry, CompanySettings, Payment, Plan, Prospect, RenewalEntry, Subscription, Company } from "../lib/types";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 
@@ -202,13 +202,13 @@ function RenewalsContent() {
   );
 }
 
-// ── Por emisor ───────────────────────────────────────────────────────────────
-function IssuerContent() {
+// ── Por empresa ───────────────────────────────────────────────────────────────
+function CompanyContent() {
   const toast = useToast();
-  const [issuerId, setIssuerId] = useState("");
-  const [issuer, setIssuer] = useState<Company | null>(null);
+  const [companyId, setCompanyId] = useState("");
+  const [company, setCompany] = useState<Company | null>(null);
   const [sub, setSub] = useState<Subscription | null>(null);
-  const [settings, setSettings] = useState<IssuerSettings | null>(null);
+  const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [priceInput, setPriceInput] = useState("");
@@ -224,21 +224,21 @@ function IssuerContent() {
   useEffect(() => { adminListPlans().then(setPlans).catch(() => {}); }, []);
 
   async function handleSearch() {
-    if (!issuerId.trim()) return;
+    if (!companyId.trim()) return;
     setSearching(true);
-    setIssuer(null);
+    setCompany(null);
     setSub(null);
     setSettings(null);
     setPaymentsHistory([]);
     try {
       const [issRes, subRes] = await Promise.allSettled([
-        adminGetCompany(issuerId.trim()),
-        adminGetSubscription(issuerId.trim()),
+        adminGetCompany(companyId.trim()),
+        adminGetSubscription(companyId.trim()),
       ]);
       if (issRes.status === "fulfilled") {
-        setIssuer(issRes.value);
+        setCompany(issRes.value);
         const [st, pmts] = await Promise.all([
-          adminGetIssuerSettings(issRes.value.id).catch(() => null),
+          adminGetCompanySettings(issRes.value.id).catch(() => null),
           adminListCompanyPayments(issRes.value.id).catch(() => []),
         ]);
         if (st) {
@@ -249,7 +249,7 @@ function IssuerContent() {
         }
         setPaymentsHistory(pmts);
       } else {
-        toast.error("No se encontró el emisor");
+        toast.error("No se encontró la empresa");
       }
       if (subRes.status === "fulfilled") {
         setSub(subRes.value);
@@ -261,7 +261,7 @@ function IssuerContent() {
   }
 
   async function handleSaveSettings() {
-    if (!issuer) return;
+    if (!company) return;
     const price = parseInt(priceInput, 10);
     const affFee = parseInt(affFeeInput, 10);
     const renFee = parseInt(renFeeInput, 10);
@@ -271,7 +271,7 @@ function IssuerContent() {
     }
     setSavingSettings(true);
     try {
-      const st = await adminUpdateIssuerSettings(issuer.id, {
+      const st = await adminUpdateCompanySettings(company.id, {
         price_per_document_cop: price,
         affiliation_fee_cop: affFee,
         renewal_fee_cop: renFee,
@@ -286,14 +286,14 @@ function IssuerContent() {
   }
 
   async function handleAffiliate() {
-    if (!issuer) return;
+    if (!company) return;
     const fee = parseInt(affFeeInput, 10);
     if (isNaN(fee) || fee < 0) { toast.error("Ingresa una tarifa válida."); return; }
     setAffiliating(true);
     try {
-      const st = await adminAffiliateCompany(issuer.id, fee);
+      const st = await adminAffiliateCompany(company.id, fee);
       setSettings(st);
-      adminListCompanyPayments(issuer.id).then(setPaymentsHistory).catch(() => {});
+      adminListCompanyPayments(company.id).then(setPaymentsHistory).catch(() => {});
       toast.success(`Afiliación registrada. Vigente hasta ${formatDate(st.renewal_due_at)}.`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo registrar la afiliación");
@@ -303,14 +303,14 @@ function IssuerContent() {
   }
 
   async function handleRenew() {
-    if (!issuer) return;
+    if (!company) return;
     const fee = parseInt(renFeeInput, 10);
     if (isNaN(fee) || fee < 0) { toast.error("Ingresa una tarifa válida."); return; }
     setRenewing(true);
     try {
-      const st = await adminRenewCompany(issuer.id, fee);
+      const st = await adminRenewCompany(company.id, fee);
       setSettings(st);
-      adminListCompanyPayments(issuer.id).then(setPaymentsHistory).catch(() => {});
+      adminListCompanyPayments(company.id).then(setPaymentsHistory).catch(() => {});
       toast.success(`Renovación registrada. Nueva vigencia hasta ${formatDate(st.renewal_due_at)}.`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo registrar la renovación");
@@ -320,10 +320,10 @@ function IssuerContent() {
   }
 
   async function handleAssign() {
-    if (!issuer || !selectedPlanId) return;
+    if (!company || !selectedPlanId) return;
     setAssigning(true);
     try {
-      const s = await adminAssignPlan(issuer.id, selectedPlanId);
+      const s = await adminAssignPlan(company.id, selectedPlanId);
       setSub(s);
       toast.success(`Plan asignado: ${s.plan_name}`);
     } catch (err) {
@@ -340,16 +340,16 @@ function IssuerContent() {
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <Building2 className="h-4 w-4 shrink-0 text-(--accent-primary)" />
-          Por emisor
+          Por empresa
         </h1>
       </div>
-      <p className="mb-3 text-xs text-(--text-secondary)">Busca un emisor por su UUID para gestionar su plan, tarifas y vigencia.</p>
+      <p className="mb-3 text-xs text-(--text-secondary)">Busca una empresa por su UUID para gestionar su plan, tarifas y vigencia.</p>
 
       <div className="flex items-end gap-2 mb-4">
         <Input
-          label="ID del emisor (UUID)"
-          value={issuerId}
-          onChange={(e) => setIssuerId(e.target.value)}
+          label="ID de la empresa (UUID)"
+          value={companyId}
+          onChange={(e) => setCompanyId(e.target.value)}
           placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
           className="flex-1 font-mono text-xs"
         />
@@ -358,13 +358,13 @@ function IssuerContent() {
         </Button>
       </div>
 
-      {issuer && (
+      {company && (
         <>
         <div className="rounded border border-(--border-color) overflow-hidden">
-          {/* Cabecera del emisor */}
+          {/* Cabecera de la empresa */}
           <div className="bg-(--bg-tertiary) px-3 py-2 border-b border-(--border-color)">
-            <p className="text-xs font-semibold text-(--text-primary)">{issuer.business_name}</p>
-            <p className="text-xs text-(--text-secondary)">NIT {issuer.nit}-{issuer.check_digit}</p>
+            <p className="text-xs font-semibold text-(--text-primary)">{company.business_name}</p>
+            <p className="text-xs text-(--text-secondary)">NIT {company.nit}-{company.check_digit}</p>
             <div className="mt-1 flex flex-wrap gap-3 text-xs text-(--text-secondary)">
               <span>Plan: <strong className="text-(--text-primary)">{sub?.plan_name ?? "sin suscripción"}</strong></span>
               <span>Afiliado: <strong className="text-(--text-primary)">{formatDate(settings?.affiliated_at)}</strong></span>
@@ -801,8 +801,8 @@ export const AdminRenewalsPage = withSuperAdmin(function AdminRenewalsPage() {
   return <div className="p-4"><RenewalsContent /></div>;
 });
 
-export const AdminIssuerPage = withSuperAdmin(function AdminIssuerPage() {
-  return <div className="p-4"><IssuerContent /></div>;
+export const AdminCompanyPage = withSuperAdmin(function AdminCompanyPage() {
+  return <div className="p-4"><CompanyContent /></div>;
 });
 
 export const AdminPlansPage = withSuperAdmin(function AdminPlansPage() {

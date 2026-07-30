@@ -7,8 +7,8 @@ import { Card } from "../ui/Card";
 import { Spinner } from "../ui/Spinner";
 
 // Panel de autorregistro de clientes por QR (patrón D1 y similares, ver
-// docs/apidian-architecture.md sección 9.41) — el emisor imprime este QR/link en su mostrador;
-// quien lo escanea llega a /r/:issuerId (página pública, sin sesión) y se autorregistra como
+// docs/apidian-architecture.md sección 9.41) — la empresa imprime este QR/link en su mostrador;
+// quien lo escanea llega a /r/:companyId (página pública, sin sesión) y se autorregistra como
 // adquiriente sin que nadie tenga que digitarlo por él. El QR se genera en el navegador
 // (paquete qrcode) — no hace falta pedirle nada al backend más allá del link en sí.
 export function PublicRegistrationPanel() {

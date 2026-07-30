@@ -152,7 +152,7 @@ export function SupportDocumentEditorPage() {
     }
   }
 
-  const issuerNotReady = !activeCompany?.has_software_credentials || !activeCompany?.has_certificate;
+  const companyNotReady = !activeCompany?.has_software_credentials || !activeCompany?.has_certificate;
 
   if (loadingDocument) {
     return (
@@ -227,7 +227,7 @@ export function SupportDocumentEditorPage() {
                 variant="success"
                 icon={<Send className="h-3.5 w-3.5" />}
                 onClick={handleConfirm}
-                disabled={issuerNotReady}
+                disabled={companyNotReady}
                 loading={confirming}
               >
                 Confirmar y enviar
@@ -239,7 +239,7 @@ export function SupportDocumentEditorPage() {
 
       {error && <Banner tone="danger">{error}</Banner>}
 
-      {!isNew && doc?.status === "draft" && issuerNotReady && (
+      {!isNew && doc?.status === "draft" && companyNotReady && (
         <Banner tone="info">
           La empresa todavía no tiene software/certificado configurados — complétalos en Configuración → Empresa antes de confirmar.
         </Banner>
@@ -259,9 +259,9 @@ export function SupportDocumentEditorPage() {
           <div className="grid grid-cols-12 gap-3 text-xs">
             <div className="col-span-6 sm:col-span-3">
               <span className="text-(--text-secondary)">Tercero (vendedor)</span>
-              <p className="text-(--text-primary)">{doc.vendor?.name ?? "—"}</p>
+              <p className="text-(--text-primary)">{doc.supplier?.name ?? "—"}</p>
               <p className="text-(--text-muted)">
-                {doc.vendor ? `${idTypeLabel(doc.vendor.identification.type_code)} ${doc.vendor.identification.number}` : ""}
+                {doc.supplier ? `${idTypeLabel(doc.supplier.identification.type_code)} ${doc.supplier.identification.number}` : ""}
               </p>
             </div>
             <div className="col-span-6 sm:col-span-3">
@@ -403,8 +403,8 @@ export function SupportDocumentEditorPage() {
       ) : null}
       {showEmailModal && doc && (
         <SendEmailModal
-          initialEmail={doc.vendor?.email ?? ""}
-          fetchEmail={doc.vendor_id ? () => fetchSupplier(doc.vendor_id!).then((v) => v.email ?? "") : undefined}
+          initialEmail={doc.supplier?.email ?? ""}
+          fetchEmail={doc.supplier_id ? () => fetchSupplier(doc.supplier_id!).then((v) => v.email ?? "") : undefined}
           onSend={handleSendEmailConfirm}
           onClose={() => setShowEmailModal(false)}
         />

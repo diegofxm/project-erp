@@ -39,7 +39,7 @@ type Party struct {
 	LiabilityCodes []string
 	// IndustryClassificationCodes son los códigos CIIU (catálogo DANE, no DIAN — por eso no
 	// hay tabla de catálogo que los valide, solo un límite de cardinalidad que aplica quien
-	// construya el Party, ver issuers.Service.validateIssuer). Solo aplica al emisor, nunca
+	// construya el Party, ver companies.Service.validateCompany). Solo aplica al emisor, nunca
 	// al receptor (el Anexo Técnico lo describe como "código de actividad económica del
 	// emisor"). Se serializan concatenados con ";" en un único cbc:IndustryClassificationCode.
 	IndustryClassificationCodes []string

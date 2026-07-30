@@ -195,13 +195,13 @@ func TestSendBillSync_AdjustmentNote_Real(t *testing.T) {
 	}
 
 	// NA usa el NIT del ABS (Customer) para el nombre del ZIP, igual que DS.
-	issuerNIT := an.Customer.Identification.Number
-	fileName := zip.DocumentFileName(zip.KindAdjustmentNote, issuerNIT, zip.SoftwarePropioCode, now.Year(), uint32(time.Now().Unix()%0xFFFFFFFF))
+	companyNIT := an.Customer.Identification.Number
+	fileName := zip.DocumentFileName(zip.KindAdjustmentNote, companyNIT, zip.SoftwarePropioCode, now.Year(), uint32(time.Now().Unix()%0xFFFFFFFF))
 	zipBytes, err := zip.Build([]zip.File{{Name: fileName, Content: xmlBytes}})
 	if err != nil {
 		t.Fatalf("zip.Build: %v", err)
 	}
-	zipFileName := zip.PackageFileName(issuerNIT, zip.SoftwarePropioCode, now.Year(), uint32(time.Now().Unix()%0xFFFFFFFF))
+	zipFileName := zip.PackageFileName(companyNIT, zip.SoftwarePropioCode, now.Year(), uint32(time.Now().Unix()%0xFFFFFFFF))
 
 	client := New(HabilitacionURL, cert, key)
 

@@ -1,11 +1,11 @@
 import { Building2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { Card } from "../components/ui/Card";
-import { IssuerManager } from "../components/IssuerManager";
+import { CompanyManager } from "../components/CompanyManager";
 
 // Gate previo al dashboard cuando el usuario no tiene empresa activa (0 o 2+ vinculadas, ver
 // middleware.RequireTenant en apidian). La lógica de listar/crear/seleccionar empresa vive en
-// IssuerManager (reusada también dentro del dashboard en IssuersPage, /issuers) — aquí solo el
+// CompanyManager (reusada también dentro del dashboard en CompaniesPage, /companies) — aquí solo el
 // chrome de página de un gate previo al login (Card centrada + logout).
 export function OnboardingPage() {
   const { logout } = useAuth();
@@ -24,7 +24,7 @@ export function OnboardingPage() {
         </div>
 
         <div className="p-4">
-          <IssuerManager />
+          <CompanyManager />
         </div>
       </Card>
     </div>

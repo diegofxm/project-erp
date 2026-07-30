@@ -43,7 +43,7 @@ const EMPTY_FORM: CreateCompanyPayload = {
 };
 
 // Solo se exigen aquí los campos que ya eran obligatorios en el formulario plano anterior —
-// issuers.Service.validateIssuer en el backend solo exige nit/business_name/environment, el
+// companies.Service.validateCompany en el backend solo exige nit/business_name/environment, el
 // resto (check_digit/identification_type_code/department_code/municipality_code/address_line/
 // email) son obligatorios a nivel de UX para que la empresa quede realmente lista para emitir,
 // no por una regla del backend.

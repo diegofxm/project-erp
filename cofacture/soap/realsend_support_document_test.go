@@ -188,13 +188,13 @@ func TestSendTestSetAsync_SupportDocument_Real(t *testing.T) {
 
 	// El NIT del emisor (Customer en DS) se usa para el nombre del ZIP — igual que FE usa
 	// el NIT del Supplier (que en FE ES el emisor).
-	issuerNIT := inv.Customer.Identification.Number
-	fileName := zip.DocumentFileName(zip.KindSupportDocument, issuerNIT, zip.SoftwarePropioCode, now.Year(), 1)
+	companyNIT := inv.Customer.Identification.Number
+	fileName := zip.DocumentFileName(zip.KindSupportDocument, companyNIT, zip.SoftwarePropioCode, now.Year(), 1)
 	zipBytes, err := zip.Build([]zip.File{{Name: fileName, Content: xmlBytes}})
 	if err != nil {
 		t.Fatalf("zip.Build: %v", err)
 	}
-	zipFileName := zip.PackageFileName(issuerNIT, zip.SoftwarePropioCode, now.Year(), 1)
+	zipFileName := zip.PackageFileName(companyNIT, zip.SoftwarePropioCode, now.Year(), 1)
 
 	client := New(HabilitacionURL, cert, key)
 

@@ -206,7 +206,7 @@ export function DebitNoteEditorPage() {
     }
   }
 
-  const issuerNotReady = !activeCompany?.has_software_credentials || !activeCompany?.has_certificate;
+  const companyNotReady = !activeCompany?.has_software_credentials || !activeCompany?.has_certificate;
 
   if (loadingDocument) {
     return (
@@ -268,7 +268,7 @@ export function DebitNoteEditorPage() {
                 variant="success"
                 icon={<Send className="h-3.5 w-3.5" />}
                 onClick={handleConfirm}
-                disabled={issuerNotReady}
+                disabled={companyNotReady}
                 loading={confirming}
               >
                 Confirmar y enviar
@@ -280,7 +280,7 @@ export function DebitNoteEditorPage() {
 
       {error && <Banner tone="danger">{error}</Banner>}
 
-      {!isNew && doc?.status === "draft" && issuerNotReady && (
+      {!isNew && doc?.status === "draft" && companyNotReady && (
         <Banner tone="info">
           La empresa todavía no tiene software/certificado configurados — complétalos en Configuración → Empresa antes
           de confirmar.

@@ -157,7 +157,7 @@ export interface Plan {
   updated_at: string;
 }
 
-// Suscripción activa de un emisor — GET /admin/issuers/{id}/subscription.
+// Suscripción activa de una empresa — GET /admin/companies/{id}/subscription.
 export interface Subscription {
   id: string;
   issuer_id: string;
@@ -171,8 +171,8 @@ export interface Subscription {
   updated_at: string;
 }
 
-// Configuración de personalización y tarifas del emisor — GET/PATCH /issuers/me/settings.
-export interface IssuerSettings {
+// Configuración de personalización y tarifas de la empresa — GET/PATCH /companies/me/settings.
+export interface CompanySettings {
   issuer_id: string;
   brand_color: string;
   price_per_document_cop: number;
@@ -269,7 +269,7 @@ export interface ItemStandard extends CatalogEntry {
   agency_id?: string;
 }
 
-// Espejo de numberingRangeResponse en apidian/internal/api/handler_issuers.go. status resume
+// Espejo de numberingRangeResponse en apidian/internal/api/handler_companies.go. status resume
 // is_active/agotado/vencido en un solo valor (ver numbering.NumberingRange.Status) — el select
 // de la factura solo ofrece los "active", el panel de administración los muestra todos con una
 // insignia.
@@ -446,7 +446,7 @@ export interface Supplier {
 }
 
 export interface ListSuppliersResult {
-  vendors: Supplier[];
+  suppliers: Supplier[];
   count: number;
 }
 
@@ -599,14 +599,14 @@ export interface IssueDebitNotePayload {
 }
 
 // Espejo de issueSupportDocumentRequest (apidian/internal/api/handler_support_documents.go).
-// Vendor es el tercero no obligado (AccountingSupplierParty); la empresa emisora actúa de
+// Supplier es el tercero no obligado (AccountingSupplierParty); la empresa emisora actúa de
 // compradora y se deriva del token — no se envía en el payload.
 // operation_type_code: "10" Residente / "11" No Residente.
 // withholding_taxes: retenciones calculadas (ReteIVA "05", ReteRenta "06").
 export interface IssueSupportDocumentPayload {
   numbering_range_id: string;
-  vendor_id?: string;
-  vendor: SupplierPayload;
+  supplier_id?: string;
+  supplier: SupplierPayload;
   lines: DocumentLineInput[];
   payment_means?: PaymentMean[];
   note?: string;
@@ -620,8 +620,8 @@ export interface IssueSupportDocumentPayload {
 // (usa CUDS en vez de CUFE) y discrepancy_response opcional para el motivo del ajuste.
 export interface IssueAdjustmentNotePayload {
   numbering_range_id: string;
-  vendor_id?: string;
-  vendor: SupplierPayload;
+  supplier_id?: string;
+  supplier: SupplierPayload;
   lines: DocumentLineInput[];
   payment_means?: PaymentMean[];
   note?: string;
@@ -645,7 +645,7 @@ export interface RelatedNote {
 }
 
 // Espejo de documentResponse — cubre Factura, NC, ND, DS y NA (Nota de Ajuste DS).
-// billing_reference/discrepancy_response presentes en NC/ND/NA; vendor/operation_type_code/
+// billing_reference/discrepancy_response presentes en NC/ND/NA; supplier/operation_type_code/
 // withholding_taxes presentes en DS/NA.
 export interface Document {
   id: string;
@@ -663,7 +663,7 @@ export interface Document {
   discrepancy_response?: DiscrepancyResponse;
   note_type_code?: string;
   // Documento Soporte (dian_document_type_code "05")
-  vendor?: CustomerPayload;
+  supplier?: CustomerPayload;
   operation_type_code?: string;
   withholding_taxes?: Tax[];
   prefix?: string;
@@ -676,7 +676,7 @@ export interface Document {
   dian_status_description?: string;
   dian_status_message?: string;
   customer_id?: string;
-  vendor_id?: string; // trazabilidad DS — nil si no se creó desde vendor guardado
+  supplier_id?: string; // trazabilidad DS — nil si no se creó desde supplier guardado
   nc_count?: number; // cuántas NC referencian esta factura — solo en el listado
   nd_count?: number; // cuántas ND referencian esta factura — solo en el listado
   na_count?: number; // cuántas NA referencian este DS — solo en el listado

@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { AdminUser, BillingEntry, Company, IssuerSettings, Payment, Plan, Prospect, RenewalEntry, Subscription } from "./types";
+import type { AdminUser, BillingEntry, Company, CompanySettings, Payment, Plan, Prospect, RenewalEntry, Subscription } from "./types";
 
 export async function adminListPlans(): Promise<Plan[]> {
   const res = await apiClient.get<{ plans: Plan[]; count: number }>("/admin/plans");
@@ -22,28 +22,28 @@ export async function adminGetCompany(id: string): Promise<Company> {
   return apiClient.get<Company>(`/admin/issuers/${id}`);
 }
 
-export async function adminGetSubscription(issuerId: string): Promise<Subscription> {
-  return apiClient.get<Subscription>(`/admin/issuers/${issuerId}/subscription`);
+export async function adminGetSubscription(companyId: string): Promise<Subscription> {
+  return apiClient.get<Subscription>(`/admin/issuers/${companyId}/subscription`);
 }
 
-export async function adminAssignPlan(issuerId: string, planId: string): Promise<Subscription> {
-  return apiClient.post<Subscription>(`/admin/issuers/${issuerId}/subscription`, { plan_id: planId });
+export async function adminAssignPlan(companyId: string, planId: string): Promise<Subscription> {
+  return apiClient.post<Subscription>(`/admin/issuers/${companyId}/subscription`, { plan_id: planId });
 }
 
-export async function adminGetIssuerSettings(issuerId: string): Promise<IssuerSettings> {
-  return apiClient.get<IssuerSettings>(`/admin/issuers/${issuerId}/settings`);
+export async function adminGetCompanySettings(companyId: string): Promise<CompanySettings> {
+  return apiClient.get<CompanySettings>(`/admin/issuers/${companyId}/settings`);
 }
 
-export async function adminUpdateIssuerSettings(issuerId: string, data: Partial<IssuerSettings>): Promise<IssuerSettings> {
-  return apiClient.patch<IssuerSettings>(`/admin/issuers/${issuerId}/settings`, data);
+export async function adminUpdateCompanySettings(companyId: string, data: Partial<CompanySettings>): Promise<CompanySettings> {
+  return apiClient.patch<CompanySettings>(`/admin/issuers/${companyId}/settings`, data);
 }
 
-export async function adminAffiliateCompany(issuerId: string, feePaidCOP: number): Promise<IssuerSettings> {
-  return apiClient.post<IssuerSettings>(`/admin/issuers/${issuerId}/affiliate`, { fee_paid_cop: feePaidCOP });
+export async function adminAffiliateCompany(companyId: string, feePaidCOP: number): Promise<CompanySettings> {
+  return apiClient.post<CompanySettings>(`/admin/issuers/${companyId}/affiliate`, { fee_paid_cop: feePaidCOP });
 }
 
-export async function adminRenewCompany(issuerId: string, feePaidCOP: number): Promise<IssuerSettings> {
-  return apiClient.post<IssuerSettings>(`/admin/issuers/${issuerId}/renew`, { fee_paid_cop: feePaidCOP });
+export async function adminRenewCompany(companyId: string, feePaidCOP: number): Promise<CompanySettings> {
+  return apiClient.post<CompanySettings>(`/admin/issuers/${companyId}/renew`, { fee_paid_cop: feePaidCOP });
 }
 
 export async function adminGetBillingSummary(): Promise<BillingEntry[]> {
@@ -65,8 +65,8 @@ export async function adminCreateUser(data: { email: string; name: string }): Pr
   return apiClient.post<AdminUser>("/admin/users", data);
 }
 
-export async function adminListCompanyPayments(issuerId: string): Promise<Payment[]> {
-  const res = await apiClient.get<{ payments: Payment[]; count: number }>(`/admin/issuers/${issuerId}/payments`);
+export async function adminListCompanyPayments(companyId: string): Promise<Payment[]> {
+  const res = await apiClient.get<{ payments: Payment[]; count: number }>(`/admin/issuers/${companyId}/payments`);
   return res.payments;
 }
 

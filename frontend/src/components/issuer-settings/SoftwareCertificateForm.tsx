@@ -322,7 +322,7 @@ function NeSoftwareSection() {
   );
 }
 
-// Completa software/PIN/certificado DESPUÉS de creada la empresa (PUT /issuers/me).
+// Completa software/PIN/certificado DESPUÉS de creada la empresa (PUT /companies/me).
 // FE y DS comparten el mismo software; NE tiene credenciales propias.
 export function SoftwareCertificateForm() {
   return (
