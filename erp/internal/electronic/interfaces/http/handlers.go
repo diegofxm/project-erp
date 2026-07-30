@@ -145,6 +145,7 @@ type documentResponseDTO struct {
 	VendorID              *uuid.UUID             `json:"vendor_id,omitempty"`
 	NCCount               int                    `json:"nc_count,omitempty"`
 	NDCount               int                    `json:"nd_count,omitempty"`
+	NACount               int                    `json:"na_count,omitempty"`
 	// Visor didáctico — solo presentes en GET /{id} individual, nunca en el listado.
 	RelatedNotes    []relatedNoteOutputDTO `json:"related_notes,omitempty"`
 	NetPayableCents *int64                 `json:"net_payable_cents,omitempty"`
@@ -229,7 +230,7 @@ func toDocumentResponseDTO(d *domain.Document) documentResponseDTO {
 		DianTrackID: d.DianTrackID, DianStatusCode: d.DianStatusCode,
 		DianStatusDescription: d.DianStatusDescription, DianStatusMessage: d.DianStatusMessage,
 		CustomerID: d.CustomerID, VendorID: d.VendorID,
-		NCCount: d.NCCount, NDCount: d.NDCount,
+		NCCount: d.NCCount, NDCount: d.NDCount, NACount: d.NACount,
 		CreatedAt: d.CreatedAt, UpdatedAt: d.UpdatedAt,
 	}
 	if !d.IssueDate.IsZero() {

@@ -215,17 +215,13 @@ func buildPDFData(doc *domain.Document, co *domain.CompanyInfo, nr *domain.Numbe
 		"DocNumber": docNumber,
 		"CUFE":      doc.DocumentKey,
 		"QR":        qr,
-		"IssueDate": func() string {
-			if doc.IssueDate.IsZero() {
-				return ""
-			}
-			return doc.IssueDate.Format("02/01/2006")
-		}(),
+		"IssueDate": doc.IssueDate.Format("02/01/2006"),
 		"IssueTime": func() string {
-			if doc.IssueDate.IsZero() {
-				return ""
+			t := doc.IssueTime
+			if len(t) > 8 {
+				t = t[:8] // quitar offset de zona horaria "-05:00"
 			}
-			return doc.IssueDate.Format("15:04:05")
+			return t
 		}(),
 		"Currency":  doc.CurrencyCode,
 

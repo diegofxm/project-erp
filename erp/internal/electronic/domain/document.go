@@ -78,9 +78,10 @@ type Document struct {
 	QRURL     string
 	SignedXML string
 
-	// NCCount/NDCount: cuántas NC/ND referencian este documento (solo en listados)
+	// NCCount/NDCount/NACount: cuántas notas referencian este documento (solo en listados)
 	NCCount int
 	NDCount int
+	NACount int
 
 	Status                Status
 	DianTrackID           string

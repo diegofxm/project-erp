@@ -202,7 +202,50 @@ func (r *DocumentRepository) ListByCompany(ctx context.Context, companyID uuid.U
 		}
 		out = append(out, d)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Segunda query: contar NC/ND/NA por documento referenciado (billing_reference).
+	// Una sola round-trip, no N+1 independiente del tamaño de página.
+	if len(out) > 0 {
+		cntRows, err := r.pool.Query(ctx, `
+			SELECT
+				COALESCE(billing_reference->>'prefix', ''),
+				billing_reference->>'number',
+				SUM(CASE WHEN dian_document_type_code = '91' THEN 1 ELSE 0 END)::int,
+				SUM(CASE WHEN dian_document_type_code = '92' THEN 1 ELSE 0 END)::int,
+				SUM(CASE WHEN dian_document_type_code = '95' THEN 1 ELSE 0 END)::int
+			FROM electronic.documents
+			WHERE company_id = $1 AND billing_reference IS NOT NULL
+			GROUP BY 1, 2`, companyID)
+		if err == nil {
+			defer cntRows.Close()
+			type countKey struct{ prefix, number string }
+			type countVal struct{ nc, nd, na int }
+			counts := map[countKey]countVal{}
+			for cntRows.Next() {
+				var k countKey
+				var v countVal
+				if err := cntRows.Scan(&k.prefix, &k.number, &v.nc, &v.nd, &v.na); err == nil {
+					counts[k] = v
+				}
+			}
+			for _, d := range out {
+				if d.Number == 0 {
+					continue
+				}
+				k := countKey{prefix: d.Prefix, number: fmt.Sprintf("%d", d.Number)}
+				if c, ok := counts[k]; ok {
+					d.NCCount = c.nc
+					d.NDCount = c.nd
+					d.NACount = c.na
+				}
+			}
+		}
+	}
+
+	return out, nil
 }
 
 func (r *DocumentRepository) GetRelatedNotes(ctx context.Context, companyID uuid.UUID, prefix string, number int64) ([]domain.RelatedNote, error) {

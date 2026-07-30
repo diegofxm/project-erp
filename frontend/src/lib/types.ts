@@ -679,6 +679,7 @@ export interface Document {
   vendor_id?: string; // trazabilidad DS — nil si no se creó desde vendor guardado
   nc_count?: number; // cuántas NC referencian esta factura — solo en el listado
   nd_count?: number; // cuántas ND referencian esta factura — solo en el listado
+  na_count?: number; // cuántas NA referencian este DS — solo en el listado
   // Solo en GET /documents/{id} para FE (01) y DS (05) confirmados.
   related_notes?: RelatedNote[];
   net_payable_cents?: number; // saldo neto = total − NC aceptadas + ND aceptadas (FE) o − NA (DS)
