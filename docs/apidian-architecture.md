@@ -161,7 +161,7 @@ apidian/
 │   ├── customers/                       # catálogo de adquirientes — conveniencia, no la
 │   │                                      # fuente de verdad del documento (ver 4.2/9.21)
 │   ├── products/                        # catálogo de ítems/servicios — misma lógica
-│   ├── vendors/                         # catálogo de proveedores no obligados (SNO para DS) —
+│   ├── suppliers/                         # catálogo de proveedores no obligados (SNO para DS) —
 │   │                                      # mismo patrón que customers; ver 9.53/9.56
 │   ├── pdf/                             # generación PDF en memoria con maroto v2 (ver 9.39);
 │   │                                      # recibe domain.Invoice + IssuerForDocument, devuelve []byte
@@ -178,7 +178,7 @@ apidian/
 │       ├── handler_support_documents.go     # POST/PUT /support-documents (DS — CUDS-SHA384, ver 9.55)
 │       ├── handler_customers.go              # CRUD de customers
 │       ├── handler_products.go                # CRUD de products
-│       ├── handler_vendors.go                 # CRUD de vendors (para DS, ver 9.56)
+│       ├── handler_suppliers.go                 # CRUD de suppliers (para DS, ver 9.56)
 │       ├── middleware/                       # RequestID/Logging/Recovery/Auth/LoginRateLimit
 │       └── response/                          # WriteJSON/WriteError/classify()
 ```
@@ -206,13 +206,13 @@ config, logger, cryptutil      (sin dependencias entre sí — cryptutil es la �
    └────┬────┘
         ├──────────────┬──────────────┬──────────────┐
         ↓              ↓              ↓              ↓
-       auth        customers       products       vendors    (todos usan solo database;
+       auth        customers       products       suppliers    (todos usan solo database;
         ↓              ↓              ↓              ↓        issuer_id es FK de tabla,
         │              │              │              │        no dependencia Go a issuers)
         │         nit  pdf  email     │              │
         │              ↓              │              │
         │          documents ←────────┴──────────────┘       (documents usa issuers+numbering+
-        │              ↓                                       cofacture+customers+vendors+
+        │              ↓                                       cofacture+customers+suppliers+
         └──────┬───────┘                                       pdf+email+nit; ver 9.23/9.55)
                ↓
               api          (usa todos los servicios; expone HTTP — middleware.Auth
@@ -354,11 +354,11 @@ GET    /api/v1/products/{id}
 PUT    /api/v1/products/{id}
 DELETE /api/v1/products/{id}
 
-POST   /api/v1/vendors                            # catálogo de proveedores no obligados para DS (ver 9.56)
-GET    /api/v1/vendors
-GET    /api/v1/vendors/{id}
-PUT    /api/v1/vendors/{id}
-DELETE /api/v1/vendors/{id}
+POST   /api/v1/suppliers                            # catálogo de proveedores no obligados para DS (ver 9.56)
+GET    /api/v1/s
+GET    /api/v1/suppliers/{id}
+PUT    /api/v1/suppliers/{id}
+DELETE /api/v1/suppliers/{id}
 
 GET  /api/v1/stats/billing                         # métricas de facturación del emisor activo (ver 9.57)
 
@@ -476,7 +476,7 @@ DIAN/la base de datos, no el ruteo HTTP.
 | 2.13 | `internal/email` — SMTP con go-mail, AttachedDocument UBL al receptor | ✅ Verificado, ver 9.40 |
 | 2.14 | `internal/nit` — dígito verificador módulo 11 | ✅ Implementado, ver 9.42 |
 | 2.15 | Documento Soporte (DS tipo 05, CUDS-SHA384) de punta a punta | ✅ Autorizado por la DIAN en habilitación real (StatusCode 00), ver 9.55 |
-| 2.16 | `internal/vendors` — catálogo de proveedores no obligados para DS | ✅ Implementado, ver 9.56 |
+| 2.16 | `internal/suppliers` — catálogo de proveedores no obligados para DS | ✅ Implementado, ver 9.56 |
 | 2.17 | `GET /stats/billing` — métricas de facturación del emisor (KPIs, serie 12m, por tipo) | ✅ Implementado, ver 9.57 |
 
 **Catálogos cargados en 2.2** (`internal/database/seed/*.csv`, idempotente vía `ON CONFLICT`):
@@ -2655,7 +2655,7 @@ cuerpo con los rangos/cert afectados, y un enlace o instrucción para ir a Confi
 ### 9.53 Modelo de entidades — decisión de tablas separadas (2026-07-15)
 
 El usuario evaluó si convenía unificar `issuers`, `customers`, y los futuros `employees`/
-`vendors` en una sola tabla de "actores" o "partes", dado que comparten campos de identificación,
+`suppliers` en una sola tabla de "actores" o "partes", dado que comparten campos de identificación,
 nombre y dirección.
 
 **Decisión: mantener tablas separadas por rol.** Razonamiento:
@@ -2687,7 +2687,7 @@ esos son CRMs primero; aquí el core es el pipeline DIAN, no un CRM.
 |---|---|---|
 | `issuers` | Tenant / emisor (la empresa) | Implementado |
 | `customers` | Adquirientes (directorio por emisor) | Implementado |
-| `vendors` | Vendedores no obligados (para Documento Soporte) | ✅ Implementado — ver sección 9.56 |
+| `suppliers` | Vendedores no obligados (para Documento Soporte) | ✅ Implementado — ver sección 9.56 |
 | `employees` | Trabajadores (para Nómina Electrónica) | Pendiente — se agrega al implementar nómina |
 
 ---
@@ -2865,7 +2865,7 @@ tiene OFE+ADQ). Verificado contra el CUDS oficial del ejemplo del Anexo Técnico
 
 `confirmSupportDocument` (en `internal/documents/service.go`):
 
-1. `vendorAsNIT()` — convierte el proveedor a estructura SNO: fuerza `schemeName="31"`,
+1. `supplierAsNIT()` — convierte el proveedor a estructura SNO: fuerza `schemeName="31"`,
    recalcula el DV si el tipo original no era NIT, y rellena `PostalZone="000000"` si vacío.
 2. `partyFromIssuerAsNIT()` — convierte el emisor al ABS: mismo tratamiento.
 3. `cuds.Compute(inv, pin)` — calcula el hash.
@@ -2886,20 +2886,20 @@ La **Caja de Herramientas DS v1.1 está DESACTUALIZADA** en party structure — 
 
 ---
 
-### 9.56 Catálogo de Proveedores (`internal/vendors`) — implementado (2026-07-18)
+### 9.56 Catálogo de Proveedores (`internal/suppliers`) — implementado (2026-07-18)
 
-`vendors` es el directorio de proveedores no obligados a facturar que aparecen como SNO en
+`suppliers` es el directorio de proveedores no obligados a facturar que aparecen como SNO en
 los Documentos Soporte. Mismo patrón arquitectónico que `internal/customers`:
 
-- Tabla `vendors` en Postgres (migración `000014_vendors.up.sql`)
+- Tabla `suppliers` en Postgres (migración `000014_suppliers.up.sql`)
 - JSONB `party` column — mismo snapshot pattern que customers
-- 5 endpoints: `POST /vendors`, `GET /vendors`, `GET /vendors/{id}`, `PUT /vendors/{id}`,
-  `DELETE /vendors/{id}`
-- `VendorSection` en `SupportDocumentForm` del frontend — selector con búsqueda, igual que
+- 5 endpoints: `POST /suppliers`, `GET /suppliers`, `GET /suppliers/{id}`, `PUT /suppliers/{id}`,
+  `DELETE /suppliers/{id}`
+- `supplierSection` en `SupportDocumentForm` del frontend — selector con búsqueda, igual que
   `CustomerSection` en `InvoiceForm`
 
-La relación vendors–DS es solo de conveniencia: al confirmar un DS, `documents.Service`
-extrae los datos del proveedor del snapshot del documento (no de la tabla `vendors`) — mismo
+La relación suppliers–DS es solo de conveniencia: al confirmar un DS, `documents.Service`
+extrae los datos del proveedor del snapshot del documento (no de la tabla `suppliers`) — mismo
 principio que clientes en FE. La tabla sirve para no retipear los datos del proveedor en
 cada DS.
 

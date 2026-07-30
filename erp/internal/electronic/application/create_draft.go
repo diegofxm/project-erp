@@ -14,10 +14,10 @@ import (
 // CreateDraftUseCase crea borradores para cualquier tipo de documento DIAN.
 // No reclama número ni firma — eso ocurre solo en ConfirmUseCase.
 type CreateDraftUseCase struct {
-	documents  domain.DocumentRepository
-	numbering  domain.NumberingRepository
-	companies  domain.CompanyPort
-	catalogs   domain.CatalogPort
+	documents domain.DocumentRepository
+	numbering domain.NumberingRepository
+	companies domain.CompanyPort
+	catalogs  domain.CatalogPort
 }
 
 // NewCreateDraftUseCase crea el caso de uso.
@@ -66,28 +66,28 @@ type NoteDraftRequest struct {
 type SupportDocumentDraftRequest struct {
 	CompanyID         uuid.UUID
 	NumberingRangeID  uuid.UUID
-	Vendor            cofdom.Party
+	Supplier          cofdom.Party
 	Lines             []cofdom.Line
 	PaymentMeans      []cofdom.PaymentMean
 	Note              string
 	CurrencyCode      string
 	OperationTypeCode string // "10" Residente, "11" No Residente
 	WithholdingTaxes  []cofdom.Tax
-	VendorID          *uuid.UUID
+	SupplierID        *uuid.UUID
 }
 
 // AdjustmentNoteDraftRequest es el payload de una Nota de Ajuste al Documento Soporte.
 type AdjustmentNoteDraftRequest struct {
 	CompanyID           uuid.UUID
 	NumberingRangeID    uuid.UUID
-	Vendor              cofdom.Party
+	Supplier            cofdom.Party
 	Lines               []cofdom.Line
 	PaymentMeans        []cofdom.PaymentMean
 	Note                string
 	CurrencyCode        string
 	OperationTypeCode   string
 	WithholdingTaxes    []cofdom.Tax
-	VendorID            *uuid.UUID
+	SupplierID          *uuid.UUID
 	BillingReference    domain.BillingReferenceInput
 	DiscrepancyResponse *domain.DiscrepancyResponseInput
 }
@@ -149,14 +149,14 @@ func (uc *CreateDraftUseCase) CreateDebitNoteDraft(ctx context.Context, req Note
 }
 
 func (uc *CreateDraftUseCase) CreateSupportDocumentDraft(ctx context.Context, req SupportDocumentDraftRequest) (*domain.Document, error) {
-	if err := uc.validateSupport(ctx, req.CompanyID, req.NumberingRangeID, req.Lines, req.Vendor, req.PaymentMeans, req.OperationTypeCode); err != nil {
+	if err := uc.validateSupport(ctx, req.CompanyID, req.NumberingRangeID, req.Lines, req.Supplier, req.PaymentMeans, req.OperationTypeCode); err != nil {
 		return nil, err
 	}
-	applyVendorDefaults(&req.Vendor)
+	applySupplierDefaults(&req.Supplier)
 	if err := uc.resolveTaxTypeName(ctx, req.Lines); err != nil {
 		return nil, err
 	}
-	vendor := req.Vendor
+	supplier := req.Supplier
 	d := domain.Document{
 		CompanyID:            req.CompanyID,
 		NumberingRangeID:     req.NumberingRangeID,
@@ -166,8 +166,8 @@ func (uc *CreateDraftUseCase) CreateSupportDocumentDraft(ctx context.Context, re
 		Lines:                req.Lines,
 		PaymentMeans:         req.PaymentMeans,
 		Totals:               computeTotalsDS(req.Lines, req.WithholdingTaxes),
-		Vendor:               &vendor,
-		VendorID:             req.VendorID,
+		Supplier:             &supplier,
+		SupplierID:           req.SupplierID,
 		OperationTypeCode:    req.OperationTypeCode,
 		WithholdingTaxes:     req.WithholdingTaxes,
 		Status:               domain.StatusDraft,
@@ -176,17 +176,17 @@ func (uc *CreateDraftUseCase) CreateSupportDocumentDraft(ctx context.Context, re
 }
 
 func (uc *CreateDraftUseCase) CreateAdjustmentNoteDraft(ctx context.Context, req AdjustmentNoteDraftRequest) (*domain.Document, error) {
-	if err := uc.validateSupport(ctx, req.CompanyID, req.NumberingRangeID, req.Lines, req.Vendor, req.PaymentMeans, req.OperationTypeCode); err != nil {
+	if err := uc.validateSupport(ctx, req.CompanyID, req.NumberingRangeID, req.Lines, req.Supplier, req.PaymentMeans, req.OperationTypeCode); err != nil {
 		return nil, err
 	}
 	if req.BillingReference.CUFE == "" {
 		return nil, domain.ErrMissingBillingReference
 	}
-	applyVendorDefaults(&req.Vendor)
+	applySupplierDefaults(&req.Supplier)
 	if err := uc.resolveTaxTypeName(ctx, req.Lines); err != nil {
 		return nil, err
 	}
-	vendor := req.Vendor
+	supplier := req.Supplier
 	billingRef := req.BillingReference
 	d := domain.Document{
 		CompanyID:            req.CompanyID,
@@ -197,8 +197,8 @@ func (uc *CreateDraftUseCase) CreateAdjustmentNoteDraft(ctx context.Context, req
 		Lines:                req.Lines,
 		PaymentMeans:         req.PaymentMeans,
 		Totals:               computeTotalsDS(req.Lines, req.WithholdingTaxes),
-		Vendor:               &vendor,
-		VendorID:             req.VendorID,
+		Supplier:             &supplier,
+		SupplierID:           req.SupplierID,
 		OperationTypeCode:    req.OperationTypeCode,
 		WithholdingTaxes:     req.WithholdingTaxes,
 		BillingReference:     &billingRef,
@@ -266,7 +266,7 @@ func (uc *CreateDraftUseCase) validateNote(ctx context.Context, companyID, range
 	return nil
 }
 
-func (uc *CreateDraftUseCase) validateSupport(ctx context.Context, companyID, rangeID uuid.UUID, lines []cofdom.Line, vendor cofdom.Party, paymentMeans []cofdom.PaymentMean, operationTypeCode string) error {
+func (uc *CreateDraftUseCase) validateSupport(ctx context.Context, companyID, rangeID uuid.UUID, lines []cofdom.Line, supplier cofdom.Party, paymentMeans []cofdom.PaymentMean, operationTypeCode string) error {
 	if companyID == uuid.Nil {
 		return domain.ErrMissingCompany
 	}
@@ -276,8 +276,8 @@ func (uc *CreateDraftUseCase) validateSupport(ctx context.Context, companyID, ra
 	if len(lines) == 0 {
 		return domain.ErrEmptyLines
 	}
-	if vendor.Identification.Number == "" {
-		return domain.ErrMissingVendor
+	if supplier.Identification.Number == "" {
+		return domain.ErrMissingSupplier
 	}
 	if operationTypeCode != "10" && operationTypeCode != "11" {
 		return domain.ErrInvalidOperationTypeCode
@@ -403,8 +403,8 @@ type LineInputData struct {
 	UnitCode       string
 	UnitPriceCents int64
 	ItemCode       string
-	ItemTypeCode   string  // vacío → "999" (estándar propio)
-	TaxTypeCode    string  // vacío → "01" (IVA) con TaxPercent=0
+	ItemTypeCode   string // vacío → "999" (estándar propio)
+	TaxTypeCode    string // vacío → "01" (IVA) con TaxPercent=0
 	TaxPercent     float64
 }
 
@@ -496,7 +496,7 @@ func applyCustomerDefaults(p *cofdom.Party) {
 	}
 }
 
-func applyVendorDefaults(p *cofdom.Party) {
+func applySupplierDefaults(p *cofdom.Party) {
 	if p.EntityTypeCode == "" {
 		p.EntityTypeCode = "1"
 	}

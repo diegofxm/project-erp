@@ -191,7 +191,7 @@ El middleware de autorización por rol debe ir en `shared/tenant/` como una segu
 | `context/AuthContext.tsx` | Migración completa de modelo issuer/apidian a company/ERP; `verifySession` usa `GET /auth/me`; `createIssuer` hace `POST /companies` → `POST /auth/select-company` |
 | `lib/documents.ts` | Prefijo `/electronic/` en todos los paths de documentos |
 | `lib/numberingRanges.ts` | Prefijo `/electronic/` en rangos de numeración |
-| `lib/vendors.ts` | `/vendors` → `/suppliers` |
+| `lib/suppliers.ts` | `/suppliers` → `/suppliers` |
 | `lib/catalogs.ts` | `dian-document-types` → `document-types` |
 
 **Pendiente frontend — segunda fase:**

@@ -55,10 +55,10 @@ CREATE TABLE IF NOT EXISTS electronic.documents (
     dian_status_description     TEXT,
     dian_status_message         TEXT,
     application_response_xml    TEXT,
-    vendor                      JSONB,
+    supplier                    JSONB,
     operation_type_code         VARCHAR(5),
     withholding_taxes           JSONB,
-    vendor_id                   UUID,
+    supplier_id                 UUID,
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

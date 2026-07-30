@@ -50,8 +50,8 @@ export function SupportDocumentForm({ initial, onSubmit, onCancel, loading }: Su
 
   const [numberingRangeId, setNumberingRangeId] = useState(initial?.numbering_range_id ?? "");
   const [operationTypeCode, setOperationTypeCode] = useState(initial?.operation_type_code ?? "10");
-  const [supplier, setSupplier] = useState<SupplierPayload>(initial?.vendor ?? NEW_SUPPLIER);
-  const [supplierId, setSupplierId] = useState(initial?.vendor_id ?? "");
+  const [supplier, setSupplier] = useState<SupplierPayload>(initial?.supplier ?? NEW_SUPPLIER);
+  const [supplierId, setSupplierId] = useState(initial?.supplier_id ?? "");
   const [lines, setLines] = useState<DocumentLineInput[]>(initial?.lines.map(lineToInput) ?? []);
   const [paymentMeans, setPaymentMeans] = useState<PaymentMean[]>(initial?.payment_means ?? []);
   const [withholdingTaxes, setWithholdingTaxes] = useState<Tax[]>(initial?.withholding_taxes ?? []);
@@ -73,8 +73,8 @@ export function SupportDocumentForm({ initial, onSubmit, onCancel, loading }: Su
   function handleSubmit() {
     onSubmit({
       numbering_range_id: numberingRangeId,
-      vendor_id: supplierId || undefined,
-      vendor: supplier,
+      supplier_id: supplierId || undefined,
+      supplier: supplier,
       lines,
       payment_means: paymentMeans.length > 0 ? paymentMeans : undefined,
       note: note || undefined,

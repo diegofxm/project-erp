@@ -23,7 +23,7 @@ func TestCompute(t *testing.T) {
 		HeaderTaxes: []domain.Tax{
 			{TypeCode: "01", TaxAmountCents: 95_000},
 		},
-		// En DS: Supplier = tercero no obligado (vendor), Customer = emisor.
+		// En DS: Supplier = tercero no obligado (supplier), Customer = emisor.
 		Supplier: domain.Party{Identification: domain.Identification{Number: "900373076"}},
 		Customer: domain.Party{Identification: domain.Identification{Number: "8355990"}},
 	}

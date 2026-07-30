@@ -3,7 +3,7 @@ import type { ListSuppliersResult, Supplier, SupplierPayload } from "./types";
 
 export async function listSuppliers(): Promise<Supplier[]> {
   const res = await apiClient.get<ListSuppliersResult>("/suppliers");
-  return res.vendors;
+  return res.suppliers;
 }
 
 export function fetchSupplier(id: string): Promise<Supplier> {
@@ -48,7 +48,7 @@ export function deleteSupplier(id: string): Promise<void> {
 }
 
 // supplierToPayload — convierte un Supplier del catálogo ERP (campos planos) al SupplierPayload
-// anidado que se embebe en documentos (IssueSupportDocumentPayload.vendor).
+// anidado que se embebe en documentos (IssueSupportDocumentPayload.supplier).
 export function supplierToPayload(v: Supplier): SupplierPayload {
   return {
     entity_type_code: v.entity_type_code || undefined,

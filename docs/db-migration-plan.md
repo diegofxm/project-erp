@@ -173,7 +173,7 @@ public.audit_events
 
 ## Schema `edocuments` — documentos electrónicos fiscales
 
-Hoy vive en `apidian/internal/{documents,customers,vendors,products,numbering}/`.
+Hoy vive en `apidian/internal/{documents,customers,suppliers,products,numbering}/`.
 FKs solo hacia `catalogs.*`. `issuer_id UUID NOT NULL` sin FK a `public.issuers`
 (el API valida existencia; mismo patrón que `accounting` usa para `company_id`).
 
@@ -194,7 +194,7 @@ edocuments.customers                              -- FKs → catalogs.*
     liability_codes  TEXT[]
     phone, email, merchant_registration_number
 
-edocuments.vendors                                -- misma estructura que customers
+edocuments.suppliers                                -- misma estructura que customers
     id, issuer_id UUID NOT NULL
     ... (ídem customers)
 
@@ -226,8 +226,8 @@ edocuments.documents                              -- FKs → catalogs.* + edocum
     issue_date DATE, issue_time TEXT
     customer JSONB NOT NULL                       -- snapshot firmado, inmutable
     customer_id → edocuments.customers ON DELETE SET NULL
-    vendor JSONB                                  -- snapshot firmado, inmutable (DS/NA)
-    vendor_id → edocuments.vendors ON DELETE SET NULL
+    supplier JSONB                                  -- snapshot firmado, inmutable (DS/NA)
+    supplier_id → edocuments.suppliers ON DELETE SET NULL
     lines JSONB NOT NULL
     payment_means JSONB NOT NULL DEFAULT '[]'
     withholding_taxes JSONB                       -- DS/NA
@@ -297,18 +297,18 @@ catalogs.dian_document_types
 catalogs.dian_tax_types          (antes: public.tax_types — ambigüedad eliminada)
     ← public.issuers.tax_scheme_code
     ← edocuments.customers.tax_scheme_code
-    ← edocuments.vendors.tax_scheme_code
+    ← edocuments.suppliers.tax_scheme_code
     ← edocuments.products.tax_type_code
 
 catalogs.identification_types
     ← public.issuers.identification_type_code
     ← edocuments.customers.identification_type_code
-    ← edocuments.vendors.identification_type_code
+    ← edocuments.suppliers.identification_type_code
 
 catalogs.tax_regimes
     ← public.issuers.tax_regime_code
     ← edocuments.customers.tax_regime_code
-    ← edocuments.vendors.tax_regime_code
+    ← edocuments.suppliers.tax_regime_code
 
 catalogs.unit_measures
     ← edocuments.products.unit_measure_code   (HOY sin FK — ahora correcto)
@@ -341,7 +341,7 @@ project-ubl/
 │   ├── edocuments.go             Migrate()
 │   ├── documents/                model, service, postgres, pdf
 │   ├── customers/
-│   ├── vendors/
+│   ├── suppliers/
 │   ├── products/
 │   ├── numbering/
 │   └── database/
@@ -412,7 +412,7 @@ Paso 5  Actualizar go.work
 
 Paso 6  go build ./... — debe compilar limpio
 
-Paso 7  Mover código Go de apidian/internal/{documents,customers,vendors,products,numbering}/
+Paso 7  Mover código Go de apidian/internal/{documents,customers,suppliers,products,numbering}/
         hacia edocuments/ con sus nuevos package paths
 
 Paso 8  Actualizar imports en apidian/internal/api/ e integrations/

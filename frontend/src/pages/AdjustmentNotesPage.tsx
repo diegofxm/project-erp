@@ -165,7 +165,7 @@ export function AdjustmentNotesPage() {
                         : "—"}
                     </td>
                     <td className="px-3 py-2 text-(--text-secondary)">
-                      {d.vendor?.name ?? "—"}
+                      {d.supplier?.name ?? "—"}
                     </td>
                     <td className="px-3 py-2 text-(--text-secondary)">
                       {d.operation_type_code ? OPERATION_LABELS[d.operation_type_code] ?? d.operation_type_code : "—"}

@@ -62,16 +62,16 @@ type Document struct {
 	// CustomerID — referencia OPCIONAL de trazabilidad al catálogo de clientes.
 	CustomerID *uuid.UUID
 
-	// VendorID — referencia OPCIONAL de trazabilidad al catálogo de proveedores (DS/NA).
-	VendorID *uuid.UUID
+	// SupplierID — referencia OPCIONAL de trazabilidad al catálogo de proveedores (DS/NA).
+	SupplierID *uuid.UUID
 
 	// Solo NC/ND/NA
 	BillingReference    *BillingReferenceInput
 	DiscrepancyResponse *DiscrepancyResponseInput
 	NoteTypeCode        string // solo NC
 
-	// Solo DS/NA (roles invertidos: Vendor = tercero, Company = comprador)
-	Vendor            *cofdom.Party
+	// Solo DS/NA (roles invertidos: Supplier = tercero, Company = comprador)
+	Supplier          *cofdom.Party
 	OperationTypeCode string // "10" Residente, "11" No Residente
 	WithholdingTaxes  []cofdom.Tax
 
@@ -83,11 +83,11 @@ type Document struct {
 	NDCount int
 	NACount int
 
-	Status                Status
-	DianTrackID           string
-	DianStatusCode        string
-	DianStatusDescription string
-	DianStatusMessage     string
+	Status                 Status
+	DianTrackID            string
+	DianStatusCode         string
+	DianStatusDescription  string
+	DianStatusMessage      string
 	ApplicationResponseXML string
 
 	CreatedAt time.Time

@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	cofdom "github.com/diegofxm/cofacture/domain"
-	"github.com/diegofxm/cofacture/cuds"
 	"github.com/diegofxm/cofacture/cude"
+	"github.com/diegofxm/cofacture/cuds"
 	"github.com/diegofxm/cofacture/cufe"
+	cofdom "github.com/diegofxm/cofacture/domain"
 	"github.com/diegofxm/cofacture/qr"
 	"github.com/diegofxm/cofacture/securitycode"
 	"github.com/diegofxm/cofacture/zip"
@@ -206,8 +206,8 @@ func (uc *ConfirmUseCase) confirmDebitNote(ctx context.Context, d *domain.Docume
 }
 
 func (uc *ConfirmUseCase) confirmSupportDocument(ctx context.Context, d *domain.Document) (*domain.Document, error) {
-	if d.Vendor == nil {
-		return nil, domain.ErrMissingVendor
+	if d.Supplier == nil {
+		return nil, domain.ErrMissingSupplier
 	}
 	p, err := uc.prepare(ctx, d)
 	if err != nil {
@@ -228,7 +228,7 @@ func (uc *ConfirmUseCase) confirmSupportDocument(ctx context.Context, d *domain.
 		CurrencyCode:      d.CurrencyCode,
 		Note:              d.Note,
 		// Roles invertidos: Supplier = tercero no obligado, Customer = empresa compradora.
-		Supplier:         vendorAsNIT(*d.Vendor),
+		Supplier:         supplierAsNIT(*d.Supplier),
 		Customer:         partyFromCompanyAsNIT(p.company),
 		PaymentMeans:     d.PaymentMeans,
 		HeaderTaxes:      headerTaxes,
@@ -255,8 +255,8 @@ func (uc *ConfirmUseCase) confirmSupportDocument(ctx context.Context, d *domain.
 }
 
 func (uc *ConfirmUseCase) confirmAdjustmentNote(ctx context.Context, d *domain.Document) (*domain.Document, error) {
-	if d.Vendor == nil {
-		return nil, domain.ErrMissingVendor
+	if d.Supplier == nil {
+		return nil, domain.ErrMissingSupplier
 	}
 	if d.BillingReference == nil {
 		return nil, domain.ErrMissingBillingReference
@@ -279,7 +279,7 @@ func (uc *ConfirmUseCase) confirmAdjustmentNote(ctx context.Context, d *domain.D
 		IssueTime:         p.now.Format("15:04:05-07:00"),
 		CurrencyCode:      d.CurrencyCode,
 		Note:              d.Note,
-		Supplier:          vendorAsNIT(*d.Vendor),
+		Supplier:          supplierAsNIT(*d.Supplier),
 		Customer:          partyFromCompanyAsNIT(p.company),
 		PaymentMeans:      d.PaymentMeans,
 		HeaderTaxes:       headerTaxes,
@@ -518,8 +518,8 @@ func partyFromCompanyAsNIT(c *domain.CompanyInfo) cofdom.Party {
 	return p
 }
 
-// vendorAsNIT normaliza el proveedor del DS: fuerza schemeName="31" (DSAJ25a).
-func vendorAsNIT(p cofdom.Party) cofdom.Party {
+// supplierAsNIT normaliza el proveedor del DS: fuerza schemeName="31" (DSAJ25a).
+func supplierAsNIT(p cofdom.Party) cofdom.Party {
 	// Siempre recomputar el DV: el valor almacenado en BD puede ser incorrecto.
 	if dv, err := nit.ComputeCheckDigit(p.Identification.Number); err == nil {
 		p.Identification.VerificationCode = dv

@@ -164,7 +164,7 @@ export function SupportDocumentsPage() {
                       {d.prefix && d.number ? `${d.prefix}${d.number}` : "Borrador"}
                     </td>
                     <td className="px-3 py-2 text-(--text-secondary)">
-                      {d.vendor?.name ?? d.customer.name}
+                      {d.supplier?.name ?? d.customer.name}
                     </td>
                     <td className="px-3 py-2 text-(--text-secondary)">
                       {d.operation_type_code ? OPERATION_LABELS[d.operation_type_code] ?? d.operation_type_code : "—"}

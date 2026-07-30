@@ -369,7 +369,7 @@ export function DashboardPage() {
                   </thead>
                   <tbody>
                     {recentDocs.map((doc, i) => {
-                      const cp = doc.dian_document_type_code === "05" ? doc.vendor : doc.customer;
+                      const cp = doc.dian_document_type_code === "05" ? doc.supplier : doc.customer;
                       return (
                         <tr key={doc.id} className={`border-b border-(--border-light) ${i % 2 === 0 ? "bg-(--bg-primary)" : "bg-(--bg-secondary)"}`}>
                           <td className="py-2 pr-3 font-mono text-(--text-primary)">

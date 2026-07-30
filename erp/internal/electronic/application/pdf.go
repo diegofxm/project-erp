@@ -147,8 +147,8 @@ func buildPDFData(doc *domain.Document, co *domain.CompanyInfo, nr *domain.Numbe
 
 	// Tercero (adquiriente o proveedor en DS/NA)
 	counterparty := doc.Customer
-	if doc.Vendor != nil {
-		counterparty = *doc.Vendor
+	if doc.Supplier != nil {
+		counterparty = *doc.Supplier
 	}
 
 	// Pago
@@ -224,7 +224,7 @@ func buildPDFData(doc *domain.Document, co *domain.CompanyInfo, nr *domain.Numbe
 			}
 			return t
 		}(),
-		"Currency":  doc.CurrencyCode,
+		"Currency": doc.CurrencyCode,
 
 		"CustomerName":    counterparty.Name,
 		"CustomerIDType":  idTypeName(counterparty.Identification.TypeCode),
@@ -461,10 +461,10 @@ func pdfAmountInWords(pesos int64) string {
 }
 
 var (
-	pdfUnidades     = []string{"", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"}
-	pdfDec10_19     = []string{"diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve"}
-	pdfDecenas      = []string{"", "", "veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"}
-	pdfCentenas     = []string{"", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"}
+	pdfUnidades = []string{"", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"}
+	pdfDec10_19 = []string{"diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve"}
+	pdfDecenas  = []string{"", "", "veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"}
+	pdfCentenas = []string{"", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"}
 )
 
 func pdfNumberToWords(n int64) string {

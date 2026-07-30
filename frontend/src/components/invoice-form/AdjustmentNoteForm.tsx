@@ -65,8 +65,8 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
 
   const [numberingRangeId, setNumberingRangeId] = useState(initial?.numbering_range_id ?? "");
   const [operationTypeCode, setOperationTypeCode] = useState(initial?.operation_type_code ?? prefill?.operation_type_code ?? "10");
-  const [supplier, setSupplier] = useState<SupplierPayload>(initial?.vendor ?? prefill?.vendor ?? NEW_SUPPLIER);
-  const [supplierId, setSupplierId] = useState(initial?.vendor_id ?? prefill?.vendor_id ?? "");
+  const [supplier, setSupplier] = useState<SupplierPayload>(initial?.supplier ?? prefill?.supplier ?? NEW_SUPPLIER);
+  const [supplierId, setSupplierId] = useState(initial?.supplier_id ?? prefill?.supplier_id ?? "");
   const [lines, setLines] = useState<DocumentLineInput[]>(
     initial?.lines.map(lineToInput) ?? prefill?.lines.map(lineToInput) ?? []
   );
@@ -118,8 +118,8 @@ export function AdjustmentNoteForm({ initial, prefill, billingReference, onSubmi
   function handleSubmit() {
     onSubmit({
       numbering_range_id: numberingRangeId,
-      vendor_id: supplierId || undefined,
-      vendor: supplier,
+      supplier_id: supplierId || undefined,
+      supplier: supplier,
       lines,
       payment_means: paymentMeans.length > 0 ? paymentMeans : undefined,
       note: note || undefined,

@@ -55,7 +55,7 @@ function eventDocType(meta?: Record<string, unknown>): string {
 
 function eventParty(meta?: Record<string, unknown>): string {
   if (!meta) return "—";
-  return ((meta.customer_name ?? meta.vendor_name ?? "") as string) || "—";
+  return ((meta.customer_name ?? meta.supplier_name ?? "") as string) || "—";
 }
 
 function eventEnv(meta?: Record<string, unknown>): string {

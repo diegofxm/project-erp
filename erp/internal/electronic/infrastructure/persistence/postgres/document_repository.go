@@ -32,7 +32,7 @@ const documentCols = `id, company_id, numbering_range_id, dian_document_type_cod
 	billing_reference, discrepancy_response, note_type_code, note,
 	qr_url, signed_xml, status, dian_track_id, dian_status_code,
 	dian_status_description, dian_status_message, application_response_xml,
-	vendor, operation_type_code, withholding_taxes, vendor_id,
+	supplier, operation_type_code, withholding_taxes, supplier_id,
 	created_at, updated_at`
 
 func (r *DocumentRepository) Create(ctx context.Context, d domain.Document) (*domain.Document, error) {
@@ -86,7 +86,7 @@ func (r *DocumentRepository) UpdateDraft(ctx context.Context, d domain.Document)
 			totals_line_extension_cents = $7, totals_tax_exclusive_cents = $8,
 			totals_tax_inclusive_cents = $9, totals_prepaid_cents = $10, totals_payable_cents = $11,
 			billing_reference = $12, discrepancy_response = $13, note_type_code = $14, note = $15,
-			vendor = $16, operation_type_code = $17, withholding_taxes = $18, vendor_id = $19,
+			supplier = $16, operation_type_code = $17, withholding_taxes = $18, supplier_id = $19,
 			updated_at = $20
 		WHERE id = $21 AND status = 'draft'`,
 		d.NumberingRangeID, d.CurrencyCode,
@@ -94,7 +94,7 @@ func (r *DocumentRepository) UpdateDraft(ctx context.Context, d domain.Document)
 		d.Totals.LineExtensionCents, d.Totals.TaxExclusiveCents,
 		d.Totals.TaxInclusiveCents, d.Totals.PrepaidCents, d.Totals.PayableCents,
 		snaps.billingRef, snaps.discrepancy, nullableStr(d.NoteTypeCode), nullableStr(d.Note),
-		snaps.vendor, nullableStr(d.OperationTypeCode), snaps.withholding, d.VendorID,
+		snaps.supplier, nullableStr(d.OperationTypeCode), snaps.withholding, d.SupplierID,
 		time.Now(), d.ID,
 	)
 	if err != nil {
@@ -180,7 +180,7 @@ func (r *DocumentRepository) ListByCompany(ctx context.Context, companyID uuid.U
 		args = append(args, "%"+filter.Search+"%")
 		n := len(args)
 		q += fmt.Sprintf(`
-			AND (customer->>'Name' ILIKE $%[1]d OR vendor->>'Name' ILIKE $%[1]d
+			AND (customer->>'Name' ILIKE $%[1]d OR supplier->>'Name' ILIKE $%[1]d
 			     OR customer->'Identification'->>'Number' ILIKE $%[1]d
 			     OR CONCAT(COALESCE(prefix,''), COALESCE(number::text,'')) ILIKE $%[1]d)`, n)
 	}
@@ -287,7 +287,7 @@ type snapshots struct {
 	paymentMeans []byte
 	billingRef   any
 	discrepancy  any
-	vendor       any
+	supplier     any
 	withholding  any
 }
 
@@ -317,12 +317,12 @@ func marshalSnapshots(d domain.Document) (snapshots, error) {
 		}
 		s.discrepancy = b
 	}
-	if d.Vendor != nil {
-		b, err := json.Marshal(d.Vendor)
+	if d.Supplier != nil {
+		b, err := json.Marshal(d.Supplier)
 		if err != nil {
-			return s, fmt.Errorf("serializar vendor: %w", err)
+			return s, fmt.Errorf("serializar supplier: %w", err)
 		}
-		s.vendor = b
+		s.supplier = b
 	}
 	if len(d.WithholdingTaxes) > 0 {
 		b, err := json.Marshal(d.WithholdingTaxes)
@@ -347,7 +347,7 @@ func buildCreateArgs(d domain.Document, s snapshots) []any {
 		nullableStr(d.QRURL), nullableStr(d.SignedXML),
 		string(d.Status), d.DianTrackID, d.DianStatusCode,
 		d.DianStatusDescription, d.DianStatusMessage, nullableStr(d.ApplicationResponseXML),
-		s.vendor, nullableStr(d.OperationTypeCode), s.withholding, d.VendorID,
+		s.supplier, nullableStr(d.OperationTypeCode), s.withholding, d.SupplierID,
 		d.CreatedAt, d.UpdatedAt,
 	}
 }
@@ -356,13 +356,13 @@ func scanDocument(row pgx.Row) (*domain.Document, error) {
 	var d domain.Document
 	var status string
 	var customerJSON, linesJSON, paymentMeansJSON []byte
-	var billingRefJSON, discrepancyJSON, vendorJSON, withholdingJSON []byte
+	var billingRefJSON, discrepancyJSON, supplierJSON, withholdingJSON []byte
 	var prefix, documentKey, issueTime, qrURL, signedXML, noteTypeCode, note *string
 	var operationTypeCode, dianTrackID, dianStatusCode, dianStatusDesc, dianStatusMsg *string
 	var applicationResponseXML *string
 	var number *int64
 	var issueDate *time.Time
-	var vendorID *uuid.UUID
+	var supplierID *uuid.UUID
 
 	err := row.Scan(
 		&d.ID, &d.CompanyID, &d.NumberingRangeID, &d.DianDocumentTypeCode,
@@ -373,7 +373,7 @@ func scanDocument(row pgx.Row) (*domain.Document, error) {
 		&billingRefJSON, &discrepancyJSON, &noteTypeCode, &note,
 		&qrURL, &signedXML, &status, &dianTrackID, &dianStatusCode,
 		&dianStatusDesc, &dianStatusMsg, &applicationResponseXML,
-		&vendorJSON, &operationTypeCode, &withholdingJSON, &vendorID,
+		&supplierJSON, &operationTypeCode, &withholdingJSON, &supplierID,
 		&d.CreatedAt, &d.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -397,7 +397,7 @@ func scanDocument(row pgx.Row) (*domain.Document, error) {
 	d.DianStatusDescription = derefStr(dianStatusDesc)
 	d.DianStatusMessage = derefStr(dianStatusMsg)
 	d.ApplicationResponseXML = derefStr(applicationResponseXML)
-	d.VendorID = vendorID
+	d.SupplierID = supplierID
 	if number != nil {
 		d.Number = *number
 	}
@@ -426,12 +426,12 @@ func scanDocument(row pgx.Row) (*domain.Document, error) {
 			return nil, fmt.Errorf("deserializar discrepancy_response: %w", err)
 		}
 	}
-	if len(vendorJSON) > 0 {
+	if len(supplierJSON) > 0 {
 		var v cofdom.Party
-		if err := json.Unmarshal(vendorJSON, &v); err != nil {
-			return nil, fmt.Errorf("deserializar vendor: %w", err)
+		if err := json.Unmarshal(supplierJSON, &v); err != nil {
+			return nil, fmt.Errorf("deserializar supplier: %w", err)
 		}
-		d.Vendor = &v
+		d.Supplier = &v
 	}
 	if len(withholdingJSON) > 0 {
 		if err := json.Unmarshal(withholdingJSON, &d.WithholdingTaxes); err != nil {

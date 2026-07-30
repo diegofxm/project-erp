@@ -87,7 +87,7 @@ accounting/
 
 - Catálogo de **16 conceptos** de Retefuente, Reteiva y Reteica con tarifa en puntos básicos y base mínima en UVT.
 - **Valores UVT** 2020–2025 en centavos (seed idempotente).
-- `Calculate(code, type, base, vendorType, year)`: aplica tarifa solo si base ≥ mínimo UVT; prioriza concepto exacto para NATURAL/JURIDICA sobre BOTH.
+- `Calculate(code, type, base, supplierType, year)`: aplica tarifa solo si base ≥ mínimo UVT; prioriza concepto exacto para NATURAL/JURIDICA sobre BOTH.
 - `CalculateMany(items, year)`: lote de retenciones.
 
 ### 4.3 Reportes (reports/)

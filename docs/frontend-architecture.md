@@ -692,7 +692,7 @@ Clientes, Productos, Proveedores, Configuración. Sin grupos, sin flyouts, sin c
 `expandedGroups` en localStorage. "Documentos" apunta a `/documents/invoices` pero queda activo
 para cualquier ruta `/documents/*` (campo `activePrefix` en la definición del ítem, leído desde
 `useLocation()` en el render — no depende del `isActive` de NavLink). El toggle de colapso se
-mantiene igual. "Proveedores" (`/vendors`) se agregó junto con el DS (ver sección Vendors/DS).
+mantiene igual. "Proveedores" (`/suppliers`) se agregó junto con el DS (ver sección Suppliers/DS).
 
 **`components/SubNav.tsx`** (nuevo): barra de pestañas contextual, `h-10`, justo debajo del
 navbar. Lee `useLocation().pathname`, busca el primer prefijo en un array de configuración, y si
@@ -843,7 +843,7 @@ públicos del emisor: razón social, dirección, teléfono, CIIU codes, régimen
 `PATCH /issuers/me/profile`. Los datos de credenciales DIAN (software, certificado) siguen en
 la sección existente de `PUT /issuers/me`.
 
-## Catálogo de Proveedores (Vendors) (2026-07-15)
+## Catálogo de Proveedores (Suppliers) (2026-07-15)
 
 Paralelo completo al catálogo de clientes, para los proveedores no obligados a facturar que
 aparecen como SNO en Documentos Soporte.
@@ -852,14 +852,14 @@ aparecen como SNO en Documentos Soporte.
 
 | Ruta | Componente | Función |
 |---|---|---|
-| `/vendors` | `VendorsPage` | Lista de proveedores del emisor + botón "Nuevo Proveedor" |
-| `/vendors/new` | `VendorForm` | Formulario de creación |
-| `/vendors/:id` | `VendorForm` | Formulario de edición |
+| `/suppliers` | `SuppliersPage` | Lista de proveedores del emisor + botón "Nuevo Proveedor" |
+| `/suppliers/new` | `SupplierForm` | Formulario de creación |
+| `/suppliers/:id` | `SupplierForm` | Formulario de edición |
 
 **Sidebar:** ítem "Proveedores" con `BuildingIcon`, entre Productos y Configuración.
 
-**`VendorSection`** — componente de selector reutilizable (igual patrón que `CustomerSection`):
-búsqueda en tiempo real, carga del catálogo de `/vendors`, selección y pre-llenado en
+**`SupplierSection`** — componente de selector reutilizable (igual patrón que `CustomerSection`):
+búsqueda en tiempo real, carga del catálogo de `/suppliers`, selección y pre-llenado en
 `SupportDocumentForm`. Cuando el proveedor se selecciona, sus datos se copian al formulario del
 DS (mismo snapshot pattern que customers en FE).
 
@@ -876,7 +876,7 @@ Cuarto tipo de documento del SubNav de `/documents`.
 | `/documents/support-documents/:id` | `SupportDocumentEditorPage` | Editor/visor de DS existente |
 
 **`SupportDocumentForm`** — formulario equivalente a `InvoiceForm` para el DS:
-- `VendorSection` (selector de proveedor/SNO) — igual a `CustomerSection` en InvoiceForm
+- `SupplierSection` (selector de proveedor/SNO) — igual a `CustomerSection` en InvoiceForm
 - Líneas de ítems (mismo `LinesEditor`)
 - `HeaderTaxesEditor` — en DS solo se usa el primer impuesto (HeaderTaxes[0]) para el CUDS
 - Selector de rango de numeración filtrado a `dian_document_type_code = "05"`
@@ -1060,7 +1060,7 @@ línea horizontal con `justify-between`.
 | `company-form/TaxStep.tsx` | 3× `col-span-4` → `col-span-6 sm:col-span-4` |
 | `company-form/LocationStep.tsx` | mixto: 3/5/4/8 → 6/6/12/12 en móvil |
 | `invoice-form/CustomerSection.tsx` | `col-span-6` → `col-span-12 sm:col-span-6` |
-| `invoice-form/VendorSection.tsx` | ídem |
+| `invoice-form/SupplierSection.tsx` | ídem |
 | `pages/PublicCustomerRegisterPage.tsx` | 5/7/6/6 → 12 en móvil con sm: correcto |
 
 Regla adoptada: columnas angostas (`col-span-3`) → `col-span-6 sm:col-span-3` (dos por fila en tablet); anchas (`col-span-6`+) → `col-span-12 sm:col-span-N` (columna única en móvil).

@@ -35,7 +35,7 @@ func TestSupportDocumentContent(t *testing.T) {
 			LineExtensionCents: 10_000_000,
 			PayableCents:       11_900_000,
 		},
-		// DS: Supplier = tercero no obligado (vendor), Customer = emisor.
+		// DS: Supplier = tercero no obligado (supplier), Customer = emisor.
 		Supplier: domain.Party{Identification: domain.Identification{Number: "1020304050"}},
 		Customer: domain.Party{Identification: domain.Identification{Number: "900123456"}},
 	}
