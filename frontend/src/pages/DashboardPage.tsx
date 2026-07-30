@@ -412,7 +412,7 @@ export function DashboardPage() {
         <h1 className="text-sm font-semibold text-(--text-primary)">Panel de Control</h1>
         {activeCompany && (
           <span className="mr-2 ml-auto text-xs text-(--text-muted)">
-            {activeCompany.business_name} ·{" "}
+            {activeCompany.trade_name || activeCompany.business_name} ·{" "}
             <span className={activeCompany.environment === "1" ? "text-(--color-success)" : "text-(--color-warning-text)"}>
               {activeCompany.environment === "1" ? "Producción" : "Habilitación"}
             </span>

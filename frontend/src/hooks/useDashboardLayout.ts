@@ -28,14 +28,15 @@ export const WIDGET_LABELS: Record<WidgetId, string> = {
 };
 
 // Tamaño base de cada widget (12 columnas totales, rowHeight=40px)
-const DEFAULT_SIZES: Record<WidgetId, { w: number; h: number }> = {
+// Ningún widget supera 6/12 (50%) de ancho por defecto para evitar gráficas dominantes.
+const DEFAULT_SIZES: Record<WidgetId, { w: number; h: number; minW?: number; minH?: number }> = {
   w_revenue:    { w: 3, h: 4 },
   w_docs:       { w: 3, h: 4 },
   w_acceptance: { w: 3, h: 4 },
   w_drafts:     { w: 3, h: 4 },
-  w_chart_area: { w: 9, h: 6 },
-  w_chart_type: { w: 3, h: 6 },
-  w_ytd:        { w: 12, h: 3 },
+  w_chart_area: { w: 6, h: 7, minW: 4 },  // era 9 → 50 %
+  w_chart_type: { w: 6, h: 7, minW: 4 },  // era 3 → balanceado con area
+  w_ytd:        { w: 8, h: 3 },            // era 12 → 67 %
   w_recent:     { w: 12, h: 6 },
 };
 
@@ -63,7 +64,7 @@ function packItems(
       rowH = 0;
     }
 
-    result.push({ i: id, x, y, w, h, minW: 1, minH: 2 });
+    result.push({ i: id, x, y, w, h, minW: DEFAULT_SIZES[id]?.minW ?? 1, minH: DEFAULT_SIZES[id]?.minH ?? 2 });
     x += w;
     rowH = Math.max(rowH, h);
   }
@@ -93,7 +94,7 @@ const DEFAULT: DashboardLayout = {
   hidden: [],
 };
 
-const LS_KEY = "dashboard_layout_v5";
+const LS_KEY = "dashboard_layout_v6";
 
 function load(): DashboardLayout {
   try {
