@@ -212,48 +212,52 @@ function ImportModal({ dianRanges, existingPrefixes, docTypes, environment, onIm
 
                   {/* Controles de importación */}
                   {!isImported && !alreadyExists && (
-                    <div className="grid grid-cols-12 gap-3 border-t border-(--border-light) pt-3">
-                      <div className={environment === "2" ? "col-span-12 sm:col-span-4" : "col-span-12 sm:col-span-6"}>
-                        <Select
-                          label="Tipo de documento"
-                          required
-                          value={docTypeCodes[i] ?? "01"}
-                          onChange={(e) => setDocTypeCodes((prev) => ({ ...prev, [i]: e.target.value }))}
-                        >
-                          {docTypes.map((t) => (
-                            <option key={t.code} value={t.code}>{t.name}</option>
-                          ))}
-                        </Select>
-                      </div>
-                      {environment === "2" && (
-                        <div className="col-span-12 sm:col-span-4">
-                          <Input
-                            label="Set de pruebas"
-                            value={testSetIds[i] ?? ""}
-                            onChange={(e) => setTestSetIds((prev) => ({ ...prev, [i]: e.target.value }))}
-                            placeholder="ID que asigna la DIAN"
-                          />
-                        </div>
-                      )}
-                      <div className={environment === "2" ? "col-span-12 sm:col-span-4" : "col-span-12 sm:col-span-6"}>
-                        <label className="flex flex-col gap-1">
-                          <span className="flex items-center gap-1 text-xs font-medium text-(--text-secondary)">
-                            Próximo número a emitir
-                            <InfoTip>
-                              Si es una resolución nueva ingresa el primer número del rango. Si ya emitiste documentos con este rango en otro sistema, ingresa el número siguiente al último utilizado.
-                            </InfoTip>
-                          </span>
-                          <input
-                            type="number"
+                    <div className="flex flex-col gap-3 border-t border-(--border-light) pt-3">
+                      {/* Fila 1: Tipo de documento + Próximo número */}
+                      <div className="grid grid-cols-12 gap-3">
+                        <div className="col-span-12 sm:col-span-6">
+                          <Select
+                            label="Tipo de documento"
                             required
-                            min={r.range_from}
-                            value={nextNumbers[i] ?? r.range_from}
-                            onChange={(e) => setNextNumbers((prev) => ({ ...prev, [i]: Number(e.target.value) }))}
-                            className="w-full rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-xs text-(--text-primary) transition-colors sm:py-1.5"
-                          />
-                        </label>
+                            value={docTypeCodes[i] ?? "01"}
+                            onChange={(e) => setDocTypeCodes((prev) => ({ ...prev, [i]: e.target.value }))}
+                          >
+                            {docTypes.map((t) => (
+                              <option key={t.code} value={t.code}>{t.name}</option>
+                            ))}
+                          </Select>
+                        </div>
+                        <div className="col-span-12 sm:col-span-6">
+                          <label className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-medium text-(--text-secondary)">Próximo número a emitir</span>
+                              <InfoTip>
+                                Si es una <strong>resolución nueva</strong>, ingresa el primer
+                                número del rango. Si ya emitiste documentos con este rango en otro
+                                sistema, ingresa el número <strong>siguiente al último utilizado</strong>.
+                              </InfoTip>
+                            </div>
+                            <input
+                              type="number"
+                              required
+                              min={r.range_from}
+                              value={nextNumbers[i] ?? r.range_from}
+                              onChange={(e) => setNextNumbers((prev) => ({ ...prev, [i]: Number(e.target.value) }))}
+                              className="w-full rounded border border-(--border-color) bg-(--bg-primary) px-3 py-2 text-xs text-(--text-primary) transition-colors sm:py-1.5"
+                            />
+                          </label>
+                        </div>
                       </div>
-                      <div className="col-span-12 flex justify-end">
+                      {/* Fila 2: Set de pruebas (solo habilitación) */}
+                      {environment === "2" && (
+                        <Input
+                          label="Set de pruebas (test_set_id)"
+                          value={testSetIds[i] ?? ""}
+                          onChange={(e) => setTestSetIds((prev) => ({ ...prev, [i]: e.target.value }))}
+                          placeholder="ID que asigna la DIAN al habilitar el set de pruebas"
+                        />
+                      )}
+                      <div className="flex justify-end">
                         <Button
                           type="button"
                           loading={importingIdx === i}

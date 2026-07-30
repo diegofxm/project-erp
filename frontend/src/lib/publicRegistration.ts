@@ -17,16 +17,16 @@ export interface PublicCustomerPayload {
 }
 
 export function getPublicIssuer(issuerId: string): Promise<PublicIssuer> {
-  return apiClient.get<PublicIssuer>(`/public/issuers/${issuerId}`);
+  return apiClient.get<PublicIssuer>(`/public/companies/${issuerId}`);
 }
 
-// getPublicIssuerLogoBlobUrl trae el logo en crudo (sin sesión, ver handleGetPublicIssuerLogo
-// en apidian) y devuelve un Object URL — mismo patrón que getInvoicePdfBlobUrl en lib/documents.ts.
+// getPublicIssuerLogoBlobUrl trae el logo en crudo y devuelve un Object URL —
+// mismo patrón que getInvoicePdfBlobUrl en lib/documents.ts.
 export async function getPublicIssuerLogoBlobUrl(issuerId: string): Promise<string> {
-  const blob = await apiClient.getBlob(`/public/issuers/${issuerId}/logo`);
+  const blob = await apiClient.getBlob(`/public/companies/${issuerId}/logo`);
   return URL.createObjectURL(blob);
 }
 
 export function registerPublicCustomer(issuerId: string, payload: PublicCustomerPayload): Promise<{ name: string }> {
-  return apiClient.post<{ name: string }>(`/public/issuers/${issuerId}/customers`, payload);
+  return apiClient.post<{ name: string }>(`/public/companies/${issuerId}/customers`, payload);
 }

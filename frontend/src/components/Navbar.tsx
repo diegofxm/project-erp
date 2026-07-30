@@ -81,7 +81,7 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
             <div className="hidden min-w-0 items-center gap-1.5 text-xs opacity-70 sm:flex">
               <Server className="h-3.5 w-3.5 shrink-0" />
               <span className="shrink-0">Empresa:</span>
-              <span className="truncate font-mono">{activeCompany.business_name}</span>
+              <span className="truncate font-mono">{activeCompany.trade_name || activeCompany.business_name}</span>
             </div>
           )}
         </div>

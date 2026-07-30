@@ -64,6 +64,7 @@ import (
 	auditapp "github.com/diegofxm/erp/internal/audit/application"
 	auditpostgres "github.com/diegofxm/erp/internal/audit/infrastructure/persistence/postgres"
 	audithttp "github.com/diegofxm/erp/internal/audit/interfaces/http"
+	publichttp "github.com/diegofxm/erp/internal/public/interfaces/http"
 	statsapp "github.com/diegofxm/erp/internal/stats/application"
 	statspostgres "github.com/diegofxm/erp/internal/stats/infrastructure/persistence/postgres"
 	statshttp "github.com/diegofxm/erp/internal/stats/interfaces/http"
@@ -276,6 +277,7 @@ func main() {
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, electronicDianRangesUC, auditUC).RegisterRoutes(mux)
 	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)
+	publichttp.NewHandler(getCompanyUC, createCustomerUC).RegisterRoutes(mux)
 	payrollhttp.NewHandler(payrollEmpUC, payrollContractUC, payrollPayslipUC).RegisterRoutes(mux)
 	hrhttp.NewHandler(hrAbsenceUC).RegisterRoutes(mux)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
