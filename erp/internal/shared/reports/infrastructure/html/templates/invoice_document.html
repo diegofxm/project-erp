@@ -437,6 +437,7 @@ table.taxes th.r, table.taxes td.r { text-align: right; }
         <div class="kv-row"><span class="k">Forma:</span><span class="v">{{.PaymentTerm}}</span></div>
         <div class="kv-row"><span class="k">Medio:</span><span class="v">{{.PaymentMethod}}</span></div>
         {{if .DueDate}}<div class="kv-row"><span class="k">Vence:</span><span class="v">{{.DueDate}}</span></div>{{end}}
+        {{if .PaymentReference}}<div class="kv-row"><span class="k">Referencia:</span><span class="v">{{.PaymentReference}}</span></div>{{end}}
       </div>
     </div>
     <div class="col">

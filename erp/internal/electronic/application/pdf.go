@@ -152,12 +152,13 @@ func buildPDFData(doc *domain.Document, co *domain.CompanyInfo, nr *domain.Numbe
 	}
 
 	// Pago
-	var paymentTerm, paymentMethod, dueDate string
+	var paymentTerm, paymentMethod, dueDate, paymentRef string
 	if len(doc.PaymentMeans) > 0 {
 		pm := doc.PaymentMeans[0]
 		paymentTerm = paymentTermName(pm.Code)
 		paymentMethod = paymentMethodName(pm.PaymentMethodCode)
 		dueDate = pm.DueDate
+		paymentRef = pm.PaymentReference
 	}
 
 	// Líneas e impuestos
@@ -232,9 +233,10 @@ func buildPDFData(doc *domain.Document, co *domain.CompanyInfo, nr *domain.Numbe
 		"CustomerPhone":   counterparty.Phone,
 		"CustomerEmail":   counterparty.Email,
 
-		"PaymentTerm":   paymentTerm,
-		"PaymentMethod": paymentMethod,
-		"DueDate":       dueDate,
+		"PaymentTerm":      paymentTerm,
+		"PaymentMethod":    paymentMethod,
+		"DueDate":          dueDate,
+		"PaymentReference": paymentRef,
 
 		"Lines": lines,
 		"Taxes": taxes,

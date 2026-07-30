@@ -378,12 +378,13 @@ table.s-taxes th.r, table.s-taxes td.r { text-align: right; }
         {{if .CustomerPhone}}<div class="s-kv-row"><span class="k">Tel:</span><span class="v">{{.CustomerPhone}}</span></div>{{end}}
         {{if .CustomerEmail}}<div class="s-kv-row"><span class="k">Email:</span><span class="v">{{.CustomerEmail}}</span></div>{{end}}
       </div>
-      {{if or .PaymentTerm .PaymentMethod .DueDate}}
+      {{if or .PaymentTerm .PaymentMethod .DueDate .PaymentReference}}
       <div class="s-bar">Condiciones de Pago</div>
       <div class="s-kv-block">
         {{if .PaymentTerm}}<div class="s-kv-row"><span class="k">Forma:</span><span class="v">{{.PaymentTerm}}</span></div>{{end}}
         {{if .PaymentMethod}}<div class="s-kv-row"><span class="k">Medio:</span><span class="v">{{.PaymentMethod}}</span></div>{{end}}
         {{if .DueDate}}<div class="s-kv-row"><span class="k">Vence:</span><span class="v">{{.DueDate}}</span></div>{{end}}
+        {{if .PaymentReference}}<div class="s-kv-row"><span class="k">Referencia:</span><span class="v">{{.PaymentReference}}</span></div>{{end}}
       </div>
       {{end}}
     </div>
