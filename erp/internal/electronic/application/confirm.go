@@ -520,12 +520,11 @@ func partyFromCompanyAsNIT(c *domain.CompanyInfo) cofdom.Party {
 
 // vendorAsNIT normaliza el proveedor del DS: fuerza schemeName="31" (DSAJ25a).
 func vendorAsNIT(p cofdom.Party) cofdom.Party {
-	if p.Identification.TypeCode != "31" {
-		if dv, err := nit.ComputeCheckDigit(p.Identification.Number); err == nil {
-			p.Identification.VerificationCode = dv
-		}
-		p.Identification.TypeCode = "31"
+	// Siempre recomputar el DV: el valor almacenado en BD puede ser incorrecto.
+	if dv, err := nit.ComputeCheckDigit(p.Identification.Number); err == nil {
+		p.Identification.VerificationCode = dv
 	}
+	p.Identification.TypeCode = "31"
 	if p.Address.PostalZone == "" {
 		p.Address.PostalZone = "000000"
 	}
