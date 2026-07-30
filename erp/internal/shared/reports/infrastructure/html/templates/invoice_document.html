@@ -411,7 +411,7 @@ table.taxes th.r, table.taxes td.r { text-align: right; }
     <div class="doc-title">
       <div class="t1">{{.DocumentTitle}}</div>
       <div class="t2">
-        Fecha de emisión: <b>{{.IssueDate}}</b><br>
+        Fecha de emisión: <b>{{.IssueDate}}</b>{{if .IssueTime}} · <b>{{.IssueTime}}</b>{{end}}<br>
         Moneda: <b>{{.Currency}}</b>
       </div>
     </div>

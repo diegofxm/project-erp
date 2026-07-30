@@ -71,6 +71,7 @@ export function SupportDocumentsPage() {
 
   const hasNext = (documents?.length ?? 0) > PAGE_SIZE;
   const page = documents?.slice(0, PAGE_SIZE) ?? null;
+  const hasRef = page?.some((d) => !!d.payment_means?.[0]?.payment_reference) ?? false;
 
   return (
     <div className="p-4">
@@ -145,6 +146,7 @@ export function SupportDocumentsPage() {
                 <th className="px-3 py-2 font-medium">Operación</th>
                 <th className="px-3 py-2 font-medium">A pagar</th>
                 <th className="px-3 py-2 font-medium">Estado</th>
+                {hasRef && <th className="px-3 py-2 font-medium">Referencia</th>}
                 <th className="px-3 py-2 font-medium">Fecha</th>
               </tr>
             </thead>
@@ -169,6 +171,11 @@ export function SupportDocumentsPage() {
                     </td>
                     <td className="px-3 py-2 font-mono text-(--text-secondary)">{formatCOP.format(netPayable / 100)}</td>
                     <td className="px-3 py-2"><StatusBadge status={d.status} /></td>
+                    {hasRef && (
+                      <td className="px-3 py-2 font-mono text-(--text-secondary)">
+                        {d.payment_means?.[0]?.payment_reference ?? ""}
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-(--text-secondary)">{new Date(d.created_at).toLocaleDateString("es-CO")}</td>
                   </tr>
                 );

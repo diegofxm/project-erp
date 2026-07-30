@@ -360,7 +360,7 @@ table.s-taxes th.r, table.s-taxes td.r { text-align: right; }
     </div>
     <div class="s-doc-title">
       <div class="t1">{{.DocumentTitle}}</div>
-      <div class="t2">Emisión: <b>{{.IssueDate}}</b>{{if .Currency}} &middot; Moneda: <b>{{.Currency}}</b>{{end}}</div>
+      <div class="t2">Emisión: <b>{{.IssueDate}}</b>{{if .IssueTime}} <b>{{.IssueTime}}</b>{{end}}{{if .Currency}} &middot; Moneda: <b>{{.Currency}}</b>{{end}}</div>
       <div class="copy-tag">{{.CopyLabel}}</div>
     </div>
   </div>

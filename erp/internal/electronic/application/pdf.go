@@ -215,7 +215,18 @@ func buildPDFData(doc *domain.Document, co *domain.CompanyInfo, nr *domain.Numbe
 		"DocNumber": docNumber,
 		"CUFE":      doc.DocumentKey,
 		"QR":        qr,
-		"IssueDate": doc.IssueDate.Format("02/01/2006"),
+		"IssueDate": func() string {
+			if doc.IssueDate.IsZero() {
+				return ""
+			}
+			return doc.IssueDate.Format("02/01/2006")
+		}(),
+		"IssueTime": func() string {
+			if doc.IssueDate.IsZero() {
+				return ""
+			}
+			return doc.IssueDate.Format("15:04:05")
+		}(),
 		"Currency":  doc.CurrencyCode,
 
 		"CustomerName":    counterparty.Name,
