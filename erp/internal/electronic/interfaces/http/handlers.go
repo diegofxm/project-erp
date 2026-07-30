@@ -104,39 +104,73 @@ type discrepancyOutputDTO struct {
 	Description  string `json:"description"`
 }
 
+type relatedNoteOutputDTO struct {
+	ID                   uuid.UUID  `json:"id"`
+	DianDocumentTypeCode string     `json:"dian_document_type_code"`
+	Prefix               string     `json:"prefix,omitempty"`
+	Number               int64      `json:"number,omitempty"`
+	PayableCents         int64      `json:"payable_cents"`
+	Status               string     `json:"status"`
+	IssueDate            *time.Time `json:"issue_date,omitempty"`
+}
+
 type documentResponseDTO struct {
-	ID                    uuid.UUID             `json:"id"`
-	CompanyID             uuid.UUID             `json:"company_id"`
-	NumberingRangeID      uuid.UUID             `json:"numbering_range_id"`
-	DianDocumentTypeCode  string                `json:"dian_document_type_code"`
-	Status                string                `json:"status"`
-	Customer              partyInputDTO         `json:"customer"`
-	Lines                 []lineOutputDTO       `json:"lines"`
-	PaymentMeans          []paymentMeanInputDTO `json:"payment_means,omitempty"`
-	Totals                totalsOutputDTO       `json:"totals"`
-	Note                  string                `json:"note,omitempty"`
-	CurrencyCode          string                `json:"currency_code,omitempty"`
-	BillingReference      *billingRefOutputDTO  `json:"billing_reference,omitempty"`
-	DiscrepancyResponse   *discrepancyOutputDTO `json:"discrepancy_response,omitempty"`
-	NoteTypeCode          string                `json:"note_type_code,omitempty"`
-	Vendor                *partyInputDTO        `json:"vendor,omitempty"`
-	OperationTypeCode     string                `json:"operation_type_code,omitempty"`
-	WithholdingTaxes      []taxOutputDTO        `json:"withholding_taxes,omitempty"`
-	Prefix                string                `json:"prefix,omitempty"`
-	Number                int64                 `json:"number,omitempty"`
-	DocumentKey           string                `json:"document_key,omitempty"`
-	IssueDate             string                `json:"issue_date,omitempty"`
-	QRURL                 string                `json:"qr_url,omitempty"`
-	DianTrackID           string                `json:"dian_track_id,omitempty"`
-	DianStatusCode        string                `json:"dian_status_code,omitempty"`
-	DianStatusDescription string                `json:"dian_status_description,omitempty"`
-	DianStatusMessage     string                `json:"dian_status_message,omitempty"`
-	CustomerID            *uuid.UUID            `json:"customer_id,omitempty"`
-	VendorID              *uuid.UUID            `json:"vendor_id,omitempty"`
-	NCCount               int                   `json:"nc_count,omitempty"`
-	NDCount               int                   `json:"nd_count,omitempty"`
-	CreatedAt             time.Time             `json:"created_at"`
-	UpdatedAt             time.Time             `json:"updated_at"`
+	ID                    uuid.UUID              `json:"id"`
+	CompanyID             uuid.UUID              `json:"company_id"`
+	NumberingRangeID      uuid.UUID              `json:"numbering_range_id"`
+	DianDocumentTypeCode  string                 `json:"dian_document_type_code"`
+	Status                string                 `json:"status"`
+	Customer              partyInputDTO          `json:"customer"`
+	Lines                 []lineOutputDTO        `json:"lines"`
+	PaymentMeans          []paymentMeanInputDTO  `json:"payment_means,omitempty"`
+	Totals                totalsOutputDTO        `json:"totals"`
+	Note                  string                 `json:"note,omitempty"`
+	CurrencyCode          string                 `json:"currency_code,omitempty"`
+	BillingReference      *billingRefOutputDTO   `json:"billing_reference,omitempty"`
+	DiscrepancyResponse   *discrepancyOutputDTO  `json:"discrepancy_response,omitempty"`
+	NoteTypeCode          string                 `json:"note_type_code,omitempty"`
+	Vendor                *partyInputDTO         `json:"vendor,omitempty"`
+	OperationTypeCode     string                 `json:"operation_type_code,omitempty"`
+	WithholdingTaxes      []taxOutputDTO         `json:"withholding_taxes,omitempty"`
+	Prefix                string                 `json:"prefix,omitempty"`
+	Number                int64                  `json:"number,omitempty"`
+	DocumentKey           string                 `json:"document_key,omitempty"`
+	IssueDate             string                 `json:"issue_date,omitempty"`
+	QRURL                 string                 `json:"qr_url,omitempty"`
+	DianTrackID           string                 `json:"dian_track_id,omitempty"`
+	DianStatusCode        string                 `json:"dian_status_code,omitempty"`
+	DianStatusDescription string                 `json:"dian_status_description,omitempty"`
+	DianStatusMessage     string                 `json:"dian_status_message,omitempty"`
+	CustomerID            *uuid.UUID             `json:"customer_id,omitempty"`
+	VendorID              *uuid.UUID             `json:"vendor_id,omitempty"`
+	NCCount               int                    `json:"nc_count,omitempty"`
+	NDCount               int                    `json:"nd_count,omitempty"`
+	// Visor didáctico — solo presentes en GET /{id} individual, nunca en el listado.
+	RelatedNotes    []relatedNoteOutputDTO `json:"related_notes,omitempty"`
+	NetPayableCents *int64                 `json:"net_payable_cents,omitempty"`
+	SourceDocumentID *uuid.UUID            `json:"source_document_id,omitempty"`
+	CreatedAt       time.Time              `json:"created_at"`
+	UpdatedAt       time.Time              `json:"updated_at"`
+}
+
+// computeNetPayable calcula el saldo neto de una FE/DS aplicando sus notas relacionadas.
+// FE: payable − Σ NC aceptadas + Σ ND aceptadas. DS: payable − Σ NA aceptadas.
+func computeNetPayable(payableCents int64, notes []domain.RelatedNote) *int64 {
+	net := payableCents
+	for _, n := range notes {
+		if n.Status != domain.StatusAccepted {
+			continue
+		}
+		switch n.DianDocumentTypeCode {
+		case "91":
+			net -= n.PayableCents
+		case "92":
+			net += n.PayableCents
+		case "95":
+			net -= n.PayableCents
+		}
+	}
+	return &net
 }
 
 func partyToOutputDTO(p cofdom.Party) partyInputDTO {
@@ -235,7 +269,10 @@ func (h *Handler) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	docs, err := h.list.List(r.Context(), companyID, domain.ListFilter{Limit: 50})
+	docs, err := h.list.List(r.Context(), companyID, domain.ListFilter{
+		DianDocumentTypeCode: r.URL.Query().Get("dian_document_type_code"),
+		Limit:                50,
+	})
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -265,7 +302,34 @@ func (h *Handler) handleGetDocument(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
+	resp := toDocumentResponseDTO(doc)
+
+	// Visor didáctico: FE (01) y DS (05) confirmados → notas relacionadas + saldo neto.
+	if doc.Number != 0 && (doc.DianDocumentTypeCode == "01" || doc.DianDocumentTypeCode == "05") {
+		if notes, err := h.get.GetRelatedNotes(r.Context(), companyID, doc.Prefix, doc.Number); err == nil && len(notes) > 0 {
+			dtos := make([]relatedNoteOutputDTO, len(notes))
+			for i, n := range notes {
+				dtos[i] = relatedNoteOutputDTO{
+					ID: n.ID, DianDocumentTypeCode: n.DianDocumentTypeCode,
+					Prefix: n.Prefix, Number: n.Number,
+					PayableCents: n.PayableCents, Status: string(n.Status),
+					IssueDate: n.IssueDate,
+				}
+			}
+			resp.RelatedNotes = dtos
+			resp.NetPayableCents = computeNetPayable(doc.Totals.PayableCents, notes)
+		}
+	}
+
+	// NC (91), ND (92), NA (95) → resolver ID del documento de origen por CUFE.
+	if doc.BillingReference != nil && doc.BillingReference.CUFE != "" &&
+		(doc.DianDocumentTypeCode == "91" || doc.DianDocumentTypeCode == "92" || doc.DianDocumentTypeCode == "95") {
+		if src, err := h.get.GetByDocumentKey(r.Context(), companyID, doc.BillingReference.CUFE); err == nil {
+			resp.SourceDocumentID = &src.ID
+		}
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) handleConfirmDocument(w http.ResponseWriter, r *http.Request) {

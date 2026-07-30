@@ -28,6 +28,14 @@ func (uc *GetDocumentUseCase) Get(ctx context.Context, companyID, id uuid.UUID) 
 	return d, nil
 }
 
+func (uc *GetDocumentUseCase) GetRelatedNotes(ctx context.Context, companyID uuid.UUID, prefix string, number int64) ([]domain.RelatedNote, error) {
+	return uc.documents.GetRelatedNotes(ctx, companyID, prefix, number)
+}
+
+func (uc *GetDocumentUseCase) GetByDocumentKey(ctx context.Context, companyID uuid.UUID, key string) (*domain.Document, error) {
+	return uc.documents.GetByDocumentKey(ctx, companyID, key)
+}
+
 // ListDocumentsUseCase lista documentos de una empresa.
 type ListDocumentsUseCase struct {
 	documents domain.DocumentRepository
