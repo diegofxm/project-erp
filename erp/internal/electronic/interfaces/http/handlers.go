@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -58,6 +59,175 @@ func NewHandler(
 	}
 }
 
+// ── DTOs de respuesta snake_case ─────────────────────────────────────────────────────────
+
+type taxOutputDTO struct {
+	TaxableAmountCents int64   `json:"taxable_amount_cents"`
+	TaxAmountCents     int64   `json:"tax_amount_cents"`
+	Percent            float64 `json:"percent"`
+	TypeCode           string  `json:"type_code"`
+	TypeName           string  `json:"type_name"`
+}
+
+type lineOutputDTO struct {
+	Description        string         `json:"description"`
+	Quantity           float64        `json:"quantity"`
+	UnitCode           string         `json:"unit_code"`
+	LineExtensionCents int64          `json:"line_extension_cents"`
+	UnitPriceCents     int64          `json:"unit_price_cents"`
+	FreeOfCharge       bool           `json:"free_of_charge,omitempty"`
+	ItemCode           string         `json:"item_code,omitempty"`
+	ItemTypeCode       string         `json:"item_type_code,omitempty"`
+	ItemTypeName       string         `json:"item_type_name,omitempty"`
+	ItemTypeAgencyID   string         `json:"item_type_agency_id,omitempty"`
+	Taxes              []taxOutputDTO `json:"taxes,omitempty"`
+}
+
+type totalsOutputDTO struct {
+	LineExtensionCents int64 `json:"line_extension_cents"`
+	TaxExclusiveCents  int64 `json:"tax_exclusive_cents"`
+	TaxInclusiveCents  int64 `json:"tax_inclusive_cents"`
+	PrepaidCents       int64 `json:"prepaid_cents,omitempty"`
+	PayableCents       int64 `json:"payable_cents"`
+}
+
+type billingRefOutputDTO struct {
+	Prefix    string `json:"prefix"`
+	Number    string `json:"number"`
+	CUFE      string `json:"cufe"`
+	IssueDate string `json:"issue_date"`
+}
+
+type discrepancyOutputDTO struct {
+	ReferenceID  string `json:"reference_id"`
+	ResponseCode string `json:"response_code"`
+	Description  string `json:"description"`
+}
+
+type documentResponseDTO struct {
+	ID                    uuid.UUID             `json:"id"`
+	CompanyID             uuid.UUID             `json:"company_id"`
+	NumberingRangeID      uuid.UUID             `json:"numbering_range_id"`
+	DianDocumentTypeCode  string                `json:"dian_document_type_code"`
+	Status                string                `json:"status"`
+	Customer              partyInputDTO         `json:"customer"`
+	Lines                 []lineOutputDTO       `json:"lines"`
+	PaymentMeans          []paymentMeanInputDTO `json:"payment_means,omitempty"`
+	Totals                totalsOutputDTO       `json:"totals"`
+	Note                  string                `json:"note,omitempty"`
+	CurrencyCode          string                `json:"currency_code,omitempty"`
+	BillingReference      *billingRefOutputDTO  `json:"billing_reference,omitempty"`
+	DiscrepancyResponse   *discrepancyOutputDTO `json:"discrepancy_response,omitempty"`
+	NoteTypeCode          string                `json:"note_type_code,omitempty"`
+	Vendor                *partyInputDTO        `json:"vendor,omitempty"`
+	OperationTypeCode     string                `json:"operation_type_code,omitempty"`
+	WithholdingTaxes      []taxOutputDTO        `json:"withholding_taxes,omitempty"`
+	Prefix                string                `json:"prefix,omitempty"`
+	Number                int64                 `json:"number,omitempty"`
+	DocumentKey           string                `json:"document_key,omitempty"`
+	IssueDate             string                `json:"issue_date,omitempty"`
+	QRURL                 string                `json:"qr_url,omitempty"`
+	DianTrackID           string                `json:"dian_track_id,omitempty"`
+	DianStatusCode        string                `json:"dian_status_code,omitempty"`
+	DianStatusDescription string                `json:"dian_status_description,omitempty"`
+	DianStatusMessage     string                `json:"dian_status_message,omitempty"`
+	CustomerID            *uuid.UUID            `json:"customer_id,omitempty"`
+	VendorID              *uuid.UUID            `json:"vendor_id,omitempty"`
+	NCCount               int                   `json:"nc_count,omitempty"`
+	NDCount               int                   `json:"nd_count,omitempty"`
+	CreatedAt             time.Time             `json:"created_at"`
+	UpdatedAt             time.Time             `json:"updated_at"`
+}
+
+func partyToOutputDTO(p cofdom.Party) partyInputDTO {
+	dto := partyInputDTO{
+		EntityTypeCode:             p.EntityTypeCode,
+		Identification:             identificationInputDTO{Number: p.Identification.Number, TypeCode: p.Identification.TypeCode, VerificationCode: p.Identification.VerificationCode},
+		Name:                       p.Name,
+		TaxSchemeCode:              p.TaxSchemeCode,
+		TaxSchemeName:              p.TaxSchemeName,
+		LiabilityCodes:             p.LiabilityCodes,
+		TaxRegimeCode:              p.TaxRegimeCode,
+		Phone:                      p.Phone,
+		Email:                      p.Email,
+		MerchantRegistrationNumber: p.MerchantRegistrationNumber,
+	}
+	if p.Address != (cofdom.Address{}) {
+		dto.Address = &addressInputDTO{
+			Line: p.Address.Line, CityCode: p.Address.CityCode, CityName: p.Address.CityName,
+			PostalZone: p.Address.PostalZone, StateCode: p.Address.StateCode, StateName: p.Address.StateName,
+			CountryCode: p.Address.CountryCode, CountryName: p.Address.CountryName,
+		}
+	}
+	return dto
+}
+
+func taxToOutputDTO(t cofdom.Tax) taxOutputDTO {
+	return taxOutputDTO{TaxableAmountCents: t.TaxableAmountCents, TaxAmountCents: t.TaxAmountCents, Percent: t.Percent, TypeCode: t.TypeCode, TypeName: t.TypeName}
+}
+
+func lineToOutputDTO(l cofdom.Line) lineOutputDTO {
+	dto := lineOutputDTO{
+		Description: l.Description, Quantity: l.Quantity, UnitCode: l.UnitCode,
+		LineExtensionCents: l.LineExtensionCents, UnitPriceCents: l.UnitPriceCents,
+		FreeOfCharge: l.FreeOfCharge, ItemCode: l.ItemCode,
+		ItemTypeCode: l.ItemTypeCode, ItemTypeName: l.ItemTypeName, ItemTypeAgencyID: l.ItemTypeAgencyID,
+	}
+	dto.Taxes = make([]taxOutputDTO, len(l.Taxes))
+	for i, t := range l.Taxes {
+		dto.Taxes[i] = taxToOutputDTO(t)
+	}
+	return dto
+}
+
+func toDocumentResponseDTO(d *domain.Document) documentResponseDTO {
+	dto := documentResponseDTO{
+		ID: d.ID, CompanyID: d.CompanyID, NumberingRangeID: d.NumberingRangeID,
+		DianDocumentTypeCode: d.DianDocumentTypeCode, Status: string(d.Status),
+		Customer: partyToOutputDTO(d.Customer),
+		Totals: totalsOutputDTO{
+			LineExtensionCents: d.Totals.LineExtensionCents, TaxExclusiveCents: d.Totals.TaxExclusiveCents,
+			TaxInclusiveCents: d.Totals.TaxInclusiveCents, PrepaidCents: d.Totals.PrepaidCents, PayableCents: d.Totals.PayableCents,
+		},
+		Note: d.Note, CurrencyCode: d.CurrencyCode, NoteTypeCode: d.NoteTypeCode,
+		OperationTypeCode: d.OperationTypeCode, Prefix: d.Prefix, Number: d.Number,
+		DocumentKey: d.DocumentKey, QRURL: d.QRURL,
+		DianTrackID: d.DianTrackID, DianStatusCode: d.DianStatusCode,
+		DianStatusDescription: d.DianStatusDescription, DianStatusMessage: d.DianStatusMessage,
+		CustomerID: d.CustomerID, VendorID: d.VendorID,
+		NCCount: d.NCCount, NDCount: d.NDCount,
+		CreatedAt: d.CreatedAt, UpdatedAt: d.UpdatedAt,
+	}
+	if !d.IssueDate.IsZero() {
+		dto.IssueDate = d.IssueDate.Format("2006-01-02")
+	}
+	dto.Lines = make([]lineOutputDTO, len(d.Lines))
+	for i, l := range d.Lines {
+		dto.Lines[i] = lineToOutputDTO(l)
+	}
+	dto.PaymentMeans = make([]paymentMeanInputDTO, len(d.PaymentMeans))
+	for i, pm := range d.PaymentMeans {
+		dto.PaymentMeans[i] = paymentMeanInputDTO{Code: pm.Code, PaymentMethodCode: pm.PaymentMethodCode, DueDate: pm.DueDate, PaymentReference: pm.PaymentReference}
+	}
+	if d.BillingReference != nil {
+		dto.BillingReference = &billingRefOutputDTO{Prefix: d.BillingReference.Prefix, Number: d.BillingReference.Number, CUFE: d.BillingReference.CUFE, IssueDate: d.BillingReference.IssueDate}
+	}
+	if d.DiscrepancyResponse != nil {
+		dto.DiscrepancyResponse = &discrepancyOutputDTO{ReferenceID: d.DiscrepancyResponse.ReferenceID, ResponseCode: d.DiscrepancyResponse.ResponseCode, Description: d.DiscrepancyResponse.Description}
+	}
+	if d.Vendor != nil {
+		v := partyToOutputDTO(*d.Vendor)
+		dto.Vendor = &v
+	}
+	if len(d.WithholdingTaxes) > 0 {
+		dto.WithholdingTaxes = make([]taxOutputDTO, len(d.WithholdingTaxes))
+		for i, t := range d.WithholdingTaxes {
+			dto.WithholdingTaxes[i] = taxToOutputDTO(t)
+		}
+	}
+	return dto
+}
+
 // ── Documentos ────────────────────────────────────────────────────────────────────────────
 
 func (h *Handler) handleListDocuments(w http.ResponseWriter, r *http.Request) {
@@ -70,12 +240,13 @@ func (h *Handler) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	if docs == nil {
-		docs = []*domain.Document{}
+	dtos := make([]documentResponseDTO, len(docs))
+	for i, d := range docs {
+		dtos[i] = toDocumentResponseDTO(d)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"documents": docs,
-		"count":     len(docs),
+		"documents": dtos,
+		"count":     len(dtos),
 	})
 }
 
@@ -94,7 +265,7 @@ func (h *Handler) handleGetDocument(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, doc)
+	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
 }
 
 func (h *Handler) handleConfirmDocument(w http.ResponseWriter, r *http.Request) {
@@ -113,7 +284,7 @@ func (h *Handler) handleConfirmDocument(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	h.logDoc(r.Context(), companyID, "document.confirmed", doc)
-	writeJSON(w, http.StatusOK, doc)
+	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
 }
 
 func (h *Handler) handleGetDocumentPDF(w http.ResponseWriter, r *http.Request) {
@@ -135,6 +306,31 @@ func (h *Handler) handleGetDocumentPDF(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", `inline; filename="documento.pdf"`)
 	_, _ = w.Write(pdfBytes)
+}
+
+func (h *Handler) handleGetDocumentXML(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	doc, err := h.get.Get(r.Context(), companyID, id)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	if doc.SignedXML == "" {
+		http.Error(w, "el documento aún no tiene XML firmado", http.StatusNotFound)
+		return
+	}
+	prefix := doc.Prefix + fmt.Sprintf("%d", doc.Number)
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xml"`, prefix))
+	_, _ = w.Write([]byte(doc.SignedXML))
 }
 
 func (h *Handler) handleDeleteDraft(w http.ResponseWriter, r *http.Request) {
@@ -352,7 +548,7 @@ func (h *Handler) handleCreateInvoiceDraft(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	h.logDoc(r.Context(), companyID, "document.created", doc)
-	writeJSON(w, http.StatusCreated, doc)
+	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
 type noteDraftBody struct {
@@ -400,7 +596,7 @@ func (h *Handler) handleCreateCreditNoteDraft(w http.ResponseWriter, r *http.Req
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, doc)
+	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
 func (h *Handler) handleCreateDebitNoteDraft(w http.ResponseWriter, r *http.Request) {
@@ -434,7 +630,7 @@ func (h *Handler) handleCreateDebitNoteDraft(w http.ResponseWriter, r *http.Requ
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, doc)
+	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
 type supportDocBody struct {
@@ -480,7 +676,7 @@ func (h *Handler) handleCreateSupportDocDraft(w http.ResponseWriter, r *http.Req
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, doc)
+	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
 type adjustmentNoteBody struct {
@@ -530,7 +726,7 @@ func (h *Handler) handleCreateAdjustmentNoteDraft(w http.ResponseWriter, r *http
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, doc)
+	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
 // ── Factura desde venta ───────────────────────────────────────────────────────────────────
@@ -563,7 +759,7 @@ func (h *Handler) handleCreateInvoiceFromSale(w http.ResponseWriter, r *http.Req
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, doc)
+	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
 // ── Rangos de numeración ──────────────────────────────────────────────────────────────────

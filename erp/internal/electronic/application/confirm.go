@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/diegofxm/erp/internal/electronic/domain"
+	"github.com/diegofxm/erp/internal/shared/nit"
 	"github.com/diegofxm/erp/internal/shared/timeutil"
 )
 
@@ -395,9 +396,12 @@ func (uc *ConfirmUseCase) sendTestSet(ctx context.Context, d *domain.Document, z
 		return uc.finish(ctx, d, domain.StatusSendError, "", "", "", "la DIAN rechazó el envío sin ZipKey", "")
 	}
 
-	// Sondeo acotado (6 intentos, 5 s cada uno — mismo patrón que el legacy).
+	// Sondeo acotado (6 intentos, 5 s entre cada uno — mismo patrón que el legacy).
 	var last *domain.SendResult
 	for attempt := 0; attempt < 6; attempt++ {
+		if attempt > 0 {
+			time.Sleep(5 * time.Second)
+		}
 		res, err := uc.sender.PollStatusZip(zipKey, p.company.Certificate, p.company.CertificatePassword, string(p.company.Environment))
 		if err != nil || res == nil {
 			continue
@@ -478,8 +482,9 @@ func partyFromCompany(c *domain.CompanyInfo) cofdom.Party {
 	return cofdom.Party{
 		EntityTypeCode: c.EntityTypeCode,
 		Identification: cofdom.Identification{
-			Number:   c.NIT,
-			TypeCode: c.IdentificationTypeCode,
+			Number:           c.NIT,
+			TypeCode:         c.IdentificationTypeCode,
+			VerificationCode: c.CheckDigit,
 		},
 		Name: c.BusinessName,
 		Address: cofdom.Address{
@@ -516,35 +521,15 @@ func partyFromCompanyAsNIT(c *domain.CompanyInfo) cofdom.Party {
 // vendorAsNIT normaliza el proveedor del DS: fuerza schemeName="31" (DSAJ25a).
 func vendorAsNIT(p cofdom.Party) cofdom.Party {
 	if p.Identification.TypeCode != "31" {
-		p.Identification.VerificationCode = nitCheckDigit(p.Identification.Number)
+		if dv, err := nit.ComputeCheckDigit(p.Identification.Number); err == nil {
+			p.Identification.VerificationCode = dv
+		}
 		p.Identification.TypeCode = "31"
 	}
 	if p.Address.PostalZone == "" {
 		p.Address.PostalZone = "000000"
 	}
 	return p
-}
-
-// nitCheckDigit calcula el dígito de verificación del NIT colombiano (Módulo 11).
-func nitCheckDigit(nit string) string {
-	weights := []int{71, 67, 59, 53, 47, 43, 41, 37, 29, 23, 19, 17, 13, 7, 3}
-	lookup := []string{"0", "1", "8", "7", "6", "5", "4", "3", "2", "1", "4"}
-	sum := 0
-	digits := nit
-	for len(digits) < len(weights) {
-		digits = "0" + digits
-	}
-	for i, w := range weights {
-		if i < len(digits) {
-			d := int(digits[len(digits)-len(weights)+i] - '0')
-			sum += d * w
-		}
-	}
-	remainder := sum % 11
-	if remainder >= len(lookup) {
-		return ""
-	}
-	return lookup[remainder]
 }
 
 func numberingRangeFrom(nr *domain.NumberingRange) cofdom.NumberingRange {
