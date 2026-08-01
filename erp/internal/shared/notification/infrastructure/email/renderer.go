@@ -11,7 +11,12 @@ import (
 //go:embed templates/*.html
 var templateFS embed.FS
 
-var tmpl = template.Must(template.ParseFS(templateFS, "templates/*.html"))
+var funcMap = template.FuncMap{
+	// safeURL marca una cadena como URL confiable; necesario para data: URIs de logos.
+	"safeURL": func(s string) template.URL { return template.URL(s) },
+}
+
+var tmpl = template.Must(template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.html"))
 
 // Render renderiza un template por ID con los datos dados y devuelve HTML.
 // templateID es el nombre del archivo sin extensión: "welcome", "invoice_issued", etc.

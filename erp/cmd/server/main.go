@@ -232,18 +232,19 @@ func main() {
 		}
 		tlsMode := os.Getenv("SMTP_TLS") == "true"
 		smtpNotifier := notificationsmtp.New(notificationsmtp.Config{
-			Host:     smtpHost,
-			Port:     smtpPort,
-			Username: os.Getenv("SMTP_USERNAME"),
-			Password: os.Getenv("SMTP_PASSWORD"),
-			From:     os.Getenv("SMTP_FROM"),
-			TLS:      tlsMode,
+			Host:        smtpHost,
+			Port:        smtpPort,
+			Username:    os.Getenv("SMTP_USERNAME"),
+			Password:    os.Getenv("SMTP_PASSWORD"),
+			FromAddress: os.Getenv("SMTP_FROM_ADDRESS"),
+			FromName:    os.Getenv("SMTP_FROM_NAME"),
+			TLS:         tlsMode,
 		})
-		electronicSendEmailUC = electronicapp.NewSendDocumentEmailUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer, smtpNotifier)
+		electronicSendEmailUC = electronicapp.NewSendDocumentEmailUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer, smtpNotifier, electronicAdapter, os.Getenv("APP_URL"))
 		log.Info("notificaciones por SMTP configuradas", "host", smtpHost)
 	} else {
 		noopNotifier := notificationnoop.New()
-		electronicSendEmailUC = electronicapp.NewSendDocumentEmailUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer, noopNotifier)
+		electronicSendEmailUC = electronicapp.NewSendDocumentEmailUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer, noopNotifier, electronicAdapter, os.Getenv("APP_URL"))
 		log.Info("notificaciones: modo noop (SMTP_HOST no configurado)")
 	}
 

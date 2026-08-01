@@ -25,10 +25,11 @@ type Adapter struct{}
 func New() *Adapter { return &Adapter{} }
 
 var (
-	_ domain.BuilderSignerPort    = (*Adapter)(nil)
-	_ domain.ZipperPort           = (*Adapter)(nil)
-	_ domain.SenderPort           = (*Adapter)(nil)
+	_ domain.BuilderSignerPort     = (*Adapter)(nil)
+	_ domain.ZipperPort            = (*Adapter)(nil)
+	_ domain.SenderPort            = (*Adapter)(nil)
 	_ domain.DianRangesFetcherPort = (*Adapter)(nil)
+	_ domain.EmailZipPort          = (*Adapter)(nil)
 )
 
 // ── BuilderSignerPort ─────────────────────────────────────────────────────────────────────
@@ -233,4 +234,110 @@ func soapURL(environmentCode string) string {
 		return soap.ProduccionURL
 	}
 	return soap.HabilitacionURL
+}
+
+// ── EmailZipPort ──────────────────────────────────────────────────────────────────────────────
+
+// BuildEmailZip construye el ZIP que se adjunta al correo del destinatario.
+// Si hay ApplicationResponseXML, construye el AttachedDocument UBL firmado (AT 1.9 §9.1)
+// y lo empaqueta junto al PDF. Sin ApplicationResponse, cae en fallback: SignedXML + PDF.
+func (a *Adapter) BuildEmailZip(doc *domain.Document, company *domain.CompanyInfo, filename string, pdfBytes []byte, now time.Time) ([]byte, error) {
+	if doc.ApplicationResponseXML == "" {
+		return zip.Build([]zip.File{
+			{Name: filename + ".xml", Content: []byte(doc.SignedXML)},
+			{Name: filename + ".pdf", Content: pdfBytes},
+		})
+	}
+
+	taxRegime := ""
+	if company.TaxRegimeCode != nil {
+		taxRegime = *company.TaxRegimeCode
+	}
+
+	hashType := "CUFE-SHA384"
+	switch doc.DianDocumentTypeCode {
+	case "91", "92":
+		hashType = "CUDE-SHA384"
+	case "05", "95":
+		hashType = "CUDS-SHA384"
+	}
+
+	var receiver cofdom.AttachedPartyInfo
+	if (doc.DianDocumentTypeCode == "05" || doc.DianDocumentTypeCode == "95") && doc.Supplier != nil {
+		receiver = cofdom.AttachedPartyInfo{
+			Name:           doc.Supplier.Name,
+			Identification: cofdom.Identification{TypeCode: doc.Supplier.Identification.TypeCode, Number: doc.Supplier.Identification.Number},
+			TaxRegimeCode:  doc.Supplier.TaxRegimeCode,
+			LiabilityCodes: doc.Supplier.LiabilityCodes,
+			TaxSchemeCode:  doc.Supplier.TaxSchemeCode,
+			TaxSchemeName:  doc.Supplier.TaxSchemeName,
+		}
+	} else {
+		receiver = cofdom.AttachedPartyInfo{
+			Name:           doc.Customer.Name,
+			Identification: cofdom.Identification{TypeCode: doc.Customer.Identification.TypeCode, Number: doc.Customer.Identification.Number},
+			TaxRegimeCode:  doc.Customer.TaxRegimeCode,
+			LiabilityCodes: doc.Customer.LiabilityCodes,
+			TaxSchemeCode:  doc.Customer.TaxSchemeCode,
+			TaxSchemeName:  doc.Customer.TaxSchemeName,
+		}
+	}
+
+	ad := cofdom.AttachedDocument{
+		EnvironmentCode:  string(company.Environment),
+		ID:               filename,
+		IssueDate:        now.Format("2006-01-02"),
+		IssueTime:        now.Format("15:04:05-07:00"),
+		ParentDocumentID: filename,
+		Sender: cofdom.AttachedPartyInfo{
+			Name:           company.BusinessName,
+			Identification: cofdom.Identification{TypeCode: company.IdentificationTypeCode, Number: company.NIT},
+			TaxRegimeCode:  taxRegime,
+			LiabilityCodes: company.LiabilityCodes,
+			TaxSchemeCode:  company.TaxSchemeCode,
+			TaxSchemeName:  company.TaxSchemeName,
+		},
+		Receiver: receiver,
+		AttachmentXML: doc.SignedXML,
+		ValidationResults: []cofdom.ValidationResult{
+			{
+				LineID:                 "1",
+				DocumentID:             filename,
+				DocumentCUFE:           doc.DocumentKey,
+				DocumentHashType:       hashType,
+				DocumentIssueDate:      doc.IssueDate.Format("2006-01-02"),
+				ApplicationResponseXML: doc.ApplicationResponseXML,
+				ValidatorID:            "Unidad Especial Dirección de Impuestos y Aduanas Nacionales",
+				ValidationResultCode:   doc.DianStatusCode,
+				ValidationDate:         now.Format("2006-01-02"),
+				ValidationTime:         now.Format("15:04:05-07:00"),
+			},
+		},
+	}
+
+	var (
+		adDoc *etree.Document
+		err   error
+	)
+	switch doc.DianDocumentTypeCode {
+	case "91":
+		adDoc, err = builder.BuildCreditNoteAttachedDocument(ad)
+	case "92":
+		adDoc, err = builder.BuildDebitNoteAttachedDocument(ad)
+	default: // "01" FE, "05" DS, "95" NA — misma estructura UBL
+		adDoc, err = builder.BuildInvoiceAttachedDocument(ad)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("email zip: construir AttachedDocument: %w", err)
+	}
+
+	xmlBytes, err := signDoc(adDoc, company.Certificate, company.CertificatePassword, "", now)
+	if err != nil {
+		return nil, fmt.Errorf("email zip: firmar AttachedDocument: %w", err)
+	}
+
+	return zip.Build([]zip.File{
+		{Name: filename + "ad.xml", Content: xmlBytes},
+		{Name: filename + ".pdf", Content: pdfBytes},
+	})
 }

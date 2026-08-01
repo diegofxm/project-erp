@@ -16,12 +16,13 @@ import (
 
 // Config contiene los parámetros de conexión SMTP.
 type Config struct {
-	Host     string // e.g. "mail.midominio.co" (Mox) o "smtp.gmail.com"
-	Port     int    // 587 STARTTLS, 465 SMTPS, 25 plain
-	Username string
-	Password string
-	From     string // "ERP <noreply@midominio.co>"
-	TLS      bool   // true → SMTPS (puerto 465); false → STARTTLS (puerto 587)
+	Host        string // e.g. "mail.midominio.co" (Mox) o "smtp.gmail.com"
+	Port        int    // 587 STARTTLS, 465 SMTPS, 25 plain
+	Username    string
+	Password    string
+	FromAddress string // "noreply@midominio.co"
+	FromName    string // "ERP Cofacture" (opcional)
+	TLS         bool   // true → SMTPS (puerto 465); false → STARTTLS (puerto 587)
 }
 
 type Sender struct{ cfg Config }
@@ -41,7 +42,11 @@ func (s *Sender) Send(ctx context.Context, msg notificationdomain.Message) error
 	}
 
 	m := gomail.NewMsg()
-	if err := m.From(s.cfg.From); err != nil {
+	if s.cfg.FromName != "" {
+		if err := m.FromFormat(s.cfg.FromName, s.cfg.FromAddress); err != nil {
+			return fmt.Errorf("smtp: From: %w", err)
+		}
+	} else if err := m.From(s.cfg.FromAddress); err != nil {
 		return fmt.Errorf("smtp: From: %w", err)
 	}
 	if err := m.To(msg.To); err != nil {

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Comprobante Contable</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #222; padding: 24px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #374151; padding-bottom: 12px; margin-bottom: 16px; }
+    .company h1 { font-size: 16px; color: #374151; }
+    .doc-box { border: 2px solid #374151; border-radius: 4px; padding: 8px 14px; text-align: right; }
+    .doc-box h2 { font-size: 12px; color: #374151; }
+    .doc-box .number { font-size: 16px; font-weight: bold; }
+    .meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+    .meta p { font-size: 10px; color: #555; }
+    .meta strong { display: block; color: #374151; font-size: 11px; margin-bottom: 1px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    thead th { background: #374151; color: #fff; padding: 7px 8px; text-align: left; font-size: 10px; }
+    thead th:last-child, thead th:nth-last-child(2) { text-align: right; }
+    tbody td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; font-size: 10px; }
+    tbody td:last-child, tbody td:nth-last-child(2) { text-align: right; }
+    tfoot td { padding: 7px 8px; font-weight: bold; background: #f3f4f6; font-size: 11px; }
+    tfoot td:last-child, tfoot td:nth-last-child(2) { text-align: right; }
+    .footer { margin-top: 24px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; text-align: center; }
+    .footer div { border-top: 1px solid #555; padding-top: 8px; font-size: 10px; color: #555; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="company">
+      <h1>{{.CompanyName}}</h1>
+      <p style="font-size:10px;color:#555">NIT: {{.CompanyNIT}}</p>
+    </div>
+    <div class="doc-box">
+      <h2>Comprobante de Diario</h2>
+      <div class="number">{{.JournalNumber}}</div>
+      <p style="font-size:10px;color:#555">{{.Date}}</p>
+    </div>
+  </div>
+
+  <div class="meta">
+    <p><strong>Período</strong>{{.Period}}</p>
+    <p><strong>Descripción</strong>{{.Description}}</p>
+    <p><strong>Módulo origen</strong>{{.SourceModule}}</p>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Cuenta</th>
+        <th>Descripción</th>
+        <th>Concepto</th>
+        <th>Débito</th>
+        <th>Crédito</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Lines}}
+      <tr>
+        <td>{{.AccountCode}}</td>
+        <td>{{.AccountName}}</td>
+        <td>{{.Description}}</td>
+        <td>{{if .DebitCents}}${{.DebitCents}}{{end}}</td>
+        <td>{{if .CreditCents}}${{.CreditCents}}{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">Totales</td>
+        <td>${{.TotalDebits}}</td>
+        <td>${{.TotalCredits}}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="footer">
+    <div>Elaborado por<br>{{.PreparedBy}}</div>
+    <div>Revisado por<br>&nbsp;</div>
+    <div>Aprobado por<br>&nbsp;</div>
+  </div>
+</body>
+</html>

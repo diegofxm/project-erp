@@ -37,6 +37,7 @@ func mapToInfo(c *companydomain.Company) *domain.CompanyInfo {
 		NIT:                         c.NIT,
 		CheckDigit:                  c.CheckDigit,
 		BusinessName:                c.BusinessName,
+		TradeName:                   c.TradeName,
 		IdentificationTypeCode:      c.IdentificationTypeCode,
 		DepartmentCode:              c.DepartmentCode,
 		MunicipalityCode:            c.MunicipalityCode,

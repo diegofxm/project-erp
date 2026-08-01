@@ -1,46 +1,96 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{.DocumentTypeName}} {{.DocumentNumber}}</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-    .header { background: #1a56db; color: #fff; padding: 32px 40px; }
-    .header h1 { margin: 0 0 4px; font-size: 20px; }
-    .header p { margin: 0; font-size: 13px; opacity: .85; }
-    .body { padding: 32px 40px; color: #333; line-height: 1.6; }
-    .detail { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px 20px; margin: 20px 0; }
-    .detail p { margin: 6px 0; font-size: 14px; }
-    .detail strong { display: inline-block; width: 150px; color: #555; }
-    .total { font-size: 18px; font-weight: bold; color: #1a56db; margin-top: 8px; }
-    .note { font-size: 13px; color: #666; border-left: 3px solid #1a56db; padding-left: 12px; margin-top: 16px; }
-    .footer { background: #f0f0f0; padding: 16px 40px; font-size: 12px; color: #888; text-align: center; }
-    .dian-badge { display: inline-block; background: #0e9f6e; color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px; }
-  </style>
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>{{.DocumentTypeName}}</h1>
-      <p>{{.CompanyName}} · NIT {{.CompanyNIT}}</p>
-    </div>
-    <div class="body">
-      <p>Estimado/a <strong>{{.RecipientName}}</strong>,</p>
-      <p>Le informamos que se ha emitido el siguiente documento electrónico a nombre suyo:</p>
-      <div class="detail">
-        <p><strong>Número:</strong> {{.DocumentNumber}}</p>
-        <p><strong>Fecha de emisión:</strong> {{.IssueDate}}</p>
-        <p><strong>Tipo de documento:</strong> {{.DocumentTypeName}}</p>
-        <p><strong>Moneda:</strong> {{.Currency}}</p>
-        <p class="total">Total: {{.Total}}</p>
-      </div>
-      <p class="note">El documento electrónico DIAN está adjunto a este correo en formato PDF y XML firmado.</p>
-    </div>
-    <div class="footer">
-      <span class="dian-badge">Documento Electrónico DIAN</span><br>
-      {{.CompanyName}} · {{.CompanyAddress}}
-    </div>
-  </div>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif">
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f1f5f9">
+    <tr>
+      <td align="center" style="padding:32px 16px">
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%">
+
+          <!-- ENCABEZADO -->
+          <tr>
+            <td align="center" bgcolor="#1d4ed8" style="background-color:#1d4ed8;padding:28px 32px;border-radius:8px 8px 0 0">
+              {{if .LogoSrc}}<div style="margin-bottom:12px"><img src="{{.LogoSrc}}" alt="{{.IssuerName}}" style="max-height:56px;max-width:180px;display:block;margin:0 auto;border:0"></div>{{end}}
+              <div style="color:#ffffff;font-size:20px;font-weight:700;line-height:1.3">{{.IssuerName}}</div>
+              {{if .IssuerTradeName}}<div style="color:#bfdbfe;font-size:13px;margin-top:6px">{{.IssuerTradeName}}</div>{{end}}
+            </td>
+          </tr>
+
+          <!-- SALUDO -->
+          <tr>
+            <td bgcolor="#ffffff" style="background-color:#ffffff;padding:32px 32px 8px">
+              <div style="font-size:15px;color:#374151;line-height:1.75">
+                <p style="margin:0 0 14px">Hola <strong>{{.RecipientName}}</strong>,</p>
+                <p style="margin:0 0 14px">{{.IssuerName}} te hace llegar tu {{.DocumentTypeName}}. Encuéntrala en el archivo ZIP adjunto a este correo.</p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- CAJA DE DATOS DEL DOCUMENTO -->
+          <tr>
+            <td bgcolor="#ffffff" style="background-color:#ffffff;padding:20px 32px 24px">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
+
+                <tr>
+                  <td colspan="2" bgcolor="#f8fafc" style="background-color:#f8fafc;padding:14px 18px 12px;border-bottom:1px solid #e2e8f0">
+                    <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px">Documento</div>
+                    <div style="font-size:17px;font-weight:700;color:#1e293b">{{.DocumentTypeName}}&nbsp;{{.DocumentNumber}}</div>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td bgcolor="#ffffff" style="background-color:#ffffff;padding:12px 18px 16px;vertical-align:middle">
+                    <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px">Fecha de emisión</div>
+                    <div style="font-size:14px;color:#1e293b">{{.IssueDate}}</div>
+                  </td>
+                  <td align="right" bgcolor="#ffffff" style="background-color:#ffffff;padding:12px 18px 16px;vertical-align:middle">
+                    <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;text-align:right">Total a pagar</div>
+                    <div style="font-size:22px;font-weight:700;color:#1d4ed8;text-align:right">{{.TotalFormatted}}</div>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <!-- NOTA DE ADJUNTOS -->
+          <tr>
+            <td bgcolor="#ffffff" style="background-color:#ffffff;padding:0 32px 28px">
+              <table role="presentation" width="100%" cellpadding="14" cellspacing="0" border="0" style="background-color:#eff6ff;border-left:4px solid #3b82f6;border-radius:0 4px 4px 0">
+                <tr>
+                  <td>
+                    <div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:6px">Archivo adjunto (ZIP)</div>
+                    <div style="font-size:13px;color:#1e40af;line-height:1.65">
+                      &#8226;&nbsp;<strong>XML</strong> &mdash; documento electrónico firmado, válido ante la DIAN<br>
+                      &#8226;&nbsp;<strong>PDF</strong> &mdash; representación gráfica del documento
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- PIE -->
+          <tr>
+            <td align="center" bgcolor="#f8fafc" style="background-color:#f8fafc;padding:18px 32px;border-top:1px solid #e2e8f0;border-radius:0 0 8px 8px">
+              <div style="font-size:11px;color:#94a3b8;line-height:1.65">
+                NIT {{.IssuerNIT}} &bull; {{.IssuerEmail}}<br>
+                Mensaje automático &mdash; por favor no respondas a este correo.
+              </div>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
 </body>
 </html>

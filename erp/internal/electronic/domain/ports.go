@@ -15,6 +15,7 @@ type CompanyInfo struct {
 	NIT                         string
 	CheckDigit                  string
 	BusinessName                string
+	TradeName                   string
 	IdentificationTypeCode      string
 	DepartmentCode              string
 	MunicipalityCode            string
@@ -101,4 +102,12 @@ type DianRange struct {
 // DianRangesFetcherPort consulta los rangos autorizados del emisor ante la DIAN.
 type DianRangesFetcherPort interface {
 	GetNumberingRanges(nit, softwareID string, cert []byte, password, environmentCode string) ([]DianRange, error)
+}
+
+// EmailZipPort construye el ZIP que va adjunto al correo del destinatario.
+// Contiene el AttachedDocument XML firmado (AT 1.9 §9.1) + el PDF.
+// Si el documento no tiene ApplicationResponseXML (aceptación DIAN), cae en
+// fallback: ZIP con el SignedXML crudo + PDF, sin construir AttachedDocument.
+type EmailZipPort interface {
+	BuildEmailZip(doc *Document, company *CompanyInfo, filename string, pdfBytes []byte, now time.Time) (zipBytes []byte, err error)
 }
