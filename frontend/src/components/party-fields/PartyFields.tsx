@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { listDepartments, listIdentificationTypes, listLiabilityCodes, listMunicipalities, listTaxRegimes, listTaxTypes } from "../../lib/catalogs";
 import { ApiError } from "../../lib/apiClient";
 import { verifyAcquirer } from "../../lib/dianVerification";
+import { computeNITCheckDigit } from "../../lib/nit";
 import { useCatalog } from "../../lib/useCatalog";
 import type { CustomerPayload, SupplierPayload, Municipality } from "../../lib/types";
 import { Button } from "../ui/Button";
@@ -141,7 +142,14 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
           label="Número de identificación"
           required
           value={value.identification.number}
-          onChange={(e) => onChange({ ...value, identification: { ...value.identification, number: e.target.value } })}
+          onChange={(e) => {
+            const number = e.target.value;
+            const next: PartyPayload = { ...value, identification: { ...value.identification, number } };
+            if (value.identification.type_code === "31") {
+              next.identification = { ...next.identification, verification_code: computeNITCheckDigit(number) ?? undefined };
+            }
+            onChange(next);
+          }}
         />
       </div>
       {isJuridica && (

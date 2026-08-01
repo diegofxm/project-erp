@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/diegofxm/erp/internal/customer/domain"
+	"github.com/diegofxm/erp/internal/shared/nit"
 )
 
 type CreateUseCase struct {
@@ -44,12 +45,19 @@ func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req S
 		return nil, domain.ErrDuplicateCustomer
 	}
 
+	checkDigit := req.CheckDigit
+	if req.IdentificationTypeCode == "31" {
+		if dv, err := nit.ComputeCheckDigit(req.IdentificationNumber); err == nil {
+			checkDigit = dv
+		}
+	}
+
 	c := domain.Customer{
 		ID:                         uuid.New(),
 		CompanyID:                  companyID,
 		IdentificationTypeCode:     req.IdentificationTypeCode,
 		IdentificationNumber:       req.IdentificationNumber,
-		CheckDigit:                 req.CheckDigit,
+		CheckDigit:                 checkDigit,
 		EntityTypeCode:             req.EntityTypeCode,
 		MerchantRegistrationNumber: req.MerchantRegistrationNumber,
 		Name:                       req.Name,

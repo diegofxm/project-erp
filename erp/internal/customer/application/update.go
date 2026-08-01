@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/diegofxm/erp/internal/customer/domain"
+	"github.com/diegofxm/erp/internal/shared/nit"
 )
 
 type UpdateUseCase struct {
@@ -22,9 +23,16 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, companyID, id uuid.UUID, r
 		return nil, err
 	}
 
+	checkDigit := req.CheckDigit
+	if req.IdentificationTypeCode == "31" {
+		if dv, err := nit.ComputeCheckDigit(req.IdentificationNumber); err == nil {
+			checkDigit = dv
+		}
+	}
+
 	existing.IdentificationTypeCode = req.IdentificationTypeCode
 	existing.IdentificationNumber = req.IdentificationNumber
-	existing.CheckDigit = req.CheckDigit
+	existing.CheckDigit = checkDigit
 	existing.EntityTypeCode = req.EntityTypeCode
 	existing.MerchantRegistrationNumber = req.MerchantRegistrationNumber
 	existing.Name = req.Name

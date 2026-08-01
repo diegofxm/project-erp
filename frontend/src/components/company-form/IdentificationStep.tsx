@@ -1,4 +1,5 @@
 import { listIdentificationTypes } from "../../lib/catalogs";
+import { computeNITCheckDigit } from "../../lib/nit";
 import { useCatalog } from "../../lib/useCatalog";
 import type { CreateCompanyPayload } from "../../lib/types";
 import { Input } from "../ui/Input";
@@ -81,7 +82,12 @@ export function IdentificationStep({ form, setField }: StepProps) {
           label={isJuridica ? "NIT" : "Número de identificación"}
           required
           value={form.nit}
-          onChange={(e) => setField("nit", e.target.value)}
+          onChange={(e) => {
+            setField("nit", e.target.value);
+            if (form.identification_type_code === "31") {
+              setField("check_digit", computeNITCheckDigit(e.target.value) ?? "");
+            }
+          }}
         />
       </div>
       {isJuridica && (
