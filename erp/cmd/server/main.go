@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -56,6 +57,8 @@ import (
 	"github.com/diegofxm/erp/internal/shared/cors"
 	"github.com/diegofxm/erp/internal/shared/events"
 	"github.com/diegofxm/erp/internal/shared/logger"
+	notificationnoop "github.com/diegofxm/erp/internal/shared/notification/infrastructure/email/noop"
+	notificationsmtp "github.com/diegofxm/erp/internal/shared/notification/infrastructure/email/smtp"
 	reportsdomain "github.com/diegofxm/erp/internal/shared/reports/domain"
 	htmlreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/html"
 	multireports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/multi"
@@ -217,6 +220,33 @@ func main() {
 	})
 	electronicPDFUC := electronicapp.NewGetDocumentPDFUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer)
 
+	// ── Notificaciones ──────────────────────────────────────────────────────────
+	smtpHost := os.Getenv("SMTP_HOST")
+	var electronicSendEmailUC *electronicapp.SendDocumentEmailUseCase
+	if smtpHost != "" {
+		smtpPort := 587
+		if p := os.Getenv("SMTP_PORT"); p != "" {
+			if n, err := fmt.Sscanf(p, "%d", &smtpPort); n == 0 || err != nil {
+				smtpPort = 587
+			}
+		}
+		tlsMode := os.Getenv("SMTP_TLS") == "true"
+		smtpNotifier := notificationsmtp.New(notificationsmtp.Config{
+			Host:     smtpHost,
+			Port:     smtpPort,
+			Username: os.Getenv("SMTP_USERNAME"),
+			Password: os.Getenv("SMTP_PASSWORD"),
+			From:     os.Getenv("SMTP_FROM"),
+			TLS:      tlsMode,
+		})
+		electronicSendEmailUC = electronicapp.NewSendDocumentEmailUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer, smtpNotifier)
+		log.Info("notificaciones por SMTP configuradas", "host", smtpHost)
+	} else {
+		noopNotifier := notificationnoop.New()
+		electronicSendEmailUC = electronicapp.NewSendDocumentEmailUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer, noopNotifier)
+		log.Info("notificaciones: modo noop (SMTP_HOST no configurado)")
+	}
+
 	// ── Casos de uso — hr / payroll / company / inventory / supplier / product / customer ──
 	hrAbsenceRepo := hrpostgres.NewAbsenceRepository(pool)
 	hrAbsenceUC := hrapp.NewAbsenceUseCase(hrAbsenceRepo)
@@ -274,7 +304,7 @@ func main() {
 	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC).RegisterRoutes(mux)
 	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC).RegisterRoutes(mux)
 	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo).RegisterRoutes(mux)
-	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, electronicDianRangesUC, auditUC).RegisterRoutes(mux)
+	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, electronicDianRangesUC, electronicSendEmailUC, auditUC).RegisterRoutes(mux)
 	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)
 	publichttp.NewHandler(getCompanyUC, createCustomerUC).RegisterRoutes(mux)

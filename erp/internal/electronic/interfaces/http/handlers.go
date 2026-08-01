@@ -32,6 +32,7 @@ type Handler struct {
 	pdf         *application.GetDocumentPDFUseCase
 	fromSale    *application.CreateFromSaleUseCase
 	dianRanges  *application.GetDianRangesUseCase
+	sendEmail   *application.SendDocumentEmailUseCase
 	audit       AuditLogger
 }
 
@@ -44,6 +45,7 @@ func NewHandler(
 	pdf *application.GetDocumentPDFUseCase,
 	fromSale *application.CreateFromSaleUseCase,
 	dianRanges *application.GetDianRangesUseCase,
+	sendEmail *application.SendDocumentEmailUseCase,
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
@@ -55,6 +57,7 @@ func NewHandler(
 		pdf:         pdf,
 		fromSale:    fromSale,
 		dianRanges:  dianRanges,
+		sendEmail:   sendEmail,
 		audit:       audit,
 	}
 }
@@ -371,6 +374,27 @@ func (h *Handler) handleGetDocumentPDF(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", `inline; filename="documento.pdf"`)
 	_, _ = w.Write(pdfBytes)
+}
+
+func (h *Handler) handleSendDocumentEmail(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	if h.sendEmail == nil {
+		http.Error(w, "envío de correo no configurado en el servidor", http.StatusNotImplemented)
+		return
+	}
+	if err := h.sendEmail.Send(r.Context(), companyID, id); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
 }
 
 func (h *Handler) handleGetDocumentXML(w http.ResponseWriter, r *http.Request) {
