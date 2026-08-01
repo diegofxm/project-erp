@@ -1,14 +1,14 @@
 // Package smtp implementa el puerto Notifier para correo saliente vía SMTP estándar.
 // Compatible con cualquier servidor SMTP: Mox, Postfix, Gmail relay, etc.
+// Usa go-mail para manejar adjuntos y MIME multiparte correctamente.
 package smtp
 
 import (
+	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net"
-	"net/smtp"
-	"strings"
+
+	gomail "github.com/wneessen/go-mail"
 
 	notificationdomain "github.com/diegofxm/erp/internal/shared/notification/domain"
 	emailinfra "github.com/diegofxm/erp/internal/shared/notification/infrastructure/email"
@@ -28,78 +28,54 @@ type Sender struct{ cfg Config }
 
 func New(cfg Config) *Sender { return &Sender{cfg: cfg} }
 
-// Compile-time check
 var _ notificationdomain.Notifier = (*Sender)(nil)
 
-func (s *Sender) Send(_ context.Context, msg notificationdomain.Message) error {
+func (s *Sender) Send(ctx context.Context, msg notificationdomain.Message) error {
 	if msg.Channel != notificationdomain.ChannelEmail {
 		return fmt.Errorf("smtp: canal no soportado: %s", msg.Channel)
 	}
 
-	body, err := emailinfra.Render(msg.TemplateID, msg.Data)
+	htmlBody, err := emailinfra.Render(msg.TemplateID, msg.Data)
 	if err != nil {
 		return err
 	}
 
-	raw := buildMIME(s.cfg.From, msg.To, msg.Subject, body)
+	m := gomail.NewMsg()
+	if err := m.From(s.cfg.From); err != nil {
+		return fmt.Errorf("smtp: From: %w", err)
+	}
+	if err := m.To(msg.To); err != nil {
+		return fmt.Errorf("smtp: To: %w", err)
+	}
+	m.Subject(msg.Subject)
+	m.SetBodyString(gomail.TypeTextHTML, htmlBody)
 
-	addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
-	auth := smtp.PlainAuth("", s.cfg.Username, s.cfg.Password, s.cfg.Host)
+	for _, a := range msg.Attachments {
+		if err := m.AttachReader(a.Filename, bytes.NewReader(a.Content),
+			gomail.WithFileContentType(gomail.ContentType(a.ContentType)),
+		); err != nil {
+			return fmt.Errorf("smtp: adjunto %q: %w", a.Filename, err)
+		}
+	}
 
+	tlsPolicy := gomail.TLSOpportunistic
 	if s.cfg.TLS {
-		return sendTLS(addr, s.cfg.Host, auth, s.cfg.From, msg.To, raw)
+		tlsPolicy = gomail.TLSMandatory
 	}
-	return smtp.SendMail(addr, auth, s.cfg.From, []string{msg.To}, raw)
-}
 
-func sendTLS(addr, host string, auth smtp.Auth, from, to string, body []byte) error {
-	conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: host})
+	client, err := gomail.NewClient(s.cfg.Host,
+		gomail.WithPort(s.cfg.Port),
+		gomail.WithSMTPAuth(gomail.SMTPAuthAutoDiscover),
+		gomail.WithUsername(s.cfg.Username),
+		gomail.WithPassword(s.cfg.Password),
+		gomail.WithTLSPolicy(tlsPolicy),
+	)
 	if err != nil {
-		return fmt.Errorf("smtp tls dial: %w", err)
+		return fmt.Errorf("smtp: configurando cliente: %w", err)
 	}
-	c, err := smtp.NewClient(conn, host)
-	if err != nil {
-		return fmt.Errorf("smtp new client: %w", err)
-	}
-	defer c.Close()
-	if err := c.Auth(auth); err != nil {
-		return fmt.Errorf("smtp auth: %w", err)
-	}
-	if err := c.Mail(from); err != nil {
-		return fmt.Errorf("smtp MAIL FROM: %w", err)
-	}
-	if err := c.Rcpt(to); err != nil {
-		return fmt.Errorf("smtp RCPT TO: %w", err)
-	}
-	w, err := c.Data()
-	if err != nil {
-		return fmt.Errorf("smtp DATA: %w", err)
-	}
-	if _, err := w.Write(body); err != nil {
-		return fmt.Errorf("smtp write body: %w", err)
-	}
-	return w.Close()
-}
 
-func buildMIME(from, to, subject, htmlBody string) []byte {
-	var b strings.Builder
-	b.WriteString("From: " + from + "\r\n")
-	b.WriteString("To: " + to + "\r\n")
-	b.WriteString("Subject: " + subject + "\r\n")
-	b.WriteString("MIME-Version: 1.0\r\n")
-	b.WriteString("Content-Type: text/html; charset=utf-8\r\n")
-	b.WriteString("\r\n")
-	b.WriteString(htmlBody)
-	return []byte(b.String())
-}
-
-// localHostname devuelve el hostname local para el saludo EHLO si smtp.SendMail lo necesita.
-func localHostname() string {
-	h, _ := net.LookupAddr("127.0.0.1")
-	if len(h) > 0 {
-		return strings.TrimSuffix(h[0], ".")
+	if err := client.DialAndSendWithContext(ctx, m); err != nil {
+		return fmt.Errorf("smtp: enviando a %s: %w", msg.To, err)
 	}
-	return "localhost"
+	return nil
 }
-
-var _ = localHostname // silenciar linter si no se usa

@@ -38,7 +38,7 @@ func (uc *InviteUserUseCase) Execute(ctx context.Context, email, name string) (*
 	}
 
 	return uc.repo.Save(ctx, u)
-	// TODO: emitir evento para que shared/email envíe el correo de invitación
+	// TODO: emitir evento para que shared/notification envíe el correo de invitación
 }
 
 // AcceptInviteUseCase valida el token, establece la contraseña y devuelve una sesión.
