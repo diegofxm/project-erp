@@ -22,7 +22,6 @@ import { SendEmailModal } from "../components/ui/SendEmailModal";
 import { fetchCustomer } from "../lib/customers";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { BillingReference, Document, IssueDebitNotePayload } from "../lib/types";
-import { BackLink } from "../components/ui/BackLink";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { Banner } from "../components/ui/Banner";
 import { SourceBalanceBlock } from "../components/ui/SourceBalanceBlock";
@@ -229,10 +228,6 @@ export function DebitNoteEditorPage() {
     <div className="p-4">
       <Breadcrumbs
         items={[{ label: "Documentos" }, { label: "Nota Débito", to: "/documents/debit-notes" }, { label: title }]}
-      />
-      <BackLink
-        to={isNew && sourceInvoiceId ? `/documents/invoices/${sourceInvoiceId}` : "/documents/debit-notes"}
-        label={isNew && sourceDoc ? `Factura ${sourceDoc.prefix ?? ""}${sourceDoc.number ?? ""}` : "Notas Débito"}
       />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">

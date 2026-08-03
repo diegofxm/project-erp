@@ -22,7 +22,6 @@ import { SendEmailModal } from "../components/ui/SendEmailModal";
 import { fetchSupplier } from "../lib/suppliers";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { Document, IssueSupportDocumentPayload } from "../lib/types";
-import { BackLink } from "../components/ui/BackLink";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { Banner } from "../components/ui/Banner";
 import { DianStatusBlock } from "../components/DianStatusBlock";
@@ -179,7 +178,6 @@ export function SupportDocumentEditorPage() {
       <Breadcrumbs
         items={[{ label: "Documentos" }, { label: "Documento Soporte", to: "/documents/support-documents" }, { label: title }]}
       />
-      <BackLink to="/documents/support-documents" label="Documentos Soporte" />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <BookCopy className="h-4 w-4 shrink-0 text-(--accent-primary)" />

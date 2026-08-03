@@ -22,7 +22,6 @@ import { SendEmailModal } from "../components/ui/SendEmailModal";
 import { fetchSupplier } from "../lib/suppliers";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { BillingReference, Document, IssueAdjustmentNotePayload } from "../lib/types";
-import { BackLink } from "../components/ui/BackLink";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { Banner } from "../components/ui/Banner";
 import { SourceBalanceBlock } from "../components/ui/SourceBalanceBlock";
@@ -226,10 +225,6 @@ export function AdjustmentNoteEditorPage() {
     <div className="p-4">
       <Breadcrumbs
         items={[{ label: "Documentos" }, { label: "Nota de Ajuste", to: "/documents/adjustment-notes" }, { label: title }]}
-      />
-      <BackLink
-        to={isNew && sourceDocId ? `/documents/support-documents/${sourceDocId}` : "/documents/adjustment-notes"}
-        label={isNew && sourceDoc ? `DS ${sourceDoc.prefix ?? ""}${sourceDoc.number ?? ""}` : "Notas de Ajuste"}
       />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">

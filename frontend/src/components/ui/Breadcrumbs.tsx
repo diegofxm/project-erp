@@ -21,7 +21,7 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
                 {item.label}
               </Link>
             ) : (
-              <span className={isLast ? "font-medium text-(--text-secondary)" : undefined}>{item.label}</span>
+              <span className={isLast ? "font-medium text-(--accent-primary)" : undefined}>{item.label}</span>
             )}
           </span>
         );
