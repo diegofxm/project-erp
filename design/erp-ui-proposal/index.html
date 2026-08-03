@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="es" data-accent="blue">
+<head>
+<meta charset="utf-8" />
+<title>Propuesta de diseño — ERP project-ubl</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared.css" />
+<style>
+  .hero {
+    background: var(--navbar-bg); color: var(--navbar-text);
+    padding: 56px 32px 64px;
+  }
+  .hero-inner { max-width: 880px; margin: 0 auto; }
+  .hero .eyebrow { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; opacity:.7; margin-bottom:16px; }
+  .hero h1 { font-size: 34px; font-weight:700; letter-spacing:-0.015em; text-wrap:balance; max-width: 620px; }
+  .hero p.lede { font-size: 16px; margin-top:16px; max-width: 560px; opacity:.85; line-height:1.6; }
+  .hero-cta { display:flex; gap:10px; margin-top:28px; flex-wrap:wrap; }
+  .hero-cta .btn-primary { height:40px; padding:0 20px; font-size:13.5px; }
+  .hero-cta .btn-hero-secondary {
+    height:40px; padding:0 20px; border-radius:var(--radius-sm); font-size:13.5px; font-weight:600;
+    background: color-mix(in srgb, var(--navbar-text) 12%, transparent); color: var(--navbar-text);
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .doc { max-width: 880px; margin: 0 auto; padding: 48px 32px 96px; }
+  .doc h2 { font-size: 20px; font-weight:700; letter-spacing:-0.01em; margin-bottom:6px; }
+  .doc .lede-sm { color:var(--text-secondary); font-size:14px; margin-bottom:20px; max-width:65ch; line-height:1.6; }
+  .doc section { margin-bottom:48px; }
+  .compare { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .compare .col { border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:18px 20px; }
+  .compare .col.before { background: var(--bg-tertiary); }
+  .compare .col.after { background: var(--accent-soft); border-color: var(--accent-primary); }
+  .compare h3 { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-bottom:10px; }
+  .compare ul { margin:0; padding-left:18px; font-size:13.5px; color:var(--text-secondary); line-height:1.9; }
+  .feature-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  .feature { border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:16px 18px; background:var(--bg-secondary); }
+  .feature h4 { font-size:13.5px; font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+  .feature p { font-size:12.5px; color:var(--text-secondary); line-height:1.6; }
+  .page-links { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .page-link { border:1px solid var(--border-color); border-radius:var(--radius-lg); overflow:hidden; background:var(--bg-secondary); }
+  .page-link .thumb { height:80px; background:var(--bg-tertiary); display:flex; align-items:center; justify-content:center; color:var(--accent-primary); }
+  .page-link .body { padding:12px 14px; }
+  .page-link h4 { font-size:13px; font-weight:700; margin-bottom:3px; }
+  .page-link p { font-size:11.5px; color:var(--text-muted); }
+  .page-link:hover { border-color:var(--accent-primary); }
+  footer.doc-foot { text-align:center; padding: 24px; color:var(--text-muted); font-size:12px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="eyebrow">
+      <span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--accent-primary);display:inline-block"></span>
+      Propuesta de diseño · Cofacture ERP
+    </div>
+    <h1>Contabilidad primero: un sistema visual que se ve como un ERP, no como un panel de base de datos.</h1>
+    <p class="lede">Se conserva la estructura actual (navbar arriba + sidebar izquierda). Lo que cambia es el lenguaje visual del contenido — inspirado en los patrones de Odoo: pestañas de formulario, botones-stat, barra de estado, tarjetas kanban y listas con barra de herramientas real — empezando por Contabilidad, el módulo que termina conectando a todos los demás.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="dashboard.html">Ver el panel de contabilidad →</a>
+      <a class="btn-hero-secondary" href="journal-entry.html">Ver un asiento con pestañas</a>
+    </div>
+  </div>
+</div>
+
+<div class="doc">
+
+  <section>
+    <h2>Por qué cambiar</h2>
+    <p class="lede-sm">El diseño actual del frontend se heredó literalmente de <span class="mono">DBPanel</span>, un cliente de base de datos tipo pgAdmin (documentado en <span class="mono">docs/reference/DESIGN_SYSTEM.md</span>): 13px de fuente base, radios de 4px, cero jerarquía tipográfica, paleta de "herramienta de administrador". Funciona para inspeccionar tablas SQL — no comunica confianza para un sistema donde alguien firma asientos contables y factura electrónicamente ante la DIAN.</p>
+    <div class="compare">
+      <div class="col before">
+        <h3>Hoy — heredado de un cliente SQL</h3>
+        <ul>
+          <li>Base de 13px, casi todo <span class="mono">text-xs</span></li>
+          <li>Radios de 4px, sin jerarquía de tamaños</li>
+          <li>Un solo azul de acento, sin identidad propia</li>
+          <li>Tablas densas sin agrupación ni herramientas</li>
+          <li>Sin patrón de pestañas para formularios largos</li>
+        </ul>
+      </div>
+      <div class="col after">
+        <h3>Propuesta — mismo navbar/sidebar, azul oscuro</h3>
+        <ul>
+          <li>Misma base de 13px, mismo navbar h-10 y sidebar w-48/w-10</li>
+          <li><span class="mono">--navbar-bg</span> y <span class="mono">--accent-primary</span> pasan a azul oscuro</li>
+          <li>Semántica (éxito/alerta/peligro) sin tocar, sigue igual</li>
+          <li>Listas con grupos colapsables, barra de filtros</li>
+          <li>Notebook de pestañas + botones-stat + status bar (nuevo, para Contabilidad)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Qué trae la propuesta</h2>
+    <p class="lede-sm">Piezas nuevas de UI, pensadas para reutilizarse en todos los módulos futuros (ventas, compras, inventario, nómina), no solo en contabilidad.</p>
+    <div class="feature-grid">
+      <div class="feature"><h4>Notebook de pestañas</h4><p>El sello de Odoo: un registro largo (asiento, factura, empleado) se organiza en pestañas horizontales en vez de un formulario interminable. Ver <a href="journal-entry.html" style="color:var(--accent-primary);font-weight:600">journal-entry.html</a>.</p></div>
+      <div class="feature"><h4>Botones-stat y status bar</h4><p>La cabecera de un registro muestra sus métricas clave (líneas, adjuntos) como botones, y su estado como una barra de pasos — no solo un badge suelto.</p></div>
+      <div class="feature"><h4>Tarjetas kanban de resumen</h4><p>El panel de cada módulo (empezando por Contabilidad) resume sus "diarios" como tarjetas con cifra, tendencia y accesos directos — igual que el dashboard de Odoo Accounting.</p></div>
+      <div class="feature"><h4>Listas con jerarquía real</h4><p>Agrupación colapsable por clase de cuenta, barra de filtros/búsqueda, columnas numéricas en monoespaciada alineada — ver <a href="chart-of-accounts.html" style="color:var(--accent-primary);font-weight:600">chart-of-accounts.html</a>.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Explora los mockups</h2>
+    <p class="lede-sm">Archivos estáticos, no tocan <span class="mono">frontend/src</span>. Ábrelos directamente en el navegador.</p>
+    <div class="page-links">
+      <a class="page-link" href="dashboard.html">
+        <div class="thumb"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></div>
+        <div class="body"><h4>Panel</h4><p>Kanban de diarios + KPIs</p></div>
+      </a>
+      <a class="page-link" href="chart-of-accounts.html">
+        <div class="thumb"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg></div>
+        <div class="body"><h4>Plan de cuentas</h4><p>Lista agrupable (PUC)</p></div>
+      </a>
+      <a class="page-link" href="journal-entry.html">
+        <div class="thumb"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></div>
+        <div class="body"><h4>Asiento contable</h4><p>Formulario con pestañas</p></div>
+      </a>
+      <a class="page-link" href="components.html">
+        <div class="thumb"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="19" cy="17" r="2.5"/><circle cx="6" cy="12" r="2.5"/></svg></div>
+        <div class="body"><h4>Componentes</h4><p>Tokens y guía de estilo</p></div>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <h2>Cómo seguiría después de aprobar</h2>
+    <p class="lede-sm">
+      1. Ajustamos color/tipografía/espaciado según tu feedback sobre estos mockups.<br/>
+      2. Portamos los tokens de <span class="mono">shared.css</span> a <span class="mono">frontend/src/index.css</span> (mismo mecanismo de variables CSS que ya usa la app, solo cambian los valores).<br/>
+      3. Construimos los componentes reales en React (notebook, stat-button, status-stepper, kanban-card) como piezas compartidas.<br/>
+      4. Primera pantalla real: <span class="mono">AccountingDashboardPage</span> — el módulo que ya tiene API completa mencionado en <span class="mono">erp/internal/accounting</span>, pero cero UI hoy.
+    </p>
+  </section>
+
+</div>
+
+<footer class="doc-foot">design/erp-ui-proposal/ — no forma parte del build de frontend/</footer>
+
+<script src="shared.js"></script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="es" data-accent="blue">
+<head>
+<meta charset="utf-8" />
+<title>Guía de componentes — Propuesta ERP</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared.css" />
+<style>
+  .swatch-card { display:flex; flex-direction:column; gap:8px; }
+  .swatch-block { height:56px; border-radius:var(--radius-md); border:1px solid var(--border-color); }
+  .swatch-name { font-size:12.5px; font-weight:600; }
+  .swatch-hex { font-family:var(--font-mono); font-size:11.5px; color:var(--text-muted); }
+  .type-row { display:flex; align-items:baseline; gap:16px; padding:10px 0; border-bottom:1px solid var(--border-color); }
+  .type-row:last-child { border-bottom:none; }
+  .type-tag { width:150px; flex-shrink:0; font-size:11px; color:var(--text-muted); font-family:var(--font-mono); }
+</style>
+</head>
+<body>
+
+<div class="proposal-banner">
+  <div>Propuesta de diseño · línea "Contabilidad primero" — <strong>components.html</strong></div>
+  <nav>
+    <a href="index.html">Presentación</a>
+    <a href="dashboard.html">Panel</a>
+    <a href="chart-of-accounts.html">Plan de cuentas</a>
+    <a href="journal-entry.html">Asiento contable</a>
+    <a href="components.html" class="current">Componentes</a>
+  </nav>
+</div>
+
+<div class="shell">
+  <header class="topbar">
+    <div class="topbar-brand">
+      <button class="topbar-toggle" title="Menú" aria-label="Menú">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <a class="topbar-logo" href="dashboard.html">
+        <span class="mark">C</span>
+        <span class="word">cofacture</span>
+      </a>
+    </div>
+    <span class="topbar-sep"></span>
+    <div class="topbar-rest">
+      <div class="topbar-company">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+        <span>Empresa:</span>
+        <span class="val">Café de la Sierra S.A.S.</span>
+      </div>
+      <div class="topbar-actions">
+        <div class="topbar-user">
+          <span class="avatar">DM</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="body-row">
+    <main class="main" style="width:100%">
+      <div class="page" style="max-width:960px">
+        <div class="crumbs"><span class="current">Guía de componentes</span></div>
+        <div class="page-header">
+          <div>
+            <h1>Guía de componentes</h1>
+            <p class="subtitle">Tokens y piezas reutilizables — referencia para portar esta propuesta a React/Tailwind.</p>
+          </div>
+        </div>
+
+        <div class="section-title">Paleta — neutros</div>
+        <div class="kanban-grid" style="grid-template-columns:repeat(5,1fr)">
+          <div class="swatch-card"><div class="swatch-block" style="background:var(--bg-primary)"></div><div class="swatch-name">Canvas</div><div class="swatch-hex">--bg-primary</div></div>
+          <div class="swatch-card"><div class="swatch-block" style="background:var(--bg-secondary)"></div><div class="swatch-name">Surface</div><div class="swatch-hex">--bg-secondary</div></div>
+          <div class="swatch-card"><div class="swatch-block" style="background:var(--bg-tertiary)"></div><div class="swatch-name">Surface alt</div><div class="swatch-hex">--bg-tertiary</div></div>
+          <div class="swatch-card"><div class="swatch-block" style="background:var(--border-color)"></div><div class="swatch-name">Border</div><div class="swatch-hex">--border-color</div></div>
+          <div class="swatch-card"><div class="swatch-block" style="background:var(--text-primary)"></div><div class="swatch-name">Texto primario</div><div class="swatch-hex">--text-primary</div></div>
+        </div>
+
+        <div class="section-title">Paleta — acento (único, azul oscuro)</div>
+        <div class="kanban-grid" style="grid-template-columns:repeat(3,1fr)">
+          <div class="swatch-card"><div class="swatch-block" style="background:var(--navbar-bg)"></div><div class="swatch-name">Navbar / sidebar activo (fondo)</div><div class="swatch-hex">--navbar-bg</div></div>
+          <div class="swatch-card"><div class="swatch-block" style="background:var(--accent-primary)"></div><div class="swatch-name">Acento (botones, links, activo)</div><div class="swatch-hex">--accent-primary</div></div>
+          <div class="swatch-card"><div class="swatch-block" style="background:var(--bg-selected)"></div><div class="swatch-name">Selección (fila/ítem activo)</div><div class="swatch-hex">--bg-selected (derivado)</div></div>
+        </div>
+
+        <div class="section-title">Paleta — semántica (fija, no cambia con el acento)</div>
+        <div class="kanban-grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="swatch-card"><div class="swatch-block" style="background:var(--color-success)"></div><div class="swatch-name">Éxito</div><div class="swatch-hex">--color-success</div></div>
+          <div class="swatch-card"><div class="swatch-block" style="background:var(--color-warning)"></div><div class="swatch-name">Advertencia</div><div class="swatch-hex">--color-warning</div></div>
+          <div class="swatch-card"><div class="swatch-block" style="background:var(--color-danger)"></div><div class="swatch-name">Peligro</div><div class="swatch-hex">--color-danger</div></div>
+          <div class="swatch-card"><div class="swatch-block" style="background:var(--color-info)"></div><div class="swatch-name">Neutro / borrador</div><div class="swatch-hex">--color-info</div></div>
+        </div>
+
+        <div class="section-title">Tipografía — sin cambios respecto al proyecto real (misma stack de sistema, base 13px)</div>
+        <div class="card card-pad">
+          <div class="type-row"><span class="type-tag">h1 · 19/700</span><h1 style="font-size:19px">Panel de contabilidad</h1></div>
+          <div class="type-row"><span class="type-tag">h3 · 13/600</span><h3 style="font-size:13px; font-weight:600">Actividad reciente</h3></div>
+          <div class="type-row"><span class="type-tag">body · 13/400</span><p style="font-size:13px">Este es el texto de lectura normal de la interfaz, misma fuente de sistema de hoy.</p></div>
+          <div class="type-row"><span class="type-tag">caption · 10.5/600 upper</span><span style="font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--text-muted)">Por cobrar</span></div>
+          <div class="type-row"><span class="type-tag">mono · 14/600</span><span class="mono tnum" style="font-size:14px; font-weight:600">$4.250.000</span></div>
+        </div>
+
+        <div class="section-title">Botones</div>
+        <div class="card card-pad flex gap-2" style="flex-wrap:wrap">
+          <button class="btn btn-primary">Publicar</button>
+          <button class="btn btn-secondary">Exportar</button>
+          <button class="btn btn-ghost">Cancelar</button>
+          <button class="btn btn-danger-ghost">Anular</button>
+          <button class="btn btn-primary" disabled>Deshabilitado</button>
+          <button class="btn btn-secondary btn-sm">Pequeño</button>
+        </div>
+
+        <div class="section-title">Badges de estado</div>
+        <div class="card card-pad flex gap-2" style="flex-wrap:wrap">
+          <span class="badge badge-draft"><span class="dot"></span>Borrador</span>
+          <span class="badge badge-posted"><span class="dot"></span>Publicado</span>
+          <span class="badge badge-success"><span class="dot"></span>Pagada</span>
+          <span class="badge badge-warning"><span class="dot"></span>Por vencer</span>
+          <span class="badge badge-danger"><span class="dot"></span>Vencida</span>
+        </div>
+
+        <div class="section-title">Botones-stat y barra de estado (cabecera de formulario)</div>
+        <div class="card card-pad flex items-center gap-3" style="flex-wrap:wrap">
+          <div class="stat-row">
+            <div class="stat-btn"><span class="value tnum">2</span><span class="label">Apuntes</span></div>
+            <div class="stat-btn"><span class="value">1</span><span class="label">Adjunto</span></div>
+          </div>
+          <div class="status-stepper">
+            <div class="status-step done"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Borrador</div>
+            <div class="status-step current">Publicado</div>
+            <div class="status-step">Conciliado</div>
+          </div>
+        </div>
+
+        <div class="section-title">Pestañas (notebook)</div>
+        <div class="card card-pad">
+          <div class="notebook">
+            <div class="notebook-tabs">
+              <div class="notebook-tab active" data-tab="a">Apuntes contables</div>
+              <div class="notebook-tab" data-tab="b">Otra información</div>
+              <div class="notebook-tab" data-tab="c">Notas</div>
+            </div>
+            <div class="notebook-panel active" data-panel="a"><p class="text-secondary" style="font-size:13.5px">Contenido de la pestaña activa.</p></div>
+            <div class="notebook-panel" data-panel="b"><p class="text-secondary" style="font-size:13.5px">Otra información…</p></div>
+            <div class="notebook-panel" data-panel="c"><p class="text-secondary" style="font-size:13.5px">Notas…</p></div>
+          </div>
+        </div>
+
+        <div class="section-title">Campos de formulario</div>
+        <div class="card card-pad">
+          <div class="form-grid">
+            <div class="field"><label>Diario</label><select><option>Ventas</option></select></div>
+            <div class="field"><label>Fecha</label><input type="text" value="01/08/2026" /></div>
+          </div>
+        </div>
+
+        <div class="section-title">Kanban card (dashboard)</div>
+        <div class="kanban-grid" style="grid-template-columns:1fr">
+          <div class="kanban-card" style="max-width:300px">
+            <div class="kanban-top">
+              <div class="kanban-title"><span class="kanban-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M16 3H8a2 2 0 0 0-2 2v16l4-2 2 2 2-2 4 2V5a2 2 0 0 0-2-2Z"/></svg></span>Ventas</div>
+            </div>
+            <div class="kanban-big tnum">$210.400.000</div>
+            <div class="kanban-lines"><div class="kanban-line"><span class="l-label"><span class="dot" style="background:var(--color-warning)"></span>Por validar</span><span class="l-value">18</span></div></div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="shared.js"></script>
+</body>
+</html>
