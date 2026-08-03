@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -11,6 +12,154 @@ import (
 	"github.com/diegofxm/erp/internal/sales/domain"
 	"github.com/diegofxm/erp/internal/shared/tenant"
 )
+
+// ── DTOs de salida ──────────────────────────────────────────────────────────────────────────
+// domain.Sale/Quote/SalePayment/ReceivableBalance no llevan tags json (no deben — el dominio no
+// conoce HTTP) — acá se mapean a snake_case, igual que el resto de los módulos (ver
+// electronic/interfaces/http toNumberingRangeDTO).
+
+func formatDate(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format("2006-01-02")
+}
+
+func formatDatePtr(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return formatDate(*t)
+}
+
+type saleLineDTO struct {
+	ID          uuid.UUID `json:"id"`
+	ProductID   uuid.UUID `json:"product_id"`
+	Description string    `json:"description"`
+	Quantity    float64   `json:"quantity"`
+	UnitPrice   float64   `json:"unit_price"`
+	TaxRate     float64   `json:"tax_rate"`
+	Subtotal    float64   `json:"subtotal"`
+	TaxAmount   float64   `json:"tax_amount"`
+	Total       float64   `json:"total"`
+}
+
+type saleDTO struct {
+	ID                uuid.UUID     `json:"id"`
+	CompanyID         uuid.UUID     `json:"company_id"`
+	CustomerID        uuid.UUID     `json:"customer_id"`
+	Number            string        `json:"number"`
+	Status            string        `json:"status"`
+	IssueDate         string        `json:"issue_date"`
+	DueDate           string        `json:"due_date,omitempty"`
+	Notes             string        `json:"notes"`
+	Lines             []saleLineDTO `json:"lines"`
+	InvoiceDocumentID *uuid.UUID    `json:"invoice_document_id,omitempty"`
+	CreatedAt         time.Time     `json:"created_at"`
+	UpdatedAt         time.Time     `json:"updated_at"`
+}
+
+func toSaleDTO(s *domain.Sale) saleDTO {
+	lines := make([]saleLineDTO, len(s.Lines))
+	for i, l := range s.Lines {
+		lines[i] = saleLineDTO{
+			ID: l.ID, ProductID: l.ProductID, Description: l.Description,
+			Quantity: l.Quantity, UnitPrice: l.UnitPrice, TaxRate: l.TaxRate,
+			Subtotal: l.Subtotal, TaxAmount: l.TaxAmount, Total: l.Total,
+		}
+	}
+	return saleDTO{
+		ID: s.ID, CompanyID: s.CompanyID, CustomerID: s.CustomerID,
+		Number: s.Number, Status: string(s.Status),
+		IssueDate: formatDate(s.IssueDate), DueDate: formatDatePtr(s.DueDate),
+		Notes: s.Notes, Lines: lines, InvoiceDocumentID: s.InvoiceDocumentID,
+		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
+	}
+}
+
+type quoteLineDTO struct {
+	ID          uuid.UUID `json:"id"`
+	ProductID   uuid.UUID `json:"product_id"`
+	Description string    `json:"description"`
+	Quantity    float64   `json:"quantity"`
+	UnitPrice   float64   `json:"unit_price"`
+	TaxRate     float64   `json:"tax_rate"`
+	Subtotal    float64   `json:"subtotal"`
+	TaxAmount   float64   `json:"tax_amount"`
+	Total       float64   `json:"total"`
+}
+
+type quoteDTO struct {
+	ID         uuid.UUID      `json:"id"`
+	CompanyID  uuid.UUID      `json:"company_id"`
+	CustomerID uuid.UUID      `json:"customer_id"`
+	Number     string         `json:"number"`
+	Status     string         `json:"status"`
+	IssueDate  string         `json:"issue_date"`
+	ValidUntil string         `json:"valid_until,omitempty"`
+	Notes      string         `json:"notes"`
+	Lines      []quoteLineDTO `json:"lines"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+}
+
+func toQuoteDTO(q *domain.Quote) quoteDTO {
+	lines := make([]quoteLineDTO, len(q.Lines))
+	for i, l := range q.Lines {
+		lines[i] = quoteLineDTO{
+			ID: l.ID, ProductID: l.ProductID, Description: l.Description,
+			Quantity: l.Quantity, UnitPrice: l.UnitPrice, TaxRate: l.TaxRate,
+			Subtotal: l.Subtotal, TaxAmount: l.TaxAmount, Total: l.Total,
+		}
+	}
+	return quoteDTO{
+		ID: q.ID, CompanyID: q.CompanyID, CustomerID: q.CustomerID,
+		Number: q.Number, Status: string(q.Status),
+		IssueDate: formatDate(q.IssueDate), ValidUntil: formatDatePtr(q.ValidUntil),
+		Notes: q.Notes, Lines: lines,
+		CreatedAt: q.CreatedAt, UpdatedAt: q.UpdatedAt,
+	}
+}
+
+type paymentDTO struct {
+	ID            uuid.UUID `json:"id"`
+	CompanyID     uuid.UUID `json:"company_id"`
+	SaleID        uuid.UUID `json:"sale_id"`
+	PaymentDate   string    `json:"payment_date"`
+	Amount        float64   `json:"amount"`
+	PaymentMethod string    `json:"payment_method"`
+	Reference     string    `json:"reference"`
+	Notes         string    `json:"notes"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+func toPaymentDTO(p *domain.SalePayment) paymentDTO {
+	return paymentDTO{
+		ID: p.ID, CompanyID: p.CompanyID, SaleID: p.SaleID,
+		PaymentDate: formatDate(p.PaymentDate), Amount: p.Amount,
+		PaymentMethod: string(p.PaymentMethod), Reference: p.Reference, Notes: p.Notes,
+		CreatedAt: p.CreatedAt,
+	}
+}
+
+type receivableDTO struct {
+	SaleID     uuid.UUID `json:"sale_id"`
+	SaleNumber string    `json:"sale_number"`
+	CustomerID uuid.UUID `json:"customer_id"`
+	IssueDate  string    `json:"issue_date"`
+	DueDate    string    `json:"due_date,omitempty"`
+	Total      float64   `json:"total"`
+	Paid       float64   `json:"paid"`
+	Balance    float64   `json:"balance"`
+}
+
+func toReceivableDTO(r domain.ReceivableBalance) receivableDTO {
+	return receivableDTO{
+		SaleID: r.SaleID, SaleNumber: r.SaleNumber, CustomerID: r.CustomerID,
+		IssueDate: formatDate(r.IssueDate), DueDate: formatDatePtr(r.DueDate),
+		Total: r.Total, Paid: r.Paid, Balance: r.Balance,
+	}
+}
 
 type Handler struct {
 	create  *application.CreateUseCase
@@ -47,7 +196,7 @@ func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respond(w, http.StatusCreated, s)
+	respond(w, http.StatusCreated, toSaleDTO(s))
 }
 
 func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
@@ -60,10 +209,11 @@ func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if list == nil {
-		list = []domain.Sale{}
+	dtos := make([]saleDTO, len(list))
+	for i := range list {
+		dtos[i] = toSaleDTO(&list[i])
 	}
-	respond(w, http.StatusOK, list)
+	respond(w, http.StatusOK, dtos)
 }
 
 func (h *Handler) handleGetByID(w http.ResponseWriter, r *http.Request) {
@@ -85,7 +235,7 @@ func (h *Handler) handleGetByID(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respond(w, http.StatusOK, s)
+	respond(w, http.StatusOK, toSaleDTO(s))
 }
 
 func (h *Handler) handleConfirm(w http.ResponseWriter, r *http.Request) {
@@ -111,7 +261,7 @@ func (h *Handler) handleConfirm(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respond(w, http.StatusOK, s)
+	respond(w, http.StatusOK, toSaleDTO(s))
 }
 
 func (h *Handler) handleCancel(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +302,7 @@ func (h *Handler) handleCreateQuote(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	respond(w, http.StatusCreated, q)
+	respond(w, http.StatusCreated, toQuoteDTO(q))
 }
 
 func (h *Handler) handleListQuotes(w http.ResponseWriter, r *http.Request) {
@@ -165,10 +315,11 @@ func (h *Handler) handleListQuotes(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if list == nil {
-		list = []domain.Quote{}
+	dtos := make([]quoteDTO, len(list))
+	for i := range list {
+		dtos[i] = toQuoteDTO(&list[i])
 	}
-	respond(w, http.StatusOK, list)
+	respond(w, http.StatusOK, dtos)
 }
 
 func (h *Handler) handleGetQuote(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +341,7 @@ func (h *Handler) handleGetQuote(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respond(w, http.StatusOK, q)
+	respond(w, http.StatusOK, toQuoteDTO(q))
 }
 
 func (h *Handler) handleSendQuote(w http.ResponseWriter, r *http.Request) {
@@ -212,7 +363,7 @@ func (h *Handler) handleSendQuote(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	respond(w, http.StatusOK, q)
+	respond(w, http.StatusOK, toQuoteDTO(q))
 }
 
 func (h *Handler) handleAcceptQuote(w http.ResponseWriter, r *http.Request) {
@@ -234,7 +385,7 @@ func (h *Handler) handleAcceptQuote(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	respond(w, http.StatusOK, q)
+	respond(w, http.StatusOK, toQuoteDTO(q))
 }
 
 func (h *Handler) handleRejectQuote(w http.ResponseWriter, r *http.Request) {
@@ -277,7 +428,7 @@ func (h *Handler) handleConvertQuoteToSale(w http.ResponseWriter, r *http.Reques
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	respond(w, http.StatusCreated, sale)
+	respond(w, http.StatusCreated, toSaleDTO(sale))
 }
 
 func (h *Handler) handleDeleteQuote(w http.ResponseWriter, r *http.Request) {
@@ -318,7 +469,7 @@ func (h *Handler) handleRecordPayment(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	respond(w, http.StatusCreated, p)
+	respond(w, http.StatusCreated, toPaymentDTO(p))
 }
 
 func (h *Handler) handleListPayments(w http.ResponseWriter, r *http.Request) {
@@ -336,10 +487,11 @@ func (h *Handler) handleListPayments(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if list == nil {
-		list = []domain.SalePayment{}
+	dtos := make([]paymentDTO, len(list))
+	for i := range list {
+		dtos[i] = toPaymentDTO(&list[i])
 	}
-	respond(w, http.StatusOK, list)
+	respond(w, http.StatusOK, dtos)
 }
 
 func (h *Handler) handleGetReceivables(w http.ResponseWriter, r *http.Request) {
@@ -352,10 +504,11 @@ func (h *Handler) handleGetReceivables(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if list == nil {
-		list = []domain.ReceivableBalance{}
+	dtos := make([]receivableDTO, len(list))
+	for i, rb := range list {
+		dtos[i] = toReceivableDTO(rb)
 	}
-	respond(w, http.StatusOK, list)
+	respond(w, http.StatusOK, dtos)
 }
 
 func requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {

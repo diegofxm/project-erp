@@ -29,6 +29,11 @@ import { SupportDocumentsPage } from "./pages/SupportDocumentsPage";
 import { SupportDocumentEditorPage } from "./pages/SupportDocumentEditorPage";
 import { AdjustmentNotesPage } from "./pages/AdjustmentNotesPage";
 import { AdjustmentNoteEditorPage } from "./pages/AdjustmentNoteEditorPage";
+import { QuotesPage } from "./pages/QuotesPage";
+import { QuoteEditorPage } from "./pages/QuoteEditorPage";
+import { SalesPage } from "./pages/SalesPage";
+import { SaleEditorPage } from "./pages/SaleEditorPage";
+import { ReceivablesPage } from "./pages/ReceivablesPage";
 import { PublicCustomerRegisterPage } from "./pages/PublicCustomerRegisterPage";
 import { AdminBillingPage, AdminRenewalsPage, AdminCompanyPage, AdminPlansPage, AdminUsersPage, AdminProspectsPage } from "./pages/AdminPage";
 
@@ -68,6 +73,11 @@ function App() {
                     <Route path="/documents/support-documents/:id" element={<SupportDocumentEditorPage />} />
                     <Route path="/documents/adjustment-notes" element={<AdjustmentNotesPage />} />
                     <Route path="/documents/adjustment-notes/:id" element={<AdjustmentNoteEditorPage />} />
+                    <Route path="/sales/quotes" element={<QuotesPage />} />
+                    <Route path="/sales/quotes/:id" element={<QuoteEditorPage />} />
+                    <Route path="/sales" element={<SalesPage />} />
+                    <Route path="/sales/receivables" element={<ReceivablesPage />} />
+                    <Route path="/sales/:id" element={<SaleEditorPage />} />
                     <Route path="/admin" element={<Navigate to="/admin/billing" replace />} />
                     <Route path="/admin/billing" element={<AdminBillingPage />} />
                     <Route path="/admin/renewals" element={<AdminRenewalsPage />} />

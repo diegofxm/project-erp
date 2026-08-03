@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router";
-import { Crown, Files, Home, Package, Settings, Truck, Users } from "lucide-react";
+import { Crown, Files, Home, Package, Settings, ShoppingCart, Truck, Users } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 interface NavItem {
@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Inicio", icon: <Home className="h-3.5 w-3.5" />, end: true },
   { to: "/admin", label: "Comando", icon: <Crown className="h-3.5 w-3.5" />, activePrefix: "/admin", superAdminOnly: true },
   { to: "/documents/invoices", label: "Documentos", icon: <Files className="h-3.5 w-3.5" />, activePrefix: "/documents" },
+  { to: "/sales", label: "Ventas", icon: <ShoppingCart className="h-3.5 w-3.5" />, activePrefix: "/sales" },
   { to: "/customers", label: "Clientes", icon: <Users className="h-3.5 w-3.5" />, activePrefix: "/customers" },
   { to: "/suppliers", label: "Proveedores", icon: <Truck className="h-3.5 w-3.5" />, activePrefix: "/suppliers" },
   { to: "/products", label: "Productos", icon: <Package className="h-3.5 w-3.5" />, activePrefix: "/products" },

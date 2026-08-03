@@ -38,6 +38,13 @@ export function createInvoiceDraft(payload: IssueInvoicePayload): Promise<Docume
   return apiClient.post<Document>("/electronic/invoices", payload);
 }
 
+// createInvoiceFromSale — arma el borrador de factura a partir de las líneas de una venta
+// confirmada (erp/internal/electronic CreateFromSaleUseCase), en vez de digitarlas de nuevo.
+// El borrador resultante se edita/confirma igual que cualquier otro (InvoiceEditorPage).
+export function createInvoiceFromSale(saleId: string, numberingRangeId: string): Promise<Document> {
+  return apiClient.post<Document>(`/electronic/invoices/from-sale/${saleId}`, { numbering_range_id: numberingRangeId });
+}
+
 // updateInvoiceDraft — ERP aún no implementa PUT de borrador (devolverá 405).
 export function updateInvoiceDraft(id: string, payload: IssueInvoicePayload): Promise<Document> {
   return apiClient.put<Document>(`/electronic/invoices/${id}`, payload);

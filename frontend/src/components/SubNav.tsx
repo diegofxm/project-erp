@@ -5,6 +5,9 @@ interface SubNavItem {
   to: string;
   label: string;
   color?: string;
+  // Solo hace falta cuando `to` es un prefijo de otro ítem de la misma sección (ej. "/sales"
+  // es prefijo de "/sales/quotes") — sin esto, NavLink los marcaría activos a los dos a la vez.
+  end?: boolean;
 }
 
 interface SubNavConfig {
@@ -35,6 +38,14 @@ const SUB_NAVS: SubNavConfig[] = [
     ],
   },
   {
+    prefix: "/sales",
+    items: [
+      { to: "/sales/quotes", label: "Cotizaciones" },
+      { to: "/sales", label: "Ventas", end: true },
+      { to: "/sales/receivables", label: "Cartera" },
+    ],
+  },
+  {
     prefix: "/settings",
     items: [
       { to: "/settings/general",  label: "General" },
@@ -56,6 +67,7 @@ export function SubNav() {
         <NavLink
           key={item.to}
           to={item.to}
+          end={item.end}
           className={({ isActive }) =>
             `inline-flex h-full shrink-0 items-center gap-1.5 border-b-2 px-3 text-xs font-medium transition-colors ${
               isActive

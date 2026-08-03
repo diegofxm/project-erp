@@ -12,4 +12,7 @@ type Repository interface {
 	List(ctx context.Context, companyID uuid.UUID) ([]Sale, error)
 	UpdateStatus(ctx context.Context, companyID, id uuid.UUID, status SaleStatus) error
 	Delete(ctx context.Context, companyID, id uuid.UUID) error
+	// SetInvoiceDocumentID registra qué factura electrónica se generó a partir de esta venta —
+	// evita generar dos veces desde la misma venta (ver electronic CreateFromSaleUseCase).
+	SetInvoiceDocumentID(ctx context.Context, companyID, id, documentID uuid.UUID) error
 }

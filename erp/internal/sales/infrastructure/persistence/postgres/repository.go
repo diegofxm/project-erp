@@ -63,11 +63,11 @@ func (r *Repository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*dom
 	var s domain.Sale
 	var status string
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, company_id, customer_id, number, status, issue_date, due_date, notes, created_at, updated_at
+		SELECT id, company_id, customer_id, number, status, issue_date, due_date, notes, invoice_document_id, created_at, updated_at
 		FROM sales.sales WHERE id=$1 AND company_id=$2`,
 		id, companyID,
 	).Scan(&s.ID, &s.CompanyID, &s.CustomerID, &s.Number, &status,
-		&s.IssueDate, &s.DueDate, &s.Notes, &s.CreatedAt, &s.UpdatedAt)
+		&s.IssueDate, &s.DueDate, &s.Notes, &s.InvoiceDocumentID, &s.CreatedAt, &s.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrSaleNotFound
 	}
@@ -86,7 +86,7 @@ func (r *Repository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*dom
 
 func (r *Repository) List(ctx context.Context, companyID uuid.UUID) ([]domain.Sale, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, company_id, customer_id, number, status, issue_date, due_date, notes, created_at, updated_at
+		SELECT id, company_id, customer_id, number, status, issue_date, due_date, notes, invoice_document_id, created_at, updated_at
 		FROM sales.sales WHERE company_id=$1 ORDER BY created_at DESC`,
 		companyID,
 	)
@@ -100,7 +100,7 @@ func (r *Repository) List(ctx context.Context, companyID uuid.UUID) ([]domain.Sa
 		var s domain.Sale
 		var status string
 		if err := rows.Scan(&s.ID, &s.CompanyID, &s.CustomerID, &s.Number, &status,
-			&s.IssueDate, &s.DueDate, &s.Notes, &s.CreatedAt, &s.UpdatedAt); err != nil {
+			&s.IssueDate, &s.DueDate, &s.Notes, &s.InvoiceDocumentID, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("leer venta: %w", err)
 		}
 		s.Status = domain.SaleStatus(status)
@@ -124,6 +124,14 @@ func (r *Repository) UpdateStatus(ctx context.Context, companyID, id uuid.UUID, 
 	_, err := r.pool.Exec(ctx,
 		"UPDATE sales.sales SET status=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3",
 		string(status), id, companyID,
+	)
+	return err
+}
+
+func (r *Repository) SetInvoiceDocumentID(ctx context.Context, companyID, id, documentID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		"UPDATE sales.sales SET invoice_document_id=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3",
+		documentID, id, companyID,
 	)
 	return err
 }

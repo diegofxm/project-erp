@@ -705,6 +705,111 @@ export interface ListDocumentsFilter {
   search?: string;             // búsqueda libre: nombre cliente/proveedor o número de documento
 }
 
+// ── Ventas (erp/internal/sales) ────────────────────────────────────────────────
+// A diferencia de DocumentLineInput (factura electrónica, montos en *_cents porque así lo
+// exige el estándar DIAN), sales/ usa float64 en pesos directo — sin conversión en el borde,
+// ver lib/currency.ts. Misma forma de línea para cotización y venta (SalesLine).
+
+export interface SalesLineInput {
+  product_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  tax_rate: number;
+}
+
+export interface SalesLine extends SalesLineInput {
+  id: string;
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+}
+
+export type QuoteStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
+
+export interface CreateQuotePayload {
+  customer_id: string;
+  lines: SalesLineInput[];
+  valid_until?: string; // YYYY-MM-DD, opcional
+  notes: string;
+}
+
+export interface Quote {
+  id: string;
+  company_id: string;
+  customer_id: string;
+  number: string;
+  status: QuoteStatus;
+  issue_date: string;
+  valid_until?: string;
+  notes: string;
+  lines: SalesLine[];
+  created_at: string;
+  updated_at: string;
+}
+
+export type SaleStatus = "draft" | "confirmed" | "cancelled";
+
+export interface CreateSalePayload {
+  customer_id: string;
+  number: string;
+  issue_date: string; // YYYY-MM-DD
+  due_date?: string;  // YYYY-MM-DD, vencimiento de cartera
+  notes: string;
+  lines: SalesLineInput[];
+}
+
+export interface Sale {
+  id: string;
+  company_id: string;
+  customer_id: string;
+  number: string;
+  status: SaleStatus;
+  issue_date: string;
+  due_date?: string;
+  notes: string;
+  lines: SalesLine[];
+  // Factura electrónica ya generada desde esta venta, si alguna — cuando está presente, no se
+  // puede volver a generar (ver electronic CreateFromSaleUseCase).
+  invoice_document_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PaymentMethod = "cash" | "transfer" | "check" | "card" | "other";
+
+export interface RecordPaymentPayload {
+  sale_id: string;
+  payment_date?: string; // YYYY-MM-DD
+  amount: number;
+  payment_method: PaymentMethod;
+  reference: string;
+  notes: string;
+}
+
+export interface SalePayment {
+  id: string;
+  company_id: string;
+  sale_id: string;
+  payment_date: string;
+  amount: number;
+  payment_method: PaymentMethod;
+  reference: string;
+  notes: string;
+  created_at: string;
+}
+
+export interface ReceivableBalance {
+  sale_id: string;
+  sale_number: string;
+  customer_id: string;
+  issue_date: string;
+  due_date?: string;
+  total: number;
+  paid: number;
+  balance: number;
+}
+
 // Espejo de auditEventResponse (apidian/internal/api/handler_audit.go).
 export interface AuditEvent {
   id: string;

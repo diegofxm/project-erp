@@ -28,8 +28,12 @@ type Sale struct {
 	DueDate    *time.Time // fecha vencimiento cartera
 	Notes      string
 	Lines      []SaleLine
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	// InvoiceDocumentID — factura electrónica ya generada desde esta venta, si alguna
+	// (electronic.documents.id, sin FK — cada módulo es dueño de su schema). nil = todavía no
+	// se ha facturado.
+	InvoiceDocumentID *uuid.UUID
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 type SaleLine struct {

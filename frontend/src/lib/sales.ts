@@ -1,0 +1,24 @@
+import { apiClient } from "./apiClient";
+import type { CreateSalePayload, Sale } from "./types";
+
+export function listSales(): Promise<Sale[]> {
+  return apiClient.get<Sale[]>("/sales");
+}
+
+export function fetchSale(id: string): Promise<Sale> {
+  return apiClient.get<Sale>(`/sales/${id}`);
+}
+
+export function createSale(payload: CreateSalePayload): Promise<Sale> {
+  return apiClient.post<Sale>("/sales", payload);
+}
+
+// Al confirmar, el backend dispara sale.confirmed: accounting/ contabiliza y inventory/
+// descuenta stock automáticamente — por eso una venta confirmada ya no se puede editar.
+export function confirmSale(id: string): Promise<Sale> {
+  return apiClient.post<Sale>(`/sales/${id}/confirm`, undefined);
+}
+
+export function cancelSale(id: string): Promise<void> {
+  return apiClient.post<void>(`/sales/${id}/cancel`, undefined);
+}

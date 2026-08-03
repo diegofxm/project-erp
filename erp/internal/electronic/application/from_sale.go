@@ -44,6 +44,9 @@ func (uc *CreateFromSaleUseCase) Execute(ctx context.Context, req FromSaleReques
 	if sale.Status != salesdomain.StatusConfirmed {
 		return nil, fmt.Errorf("from-sale: la venta debe estar confirmada")
 	}
+	if sale.InvoiceDocumentID != nil {
+		return nil, fmt.Errorf("from-sale: esta venta ya generó la factura %s", *sale.InvoiceDocumentID)
+	}
 
 	customer, err := uc.customers.GetByID(ctx, req.CompanyID, sale.CustomerID)
 	if err != nil {
@@ -62,7 +65,7 @@ func (uc *CreateFromSaleUseCase) Execute(ctx context.Context, req FromSaleReques
 		}
 	}
 
-	return uc.draft.CreateInvoiceDraft(ctx, InvoiceDraftRequest{
+	doc, err := uc.draft.CreateInvoiceDraft(ctx, InvoiceDraftRequest{
 		CompanyID:        req.CompanyID,
 		NumberingRangeID: req.NumberingRangeID,
 		Customer:         saleCustomerToParty(customer),
@@ -72,6 +75,17 @@ func (uc *CreateFromSaleUseCase) Execute(ctx context.Context, req FromSaleReques
 		CurrencyCode:     "COP",
 		CustomerID:       &sale.CustomerID,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := uc.sales.SetInvoiceDocumentID(ctx, req.CompanyID, req.SaleID, doc.ID); err != nil {
+		// El borrador ya se creó y es válido — no revertirlo por un fallo al anotar el vínculo,
+		// solo se pierde la protección contra doble-facturación esta vez.
+		return doc, fmt.Errorf("from-sale: factura creada pero no se pudo vincular a la venta: %w", err)
+	}
+
+	return doc, nil
 }
 
 func saleCustomerToParty(c *customerdomain.Customer) cofdom.Party {
