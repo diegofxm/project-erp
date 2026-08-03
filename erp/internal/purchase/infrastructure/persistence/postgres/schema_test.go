@@ -30,8 +30,9 @@ func TestSchema_PurchaseTables(t *testing.T) {
 		name string
 		cols string
 	}{
-		{"purchase.orders", "id, company_id, supplier_id, number, status, issue_date, due_date, notes, created_at, updated_at"},
-		{"purchase.order_lines", "id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total"},
+		{"purchase.orders", "id, company_id, supplier_id, number, status, issue_date, due_date, notes, created_at, updated_at, support_document_id"},
+		{"purchase.order_lines", "id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount"},
+		{"purchase.purchase_payments", "id, company_id, purchase_id, payment_date, amount, payment_method, reference, notes, created_at"},
 	}
 	for _, tt := range tables {
 		t.Run(tt.name, func(t *testing.T) {

@@ -24,16 +24,17 @@ type AuditLogger interface {
 
 // Handler agrupa todos los handlers del módulo electronic.
 type Handler struct {
-	createDraft application.CreateDraftUseCase
-	confirm     application.ConfirmUseCase
-	get         application.GetDocumentUseCase
-	list        application.ListDocumentsUseCase
-	numbering   application.ManageNumberingUseCase
-	pdf         *application.GetDocumentPDFUseCase
-	fromSale    *application.CreateFromSaleUseCase
-	dianRanges  *application.GetDianRangesUseCase
-	sendEmail   *application.SendDocumentEmailUseCase
-	audit       AuditLogger
+	createDraft  application.CreateDraftUseCase
+	confirm      application.ConfirmUseCase
+	get          application.GetDocumentUseCase
+	list         application.ListDocumentsUseCase
+	numbering    application.ManageNumberingUseCase
+	pdf          *application.GetDocumentPDFUseCase
+	fromSale     *application.CreateFromSaleUseCase
+	fromPurchase *application.CreateFromPurchaseUseCase
+	dianRanges   *application.GetDianRangesUseCase
+	sendEmail    *application.SendDocumentEmailUseCase
+	audit        AuditLogger
 }
 
 func NewHandler(
@@ -44,21 +45,23 @@ func NewHandler(
 	numbering *application.ManageNumberingUseCase,
 	pdf *application.GetDocumentPDFUseCase,
 	fromSale *application.CreateFromSaleUseCase,
+	fromPurchase *application.CreateFromPurchaseUseCase,
 	dianRanges *application.GetDianRangesUseCase,
 	sendEmail *application.SendDocumentEmailUseCase,
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
-		createDraft: *createDraft,
-		confirm:     *confirm,
-		get:         *get,
-		list:        *list,
-		numbering:   *numbering,
-		pdf:         pdf,
-		fromSale:    fromSale,
-		dianRanges:  dianRanges,
-		sendEmail:   sendEmail,
-		audit:       audit,
+		createDraft:  *createDraft,
+		confirm:      *confirm,
+		get:          *get,
+		list:         *list,
+		numbering:    *numbering,
+		pdf:          pdf,
+		fromSale:     fromSale,
+		fromPurchase: fromPurchase,
+		dianRanges:   dianRanges,
+		sendEmail:    sendEmail,
+		audit:        audit,
 	}
 }
 
@@ -1059,6 +1062,39 @@ func (h *Handler) handleCreateInvoiceFromSale(w http.ResponseWriter, r *http.Req
 		CompanyID:        companyID,
 		SaleID:           saleID,
 		NumberingRangeID: body.NumberingRangeID,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
+}
+
+type fromPurchaseBody struct {
+	NumberingRangeID  uuid.UUID `json:"numbering_range_id"`
+	OperationTypeCode string    `json:"operation_type_code"`
+}
+
+func (h *Handler) handleCreateSupportDocFromPurchase(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	purchaseID, err := uuid.Parse(r.PathValue("purchase_id"))
+	if err != nil {
+		http.Error(w, "purchase_id inválido", http.StatusBadRequest)
+		return
+	}
+	var body fromPurchaseBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	doc, err := h.fromPurchase.Execute(r.Context(), application.FromPurchaseRequest{
+		CompanyID:         companyID,
+		PurchaseID:        purchaseID,
+		NumberingRangeID:  body.NumberingRangeID,
+		OperationTypeCode: body.OperationTypeCode,
 	})
 	if err != nil {
 		writeErr(w, err)

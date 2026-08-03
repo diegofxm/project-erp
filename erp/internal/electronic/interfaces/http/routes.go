@@ -16,6 +16,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 	// Borradores por tipo
 	mux.HandleFunc("POST /api/v1/electronic/invoices/from-sale/{sale_id}", h.handleCreateInvoiceFromSale)
+	mux.HandleFunc("POST /api/v1/electronic/support-documents/from-purchase/{purchase_id}", h.handleCreateSupportDocFromPurchase)
 	mux.HandleFunc("POST /api/v1/electronic/invoices", h.handleCreateInvoiceDraft)
 	mux.HandleFunc("PUT /api/v1/electronic/invoices/{id}", h.handleUpdateInvoiceDraft)
 	mux.HandleFunc("POST /api/v1/electronic/credit-notes", h.handleCreateCreditNoteDraft)

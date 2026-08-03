@@ -27,8 +27,13 @@ type PurchaseOrder struct {
 	DueDate    *time.Time // fecha esperada de recepción
 	Notes      string
 	Lines      []PurchaseLine
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	// SupportDocumentID — Documento Soporte ya generado desde esta orden, si alguno
+	// (electronic.documents.id, sin FK — cada módulo es dueño de su schema). nil = todavía no
+	// se ha generado. Evita generar dos veces desde la misma orden (ver electronic
+	// CreateFromPurchaseUseCase).
+	SupportDocumentID *uuid.UUID
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 type PurchaseLine struct {
@@ -38,8 +43,9 @@ type PurchaseLine struct {
 	Description     string
 	Quantity        float64
 	UnitPrice       float64
+	Discount        float64 // porcentaje 0-100, aplicado antes de impuestos
 	TaxRate         float64
-	Subtotal        float64 // Quantity * UnitPrice
+	Subtotal        float64 // Quantity * UnitPrice - descuento
 	TaxAmount       float64 // Subtotal * TaxRate / 100
 	Total           float64 // Subtotal + TaxAmount
 }
@@ -47,7 +53,8 @@ type PurchaseLine struct {
 func (o *PurchaseOrder) CalculateTotals() {
 	for i := range o.Lines {
 		l := &o.Lines[i]
-		l.Subtotal = l.Quantity * l.UnitPrice
+		gross := l.Quantity * l.UnitPrice
+		l.Subtotal = gross - gross*l.Discount/100
 		l.TaxAmount = l.Subtotal * l.TaxRate / 100
 		l.Total = l.Subtotal + l.TaxAmount
 	}

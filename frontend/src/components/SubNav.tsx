@@ -46,6 +46,13 @@ const SUB_NAVS: SubNavConfig[] = [
     ],
   },
   {
+    prefix: "/purchases",
+    items: [
+      { to: "/purchases", label: "Compras", end: true },
+      { to: "/purchases/payables", label: "Cuentas por pagar" },
+    ],
+  },
+  {
     prefix: "/settings",
     items: [
       { to: "/settings/general",  label: "General" },

@@ -817,6 +817,85 @@ export interface ReceivableBalance {
   balance: number;
 }
 
+// ── Compras (erp/internal/purchase) ────────────────────────────────────────────
+// Mismo criterio que sales: float64 en pesos directo, sin conversión a centavos.
+
+export interface PurchaseLineInput {
+  product_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  discount: number; // porcentaje 0-100, aplicado antes de impuestos
+  tax_rate: number;
+}
+
+export interface PurchaseLine extends PurchaseLineInput {
+  id: string;
+  subtotal: number;
+  tax_amount: number;
+  total: number;
+}
+
+export type PurchaseStatus = "draft" | "confirmed" | "received" | "cancelled";
+
+export interface CreatePurchasePayload {
+  supplier_id: string;
+  number: string;
+  issue_date: string; // YYYY-MM-DD
+  due_date?: string;  // YYYY-MM-DD, recepción esperada
+  notes: string;
+  lines: PurchaseLineInput[];
+}
+
+export interface Purchase {
+  id: string;
+  company_id: string;
+  supplier_id: string;
+  number: string;
+  status: PurchaseStatus;
+  issue_date: string;
+  due_date?: string;
+  notes: string;
+  lines: PurchaseLine[];
+  // Documento Soporte ya generado desde esta orden, si alguno — cuando está presente, no se
+  // puede volver a generar (ver electronic CreateFromPurchaseUseCase).
+  support_document_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecordPurchasePaymentPayload {
+  purchase_id: string;
+  payment_date?: string; // YYYY-MM-DD
+  amount: number;
+  payment_method: PaymentMethod;
+  reference: string;
+  notes: string;
+}
+
+export interface PurchasePayment {
+  id: string;
+  company_id: string;
+  purchase_id: string;
+  payment_date: string;
+  amount: number;
+  payment_method: PaymentMethod;
+  reference: string;
+  notes: string;
+  created_at: string;
+}
+
+export interface PayableBalance {
+  purchase_id: string;
+  purchase_number: string;
+  supplier_id: string;
+  issue_date: string;
+  due_date?: string;
+  total: number;
+  paid: number;
+  balance: number;
+}
+
 // Espejo de auditEventResponse (apidian/internal/api/handler_audit.go).
 export interface AuditEvent {
   id: string;

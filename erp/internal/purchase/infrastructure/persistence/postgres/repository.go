@@ -43,10 +43,10 @@ func (r *Repository) Save(ctx context.Context, o domain.PurchaseOrder) (*domain.
 		l.ID = uuid.New()
 		l.PurchaseOrderID = o.ID
 		_, err = tx.Exec(ctx, `
-			INSERT INTO purchase.order_lines (id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			INSERT INTO purchase.order_lines (id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 			l.ID, l.PurchaseOrderID, l.ProductID, l.Description,
-			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total,
+			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("guardar línea: %w", err)
@@ -63,11 +63,11 @@ func (r *Repository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*dom
 	var o domain.PurchaseOrder
 	var status string
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, company_id, supplier_id, number, status, issue_date, due_date, notes, created_at, updated_at
+		SELECT id, company_id, supplier_id, number, status, issue_date, due_date, notes, created_at, updated_at, support_document_id
 		FROM purchase.orders WHERE id=$1 AND company_id=$2`,
 		id, companyID,
 	).Scan(&o.ID, &o.CompanyID, &o.SupplierID, &o.Number, &status,
-		&o.IssueDate, &o.DueDate, &o.Notes, &o.CreatedAt, &o.UpdatedAt)
+		&o.IssueDate, &o.DueDate, &o.Notes, &o.CreatedAt, &o.UpdatedAt, &o.SupportDocumentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrPurchaseNotFound
 	}
@@ -86,7 +86,7 @@ func (r *Repository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*dom
 
 func (r *Repository) List(ctx context.Context, companyID uuid.UUID) ([]domain.PurchaseOrder, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, company_id, supplier_id, number, status, issue_date, due_date, notes, created_at, updated_at
+		SELECT id, company_id, supplier_id, number, status, issue_date, due_date, notes, created_at, updated_at, support_document_id
 		FROM purchase.orders WHERE company_id=$1 ORDER BY created_at DESC`,
 		companyID,
 	)
@@ -100,7 +100,7 @@ func (r *Repository) List(ctx context.Context, companyID uuid.UUID) ([]domain.Pu
 		var o domain.PurchaseOrder
 		var status string
 		if err := rows.Scan(&o.ID, &o.CompanyID, &o.SupplierID, &o.Number, &status,
-			&o.IssueDate, &o.DueDate, &o.Notes, &o.CreatedAt, &o.UpdatedAt); err != nil {
+			&o.IssueDate, &o.DueDate, &o.Notes, &o.CreatedAt, &o.UpdatedAt, &o.SupportDocumentID); err != nil {
 			return nil, fmt.Errorf("leer orden: %w", err)
 		}
 		o.Status = domain.PurchaseStatus(status)
@@ -128,6 +128,14 @@ func (r *Repository) UpdateStatus(ctx context.Context, companyID, id uuid.UUID, 
 	return err
 }
 
+func (r *Repository) SetSupportDocumentID(ctx context.Context, companyID, id, documentID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		"UPDATE purchase.orders SET support_document_id=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3",
+		documentID, id, companyID,
+	)
+	return err
+}
+
 func (r *Repository) Delete(ctx context.Context, companyID, id uuid.UUID) error {
 	o, err := r.GetByID(ctx, companyID, id)
 	if err != nil {
@@ -142,7 +150,7 @@ func (r *Repository) Delete(ctx context.Context, companyID, id uuid.UUID) error 
 
 func (r *Repository) loadLines(ctx context.Context, orderID uuid.UUID) ([]domain.PurchaseLine, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total
+		SELECT id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount
 		FROM purchase.order_lines WHERE purchase_order_id=$1`,
 		orderID,
 	)
@@ -155,7 +163,7 @@ func (r *Repository) loadLines(ctx context.Context, orderID uuid.UUID) ([]domain
 	for rows.Next() {
 		var l domain.PurchaseLine
 		if err := rows.Scan(&l.ID, &l.PurchaseOrderID, &l.ProductID, &l.Description,
-			&l.Quantity, &l.UnitPrice, &l.TaxRate, &l.Subtotal, &l.TaxAmount, &l.Total); err != nil {
+			&l.Quantity, &l.UnitPrice, &l.TaxRate, &l.Subtotal, &l.TaxAmount, &l.Total, &l.Discount); err != nil {
 			return nil, fmt.Errorf("leer línea: %w", err)
 		}
 		lines = append(lines, l)

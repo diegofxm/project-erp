@@ -45,6 +45,7 @@ import (
 	productpostgres "github.com/diegofxm/erp/internal/product/infrastructure/persistence/postgres"
 	producthttp "github.com/diegofxm/erp/internal/product/interfaces/http"
 	purchaseapp "github.com/diegofxm/erp/internal/purchase/application"
+	purchasecompany "github.com/diegofxm/erp/internal/purchase/infrastructure/company"
 	purchasepostgres "github.com/diegofxm/erp/internal/purchase/infrastructure/persistence/postgres"
 	purchasehttp "github.com/diegofxm/erp/internal/purchase/interfaces/http"
 	salesapp "github.com/diegofxm/erp/internal/sales/application"
@@ -145,6 +146,7 @@ func main() {
 	productRepo := productpostgres.NewRepository(pool)
 	inventoryRepo := inventorypostgres.NewRepository(pool)
 	purchaseRepo := purchasepostgres.NewRepository(pool)
+	purchasePaymentRepo := purchasepostgres.NewPaymentRepository(pool)
 	salesRepo := salespostgres.NewRepository(pool)
 	warehouseRepo := companypostgres.NewWarehouseRepository(pool)
 	quoteRepo := salespostgres.NewQuoteRepository(pool)
@@ -176,6 +178,8 @@ func main() {
 	confirmPurchaseUC := purchaseapp.NewConfirmUseCase(purchaseRepo)
 	cancelPurchaseUC := purchaseapp.NewCancelUseCase(purchaseRepo)
 	receivePurchaseUC := purchaseapp.NewReceiveUseCase(purchaseRepo, bus)
+	deletePurchaseUC := purchaseapp.NewDeleteUseCase(purchaseRepo)
+	purchasePaymentUC := purchaseapp.NewPaymentUseCase(purchasePaymentRepo, purchaseRepo)
 
 	// ── Casos de uso — sales ────────────────────────────────────────────────────
 	createSaleUC := salesapp.NewCreateUseCase(salesRepo)
@@ -196,7 +200,7 @@ func main() {
 	inventoryOnSaleConfirmed.Register(bus)
 	onPurchaseReceived := accountingapp.NewOnPurchaseReceived(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onPurchaseReceived.Register(bus)
-	inventoryOnPurchaseReceived := inventoryapp.NewOnPurchaseReceived(inventoryRepo)
+	inventoryOnPurchaseReceived := inventoryapp.NewOnPurchaseReceived(inventoryRepo, productRepo)
 	inventoryOnPurchaseReceived.Register(bus)
 	onPayrollGenerated := accountingapp.NewOnPayrollGenerated(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onPayrollGenerated.Register(bus)
@@ -217,6 +221,7 @@ func main() {
 	electronicNumberingUC := electronicapp.NewManageNumberingUseCase(electronicNumRepo)
 	electronicDianRangesUC := electronicapp.NewGetDianRangesUseCase(electronicCompanyPort, electronicAdapter)
 	fromSaleUC := electronicapp.NewCreateFromSaleUseCase(electronicCreateDraftUC, salesRepo, customerRepo, productRepo)
+	fromPurchaseUC := electronicapp.NewCreateFromPurchaseUseCase(electronicCreateDraftUC, purchaseRepo, supplierRepo, productRepo)
 
 	// ── Renderer de reportes ─────────────────────────────────────────────────────
 	htmlRenderer, err := htmlreports.NewRenderer()
@@ -263,6 +268,11 @@ func main() {
 	salesCompanyPort := salescompany.New(companyRepo)
 	quotePDFUC := salesapp.NewGetQuotePDFUseCase(quoteRepo, customerRepo, salesCompanyPort, multiRenderer)
 	sendQuoteEmailUC := salesapp.NewSendQuoteEmailUseCase(quoteRepo, customerRepo, salesCompanyPort, multiRenderer, notifier, appURL)
+
+	// ── Casos de uso — PDF/email de órdenes de compra ───────────────────────────
+	purchaseCompanyPort := purchasecompany.New(companyRepo)
+	purchasePDFUC := purchaseapp.NewGetPurchaseOrderPDFUseCase(purchaseRepo, supplierRepo, purchaseCompanyPort, multiRenderer)
+	sendPurchaseEmailUC := purchaseapp.NewSendPurchaseOrderEmailUseCase(purchaseRepo, supplierRepo, purchaseCompanyPort, multiRenderer, notifier, appURL)
 
 	// ── Casos de uso — hr / payroll / company / inventory / supplier / product / customer ──
 	hrAbsenceRepo := hrpostgres.NewAbsenceRepository(pool)
@@ -318,10 +328,10 @@ func main() {
 	supplierhttp.NewHandler(createSupplierUC, getSupplierUC, updateSupplierUC, deleteSupplierUC).RegisterRoutes(mux)
 	producthttp.NewHandler(createProductUC, getProductUC, updateProductUC, deleteProductUC).RegisterRoutes(mux)
 	inventoryhttp.NewHandler(moveInventoryUC, getInventoryUC).RegisterRoutes(mux)
-	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC).RegisterRoutes(mux)
+	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC, deletePurchaseUC, purchasePaymentUC, purchasePDFUC, sendPurchaseEmailUC).RegisterRoutes(mux)
 	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC, quotePDFUC, sendQuoteEmailUC).RegisterRoutes(mux)
 	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo).RegisterRoutes(mux)
-	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, electronicDianRangesUC, electronicSendEmailUC, auditUC).RegisterRoutes(mux)
+	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, fromPurchaseUC, electronicDianRangesUC, electronicSendEmailUC, auditUC).RegisterRoutes(mux)
 	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)
 	notificationhttp.NewHandler(notificationAlertsUC).RegisterRoutes(mux)

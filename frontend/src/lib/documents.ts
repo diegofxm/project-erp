@@ -45,6 +45,16 @@ export function createInvoiceFromSale(saleId: string, numberingRangeId: string):
   return apiClient.post<Document>(`/electronic/invoices/from-sale/${saleId}`, { numbering_range_id: numberingRangeId });
 }
 
+// createSupportDocFromPurchase — arma el borrador de Documento Soporte a partir de las líneas
+// de una orden de compra recibida (erp/internal/electronic CreateFromPurchaseUseCase), espejo
+// de createInvoiceFromSale. operationTypeCode: "10" Residente (default), "11" No Residente.
+export function createSupportDocFromPurchase(purchaseId: string, numberingRangeId: string, operationTypeCode?: string): Promise<Document> {
+  return apiClient.post<Document>(`/electronic/support-documents/from-purchase/${purchaseId}`, {
+    numbering_range_id: numberingRangeId,
+    operation_type_code: operationTypeCode,
+  });
+}
+
 export function updateInvoiceDraft(id: string, payload: IssueInvoicePayload): Promise<Document> {
   return apiClient.put<Document>(`/electronic/invoices/${id}`, payload);
 }

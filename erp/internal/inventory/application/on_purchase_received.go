@@ -5,17 +5,22 @@ import (
 	"log"
 
 	"github.com/diegofxm/erp/internal/inventory/domain"
+	productdomain "github.com/diegofxm/erp/internal/product/domain"
 	purchasedomain "github.com/diegofxm/erp/internal/purchase/domain"
 	"github.com/diegofxm/erp/internal/shared/events"
 )
 
-// OnPurchaseReceived ingresa al inventario cada línea de la OC recibida.
+// OnPurchaseReceived ingresa al inventario cada línea de la OC recibida. Los productos de
+// servicio (IsService) no llevan inventario, se excluyen — mismo criterio que
+// OnSaleConfirmed (antes generaban entradas de stock sin sentido para "productos" que en
+// realidad son servicios).
 type OnPurchaseReceived struct {
-	repo domain.Repository
+	repo     domain.Repository
+	products productdomain.Repository
 }
 
-func NewOnPurchaseReceived(repo domain.Repository) *OnPurchaseReceived {
-	return &OnPurchaseReceived{repo: repo}
+func NewOnPurchaseReceived(repo domain.Repository, products productdomain.Repository) *OnPurchaseReceived {
+	return &OnPurchaseReceived{repo: repo, products: products}
 }
 
 func (h *OnPurchaseReceived) Register(bus *events.Bus) {
@@ -33,6 +38,9 @@ func (h *OnPurchaseReceived) Register(bus *events.Bus) {
 
 func (h *OnPurchaseReceived) handle(ctx context.Context, ev purchasedomain.PurchaseReceived) error {
 	for _, line := range ev.Lines {
+		if p, err := h.products.GetByID(ctx, ev.CompanyID, line.ProductID); err == nil && p.IsService {
+			continue
+		}
 		m := domain.Movement{
 			CompanyID:   ev.CompanyID,
 			ProductID:   line.ProductID,

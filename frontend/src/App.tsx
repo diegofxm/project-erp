@@ -34,6 +34,9 @@ import { QuoteEditorPage } from "./pages/QuoteEditorPage";
 import { SalesPage } from "./pages/SalesPage";
 import { SaleEditorPage } from "./pages/SaleEditorPage";
 import { ReceivablesPage } from "./pages/ReceivablesPage";
+import { PurchaseOrdersPage } from "./pages/PurchaseOrdersPage";
+import { PurchaseOrderEditorPage } from "./pages/PurchaseOrderEditorPage";
+import { PayablesPage } from "./pages/PayablesPage";
 import { PublicCustomerRegisterPage } from "./pages/PublicCustomerRegisterPage";
 import { AdminBillingPage, AdminRenewalsPage, AdminCompanyPage, AdminPlansPage, AdminUsersPage, AdminProspectsPage } from "./pages/AdminPage";
 
@@ -78,6 +81,9 @@ function App() {
                     <Route path="/sales" element={<SalesPage />} />
                     <Route path="/sales/receivables" element={<ReceivablesPage />} />
                     <Route path="/sales/:id" element={<SaleEditorPage />} />
+                    <Route path="/purchases/payables" element={<PayablesPage />} />
+                    <Route path="/purchases" element={<PurchaseOrdersPage />} />
+                    <Route path="/purchases/:id" element={<PurchaseOrderEditorPage />} />
                     <Route path="/admin" element={<Navigate to="/admin/billing" replace />} />
                     <Route path="/admin/billing" element={<AdminBillingPage />} />
                     <Route path="/admin/renewals" element={<AdminRenewalsPage />} />
