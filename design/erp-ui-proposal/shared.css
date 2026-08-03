@@ -38,11 +38,14 @@
   --border-color: #d0d0d0;
   --border-light: #e5e5e5;
 
-  /* ── Único cambio de color: azul oscuro en vez del slate/azul genérico ── */
-  --navbar-bg: #14294a;
+  /* ── Único cambio de color: azul oscuro en vez del slate/azul genérico ──
+     accent-primary bajado de saturación (era #2f6fb0, muy vívido/vibrante
+     sobre blanco) y aclarado un poco (el apagado #3d6a91 se sentía muy
+     oscuro para uso repetido en botones/links/badges). Azul acero medio. */
+  --navbar-bg: #2c5478;
   --navbar-text: #eef2f8;
-  --accent-primary: #2f6fb0;
-  --accent-hover: #255a8f;
+  --accent-primary: #4f88b3;
+  --accent-hover: #3a6a91;
   /* --bg-selected ya no es un azul fijo — se deriva del acento */
   --bg-selected: color-mix(in srgb, var(--accent-primary) 15%, var(--bg-secondary));
   --accent-soft: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-secondary));
