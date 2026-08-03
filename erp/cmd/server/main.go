@@ -57,8 +57,12 @@ import (
 	"github.com/diegofxm/erp/internal/shared/cors"
 	"github.com/diegofxm/erp/internal/shared/events"
 	"github.com/diegofxm/erp/internal/shared/logger"
+	notificationapp "github.com/diegofxm/erp/internal/shared/notification/application"
 	notificationnoop "github.com/diegofxm/erp/internal/shared/notification/infrastructure/email/noop"
 	notificationsmtp "github.com/diegofxm/erp/internal/shared/notification/infrastructure/email/smtp"
+	notificationcompany "github.com/diegofxm/erp/internal/shared/notification/infrastructure/company"
+	notificationnumbering "github.com/diegofxm/erp/internal/shared/notification/infrastructure/numbering"
+	notificationhttp "github.com/diegofxm/erp/internal/shared/notification/interfaces/http"
 	reportsdomain "github.com/diegofxm/erp/internal/shared/reports/domain"
 	htmlreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/html"
 	multireports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/multi"
@@ -198,6 +202,11 @@ func main() {
 	// ── Audit ───────────────────────────────────────────────────────────────────
 	auditUC := auditapp.NewUseCase(auditpostgres.NewRepository(pool), logger.New("audit"))
 
+	// ── Notificaciones de sistema (certificado/rangos por vencer) ───────────────
+	notificationCompanyPort := notificationcompany.New(companyRepo)
+	notificationNumberingPort := notificationnumbering.New(electronicNumRepo)
+	notificationAlertsUC := notificationapp.NewListSystemAlertsUseCase(notificationCompanyPort, notificationNumberingPort)
+
 	// ── Casos de uso — electronic ───────────────────────────────────────────────
 	electronicCreateDraftUC := electronicapp.NewCreateDraftUseCase(electronicDocRepo, electronicNumRepo, electronicCompanyPort, catalogRepo)
 	electronicConfirmUC := electronicapp.NewConfirmUseCase(electronicDocRepo, electronicNumRepo, electronicCompanyPort, electronicAdapter, electronicAdapter, electronicAdapter)
@@ -308,6 +317,7 @@ func main() {
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, electronicDianRangesUC, electronicSendEmailUC, auditUC).RegisterRoutes(mux)
 	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)
+	notificationhttp.NewHandler(notificationAlertsUC).RegisterRoutes(mux)
 	publichttp.NewHandler(getCompanyUC, createCustomerUC).RegisterRoutes(mux)
 	payrollhttp.NewHandler(payrollEmpUC, payrollContractUC, payrollPayslipUC).RegisterRoutes(mux)
 	hrhttp.NewHandler(hrAbsenceUC).RegisterRoutes(mux)
