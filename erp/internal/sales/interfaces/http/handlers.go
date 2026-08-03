@@ -38,6 +38,7 @@ type saleLineDTO struct {
 	Description string    `json:"description"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
+	Discount    float64   `json:"discount"`
 	TaxRate     float64   `json:"tax_rate"`
 	Subtotal    float64   `json:"subtotal"`
 	TaxAmount   float64   `json:"tax_amount"`
@@ -64,7 +65,7 @@ func toSaleDTO(s *domain.Sale) saleDTO {
 	for i, l := range s.Lines {
 		lines[i] = saleLineDTO{
 			ID: l.ID, ProductID: l.ProductID, Description: l.Description,
-			Quantity: l.Quantity, UnitPrice: l.UnitPrice, TaxRate: l.TaxRate,
+			Quantity: l.Quantity, UnitPrice: l.UnitPrice, Discount: l.Discount, TaxRate: l.TaxRate,
 			Subtotal: l.Subtotal, TaxAmount: l.TaxAmount, Total: l.Total,
 		}
 	}
@@ -83,6 +84,7 @@ type quoteLineDTO struct {
 	Description string    `json:"description"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
+	Discount    float64   `json:"discount"`
 	TaxRate     float64   `json:"tax_rate"`
 	Subtotal    float64   `json:"subtotal"`
 	TaxAmount   float64   `json:"tax_amount"`
@@ -108,7 +110,7 @@ func toQuoteDTO(q *domain.Quote) quoteDTO {
 	for i, l := range q.Lines {
 		lines[i] = quoteLineDTO{
 			ID: l.ID, ProductID: l.ProductID, Description: l.Description,
-			Quantity: l.Quantity, UnitPrice: l.UnitPrice, TaxRate: l.TaxRate,
+			Quantity: l.Quantity, UnitPrice: l.UnitPrice, Discount: l.Discount, TaxRate: l.TaxRate,
 			Subtotal: l.Subtotal, TaxAmount: l.TaxAmount, Total: l.Total,
 		}
 	}
@@ -162,12 +164,14 @@ func toReceivableDTO(r domain.ReceivableBalance) receivableDTO {
 }
 
 type Handler struct {
-	create  *application.CreateUseCase
-	get     *application.GetUseCase
-	confirm *application.ConfirmUseCase
-	cancel  *application.CancelUseCase
-	quote   *application.QuoteUseCase
-	payment *application.PaymentUseCase
+	create         *application.CreateUseCase
+	get            *application.GetUseCase
+	confirm        *application.ConfirmUseCase
+	cancel         *application.CancelUseCase
+	quote          *application.QuoteUseCase
+	payment        *application.PaymentUseCase
+	quotePDF       *application.GetQuotePDFUseCase
+	sendQuoteEmail *application.SendQuoteEmailUseCase
 }
 
 func NewHandler(
@@ -177,8 +181,13 @@ func NewHandler(
 	cancel *application.CancelUseCase,
 	quote *application.QuoteUseCase,
 	payment *application.PaymentUseCase,
+	quotePDF *application.GetQuotePDFUseCase,
+	sendQuoteEmail *application.SendQuoteEmailUseCase,
 ) *Handler {
-	return &Handler{create: create, get: get, confirm: confirm, cancel: cancel, quote: quote, payment: payment}
+	return &Handler{
+		create: create, get: get, confirm: confirm, cancel: cancel, quote: quote, payment: payment,
+		quotePDF: quotePDF, sendQuoteEmail: sendQuoteEmail,
+	}
 }
 
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -254,7 +263,10 @@ func (h *Handler) handleConfirm(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		if errors.Is(err, domain.ErrSaleNotDraft) {
+		if errors.Is(err, domain.ErrSaleNotDraft) ||
+			errors.Is(err, domain.ErrInsufficientStock) ||
+			errors.Is(err, domain.ErrCreditLimitExceeded) ||
+			errors.Is(err, domain.ErrOverdueBalance) {
 			respondError(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
@@ -355,6 +367,63 @@ func (h *Handler) handleSendQuote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q, err := h.quote.Send(r.Context(), cid, id)
+	if err != nil {
+		if errors.Is(err, domain.ErrQuoteNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toQuoteDTO(q))
+}
+
+func (h *Handler) handleGetQuotePDF(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	pdfBytes, err := h.quotePDF.GetPDF(r.Context(), cid, id)
+	if err != nil {
+		if errors.Is(err, domain.ErrQuoteNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", `inline; filename="cotizacion.pdf"`)
+	_, _ = w.Write(pdfBytes)
+}
+
+type sendQuoteEmailBody struct {
+	To string `json:"to,omitempty"`
+}
+
+func (h *Handler) handleSendQuoteEmail(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var body sendQuoteEmailBody
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			respondError(w, http.StatusBadRequest, "cuerpo inválido")
+			return
+		}
+	}
+	q, err := h.sendQuoteEmail.Send(r.Context(), cid, id, body.To)
 	if err != nil {
 		if errors.Is(err, domain.ErrQuoteNotFound) {
 			respondError(w, http.StatusNotFound, err.Error())

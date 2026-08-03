@@ -35,8 +35,8 @@ func (r *Repository) Save(ctx context.Context, c domain.Customer) (*domain.Custo
 			department_code, municipality_code, address_line,
 			address_city_name, address_state_name, address_country_code, address_country_name,
 			email, phone,
-			is_active, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+			is_active, created_at, updated_at, credit_limit
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
 		c.ID, c.CompanyID,
 		c.IdentificationTypeCode, c.IdentificationNumber, c.CheckDigit,
 		c.EntityTypeCode, c.MerchantRegistrationNumber,
@@ -44,7 +44,7 @@ func (r *Repository) Save(ctx context.Context, c domain.Customer) (*domain.Custo
 		c.DepartmentCode, c.MunicipalityCode, c.AddressLine,
 		c.AddressCityName, c.AddressStateName, c.AddressCountryCode, c.AddressCountryName,
 		c.Email, c.Phone,
-		c.IsActive, c.CreatedAt, c.UpdatedAt,
+		c.IsActive, c.CreatedAt, c.UpdatedAt, c.CreditLimit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("guardar cliente: %w", err)
@@ -102,14 +102,14 @@ func (r *Repository) Update(ctx context.Context, c domain.Customer) (*domain.Cus
 			name=$6, tax_scheme_code=$7, tax_scheme_name=$8, tax_regime_code=$9, liability_codes=$10,
 			department_code=$11, municipality_code=$12, address_line=$13,
 			address_city_name=$14, address_state_name=$15, address_country_code=$16, address_country_name=$17,
-			email=$18, phone=$19, updated_at=NOW()
-		WHERE id=$20 AND company_id=$21`,
+			email=$18, phone=$19, updated_at=NOW(), credit_limit=$20
+		WHERE id=$21 AND company_id=$22`,
 		c.IdentificationTypeCode, c.IdentificationNumber, c.CheckDigit,
 		c.EntityTypeCode, c.MerchantRegistrationNumber,
 		c.Name, c.TaxSchemeCode, c.TaxSchemeName, c.TaxRegimeCode, c.LiabilityCodes,
 		c.DepartmentCode, c.MunicipalityCode, c.AddressLine,
 		c.AddressCityName, c.AddressStateName, c.AddressCountryCode, c.AddressCountryName,
-		c.Email, c.Phone, c.ID, c.CompanyID,
+		c.Email, c.Phone, c.CreditLimit, c.ID, c.CompanyID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("actualizar cliente: %w", err)
@@ -141,7 +141,7 @@ const customerSelect = `
 	       department_code, municipality_code, address_line,
 	       address_city_name, address_state_name, address_country_code, address_country_name,
 	       email, phone,
-	       is_active, created_at, updated_at
+	       is_active, created_at, updated_at, credit_limit
 	FROM customer.customers`
 
 type scanner interface {
@@ -158,7 +158,7 @@ func scanCustomer(s scanner) (*domain.Customer, error) {
 		&c.DepartmentCode, &c.MunicipalityCode, &c.AddressLine,
 		&c.AddressCityName, &c.AddressStateName, &c.AddressCountryCode, &c.AddressCountryName,
 		&c.Email, &c.Phone,
-		&c.IsActive, &c.CreatedAt, &c.UpdatedAt,
+		&c.IsActive, &c.CreatedAt, &c.UpdatedAt, &c.CreditLimit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("leer cliente: %w", err)

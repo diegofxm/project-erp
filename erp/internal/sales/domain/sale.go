@@ -43,6 +43,7 @@ type SaleLine struct {
 	Description string
 	Quantity    float64
 	UnitPrice   float64
+	Discount    float64 // porcentaje 0-100, aplicado antes de impuestos
 	TaxRate     float64
 	Subtotal    float64
 	TaxAmount   float64
@@ -66,7 +67,8 @@ func (SaleConfirmed) EventName() string { return "sale.confirmed" }
 func (s *Sale) CalculateTotals() {
 	for i := range s.Lines {
 		l := &s.Lines[i]
-		l.Subtotal = l.Quantity * l.UnitPrice
+		gross := l.Quantity * l.UnitPrice
+		l.Subtotal = gross - gross*l.Discount/100
 		l.TaxAmount = l.Subtotal * l.TaxRate / 100
 		l.Total = l.Subtotal + l.TaxAmount
 	}
@@ -82,7 +84,15 @@ func (s *Sale) GrandTotal() (subtotal, tax, total float64) {
 }
 
 var (
-	ErrSaleNotFound    = errors.New("venta no encontrada")
-	ErrSaleNotDraft    = errors.New("la venta debe estar en borrador para esta operación")
+	ErrSaleNotFound     = errors.New("venta no encontrada")
+	ErrSaleNotDraft     = errors.New("la venta debe estar en borrador para esta operación")
 	ErrSaleNotConfirmed = errors.New("la venta ya está confirmada o cancelada")
+	// ErrInsufficientStock — el mensaje concreto (qué producto, cuánto falta) va en el wrap del
+	// caller (ver application/confirm.go), esto solo sirve para que el handler HTTP lo detecte
+	// con errors.Is y devuelva 422 en vez de 500.
+	ErrInsufficientStock = errors.New("stock insuficiente para confirmar la venta")
+	// ErrCreditLimitExceeded / ErrOverdueBalance — control de cartera al confirmar una venta a
+	// crédito (ver application/confirm.go). Mismo criterio: mensaje detallado en el wrap.
+	ErrCreditLimitExceeded = errors.New("la venta supera el cupo de crédito disponible del cliente")
+	ErrOverdueBalance      = errors.New("el cliente tiene cartera vencida — no se puede confirmar una venta nueva")
 )

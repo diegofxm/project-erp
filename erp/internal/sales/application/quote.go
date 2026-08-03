@@ -31,6 +31,7 @@ type QuoteLine struct {
 	Description string    `json:"description"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
+	Discount    float64   `json:"discount"`
 	TaxRate     float64   `json:"tax_rate"`
 }
 
@@ -58,6 +59,7 @@ func (uc *QuoteUseCase) Create(ctx context.Context, companyID uuid.UUID, req Cre
 			Description: l.Description,
 			Quantity:    l.Quantity,
 			UnitPrice:   l.UnitPrice,
+			Discount:    l.Discount,
 			TaxRate:     l.TaxRate,
 		})
 	}
@@ -138,6 +140,7 @@ func (uc *QuoteUseCase) ConvertToSale(ctx context.Context, companyID, id uuid.UU
 			Description: ql.Description,
 			Quantity:    ql.Quantity,
 			UnitPrice:   ql.UnitPrice,
+			Discount:    ql.Discount,
 			TaxRate:     ql.TaxRate,
 		})
 	}

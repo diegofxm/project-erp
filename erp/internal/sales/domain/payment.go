@@ -49,6 +49,9 @@ type PaymentRepository interface {
 	Save(ctx context.Context, p SalePayment) (*SalePayment, error)
 	ListBySale(ctx context.Context, companyID, saleID uuid.UUID) ([]SalePayment, error)
 	GetReceivables(ctx context.Context, companyID uuid.UUID) ([]ReceivableBalance, error)
+	// GetReceivablesByCustomer — misma consulta que GetReceivables pero acotada a un cliente,
+	// usada para validar cupo de crédito y cartera vencida al confirmar una venta nueva.
+	GetReceivablesByCustomer(ctx context.Context, companyID, customerID uuid.UUID) ([]ReceivableBalance, error)
 }
 
 var ErrPaymentNotFound = errors.New("pago no encontrado")

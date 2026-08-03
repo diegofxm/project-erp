@@ -43,10 +43,10 @@ func (r *Repository) Save(ctx context.Context, s domain.Sale) (*domain.Sale, err
 		l.ID = uuid.New()
 		l.SaleID = s.ID
 		_, err = tx.Exec(ctx, `
-			INSERT INTO sales.sale_lines (id, sale_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			INSERT INTO sales.sale_lines (id, sale_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 			l.ID, l.SaleID, l.ProductID, l.Description,
-			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total,
+			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("guardar línea: %w", err)
@@ -150,7 +150,7 @@ func (r *Repository) Delete(ctx context.Context, companyID, id uuid.UUID) error 
 
 func (r *Repository) loadLines(ctx context.Context, saleID uuid.UUID) ([]domain.SaleLine, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, sale_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total
+		SELECT id, sale_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount
 		FROM sales.sale_lines WHERE sale_id=$1`,
 		saleID,
 	)
@@ -163,7 +163,7 @@ func (r *Repository) loadLines(ctx context.Context, saleID uuid.UUID) ([]domain.
 	for rows.Next() {
 		var l domain.SaleLine
 		if err := rows.Scan(&l.ID, &l.SaleID, &l.ProductID, &l.Description,
-			&l.Quantity, &l.UnitPrice, &l.TaxRate, &l.Subtotal, &l.TaxAmount, &l.Total); err != nil {
+			&l.Quantity, &l.UnitPrice, &l.TaxRate, &l.Subtotal, &l.TaxAmount, &l.Total, &l.Discount); err != nil {
 			return nil, fmt.Errorf("leer línea: %w", err)
 		}
 		lines = append(lines, l)

@@ -208,6 +208,188 @@ func (uc *CreateDraftUseCase) CreateAdjustmentNoteDraft(ctx context.Context, req
 	return uc.documents.Create(ctx, d)
 }
 
+// getOwnedDraft carga un documento, valida que pertenezca a companyID y que siga en
+// borrador — precondición común a todas las operaciones de Update*.
+func (uc *CreateDraftUseCase) getOwnedDraft(ctx context.Context, companyID, id uuid.UUID) (*domain.Document, error) {
+	d, err := uc.documents.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if d.CompanyID != companyID {
+		return nil, domain.ErrDocumentNotFound
+	}
+	if d.Status != domain.StatusDraft {
+		return nil, domain.ErrDocumentNotDraft
+	}
+	return d, nil
+}
+
+func (uc *CreateDraftUseCase) UpdateInvoiceDraft(ctx context.Context, companyID, id uuid.UUID, req InvoiceDraftRequest) (*domain.Document, error) {
+	existing, err := uc.getOwnedDraft(ctx, companyID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := uc.validateBase(ctx, companyID, req.NumberingRangeID, dianFE, req.Lines, req.Customer, req.PaymentMeans); err != nil {
+		return nil, err
+	}
+	applyCustomerDefaults(&req.Customer)
+	if err := uc.resolveTaxTypeName(ctx, req.Lines); err != nil {
+		return nil, err
+	}
+	existing.NumberingRangeID = req.NumberingRangeID
+	existing.CurrencyCode = defaultCurrency(req.CurrencyCode)
+	existing.Note = req.Note
+	existing.Customer = req.Customer
+	existing.CustomerID = req.CustomerID
+	existing.Lines = req.Lines
+	existing.PaymentMeans = req.PaymentMeans
+	existing.Totals = computeTotals(req.Lines)
+	return uc.documents.UpdateDraft(ctx, *existing)
+}
+
+func (uc *CreateDraftUseCase) UpdateCreditNoteDraft(ctx context.Context, companyID, id uuid.UUID, req NoteDraftRequest) (*domain.Document, error) {
+	existing, err := uc.getOwnedDraft(ctx, companyID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := uc.validateNote(ctx, companyID, req.NumberingRangeID, dianNC, req.Lines, req.Customer, req.PaymentMeans, req.BillingReference.CUFE); err != nil {
+		return nil, err
+	}
+	applyCustomerDefaults(&req.Customer)
+	if err := uc.resolveTaxTypeName(ctx, req.Lines); err != nil {
+		return nil, err
+	}
+	return uc.documents.UpdateDraft(ctx, mergeNoteDraft(*existing, req))
+}
+
+func (uc *CreateDraftUseCase) UpdateDebitNoteDraft(ctx context.Context, companyID, id uuid.UUID, req NoteDraftRequest) (*domain.Document, error) {
+	existing, err := uc.getOwnedDraft(ctx, companyID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := uc.validateNote(ctx, companyID, req.NumberingRangeID, dianND, req.Lines, req.Customer, req.PaymentMeans, req.BillingReference.CUFE); err != nil {
+		return nil, err
+	}
+	applyCustomerDefaults(&req.Customer)
+	if err := uc.resolveTaxTypeName(ctx, req.Lines); err != nil {
+		return nil, err
+	}
+	return uc.documents.UpdateDraft(ctx, mergeNoteDraft(*existing, req))
+}
+
+func (uc *CreateDraftUseCase) UpdateSupportDocumentDraft(ctx context.Context, companyID, id uuid.UUID, req SupportDocumentDraftRequest) (*domain.Document, error) {
+	existing, err := uc.getOwnedDraft(ctx, companyID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := uc.validateSupport(ctx, companyID, req.NumberingRangeID, req.Lines, req.Supplier, req.PaymentMeans, req.OperationTypeCode); err != nil {
+		return nil, err
+	}
+	applySupplierDefaults(&req.Supplier)
+	if err := uc.resolveTaxTypeName(ctx, req.Lines); err != nil {
+		return nil, err
+	}
+	supplier := req.Supplier
+	existing.NumberingRangeID = req.NumberingRangeID
+	existing.CurrencyCode = defaultCurrency(req.CurrencyCode)
+	existing.Note = req.Note
+	existing.Lines = req.Lines
+	existing.PaymentMeans = req.PaymentMeans
+	existing.Totals = computeTotalsDS(req.Lines, req.WithholdingTaxes)
+	existing.Supplier = &supplier
+	existing.SupplierID = req.SupplierID
+	existing.OperationTypeCode = req.OperationTypeCode
+	existing.WithholdingTaxes = req.WithholdingTaxes
+	return uc.documents.UpdateDraft(ctx, *existing)
+}
+
+func (uc *CreateDraftUseCase) UpdateAdjustmentNoteDraft(ctx context.Context, companyID, id uuid.UUID, req AdjustmentNoteDraftRequest) (*domain.Document, error) {
+	existing, err := uc.getOwnedDraft(ctx, companyID, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := uc.validateSupport(ctx, companyID, req.NumberingRangeID, req.Lines, req.Supplier, req.PaymentMeans, req.OperationTypeCode); err != nil {
+		return nil, err
+	}
+	if req.BillingReference.CUFE == "" {
+		return nil, domain.ErrMissingBillingReference
+	}
+	applySupplierDefaults(&req.Supplier)
+	if err := uc.resolveTaxTypeName(ctx, req.Lines); err != nil {
+		return nil, err
+	}
+	supplier := req.Supplier
+	billingRef := req.BillingReference
+	existing.NumberingRangeID = req.NumberingRangeID
+	existing.CurrencyCode = defaultCurrency(req.CurrencyCode)
+	existing.Note = req.Note
+	existing.Lines = req.Lines
+	existing.PaymentMeans = req.PaymentMeans
+	existing.Totals = computeTotalsDS(req.Lines, req.WithholdingTaxes)
+	existing.Supplier = &supplier
+	existing.SupplierID = req.SupplierID
+	existing.OperationTypeCode = req.OperationTypeCode
+	existing.WithholdingTaxes = req.WithholdingTaxes
+	existing.BillingReference = &billingRef
+	existing.DiscrepancyResponse = req.DiscrepancyResponse
+	return uc.documents.UpdateDraft(ctx, *existing)
+}
+
+// mergeNoteDraft aplica un NoteDraftRequest sobre un documento existente (NC/ND), preservando
+// ID/CompanyID/DianDocumentTypeCode/Status/CreatedAt.
+func mergeNoteDraft(existing domain.Document, req NoteDraftRequest) domain.Document {
+	billingRef := req.BillingReference
+	existing.NumberingRangeID = req.NumberingRangeID
+	existing.CurrencyCode = defaultCurrency(req.CurrencyCode)
+	existing.Note = req.Note
+	existing.Customer = req.Customer
+	existing.CustomerID = req.CustomerID
+	existing.Lines = req.Lines
+	existing.PaymentMeans = req.PaymentMeans
+	existing.Totals = computeTotals(req.Lines)
+	existing.BillingReference = &billingRef
+	existing.DiscrepancyResponse = req.DiscrepancyResponse
+	if req.CreditNoteTypeCode != "" {
+		existing.NoteTypeCode = req.CreditNoteTypeCode
+	}
+	return existing
+}
+
+// CloneDraft crea un nuevo borrador copiando el contenido de un documento existente (de
+// cualquier estado — sirve tanto para "repetir" una factura ya confirmada como para duplicar
+// otro borrador). El clon nace en draft, sin numeración/firma/QR propios.
+func (uc *CreateDraftUseCase) CloneDraft(ctx context.Context, companyID, id uuid.UUID) (*domain.Document, error) {
+	src, err := uc.documents.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if src.CompanyID != companyID {
+		return nil, domain.ErrDocumentNotFound
+	}
+	clone := domain.Document{
+		ID:                   uuid.New(),
+		CompanyID:            companyID,
+		NumberingRangeID:     src.NumberingRangeID,
+		DianDocumentTypeCode: src.DianDocumentTypeCode,
+		CurrencyCode:         src.CurrencyCode,
+		Customer:             src.Customer,
+		CustomerID:           src.CustomerID,
+		Lines:                src.Lines,
+		PaymentMeans:         src.PaymentMeans,
+		Totals:               src.Totals,
+		Note:                 src.Note,
+		Supplier:             src.Supplier,
+		SupplierID:           src.SupplierID,
+		OperationTypeCode:    src.OperationTypeCode,
+		WithholdingTaxes:     src.WithholdingTaxes,
+		BillingReference:     src.BillingReference,
+		DiscrepancyResponse:  src.DiscrepancyResponse,
+		NoteTypeCode:         src.NoteTypeCode,
+		Status:               domain.StatusDraft,
+	}
+	return uc.documents.Create(ctx, clone)
+}
+
 func (uc *CreateDraftUseCase) DeleteDraft(ctx context.Context, companyID, id uuid.UUID) error {
 	d, err := uc.documents.GetByID(ctx, id)
 	if err != nil {

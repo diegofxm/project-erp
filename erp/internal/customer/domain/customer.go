@@ -42,6 +42,11 @@ type Customer struct {
 	Email string `json:"email"`
 	Phone string `json:"phone"`
 
+	// CreditLimit — cupo máximo de cartera (ventas confirmadas sin pagar) permitido para este
+	// cliente. nil = sin límite. Se valida al confirmar una venta (ver sales/application/
+	// confirm.go) junto con cartera vencida.
+	CreditLimit *float64 `json:"credit_limit"`
+
 	IsActive  bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

@@ -49,6 +49,7 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, companyID, id uuid.UUID, r
 	existing.AddressCountryName = req.AddressCountryName
 	existing.Email = req.Email
 	existing.Phone = req.Phone
+	existing.CreditLimit = req.CreditLimit
 
 	return uc.repo.Update(ctx, *existing)
 }

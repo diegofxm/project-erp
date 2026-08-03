@@ -46,10 +46,10 @@ func (r *QuoteRepository) Save(ctx context.Context, q domain.Quote) (*domain.Quo
 		l.ID = uuid.New()
 		l.QuoteID = q.ID
 		_, err = tx.Exec(ctx, `
-			INSERT INTO sales.quote_lines (id, quote_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			INSERT INTO sales.quote_lines (id, quote_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 			l.ID, l.QuoteID, l.ProductID, l.Description,
-			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total,
+			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("guardar línea cotización: %w", err)
@@ -137,7 +137,7 @@ func (r *QuoteRepository) Delete(ctx context.Context, companyID, id uuid.UUID) e
 
 func (r *QuoteRepository) loadQuoteLines(ctx context.Context, quoteID uuid.UUID) ([]domain.QuoteLine, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, quote_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total
+		SELECT id, quote_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount
 		FROM sales.quote_lines WHERE quote_id=$1`,
 		quoteID,
 	)
@@ -150,7 +150,7 @@ func (r *QuoteRepository) loadQuoteLines(ctx context.Context, quoteID uuid.UUID)
 	for rows.Next() {
 		var l domain.QuoteLine
 		if err := rows.Scan(&l.ID, &l.QuoteID, &l.ProductID, &l.Description,
-			&l.Quantity, &l.UnitPrice, &l.TaxRate, &l.Subtotal, &l.TaxAmount, &l.Total); err != nil {
+			&l.Quantity, &l.UnitPrice, &l.TaxRate, &l.Subtotal, &l.TaxAmount, &l.Total, &l.Discount); err != nil {
 			return nil, fmt.Errorf("leer línea cotización: %w", err)
 		}
 		lines = append(lines, l)

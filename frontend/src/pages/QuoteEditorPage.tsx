@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { ClipboardList, Send, Check, X as XIcon, ArrowRightCircle, Trash2 } from "lucide-react";
+import { ClipboardList, FileText, Send, Check, X as XIcon, ArrowRightCircle, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
-import { acceptQuote, convertQuoteToSale, createQuote, deleteQuote, fetchQuote, rejectQuote, sendQuote } from "../lib/quotes";
+import { acceptQuote, convertQuoteToSale, createQuote, deleteQuote, fetchQuote, getQuotePdfBlobUrl, rejectQuote, sendQuoteEmail } from "../lib/quotes";
 import { listCustomers } from "../lib/customers";
 import { ApiError } from "../lib/apiClient";
+import { openInNewTab } from "../lib/openInNewTab";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
@@ -15,6 +16,7 @@ import { Combobox } from "../components/ui/Combobox";
 import { Input } from "../components/ui/Input";
 import { Spinner } from "../components/ui/Spinner";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
+import { SendEmailModal } from "../components/ui/SendEmailModal";
 import { StatusPill, type StatusTone } from "../components/ui/StatusPill";
 import { SalesLineItemsEditor, salesLinesTotal } from "../components/sales/SalesLineItemsEditor";
 
@@ -40,6 +42,8 @@ export function QuoteEditorPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [customerId, setCustomerId] = useState("");
@@ -82,16 +86,30 @@ export function QuoteEditorPage() {
     }
   }
 
-  async function handleSend() {
+  async function handleViewPdf() {
     if (!quote) return;
-    setSaving(true);
+    setLoadingPdf(true);
     try {
-      setQuote(await sendQuote(quote.id));
-      toast.success("Cotización enviada.");
+      const url = await getQuotePdfBlobUrl(quote.id);
+      openInNewTab(url);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo generar el PDF");
+    } finally {
+      setLoadingPdf(false);
+    }
+  }
+
+  // El backend de cotizaciones aún no soporta CC (ver sales/application/quote_email.go) — se
+  // ignora acá también, igual que el resto del modal reutilizado de InvoiceEditorPage.
+  async function handleSendEmailConfirm(to: string, _cc: string[]) {
+    if (!quote) return;
+    try {
+      setQuote(await sendQuoteEmail(quote.id, to));
+      toast.success(`Cotización enviada a ${to}.`);
+      setShowEmailModal(false);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo enviar la cotización");
-    } finally {
-      setSaving(false);
+      throw err;
     }
   }
 
@@ -171,10 +189,15 @@ export function QuoteEditorPage() {
               Guardar cotización
             </Button>
           )}
+          {!isNew && quote && (
+            <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
+              Ver PDF
+            </Button>
+          )}
           {quote?.status === "draft" && (
             <>
               <Button type="button" variant="danger" icon={<Trash2 className="h-3.5 w-3.5" />} onClick={handleDelete}>Eliminar</Button>
-              <Button type="button" icon={<Send className="h-3.5 w-3.5" />} loading={saving} onClick={handleSend}>Enviar</Button>
+              <Button type="button" icon={<Send className="h-3.5 w-3.5" />} onClick={() => setShowEmailModal(true)}>Enviar</Button>
             </>
           )}
           {quote?.status === "sent" && (
@@ -233,6 +256,14 @@ export function QuoteEditorPage() {
           </span>
         </div>
       </Card>
+
+      {showEmailModal && quote && (
+        <SendEmailModal
+          initialEmail={customers.find((c) => c.id === quote.customer_id)?.email ?? ""}
+          onSend={handleSendEmailConfirm}
+          onClose={() => setShowEmailModal(false)}
+        />
+      )}
     </div>
   );
 }

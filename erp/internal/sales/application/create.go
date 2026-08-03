@@ -22,6 +22,7 @@ type LineRequest struct {
 	Description string    `json:"description"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
+	Discount    float64   `json:"discount"`
 	TaxRate     float64   `json:"tax_rate"`
 }
 
@@ -43,6 +44,7 @@ func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req C
 			Description: l.Description,
 			Quantity:    l.Quantity,
 			UnitPrice:   l.UnitPrice,
+			Discount:    l.Discount,
 			TaxRate:     l.TaxRate,
 		}
 	}

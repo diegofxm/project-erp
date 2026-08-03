@@ -37,6 +37,7 @@ type SaveRequest struct {
 	AddressCountryName         string   `json:"address_country_name"`
 	Email                      string   `json:"email"`
 	Phone                      string   `json:"phone"`
+	CreditLimit                *float64 `json:"credit_limit"`
 }
 
 func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req SaveRequest) (*domain.Customer, error) {
@@ -74,6 +75,7 @@ func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req S
 		AddressCountryName:         req.AddressCountryName,
 		Email:                      req.Email,
 		Phone:                      req.Phone,
+		CreditLimit:                req.CreditLimit,
 		IsActive:                   true,
 	}
 

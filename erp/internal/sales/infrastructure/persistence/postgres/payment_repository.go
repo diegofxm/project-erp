@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/diegofxm/erp/internal/sales/domain"
@@ -58,30 +59,47 @@ func (r *PaymentRepository) ListBySale(ctx context.Context, companyID, saleID uu
 	return out, rows.Err()
 }
 
+const receivablesBaseQuery = `
+	SELECT
+		s.id,
+		s.number,
+		s.customer_id,
+		s.issue_date,
+		s.due_date,
+		COALESCE(SUM(sl.total), 0) AS total,
+		COALESCE(SUM(p.amount), 0) AS paid
+	FROM sales.sales s
+	LEFT JOIN sales.sale_lines sl ON sl.sale_id = s.id
+	LEFT JOIN sales.sale_payments p ON p.sale_id = s.id AND p.company_id = s.company_id
+	WHERE s.company_id = $1 AND s.status = 'confirmed'`
+
+const receivablesGroupOrder = `
+	GROUP BY s.id, s.number, s.customer_id, s.issue_date, s.due_date
+	HAVING COALESCE(SUM(sl.total), 0) > COALESCE(SUM(p.amount), 0)
+	ORDER BY s.due_date NULLS LAST, s.issue_date`
+
 func (r *PaymentRepository) GetReceivables(ctx context.Context, companyID uuid.UUID) ([]domain.ReceivableBalance, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT
-			s.id,
-			s.number,
-			s.customer_id,
-			s.issue_date,
-			s.due_date,
-			COALESCE(SUM(sl.total), 0) AS total,
-			COALESCE(SUM(p.amount), 0) AS paid
-		FROM sales.sales s
-		LEFT JOIN sales.sale_lines sl ON sl.sale_id = s.id
-		LEFT JOIN sales.sale_payments p ON p.sale_id = s.id AND p.company_id = s.company_id
-		WHERE s.company_id = $1 AND s.status = 'confirmed'
-		GROUP BY s.id, s.number, s.customer_id, s.issue_date, s.due_date
-		HAVING COALESCE(SUM(sl.total), 0) > COALESCE(SUM(p.amount), 0)
-		ORDER BY s.due_date NULLS LAST, s.issue_date`,
-		companyID,
-	)
+	rows, err := r.pool.Query(ctx, receivablesBaseQuery+receivablesGroupOrder, companyID)
 	if err != nil {
 		return nil, fmt.Errorf("obtener cartera: %w", err)
 	}
 	defer rows.Close()
+	return scanReceivables(rows)
+}
 
+func (r *PaymentRepository) GetReceivablesByCustomer(ctx context.Context, companyID, customerID uuid.UUID) ([]domain.ReceivableBalance, error) {
+	rows, err := r.pool.Query(ctx,
+		receivablesBaseQuery+" AND s.customer_id = $2"+receivablesGroupOrder,
+		companyID, customerID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("obtener cartera del cliente: %w", err)
+	}
+	defer rows.Close()
+	return scanReceivables(rows)
+}
+
+func scanReceivables(rows pgx.Rows) ([]domain.ReceivableBalance, error) {
 	var out []domain.ReceivableBalance
 	for rows.Next() {
 		var b domain.ReceivableBalance

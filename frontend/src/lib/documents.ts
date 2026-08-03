@@ -28,7 +28,7 @@ export async function getDocumentPdfBlobUrl(id: string, format: PDFFormat = "ful
   return URL.createObjectURL(blob);
 }
 
-// XML UBL firmado — ERP aún no implementa este endpoint (devolverá 404).
+// XML UBL firmado — 404 solo si el documento sigue en borrador (aún no se firmó).
 export async function getDocumentXmlBlobUrl(id: string): Promise<string> {
   const blob = await apiClient.getBlob(`/electronic/documents/${id}/xml`);
   return URL.createObjectURL(blob);
@@ -45,7 +45,6 @@ export function createInvoiceFromSale(saleId: string, numberingRangeId: string):
   return apiClient.post<Document>(`/electronic/invoices/from-sale/${saleId}`, { numbering_range_id: numberingRangeId });
 }
 
-// updateInvoiceDraft — ERP aún no implementa PUT de borrador (devolverá 405).
 export function updateInvoiceDraft(id: string, payload: IssueInvoicePayload): Promise<Document> {
   return apiClient.put<Document>(`/electronic/invoices/${id}`, payload);
 }
@@ -90,12 +89,10 @@ export function confirmDocument(id: string): Promise<Document> {
   return apiClient.post<Document>(`/electronic/documents/${id}/confirm`);
 }
 
-// cloneDocument — ERP aún no implementa este endpoint.
 export function cloneDocument(id: string): Promise<Document> {
   return apiClient.post<Document>(`/electronic/documents/${id}/clone`);
 }
 
-// sendDocumentEmail — ERP aún no implementa este endpoint.
 export function sendDocumentEmail(id: string, format: PDFFormat = "full_a4", to?: string, cc?: string[]): Promise<void> {
   const body: Record<string, unknown> = {};
   if (format !== "full_a4") body.pdf_format = format;

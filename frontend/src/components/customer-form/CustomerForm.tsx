@@ -3,6 +3,7 @@ import { customerToPayload } from "../../lib/customers";
 import type { Customer, CustomerPayload } from "../../lib/types";
 import { PartyFields } from "../party-fields/PartyFields";
 import { Button } from "../ui/Button";
+import { Input } from "../ui/Input";
 
 
 interface CustomerFormProps {
@@ -40,6 +41,16 @@ export function CustomerForm({ initial, onSubmit, onCancel, loading }: CustomerF
   return (
     <form className="flex flex-col gap-3 p-4" onSubmit={handleSubmit}>
       <PartyFields value={payload} onChange={setPayload} />
+
+      <Input
+        label="Cupo de crédito (COP, opcional)"
+        type="number"
+        min="0"
+        step="1"
+        value={payload.credit_limit ?? ""}
+        onChange={(e) => setPayload({ ...payload, credit_limit: e.target.value === "" ? null : Number(e.target.value) })}
+        placeholder="Vacío = sin límite"
+      />
 
       <div className="flex gap-2">
         <Button type="button" variant="secondary" onClick={onCancel} className="flex-1">

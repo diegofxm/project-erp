@@ -36,7 +36,7 @@ func TestSchema_CustomerTables(t *testing.T) {
 			name, tax_scheme_code, tax_scheme_name, tax_regime_code, liability_codes,
 			department_code, municipality_code, address_line,
 			address_city_name, address_state_name, address_country_code, address_country_name,
-			email, phone, is_active, created_at, updated_at`},
+			email, phone, is_active, created_at, updated_at, credit_limit`},
 	}
 	for _, tt := range tables {
 		t.Run(tt.name, func(t *testing.T) {

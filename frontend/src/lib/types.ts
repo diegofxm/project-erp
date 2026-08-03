@@ -364,6 +364,9 @@ export interface CustomerPayload {
   tax_regime_code?: string;
   phone?: string;
   email?: string;
+  // Solo aplica al catálogo de clientes (CustomerForm) — ignorado cuando este payload se usa
+  // para editar el cliente embebido en un documento electrónico.
+  credit_limit?: number | null;
 }
 
 // Customer — espejo de domain.Customer del ERP (campos planos, snake_case).
@@ -390,6 +393,9 @@ export interface Customer {
   address_country_name: string;
   email: string;
   phone: string;
+  // Cupo máximo de cartera (ventas confirmadas sin pagar) permitido — null = sin límite.
+  // Se valida al confirmar una venta (ver sales ConfirmUseCase).
+  credit_limit: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -715,6 +721,7 @@ export interface SalesLineInput {
   description: string;
   quantity: number;
   unit_price: number;
+  discount: number; // porcentaje 0-100, aplicado antes de impuestos
   tax_rate: number;
 }
 

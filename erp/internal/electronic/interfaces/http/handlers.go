@@ -640,6 +640,44 @@ func (h *Handler) handleCreateInvoiceDraft(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
+func (h *Handler) handleUpdateInvoiceDraft(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	var body invoiceDraftBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	lines, err := h.createDraft.LinesFromInput(r.Context(), linesInputToApp(body.Lines))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	doc, err := h.createDraft.UpdateInvoiceDraft(r.Context(), companyID, id, application.InvoiceDraftRequest{
+		CompanyID:        companyID,
+		NumberingRangeID: body.NumberingRangeID,
+		Customer:         body.Customer.toCofdom(),
+		Lines:            lines,
+		PaymentMeans:     paymentMeansInputToCofdom(body.PaymentMeans),
+		Note:             body.Note,
+		CurrencyCode:     body.CurrencyCode,
+		CustomerID:       body.CustomerID,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	h.logDoc(r.Context(), companyID, "document.updated", doc)
+	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
+}
+
 type noteDraftBody struct {
 	NumberingRangeID    uuid.UUID                        `json:"numbering_range_id"`
 	Customer            partyInputDTO                    `json:"customer"`
@@ -688,6 +726,46 @@ func (h *Handler) handleCreateCreditNoteDraft(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
+func (h *Handler) handleUpdateCreditNoteDraft(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	var body noteDraftBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	lines, err := h.createDraft.LinesFromInput(r.Context(), linesInputToApp(body.Lines))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	doc, err := h.createDraft.UpdateCreditNoteDraft(r.Context(), companyID, id, application.NoteDraftRequest{
+		CompanyID:           companyID,
+		NumberingRangeID:    body.NumberingRangeID,
+		Customer:            body.Customer.toCofdom(),
+		Lines:               lines,
+		PaymentMeans:        paymentMeansInputToCofdom(body.PaymentMeans),
+		Note:                body.Note,
+		CurrencyCode:        body.CurrencyCode,
+		CustomerID:          body.CustomerID,
+		BillingReference:    body.BillingReference,
+		DiscrepancyResponse: body.DiscrepancyResponse,
+		CreditNoteTypeCode:  body.CreditNoteTypeCode,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
+}
+
 func (h *Handler) handleCreateDebitNoteDraft(w http.ResponseWriter, r *http.Request) {
 	companyID, ok := mustTenant(w, r)
 	if !ok {
@@ -720,6 +798,45 @@ func (h *Handler) handleCreateDebitNoteDraft(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
+}
+
+func (h *Handler) handleUpdateDebitNoteDraft(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	var body noteDraftBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	lines, err := h.createDraft.LinesFromInput(r.Context(), linesInputToApp(body.Lines))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	doc, err := h.createDraft.UpdateDebitNoteDraft(r.Context(), companyID, id, application.NoteDraftRequest{
+		CompanyID:           companyID,
+		NumberingRangeID:    body.NumberingRangeID,
+		Customer:            body.Customer.toCofdom(),
+		Lines:               lines,
+		PaymentMeans:        paymentMeansInputToCofdom(body.PaymentMeans),
+		Note:                body.Note,
+		CurrencyCode:        body.CurrencyCode,
+		CustomerID:          body.CustomerID,
+		BillingReference:    body.BillingReference,
+		DiscrepancyResponse: body.DiscrepancyResponse,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
 }
 
 type supportDocBody struct {
@@ -766,6 +883,45 @@ func (h *Handler) handleCreateSupportDocDraft(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
+}
+
+func (h *Handler) handleUpdateSupportDocDraft(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	var body supportDocBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	lines, err := h.createDraft.LinesFromInput(r.Context(), linesInputToApp(body.Lines))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	doc, err := h.createDraft.UpdateSupportDocumentDraft(r.Context(), companyID, id, application.SupportDocumentDraftRequest{
+		CompanyID:         companyID,
+		NumberingRangeID:  body.NumberingRangeID,
+		Supplier:          body.Supplier.toCofdom(),
+		Lines:             lines,
+		PaymentMeans:      paymentMeansInputToCofdom(body.PaymentMeans),
+		Note:              body.Note,
+		CurrencyCode:      body.CurrencyCode,
+		OperationTypeCode: body.OperationTypeCode,
+		WithholdingTaxes:  taxesInputToCofdom(body.WithholdingTaxes),
+		SupplierID:        body.SupplierID,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
 }
 
 type adjustmentNoteBody struct {
@@ -815,6 +971,66 @@ func (h *Handler) handleCreateAdjustmentNoteDraft(w http.ResponseWriter, r *http
 		writeErr(w, err)
 		return
 	}
+	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
+}
+
+func (h *Handler) handleUpdateAdjustmentNoteDraft(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	var body adjustmentNoteBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	lines, err := h.createDraft.LinesFromInput(r.Context(), linesInputToApp(body.Lines))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	doc, err := h.createDraft.UpdateAdjustmentNoteDraft(r.Context(), companyID, id, application.AdjustmentNoteDraftRequest{
+		CompanyID:           companyID,
+		NumberingRangeID:    body.NumberingRangeID,
+		Supplier:            body.Supplier.toCofdom(),
+		Lines:               lines,
+		PaymentMeans:        paymentMeansInputToCofdom(body.PaymentMeans),
+		Note:                body.Note,
+		CurrencyCode:        body.CurrencyCode,
+		OperationTypeCode:   body.OperationTypeCode,
+		WithholdingTaxes:    taxesInputToCofdom(body.WithholdingTaxes),
+		SupplierID:          body.SupplierID,
+		BillingReference:    body.BillingReference,
+		DiscrepancyResponse: body.DiscrepancyResponse,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
+}
+
+func (h *Handler) handleCloneDocument(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	doc, err := h.createDraft.CloneDraft(r.Context(), companyID, id)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	h.logDoc(r.Context(), companyID, "document.cloned", doc)
 	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 

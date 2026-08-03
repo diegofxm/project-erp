@@ -32,6 +32,7 @@ function toERPPayload(p: CustomerPayload) {
     address_country_name: p.address?.country_name ?? "Colombia",
     email: p.email ?? "",
     phone: p.phone ?? "",
+    credit_limit: p.credit_limit ?? null,
   };
 }
 
@@ -73,6 +74,7 @@ export function customerToPayload(c: Customer): CustomerPayload {
     tax_regime_code: c.tax_regime_code ?? undefined,
     phone: c.phone || undefined,
     email: c.email || undefined,
+    credit_limit: c.credit_limit,
   };
 }
 
@@ -99,5 +101,6 @@ export function customerFromPayload(p: CustomerPayload, existing: Customer): Cus
     address_country_name: p.address?.country_name ?? existing.address_country_name,
     email: p.email ?? existing.email,
     phone: p.phone ?? existing.phone,
+    credit_limit: p.credit_limit !== undefined ? p.credit_limit : existing.credit_limit,
   };
 }

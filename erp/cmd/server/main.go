@@ -48,6 +48,7 @@ import (
 	purchasepostgres "github.com/diegofxm/erp/internal/purchase/infrastructure/persistence/postgres"
 	purchasehttp "github.com/diegofxm/erp/internal/purchase/interfaces/http"
 	salesapp "github.com/diegofxm/erp/internal/sales/application"
+	salescompany "github.com/diegofxm/erp/internal/sales/infrastructure/company"
 	salespostgres "github.com/diegofxm/erp/internal/sales/infrastructure/persistence/postgres"
 	saleshttp "github.com/diegofxm/erp/internal/sales/interfaces/http"
 	securityapp "github.com/diegofxm/erp/internal/security/application"
@@ -58,6 +59,7 @@ import (
 	"github.com/diegofxm/erp/internal/shared/events"
 	"github.com/diegofxm/erp/internal/shared/logger"
 	notificationapp "github.com/diegofxm/erp/internal/shared/notification/application"
+	notificationdomain "github.com/diegofxm/erp/internal/shared/notification/domain"
 	notificationnoop "github.com/diegofxm/erp/internal/shared/notification/infrastructure/email/noop"
 	notificationsmtp "github.com/diegofxm/erp/internal/shared/notification/infrastructure/email/smtp"
 	notificationcompany "github.com/diegofxm/erp/internal/shared/notification/infrastructure/company"
@@ -178,7 +180,7 @@ func main() {
 	// ── Casos de uso — sales ────────────────────────────────────────────────────
 	createSaleUC := salesapp.NewCreateUseCase(salesRepo)
 	getSaleUC := salesapp.NewGetUseCase(salesRepo)
-	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus)
+	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus, productRepo, inventoryRepo, customerRepo, paymentRepo)
 	cancelSaleUC := salesapp.NewCancelUseCase(salesRepo)
 	quoteUC := salesapp.NewQuoteUseCase(quoteRepo, salesRepo)
 	paymentUC := salesapp.NewPaymentUseCase(paymentRepo, salesRepo)
@@ -190,7 +192,7 @@ func main() {
 	managePeriodUC := accountingapp.NewManagePeriodUseCase(accountingPeriodRepo)
 	onSaleConfirmed := accountingapp.NewOnSaleConfirmed(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onSaleConfirmed.Register(bus)
-	inventoryOnSaleConfirmed := inventoryapp.NewOnSaleConfirmed(inventoryRepo)
+	inventoryOnSaleConfirmed := inventoryapp.NewOnSaleConfirmed(inventoryRepo, productRepo)
 	inventoryOnSaleConfirmed.Register(bus)
 	onPurchaseReceived := accountingapp.NewOnPurchaseReceived(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onPurchaseReceived.Register(bus)
@@ -231,7 +233,7 @@ func main() {
 
 	// ── Notificaciones ──────────────────────────────────────────────────────────
 	smtpHost := os.Getenv("SMTP_HOST")
-	var electronicSendEmailUC *electronicapp.SendDocumentEmailUseCase
+	var notifier notificationdomain.Notifier
 	if smtpHost != "" {
 		smtpPort := 587
 		if p := os.Getenv("SMTP_PORT"); p != "" {
@@ -240,7 +242,7 @@ func main() {
 			}
 		}
 		tlsMode := os.Getenv("SMTP_TLS") == "true"
-		smtpNotifier := notificationsmtp.New(notificationsmtp.Config{
+		notifier = notificationsmtp.New(notificationsmtp.Config{
 			Host:        smtpHost,
 			Port:        smtpPort,
 			Username:    os.Getenv("SMTP_USERNAME"),
@@ -249,13 +251,18 @@ func main() {
 			FromName:    os.Getenv("SMTP_FROM_NAME"),
 			TLS:         tlsMode,
 		})
-		electronicSendEmailUC = electronicapp.NewSendDocumentEmailUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer, smtpNotifier, electronicAdapter, os.Getenv("APP_URL"))
 		log.Info("notificaciones por SMTP configuradas", "host", smtpHost)
 	} else {
-		noopNotifier := notificationnoop.New()
-		electronicSendEmailUC = electronicapp.NewSendDocumentEmailUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer, noopNotifier, electronicAdapter, os.Getenv("APP_URL"))
+		notifier = notificationnoop.New()
 		log.Info("notificaciones: modo noop (SMTP_HOST no configurado)")
 	}
+	appURL := os.Getenv("APP_URL")
+	electronicSendEmailUC := electronicapp.NewSendDocumentEmailUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer, notifier, electronicAdapter, appURL)
+
+	// ── Casos de uso — PDF/email de cotizaciones ────────────────────────────────
+	salesCompanyPort := salescompany.New(companyRepo)
+	quotePDFUC := salesapp.NewGetQuotePDFUseCase(quoteRepo, customerRepo, salesCompanyPort, multiRenderer)
+	sendQuoteEmailUC := salesapp.NewSendQuoteEmailUseCase(quoteRepo, customerRepo, salesCompanyPort, multiRenderer, notifier, appURL)
 
 	// ── Casos de uso — hr / payroll / company / inventory / supplier / product / customer ──
 	hrAbsenceRepo := hrpostgres.NewAbsenceRepository(pool)
@@ -312,7 +319,7 @@ func main() {
 	producthttp.NewHandler(createProductUC, getProductUC, updateProductUC, deleteProductUC).RegisterRoutes(mux)
 	inventoryhttp.NewHandler(moveInventoryUC, getInventoryUC).RegisterRoutes(mux)
 	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC).RegisterRoutes(mux)
-	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC).RegisterRoutes(mux)
+	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC, quotePDFUC, sendQuoteEmailUC).RegisterRoutes(mux)
 	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo).RegisterRoutes(mux)
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, electronicDianRangesUC, electronicSendEmailUC, auditUC).RegisterRoutes(mux)
 	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)

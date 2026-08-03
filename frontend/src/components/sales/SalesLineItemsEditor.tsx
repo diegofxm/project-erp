@@ -18,10 +18,11 @@ interface DraftLine {
   description: string;
   quantity: string;
   unitPrice: string;
+  discount: string;
   taxRate: string;
 }
 
-const EMPTY_DRAFT: DraftLine = { productId: "", description: "", quantity: "1", unitPrice: "", taxRate: "" };
+const EMPTY_DRAFT: DraftLine = { productId: "", description: "", quantity: "1", unitPrice: "", discount: "", taxRate: "" };
 
 function draftFromProduct(product: Product): DraftLine {
   return {
@@ -29,12 +30,14 @@ function draftFromProduct(product: Product): DraftLine {
     description: product.name,
     quantity: "1",
     unitPrice: product.base_price.toString(),
+    discount: "",
     taxRate: product.tax_rate?.toString() ?? "",
   };
 }
 
-function lineTotal(l: { quantity: number; unit_price: number; tax_rate: number }) {
-  const subtotal = l.quantity * l.unit_price;
+function lineTotal(l: { quantity: number; unit_price: number; discount: number; tax_rate: number }) {
+  const gross = l.quantity * l.unit_price;
+  const subtotal = gross - (gross * l.discount) / 100;
   return subtotal + (subtotal * l.tax_rate) / 100;
 }
 
@@ -68,6 +71,7 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
       description: l.description,
       quantity: l.quantity.toString(),
       unitPrice: l.unit_price.toString(),
+      discount: l.discount ? l.discount.toString() : "",
       taxRate: l.tax_rate.toString(),
     });
     setShowForm(true);
@@ -79,6 +83,7 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
       description: draft.description,
       quantity: Number(draft.quantity || 0),
       unit_price: Number(draft.unitPrice || 0),
+      discount: Number(draft.discount || 0),
       tax_rate: Number(draft.taxRate || 0),
     };
     if (editingIdx !== null) {
@@ -106,6 +111,7 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
   const draftPreview = lineTotal({
     quantity: Number(draft.quantity || 0),
     unit_price: Number(draft.unitPrice || 0),
+    discount: Number(draft.discount || 0),
     tax_rate: Number(draft.taxRate || 0),
   });
 
@@ -119,6 +125,7 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
                 <th className="px-3 py-2 font-medium">Descripción</th>
                 <th className="px-3 py-2 font-medium">Cant.</th>
                 <th className="px-3 py-2 font-medium">Precio unitario</th>
+                <th className="px-3 py-2 font-medium">Dto.</th>
                 <th className="px-3 py-2 font-medium">Impuesto</th>
                 <th className="px-3 py-2 font-medium">Total línea</th>
                 {!disabled && <th className="px-3 py-2" />}
@@ -132,6 +139,7 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
                     <td className="px-3 py-2 text-(--text-primary)">{line.description}</td>
                     <td className="px-3 py-2 font-mono text-(--text-secondary)">{line.quantity}</td>
                     <td className="px-3 py-2 font-mono text-(--text-secondary)">{formatCOP.format(line.unit_price)}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{line.discount ? `${line.discount}%` : "—"}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{line.tax_rate ? `${line.tax_rate}%` : "—"}</td>
                     <td className="px-3 py-2 font-mono text-(--text-primary)">{formatCOP.format(lineTotal(line))}</td>
                     {!disabled && (
@@ -181,8 +189,11 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
             <div className="col-span-6 sm:col-span-3">
               <Input label="Cantidad" type="number" min="0" step="0.01" value={draft.quantity} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} />
             </div>
-            <div className="col-span-6 sm:col-span-4">
+            <div className="col-span-6 sm:col-span-3">
               <Input label="Precio unitario (COP)" type="number" min="0" step="0.01" value={draft.unitPrice} onChange={(e) => setDraft({ ...draft, unitPrice: e.target.value })} />
+            </div>
+            <div className="col-span-6 sm:col-span-3">
+              <Input label="Descuento (%)" type="number" min="0" max="100" step="0.01" value={draft.discount} onChange={(e) => setDraft({ ...draft, discount: e.target.value })} />
             </div>
             <div className="col-span-6 sm:col-span-3">
               <Input label="Impuesto (%)" type="number" min="0" step="0.01" value={draft.taxRate} onChange={(e) => setDraft({ ...draft, taxRate: e.target.value })} />
@@ -205,6 +216,6 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
   );
 }
 
-export function salesLinesTotal(lines: { quantity: number; unit_price: number; tax_rate: number }[]) {
+export function salesLinesTotal(lines: { quantity: number; unit_price: number; discount: number; tax_rate: number }[]) {
   return lines.reduce((sum, l) => sum + lineTotal(l), 0);
 }

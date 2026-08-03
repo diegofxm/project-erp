@@ -15,6 +15,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/quotes/{id}", h.handleGetQuote)
 	mux.HandleFunc("DELETE /api/v1/quotes/{id}", h.handleDeleteQuote)
 	mux.HandleFunc("POST /api/v1/quotes/{id}/send", h.handleSendQuote)
+	mux.HandleFunc("GET /api/v1/quotes/{id}/pdf", h.handleGetQuotePDF)
+	mux.HandleFunc("POST /api/v1/quotes/{id}/send-email", h.handleSendQuoteEmail)
 	mux.HandleFunc("POST /api/v1/quotes/{id}/accept", h.handleAcceptQuote)
 	mux.HandleFunc("POST /api/v1/quotes/{id}/reject", h.handleRejectQuote)
 	mux.HandleFunc("POST /api/v1/quotes/{id}/convert-to-sale", h.handleConvertQuoteToSale)

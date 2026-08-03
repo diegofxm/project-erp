@@ -40,6 +40,7 @@ type QuoteLine struct {
 	Description string
 	Quantity    float64
 	UnitPrice   float64
+	Discount    float64 // porcentaje 0-100, aplicado antes de impuestos
 	TaxRate     float64
 	Subtotal    float64
 	TaxAmount   float64
@@ -49,7 +50,8 @@ type QuoteLine struct {
 func (q *Quote) CalculateTotals() {
 	for i := range q.Lines {
 		l := &q.Lines[i]
-		l.Subtotal = l.Quantity * l.UnitPrice
+		gross := l.Quantity * l.UnitPrice
+		l.Subtotal = gross - gross*l.Discount/100
 		l.TaxAmount = l.Subtotal * l.TaxRate / 100
 		l.Total = l.Subtotal + l.TaxAmount
 	}
