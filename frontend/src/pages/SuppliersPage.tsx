@@ -80,13 +80,17 @@ export function SuppliersPage() {
     }
   }
 
+  const title = editing === "new" ? "Nuevo proveedor" : editing ? editing.name : "Proveedores";
+
   return (
     <div className="p-4">
-      <Breadcrumbs items={[{ label: "Proveedores" }]} />
+      <Breadcrumbs
+        items={editing ? [{ label: "Proveedores", onClick: () => setEditing(null) }, { label: title }] : [{ label: "Proveedores" }]}
+      />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <Truck className="h-4 w-4 shrink-0 text-(--accent-primary)" />
-          Proveedores
+          {title}
         </h1>
         {!editing && (
           <Button type="button" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setEditing("new")}>

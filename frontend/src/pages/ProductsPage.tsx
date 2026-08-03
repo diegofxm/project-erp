@@ -82,13 +82,17 @@ export function ProductsPage() {
     }
   }
 
+  const title = editing === "new" ? "Nuevo producto" : editing ? editing.name : "Productos";
+
   return (
     <div className="p-4">
-      <Breadcrumbs items={[{ label: "Productos" }]} />
+      <Breadcrumbs
+        items={editing ? [{ label: "Productos", onClick: () => setEditing(null) }, { label: title }] : [{ label: "Productos" }]}
+      />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <Package className="h-4 w-4 shrink-0 text-(--accent-primary)" />
-          Productos
+          {title}
         </h1>
         {!editing && (
           <Button type="button" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setEditing("new")}>

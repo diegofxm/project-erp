@@ -86,7 +86,7 @@ export function SettingsActivityPage() {
 
   return (
     <div className="p-4">
-      <Breadcrumbs items={[{ label: "Configuración" }, { label: "Actividad" }]} />
+      <Breadcrumbs items={[{ label: "Configuración", to: "/settings/general" }, { label: "Actividad" }]} />
       <h1 className="mb-3 flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
         <Activity className="h-4 w-4 shrink-0 text-(--accent-primary)" />
         Actividad del sistema

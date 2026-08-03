@@ -10,7 +10,7 @@ import { SoftwareCertificateForm } from "../components/issuer-settings/SoftwareC
 export function SettingsCompanyPage() {
   return (
     <div className="p-4">
-      <Breadcrumbs items={[{ label: "Configuración" }, { label: "Empresa" }]} />
+      <Breadcrumbs items={[{ label: "Configuración", to: "/settings/general" }, { label: "Empresa" }]} />
       <h1 className="mb-3 flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
         <Building2 className="h-4 w-4 shrink-0 text-(--accent-primary)" />
         Empresa

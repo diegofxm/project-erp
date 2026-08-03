@@ -80,13 +80,17 @@ export function CustomersPage() {
     }
   }
 
+  const title = editing === "new" ? "Nuevo cliente" : editing ? editing.name : "Clientes";
+
   return (
     <div className="p-4">
-      <Breadcrumbs items={[{ label: "Clientes" }]} />
+      <Breadcrumbs
+        items={editing ? [{ label: "Clientes", onClick: () => setEditing(null) }, { label: title }] : [{ label: "Clientes" }]}
+      />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <Users className="h-4 w-4 shrink-0 text-(--accent-primary)" />
-          Clientes
+          {title}
         </h1>
         {!editing && (
           <Button type="button" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setEditing("new")}>
