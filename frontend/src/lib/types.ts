@@ -981,3 +981,110 @@ export interface MovementPayload {
   // Requerido cuando type="transfer" — bodega destino.
   to_warehouse_id?: string;
 }
+
+// ── Contabilidad (erp/internal/accounting) ──────────────────────────────────────
+// Los montos van en centavos (int64), como en electronic/ — NO en pesos como sales/purchase.
+// PUC = Plan Único de Cuentas (Decreto 2650), catálogo global compartido por todas las empresas.
+
+export interface Account {
+  id: string;
+  code: string;
+  name: string;
+  parent_code: string;
+  level: number;
+  category: string;
+  is_posting: boolean; // solo las cuentas "de movimiento" (nivel más detallado) aceptan asientos
+  is_active: boolean;
+}
+
+export type PeriodStatus = "OPEN" | "CLOSED";
+
+export interface AccountingPeriod {
+  id: string;
+  company_id: string;
+  year: number;
+  month: number;
+  status: PeriodStatus;
+  opened_at: string;
+  closed_at?: string;
+}
+
+export type JournalStatus = "DRAFT" | "POSTED" | "VOID";
+export type JournalBook = "BOTH" | "PCGA" | "NIIF";
+
+export interface JournalLine {
+  id: string;
+  account_id: string;
+  account_code: string;
+  debit: number;  // centavos
+  credit: number; // centavos
+  third_party_nit: string;
+  cost_center: string;
+  description: string;
+  foreign_amount: number;
+  foreign_currency: string;
+}
+
+export interface JournalEntry {
+  id: string;
+  company_id: string;
+  period_id: string;
+  date: string;
+  description: string;
+  status: JournalStatus;
+  source: string;
+  entry_type: string;
+  voucher_type: string;
+  voucher_number: string;
+  source_document_id?: string;
+  source_document_type?: string;
+  book: JournalBook;
+  lines: JournalLine[];
+  created_at: string;
+}
+
+export interface PostJournalLinePayload {
+  account_code: string;
+  debit_cents: number;
+  credit_cents: number;
+  third_party_nit?: string;
+  cost_center?: string;
+  description?: string;
+}
+
+export interface PostJournalPayload {
+  date: string; // YYYY-MM-DD
+  description: string;
+  book?: JournalBook;
+  lines: PostJournalLinePayload[];
+}
+
+// Balance neto de una cuenta (P&L o BS) — balance positivo = naturaleza débito.
+export interface AccountBalance {
+  account_id: string;
+  account_code: string;
+  account_name: string;
+  category: string;
+  balance: number;
+}
+
+export interface TrialBalanceRow {
+  account_id: string;
+  account_code: string;
+  account_name: string;
+  category: string;
+  debit: number;
+  credit: number;
+  balance: number;
+}
+
+export interface LedgerLine {
+  journal_id: string;
+  date: string;
+  description: string;
+  voucher_type: string;
+  voucher_number: string;
+  debit: number;
+  credit: number;
+  running_balance: number;
+}

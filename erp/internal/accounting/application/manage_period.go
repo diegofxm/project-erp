@@ -20,19 +20,19 @@ func (uc *ManagePeriodUseCase) List(ctx context.Context, companyID uuid.UUID) ([
 	return uc.periods.List(ctx, companyID)
 }
 
-func (uc *ManagePeriodUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domain.AccountingPeriod, error) {
-	return uc.periods.GetByID(ctx, id)
+func (uc *ManagePeriodUseCase) GetByID(ctx context.Context, companyID, id uuid.UUID) (*domain.AccountingPeriod, error) {
+	return uc.periods.GetByID(ctx, companyID, id)
 }
 
-func (uc *ManagePeriodUseCase) Close(ctx context.Context, id uuid.UUID) error {
-	p, err := uc.periods.GetByID(ctx, id)
+func (uc *ManagePeriodUseCase) Close(ctx context.Context, companyID, id uuid.UUID) error {
+	p, err := uc.periods.GetByID(ctx, companyID, id)
 	if err != nil {
 		return err
 	}
 	if p.Status == domain.PeriodClosed {
 		return domain.ErrPeriodClosed
 	}
-	return uc.periods.Close(ctx, id)
+	return uc.periods.Close(ctx, companyID, id)
 }
 
 func (uc *ManagePeriodUseCase) CloseYear(ctx context.Context, companyID uuid.UUID, year int) error {

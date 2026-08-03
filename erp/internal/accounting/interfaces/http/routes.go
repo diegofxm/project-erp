@@ -20,4 +20,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Reportes financieros
 	mux.HandleFunc("GET /api/v1/accounting/reports/pl", h.handlePLReport)
 	mux.HandleFunc("GET /api/v1/accounting/reports/bs", h.handleBSReport)
+	mux.HandleFunc("GET /api/v1/accounting/reports/trial-balance", h.handleTrialBalance)
+	mux.HandleFunc("GET /api/v1/accounting/reports/ledger/{code}", h.handleAccountLedger)
 }

@@ -17,8 +17,8 @@ func NewGetJournalUseCase(journals domain.JournalRepository) *GetJournalUseCase 
 	return &GetJournalUseCase{journals: journals}
 }
 
-func (uc *GetJournalUseCase) ByID(ctx context.Context, id uuid.UUID) (*domain.JournalEntry, error) {
-	return uc.journals.GetByID(ctx, id)
+func (uc *GetJournalUseCase) ByID(ctx context.Context, companyID, id uuid.UUID) (*domain.JournalEntry, error) {
+	return uc.journals.GetByID(ctx, companyID, id)
 }
 
 func (uc *GetJournalUseCase) List(ctx context.Context, companyID uuid.UUID, limit, offset int) ([]*domain.JournalEntry, error) {
@@ -35,4 +35,12 @@ func (uc *GetJournalUseCase) PLBalances(ctx context.Context, companyID uuid.UUID
 
 func (uc *GetJournalUseCase) BSBalances(ctx context.Context, companyID uuid.UUID, asOf time.Time) ([]domain.PLBalance, error) {
 	return uc.journals.GetBSBalances(ctx, companyID, asOf)
+}
+
+func (uc *GetJournalUseCase) TrialBalance(ctx context.Context, companyID uuid.UUID, from, to time.Time) ([]domain.TrialBalanceRow, error) {
+	return uc.journals.GetTrialBalance(ctx, companyID, from, to)
+}
+
+func (uc *GetJournalUseCase) AccountLedger(ctx context.Context, companyID uuid.UUID, accountCode string, from, to time.Time) ([]domain.LedgerLine, error) {
+	return uc.journals.GetAccountLedger(ctx, companyID, accountCode, from, to)
 }

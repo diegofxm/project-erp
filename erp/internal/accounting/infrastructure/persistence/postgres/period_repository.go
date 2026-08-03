@@ -19,11 +19,11 @@ func NewPeriodRepository(pool *pgxpool.Pool) *PeriodRepository {
 	return &PeriodRepository{pool: pool}
 }
 
-func (r *PeriodRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.AccountingPeriod, error) {
+func (r *PeriodRepository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*domain.AccountingPeriod, error) {
 	const q = `
 		SELECT id, company_id, year, month, status, opened_at, closed_at, created_at, updated_at
-		FROM accounting.accounting_periods WHERE id = $1`
-	row := r.pool.QueryRow(ctx, q, id)
+		FROM accounting.accounting_periods WHERE id = $1 AND company_id = $2`
+	row := r.pool.QueryRow(ctx, q, id, companyID)
 	p, err := scanPeriod(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -58,12 +58,12 @@ func (r *PeriodRepository) Create(ctx context.Context, p domain.AccountingPeriod
 	return scanPeriod(row)
 }
 
-func (r *PeriodRepository) Close(ctx context.Context, id uuid.UUID) error {
+func (r *PeriodRepository) Close(ctx context.Context, companyID, id uuid.UUID) error {
 	const q = `
 		UPDATE accounting.accounting_periods
 		SET status = 'CLOSED', closed_at = NOW(), updated_at = NOW()
-		WHERE id = $1`
-	_, err := r.pool.Exec(ctx, q, id)
+		WHERE id = $1 AND company_id = $2`
+	_, err := r.pool.Exec(ctx, q, id, companyID)
 	return err
 }
 

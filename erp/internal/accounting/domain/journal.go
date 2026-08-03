@@ -103,6 +103,30 @@ type PLBalance struct {
 	Balance     int64
 }
 
+// TrialBalanceRow es el saldo de una cuenta en un rango de fechas (Balance de Prueba).
+// Debit/Credit son el movimiento acumulado del periodo; Balance = Debit - Credit.
+type TrialBalanceRow struct {
+	AccountID   uuid.UUID
+	AccountCode string
+	AccountName string
+	Category    string
+	Debit       int64
+	Credit      int64
+	Balance     int64
+}
+
+// LedgerLine es un movimiento del Libro Mayor de una cuenta, con saldo acumulado.
+type LedgerLine struct {
+	JournalID     uuid.UUID
+	Date          time.Time
+	Description   string
+	VoucherType   string
+	VoucherNumber string
+	Debit         int64
+	Credit        int64
+	RunningBalance int64
+}
+
 type VoucherTypeConfig struct {
 	ID             uuid.UUID
 	CompanyID      uuid.UUID

@@ -40,6 +40,11 @@ import { PayablesPage } from "./pages/PayablesPage";
 import { InventoryStockPage } from "./pages/InventoryStockPage";
 import { InventoryMovementsPage } from "./pages/InventoryMovementsPage";
 import { WarehousesPage } from "./pages/WarehousesPage";
+import { AccountingJournalsPage } from "./pages/AccountingJournalsPage";
+import { AccountingJournalEditorPage } from "./pages/AccountingJournalEditorPage";
+import { AccountingAccountsPage } from "./pages/AccountingAccountsPage";
+import { AccountingPeriodsPage } from "./pages/AccountingPeriodsPage";
+import { AccountingReportsPage } from "./pages/AccountingReportsPage";
 import { PublicCustomerRegisterPage } from "./pages/PublicCustomerRegisterPage";
 import { AdminBillingPage, AdminRenewalsPage, AdminCompanyPage, AdminPlansPage, AdminUsersPage, AdminProspectsPage } from "./pages/AdminPage";
 
@@ -90,6 +95,12 @@ function App() {
                     <Route path="/inventory" element={<InventoryStockPage />} />
                     <Route path="/inventory/movements" element={<InventoryMovementsPage />} />
                     <Route path="/inventory/warehouses" element={<WarehousesPage />} />
+                    <Route path="/accounting" element={<Navigate to="/accounting/journals" replace />} />
+                    <Route path="/accounting/journals" element={<AccountingJournalsPage />} />
+                    <Route path="/accounting/journals/:id" element={<AccountingJournalEditorPage />} />
+                    <Route path="/accounting/accounts" element={<AccountingAccountsPage />} />
+                    <Route path="/accounting/periods" element={<AccountingPeriodsPage />} />
+                    <Route path="/accounting/reports" element={<AccountingReportsPage />} />
                     <Route path="/admin" element={<Navigate to="/admin/billing" replace />} />
                     <Route path="/admin/billing" element={<AdminBillingPage />} />
                     <Route path="/admin/renewals" element={<AdminRenewalsPage />} />

@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router";
-import { Boxes, Crown, Files, Home, Package, Settings, ShoppingBag, ShoppingCart, Truck, Users } from "lucide-react";
+import { Boxes, Calculator, Crown, Files, Home, Package, Settings, ShoppingBag, ShoppingCart, Truck, Users } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 interface NavItem {
@@ -19,6 +19,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/sales", label: "Ventas", icon: <ShoppingCart className="h-3.5 w-3.5" />, activePrefix: "/sales" },
   { to: "/purchases", label: "Compras", icon: <ShoppingBag className="h-3.5 w-3.5" />, activePrefix: "/purchases" },
   { to: "/inventory", label: "Inventario", icon: <Boxes className="h-3.5 w-3.5" />, activePrefix: "/inventory" },
+  { to: "/accounting", label: "Contabilidad", icon: <Calculator className="h-3.5 w-3.5" />, activePrefix: "/accounting" },
   { to: "/customers", label: "Clientes", icon: <Users className="h-3.5 w-3.5" />, activePrefix: "/customers" },
   { to: "/suppliers", label: "Proveedores", icon: <Truck className="h-3.5 w-3.5" />, activePrefix: "/suppliers" },
   { to: "/products", label: "Productos", icon: <Package className="h-3.5 w-3.5" />, activePrefix: "/products" },

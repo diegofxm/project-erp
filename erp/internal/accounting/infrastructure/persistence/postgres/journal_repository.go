@@ -132,13 +132,13 @@ func (r *JournalRepository) Create(ctx context.Context, e domain.JournalEntry) (
 	return created, nil
 }
 
-func (r *JournalRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.JournalEntry, error) {
+func (r *JournalRepository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*domain.JournalEntry, error) {
 	const q = `
 		SELECT id, company_id, period_id, date, description, status, source, entry_type,
 		       voucher_type, voucher_number, source_document_id, source_document_type, book,
 		       created_at, updated_at
-		FROM accounting.journal_entries WHERE id = $1`
-	e, err := scanEntry(r.pool.QueryRow(ctx, q, id))
+		FROM accounting.journal_entries WHERE id = $1 AND company_id = $2`
+	e, err := scanEntry(r.pool.QueryRow(ctx, q, id, companyID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrJournalNotFound
@@ -151,11 +151,11 @@ func (r *JournalRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.
 	return e, nil
 }
 
-func (r *JournalRepository) Void(ctx context.Context, id uuid.UUID) error {
+func (r *JournalRepository) Void(ctx context.Context, companyID, id uuid.UUID) error {
 	const q = `
 		UPDATE accounting.journal_entries
-		SET status = 'VOID', updated_at = NOW() WHERE id = $1`
-	_, err := r.pool.Exec(ctx, q, id)
+		SET status = 'VOID', updated_at = NOW() WHERE id = $1 AND company_id = $2`
+	_, err := r.pool.Exec(ctx, q, id, companyID)
 	return err
 }
 
@@ -263,6 +263,71 @@ func (r *JournalRepository) GetBSBalances(ctx context.Context, companyID uuid.UU
 	}
 	defer rows.Close()
 	return scanBalances(rows)
+}
+
+// GetTrialBalance devuelve el movimiento (débito/crédito) y saldo de cada cuenta con
+// actividad en el rango de fechas dado (Balance de Prueba).
+func (r *JournalRepository) GetTrialBalance(ctx context.Context, companyID uuid.UUID, from, to time.Time) ([]domain.TrialBalanceRow, error) {
+	const q = `
+		SELECT a.id, a.code, a.name, a.category,
+		       COALESCE(SUM(l.debit), 0) AS debit,
+		       COALESCE(SUM(l.credit), 0) AS credit,
+		       COALESCE(SUM(l.debit) - SUM(l.credit), 0) AS balance
+		FROM accounting.journal_lines l
+		JOIN accounting.journal_entries e ON e.id = l.journal_id
+		JOIN accounting.accounts a ON a.id = l.account_id
+		WHERE e.company_id = $1
+		  AND e.status = 'POSTED'
+		  AND e.date BETWEEN $2 AND $3
+		GROUP BY a.id, a.code, a.name, a.category
+		ORDER BY a.code`
+	rows, err := r.pool.Query(ctx, q, companyID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.TrialBalanceRow
+	for rows.Next() {
+		var row domain.TrialBalanceRow
+		if err := rows.Scan(&row.AccountID, &row.AccountCode, &row.AccountName, &row.Category, &row.Debit, &row.Credit, &row.Balance); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+// GetAccountLedger devuelve los movimientos de una cuenta en el rango dado, con saldo
+// acumulado (Libro Mayor). El saldo corrido se calcula en Go recorriendo en orden cronológico.
+func (r *JournalRepository) GetAccountLedger(ctx context.Context, companyID uuid.UUID, accountCode string, from, to time.Time) ([]domain.LedgerLine, error) {
+	const q = `
+		SELECT e.id, e.date, e.description, COALESCE(e.voucher_type,''), COALESCE(e.voucher_number,''),
+		       l.debit, l.credit
+		FROM accounting.journal_lines l
+		JOIN accounting.journal_entries e ON e.id = l.journal_id
+		JOIN accounting.accounts a ON a.id = l.account_id
+		WHERE e.company_id = $1
+		  AND e.status = 'POSTED'
+		  AND a.code = $2
+		  AND e.date BETWEEN $3 AND $4
+		ORDER BY e.date, e.created_at`
+	rows, err := r.pool.Query(ctx, q, companyID, accountCode, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.LedgerLine
+	var running int64
+	for rows.Next() {
+		var l domain.LedgerLine
+		if err := rows.Scan(&l.JournalID, &l.Date, &l.Description, &l.VoucherType, &l.VoucherNumber, &l.Debit, &l.Credit); err != nil {
+			return nil, err
+		}
+		running += l.Debit - l.Credit
+		l.RunningBalance = running
+		out = append(out, l)
+	}
+	return out, rows.Err()
 }
 
 func (r *JournalRepository) RegisterVoucherType(ctx context.Context, cfg domain.VoucherTypeConfig) (*domain.VoucherTypeConfig, error) {

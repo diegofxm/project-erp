@@ -193,7 +193,7 @@ func main() {
 	// ── Casos de uso — accounting ───────────────────────────────────────────────
 	postJournalUC := accountingapp.NewPostJournalUseCase(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	getJournalUC := accountingapp.NewGetJournalUseCase(accountingJournalRepo)
-	voidJournalUC := accountingapp.NewVoidJournalUseCase(accountingJournalRepo)
+	voidJournalUC := accountingapp.NewVoidJournalUseCase(accountingJournalRepo, accountingPeriodRepo)
 	managePeriodUC := accountingapp.NewManagePeriodUseCase(accountingPeriodRepo)
 	onSaleConfirmed := accountingapp.NewOnSaleConfirmed(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onSaleConfirmed.Register(bus)

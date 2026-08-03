@@ -61,6 +61,15 @@ const SUB_NAVS: SubNavConfig[] = [
     ],
   },
   {
+    prefix: "/accounting",
+    items: [
+      { to: "/accounting/journals", label: "Asientos" },
+      { to: "/accounting/accounts", label: "Cuentas" },
+      { to: "/accounting/periods", label: "Periodos" },
+      { to: "/accounting/reports", label: "Reportes" },
+    ],
+  },
+  {
     prefix: "/settings",
     items: [
       { to: "/settings/general",  label: "General" },

@@ -49,16 +49,20 @@ func (h *Handler) handleListJournals(w http.ResponseWriter, r *http.Request) {
 	if list == nil {
 		list = []*domain.JournalEntry{}
 	}
-	respond(w, http.StatusOK, list)
+	respond(w, http.StatusOK, toJournalEntryDTOs(list))
 }
 
 func (h *Handler) handleGetJournal(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "id inválido")
 		return
 	}
-	entry, err := h.get.ByID(r.Context(), id)
+	entry, err := h.get.ByID(r.Context(), cid, id)
 	if err != nil {
 		if errors.Is(err, domain.ErrJournalNotFound) {
 			respondError(w, http.StatusNotFound, err.Error())
@@ -67,7 +71,7 @@ func (h *Handler) handleGetJournal(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respond(w, http.StatusOK, entry)
+	respond(w, http.StatusOK, toJournalEntryDTO(entry))
 }
 
 func (h *Handler) handlePostJournal(w http.ResponseWriter, r *http.Request) {
@@ -137,7 +141,7 @@ func (h *Handler) handlePostJournal(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respond(w, http.StatusCreated, entry)
+	respond(w, http.StatusCreated, toJournalEntryDTO(entry))
 }
 
 type postLineBody struct {
@@ -152,17 +156,21 @@ type postLineBody struct {
 }
 
 func (h *Handler) handleVoidJournal(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "id inválido")
 		return
 	}
-	if err := h.void.Execute(r.Context(), id); err != nil {
+	if err := h.void.Execute(r.Context(), cid, id); err != nil {
 		if errors.Is(err, domain.ErrJournalNotFound) {
 			respondError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		if errors.Is(err, domain.ErrJournalVoided) {
+		if errors.Is(err, domain.ErrJournalVoided) || errors.Is(err, domain.ErrPeriodClosed) {
 			respondError(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
@@ -180,10 +188,7 @@ func (h *Handler) handleListAccounts(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if list == nil {
-		list = []domain.Account{}
-	}
-	respond(w, http.StatusOK, list)
+	respond(w, http.StatusOK, toAccountDTOs(list))
 }
 
 func (h *Handler) handleGetAccount(w http.ResponseWriter, r *http.Request) {
@@ -197,7 +202,7 @@ func (h *Handler) handleGetAccount(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respond(w, http.StatusOK, acct)
+	respond(w, http.StatusOK, toAccountDTO(*acct))
 }
 
 // ── Períodos ──────────────────────────────────────────────────────────────────
@@ -212,19 +217,20 @@ func (h *Handler) handleListPeriods(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if list == nil {
-		list = []domain.AccountingPeriod{}
-	}
-	respond(w, http.StatusOK, list)
+	respond(w, http.StatusOK, toPeriodDTOs(list))
 }
 
 func (h *Handler) handleClosePeriod(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "id inválido")
 		return
 	}
-	if err := h.period.Close(r.Context(), id); err != nil {
+	if err := h.period.Close(r.Context(), cid, id); err != nil {
 		if errors.Is(err, domain.ErrPeriodNotFound) {
 			respondError(w, http.StatusNotFound, err.Error())
 			return
@@ -256,10 +262,7 @@ func (h *Handler) handlePLReport(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if balances == nil {
-		balances = []domain.PLBalance{}
-	}
-	respond(w, http.StatusOK, balances)
+	respond(w, http.StatusOK, toBalanceDTOs(balances))
 }
 
 func (h *Handler) handleBSReport(w http.ResponseWriter, r *http.Request) {
@@ -278,10 +281,66 @@ func (h *Handler) handleBSReport(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if balances == nil {
-		balances = []domain.PLBalance{}
+	respond(w, http.StatusOK, toBalanceDTOs(balances))
+}
+
+func (h *Handler) handleTrialBalance(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
 	}
-	respond(w, http.StatusOK, balances)
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+	rows, err := h.get.TrialBalance(r.Context(), cid, from, to)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toTrialBalanceDTOs(rows))
+}
+
+func (h *Handler) handleAccountLedger(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	code := r.PathValue("code")
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+	if _, err := h.accounts.GetByCode(r.Context(), code); err != nil {
+		if errors.Is(err, domain.ErrAccountNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	lines, err := h.get.AccountLedger(r.Context(), cid, code, from, to)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toLedgerLineDTOs(lines))
+}
+
+func parseDateRange(w http.ResponseWriter, r *http.Request) (time.Time, time.Time, bool) {
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	from, err := time.Parse("2006-01-02", fromStr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "from requerido (YYYY-MM-DD)")
+		return time.Time{}, time.Time{}, false
+	}
+	to, err := time.Parse("2006-01-02", toStr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "to requerido (YYYY-MM-DD)")
+		return time.Time{}, time.Time{}, false
+	}
+	return from, to, true
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
