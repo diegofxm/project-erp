@@ -6,6 +6,7 @@ import type { AuditEvent } from "../lib/types";
 import { ApiError } from "../lib/apiClient";
 import { Banner } from "../components/ui/Banner";
 import { Spinner } from "../components/ui/Spinner";
+import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 
 const ACTION_LABELS: Record<string, string> = {
   "document.created":    "Borrador creado",
@@ -85,6 +86,7 @@ export function SettingsActivityPage() {
 
   return (
     <div className="p-4">
+      <Breadcrumbs items={[{ label: "Configuración" }, { label: "Actividad" }]} />
       <h1 className="mb-3 flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
         <Activity className="h-4 w-4 shrink-0 text-(--accent-primary)" />
         Actividad del sistema

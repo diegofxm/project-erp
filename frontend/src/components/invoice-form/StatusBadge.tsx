@@ -21,6 +21,22 @@ const TONE_CLASSES: Record<DocumentStatus, string> = {
   send_error: "bg-(--color-danger-bg) text-(--color-danger-text)",
 };
 
+const DOT_CLASSES: Record<DocumentStatus, string> = {
+  draft: "bg-(--text-secondary)",
+  built: "bg-(--text-secondary)",
+  sent: "bg-(--color-info)",
+  accepted: "bg-(--color-success)",
+  rejected: "bg-(--color-danger)",
+  send_error: "bg-(--color-danger)",
+};
+
+// Píldora completa (rounded-full) con punto de color — patrón de estado tipo Odoo,
+// en vez del rectángulo "rounded" (4px) plano que tenía antes.
 export function StatusBadge({ status }: { status: DocumentStatus }) {
-  return <span className={`rounded px-2 py-0.5 text-xs font-medium ${TONE_CLASSES[status]}`}>{LABELS[status]}</span>;
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${TONE_CLASSES[status]}`}>
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT_CLASSES[status]}`} />
+      {LABELS[status]}
+    </span>
+  );
 }

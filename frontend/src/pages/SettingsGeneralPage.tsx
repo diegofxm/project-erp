@@ -1,6 +1,7 @@
 import { SlidersHorizontal } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { Card } from "../components/ui/Card";
+import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { useTheme } from "../context/ThemeContext";
 import { usePdfFormat } from "../lib/usePdfFormat";
 
@@ -10,6 +11,7 @@ export function SettingsGeneralPage() {
 
   return (
     <div className="p-4">
+      <Breadcrumbs items={[{ label: "Configuración" }, { label: "General" }]} />
       <h1 className="mb-3 flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
         <SlidersHorizontal className="h-4 w-4 shrink-0 text-(--accent-primary)" />
         General

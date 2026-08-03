@@ -24,6 +24,7 @@ import { fetchCustomer } from "../lib/customers";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { Document, IssueInvoicePayload } from "../lib/types";
 import { BackLink } from "../components/ui/BackLink";
+import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { Banner } from "../components/ui/Banner";
 import { DianStatusBlock } from "../components/DianStatusBlock";
 import { Button } from "../components/ui/Button";
@@ -188,6 +189,13 @@ export function InvoiceEditorPage() {
 
   return (
     <div className="p-4">
+      <Breadcrumbs
+        items={[
+          { label: "Documentos" },
+          { label: "Factura Electrónica", to: "/documents/invoices" },
+          { label: isNew ? "Nueva factura" : doc ? `Factura ${doc.prefix ?? ""}${doc.number ?? "(borrador)"}` : "Factura" },
+        ]}
+      />
       <BackLink to="/documents/invoices" label="Facturas Electrónicas" />
       <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">

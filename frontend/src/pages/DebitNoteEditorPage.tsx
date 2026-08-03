@@ -23,6 +23,7 @@ import { fetchCustomer } from "../lib/customers";
 import { usePdfFormat } from "../lib/usePdfFormat";
 import type { BillingReference, Document, IssueDebitNotePayload } from "../lib/types";
 import { BackLink } from "../components/ui/BackLink";
+import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { Banner } from "../components/ui/Banner";
 import { SourceBalanceBlock } from "../components/ui/SourceBalanceBlock";
 import { DianStatusBlock } from "../components/DianStatusBlock";
@@ -226,6 +227,9 @@ export function DebitNoteEditorPage() {
 
   return (
     <div className="p-4">
+      <Breadcrumbs
+        items={[{ label: "Documentos" }, { label: "Nota Débito", to: "/documents/debit-notes" }, { label: title }]}
+      />
       <BackLink
         to={isNew && sourceInvoiceId ? `/documents/invoices/${sourceInvoiceId}` : "/documents/debit-notes"}
         label={isNew && sourceDoc ? `Factura ${sourceDoc.prefix ?? ""}${sourceDoc.number ?? ""}` : "Notas Débito"}

@@ -11,6 +11,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { Card } from "../components/ui/Card";
 import { Spinner } from "../components/ui/Spinner";
+import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { StatusBadge } from "../components/invoice-form/StatusBadge";
 import { getBillingStats, type BillingStats } from "../lib/stats";
 import { listDocuments } from "../lib/documents";
@@ -406,6 +407,7 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-4 p-4">
+      <Breadcrumbs items={[{ label: "Inicio" }]} />
       {/* Encabezado */}
       <div className="flex items-center gap-2">
         <LayoutDashboard className="h-4 w-4 shrink-0 text-(--accent-primary)" />

@@ -10,6 +10,7 @@ import { Button } from "../components/ui/Button";
 import { Banner } from "../components/ui/Banner";
 import { Spinner } from "../components/ui/Spinner";
 import { Pagination } from "../components/ui/Pagination";
+import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { ProductForm } from "../components/product-form/ProductForm";
 
 type Editing = "new" | Product | null;
@@ -83,6 +84,7 @@ export function ProductsPage() {
 
   return (
     <div className="p-4">
+      <Breadcrumbs items={[{ label: "Productos" }]} />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <Package className="h-4 w-4 shrink-0 text-(--accent-primary)" />

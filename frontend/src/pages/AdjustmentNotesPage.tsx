@@ -8,6 +8,7 @@ import type { Document, DocumentStatus } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Spinner } from "../components/ui/Spinner";
 import { Pagination } from "../components/ui/Pagination";
+import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { StatusBadge } from "../components/invoice-form/StatusBadge";
 
 const ADJUSTMENT_NOTE_DIAN_TYPE = "95";
@@ -72,6 +73,7 @@ export function AdjustmentNotesPage() {
 
   return (
     <div className="p-4">
+      <Breadcrumbs items={[{ label: "Documentos" }, { label: "Nota de Ajuste" }]} />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <FileDiff className="h-4 w-4 shrink-0 text-(--accent-primary)" />

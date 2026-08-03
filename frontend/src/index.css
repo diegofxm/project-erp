@@ -25,7 +25,7 @@
   --bg-secondary: #ffffff;
   --bg-tertiary: #e8e8e8;
   --bg-hover: #e0e0e0;
-  --bg-selected: #d4e6f1;
+  --bg-selected: color-mix(in srgb, var(--accent-primary) 15%, var(--bg-secondary));
 
   --text-primary: #2c3e50;
   --text-secondary: #5a6c7d;
@@ -34,11 +34,11 @@
   --border-color: #d0d0d0;
   --border-light: #e5e5e5;
 
-  --accent-primary: #3498db;
-  --accent-hover: #2980b9;
+  --accent-primary: #2f6fb0;
+  --accent-hover: #255a8f;
 
-  --navbar-bg: #34495e;
-  --navbar-text: #ecf0f1;
+  --navbar-bg: #14294a;
+  --navbar-text: #eef2f8;
 
   --color-success: #27ae60;
   --color-success-hover: #229954;

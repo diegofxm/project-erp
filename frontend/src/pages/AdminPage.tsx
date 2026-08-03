@@ -27,6 +27,7 @@ import {
   adminProspectCedulaUrl,
   adminProspectRutUrl,
 } from "../lib/admin";
+import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import type { AdminUser, BillingEntry, CompanySettings, Payment, Plan, Prospect, RenewalEntry, Subscription, Company } from "../lib/types";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -74,6 +75,7 @@ function BillingContent() {
 
   return (
     <>
+      <Breadcrumbs items={[{ label: "Comando" }, { label: "Facturación" }]} />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <BarChart2 className="h-4 w-4 shrink-0 text-(--accent-primary)" />
@@ -153,6 +155,7 @@ function RenewalsContent() {
 
   return (
     <>
+      <Breadcrumbs items={[{ label: "Comando" }, { label: "Renovaciones" }]} />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <CalendarClock className="h-4 w-4 shrink-0 text-(--accent-primary)" />
@@ -337,6 +340,7 @@ function CompanyContent() {
 
   return (
     <>
+      <Breadcrumbs items={[{ label: "Comando" }, { label: "Por empresa" }]} />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <Building2 className="h-4 w-4 shrink-0 text-(--accent-primary)" />
@@ -502,6 +506,7 @@ function PlansContent() {
 
   return (
     <>
+      <Breadcrumbs items={[{ label: "Comando" }, { label: "Planes" }]} />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <Layers className="h-4 w-4 shrink-0 text-(--accent-primary)" />
@@ -588,6 +593,7 @@ function UsersContent() {
 
   return (
     <>
+      <Breadcrumbs items={[{ label: "Comando" }, { label: "Usuarios" }]} />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <Users className="h-4 w-4 shrink-0 text-(--accent-primary)" />
@@ -710,6 +716,7 @@ function ProspectsContent() {
 
   return (
     <>
+      <Breadcrumbs items={[{ label: "Comando" }, { label: "Solicitudes" }]} />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <ClipboardList className="h-4 w-4 shrink-0 text-(--accent-primary)" />
