@@ -18,12 +18,17 @@ func NewMoveUseCase(repo domain.Repository) *MoveUseCase {
 }
 
 type MoveRequest struct {
-	ProductID   uuid.UUID           `json:"product_id"`
-	Warehouse   string              `json:"warehouse"`
+	ProductID uuid.UUID `json:"product_id"`
+
+	// WarehouseID — bodega origen para entry/exit/adjust, o bodega de origen para transfer.
+	WarehouseID uuid.UUID           `json:"warehouse_id"`
 	Type        domain.MovementType `json:"type"`
 	Quantity    float64             `json:"quantity"`
 	Reference   string              `json:"reference"`
 	Description string              `json:"description"`
+
+	// ToWarehouseID — solo para Type=transfer: bodega destino.
+	ToWarehouseID *uuid.UUID `json:"to_warehouse_id,omitempty"`
 }
 
 func (uc *MoveUseCase) Execute(ctx context.Context, companyID uuid.UUID, req MoveRequest) (*domain.Movement, error) {
@@ -31,9 +36,20 @@ func (uc *MoveUseCase) Execute(ctx context.Context, companyID uuid.UUID, req Mov
 		return nil, fmt.Errorf("la cantidad debe ser mayor a cero")
 	}
 
+	if req.Type == domain.MovementTransfer {
+		if req.ToWarehouseID == nil {
+			return nil, fmt.Errorf("to_warehouse_id es requerido para un traslado")
+		}
+		from, _, err := uc.repo.Transfer(ctx, companyID, req.ProductID, req.WarehouseID, *req.ToWarehouseID, req.Quantity, req.Reference, req.Description)
+		if err != nil {
+			return nil, err
+		}
+		return from, nil
+	}
+
 	// Para salidas: verificar stock suficiente
 	if req.Type == domain.MovementExit {
-		stock, err := uc.repo.GetStock(ctx, companyID, req.ProductID, req.Warehouse)
+		stock, err := uc.repo.GetStock(ctx, companyID, req.ProductID, req.WarehouseID)
 		if err != nil {
 			return nil, domain.ErrInsufficientStock
 		}
@@ -46,7 +62,7 @@ func (uc *MoveUseCase) Execute(ctx context.Context, companyID uuid.UUID, req Mov
 		ID:          uuid.New(),
 		CompanyID:   companyID,
 		ProductID:   req.ProductID,
-		Warehouse:   req.Warehouse,
+		WarehouseID: req.WarehouseID,
 		Type:        req.Type,
 		Quantity:    req.Quantity,
 		Reference:   req.Reference,
@@ -59,7 +75,7 @@ func (uc *MoveUseCase) Execute(ctx context.Context, companyID uuid.UUID, req Mov
 	}
 
 	// Actualizar stock
-	current, err := uc.repo.GetStock(ctx, companyID, req.ProductID, req.Warehouse)
+	current, err := uc.repo.GetStock(ctx, companyID, req.ProductID, req.WarehouseID)
 	var currentQty float64
 	if err == nil {
 		currentQty = current.Quantity
@@ -71,17 +87,14 @@ func (uc *MoveUseCase) Execute(ctx context.Context, companyID uuid.UUID, req Mov
 		newQty = currentQty + req.Quantity
 	case domain.MovementExit:
 		newQty = currentQty - req.Quantity
-	case domain.MovementTransfer:
-		// El traslado genera dos movimientos; aquí solo se procesa uno a la vez
-		newQty = currentQty - req.Quantity
 	}
 
 	entry := domain.StockEntry{
-		ID:        uuid.New(),
-		CompanyID: companyID,
-		ProductID: req.ProductID,
-		Warehouse: req.Warehouse,
-		Quantity:  newQty,
+		ID:          uuid.New(),
+		CompanyID:   companyID,
+		ProductID:   req.ProductID,
+		WarehouseID: req.WarehouseID,
+		Quantity:    newQty,
 	}
 	if current != nil {
 		entry.ID = current.ID

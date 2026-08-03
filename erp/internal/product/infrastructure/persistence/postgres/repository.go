@@ -32,13 +32,13 @@ func (r *Repository) Save(ctx context.Context, p domain.Product) (*domain.Produc
 			unit_measure_code, standard_code, standard_code_type,
 			standard_code_id, standard_code_agency_id,
 			is_service, tax_scheme_code, tax_scheme_name, tax_rate,
-			base_price, is_active, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+			base_price, is_active, created_at, updated_at, min_stock
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
 		p.ID, p.CompanyID, p.Code, p.Name, p.Description,
 		p.UnitMeasureCode, p.StandardCode, p.StandardCodeType,
 		p.StandardCodeID, p.StandardCodeAgencyID,
 		p.IsService, p.TaxSchemeCode, p.TaxSchemeName, p.TaxRate,
-		p.BasePrice, p.IsActive, p.CreatedAt, p.UpdatedAt,
+		p.BasePrice, p.IsActive, p.CreatedAt, p.UpdatedAt, p.MinStock,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("guardar producto: %w", err)
@@ -95,13 +95,13 @@ func (r *Repository) Update(ctx context.Context, p domain.Product) (*domain.Prod
 			unit_measure_code=$4, standard_code=$5, standard_code_type=$6,
 			standard_code_id=$7, standard_code_agency_id=$8,
 			is_service=$9, tax_scheme_code=$10, tax_scheme_name=$11, tax_rate=$12,
-			base_price=$13, updated_at=NOW()
-		WHERE id=$14 AND company_id=$15`,
+			base_price=$13, updated_at=NOW(), min_stock=$14
+		WHERE id=$15 AND company_id=$16`,
 		p.Code, p.Name, p.Description,
 		p.UnitMeasureCode, p.StandardCode, p.StandardCodeType,
 		p.StandardCodeID, p.StandardCodeAgencyID,
 		p.IsService, p.TaxSchemeCode, p.TaxSchemeName, p.TaxRate,
-		p.BasePrice,
+		p.BasePrice, p.MinStock,
 		p.ID, p.CompanyID,
 	)
 	if err != nil {
@@ -129,7 +129,7 @@ const productSelect = `
 	       unit_measure_code, standard_code, standard_code_type,
 	       standard_code_id, standard_code_agency_id,
 	       is_service, tax_scheme_code, tax_scheme_name, tax_rate,
-	       base_price, is_active, created_at, updated_at
+	       base_price, is_active, created_at, updated_at, min_stock
 	FROM product.products`
 
 type scanner interface {
@@ -143,7 +143,7 @@ func scanProduct(s scanner) (*domain.Product, error) {
 		&p.UnitMeasureCode, &p.StandardCode, &p.StandardCodeType,
 		&p.StandardCodeID, &p.StandardCodeAgencyID,
 		&p.IsService, &p.TaxSchemeCode, &p.TaxSchemeName, &p.TaxRate,
-		&p.BasePrice, &p.IsActive, &p.CreatedAt, &p.UpdatedAt,
+		&p.BasePrice, &p.IsActive, &p.CreatedAt, &p.UpdatedAt, &p.MinStock,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("leer producto: %w", err)

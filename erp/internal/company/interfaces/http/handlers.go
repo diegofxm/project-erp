@@ -459,6 +459,27 @@ func (h *Handler) handleDeactivateWarehouse(w http.ResponseWriter, r *http.Reque
 	respond(w, http.StatusOK, map[string]string{"status": "deactivated"})
 }
 
+func (h *Handler) handleSetDefaultWarehouse(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.warehouse.SetDefault(r.Context(), cid, id); err != nil {
+		if errors.Is(err, domain.ErrWarehouseNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]string{"status": "default"})
+}
+
 // --- helpers ---
 
 func requireAuth(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {

@@ -18,7 +18,7 @@ func applyMovement(ctx context.Context, repo domain.Repository, m domain.Movemen
 		return err
 	}
 
-	current, err := repo.GetStock(ctx, m.CompanyID, m.ProductID, m.Warehouse)
+	current, err := repo.GetStock(ctx, m.CompanyID, m.ProductID, m.WarehouseID)
 	var currentQty float64
 	if err == nil {
 		currentQty = current.Quantity
@@ -33,11 +33,11 @@ func applyMovement(ctx context.Context, repo domain.Repository, m domain.Movemen
 	}
 
 	entry := domain.StockEntry{
-		ID:        uuid.New(),
-		CompanyID: m.CompanyID,
-		ProductID: m.ProductID,
-		Warehouse: m.Warehouse,
-		Quantity:  newQty,
+		ID:          uuid.New(),
+		CompanyID:   m.CompanyID,
+		ProductID:   m.ProductID,
+		WarehouseID: m.WarehouseID,
+		Quantity:    newQty,
 	}
 	if current != nil {
 		entry.ID = current.ID

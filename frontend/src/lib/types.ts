@@ -471,6 +471,9 @@ export interface ProductPayload {
   tax_scheme_name: string;
   tax_rate: number;
   base_price: number;
+  // Punto de reorden ("stock mínimo") — 0 = sin umbral configurado. Solo aplica a productos
+  // físicos (is_service=false); el módulo inventory lo usa para resaltar existencias bajas.
+  min_stock: number;
 }
 
 // Product — espejo de domain.Product del ERP (campos planos).
@@ -917,4 +920,64 @@ export interface ListAuditEventsFilter {
   resource_id?: string;
   limit?: number;
   offset?: number;
+}
+
+// ── Bodegas (erp/internal/company, dueño del catálogo) ─────────────────────────
+
+export interface Warehouse {
+  id: string;
+  company_id: string;
+  code: string;
+  name: string;
+  address: string;
+  // La bodega que usan ventas/compras cuando el documento no elige una explícitamente. Solo
+  // una por empresa — ver WarehousesPage "Marcar por defecto".
+  is_default: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WarehousePayload {
+  code: string;
+  name: string;
+  address: string;
+}
+
+// ── Inventario (erp/internal/inventory) ─────────────────────────────────────────
+
+export type MovementType = "entry" | "exit" | "transfer" | "adjust";
+
+export interface StockEntry {
+  id: string;
+  company_id: string;
+  product_id: string;
+  warehouse_id: string;
+  quantity: number;
+  updated_at: string;
+}
+
+export interface Movement {
+  id: string;
+  company_id: string;
+  product_id: string;
+  warehouse_id: string;
+  type: MovementType;
+  quantity: number;
+  reference?: string;
+  description?: string;
+  // Solo en movimientos type=transfer — enlaza el par salida/entrada de un mismo traslado.
+  transfer_group_id?: string;
+  created_at: string;
+}
+
+export interface MovementPayload {
+  product_id: string;
+  warehouse_id: string;
+  type: MovementType;
+  quantity: number;
+  reference?: string;
+  description?: string;
+  // Requerido cuando type="transfer" — bodega destino.
+  to_warehouse_id?: string;
 }

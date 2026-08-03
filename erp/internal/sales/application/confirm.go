@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	companydomain "github.com/diegofxm/erp/internal/company/domain"
 	customerdomain "github.com/diegofxm/erp/internal/customer/domain"
 	inventorydomain "github.com/diegofxm/erp/internal/inventory/domain"
 	productdomain "github.com/diegofxm/erp/internal/product/domain"
@@ -15,17 +16,14 @@ import (
 	"github.com/diegofxm/erp/internal/shared/events"
 )
 
-// defaultWarehouse — igual que inventory/application/on_sale_confirmed.go: el ERP todavía no
-// deja elegir bodega por línea, todo el stock vive en una sola bodega "principal".
-const defaultWarehouse = "principal"
-
 type ConfirmUseCase struct {
-	repo      domain.Repository
-	bus       *events.Bus
-	products  productdomain.Repository
-	inventory inventorydomain.Repository
-	customers customerdomain.Repository
-	payments  domain.PaymentRepository
+	repo       domain.Repository
+	bus        *events.Bus
+	products   productdomain.Repository
+	inventory  inventorydomain.Repository
+	customers  customerdomain.Repository
+	payments   domain.PaymentRepository
+	warehouses companydomain.WarehouseRepository
 }
 
 func NewConfirmUseCase(
@@ -35,10 +33,11 @@ func NewConfirmUseCase(
 	inventory inventorydomain.Repository,
 	customers customerdomain.Repository,
 	payments domain.PaymentRepository,
+	warehouses companydomain.WarehouseRepository,
 ) *ConfirmUseCase {
 	return &ConfirmUseCase{
 		repo: repo, bus: bus, products: products, inventory: inventory,
-		customers: customers, payments: payments,
+		customers: customers, payments: payments, warehouses: warehouses,
 	}
 }
 
@@ -51,7 +50,11 @@ func (uc *ConfirmUseCase) Execute(ctx context.Context, companyID, id uuid.UUID) 
 		return nil, domain.ErrSaleNotDraft
 	}
 
-	if err := uc.checkStock(ctx, companyID, s.Lines); err != nil {
+	warehouse, err := uc.warehouses.GetOrCreateDefault(ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("resolver bodega por defecto: %w", err)
+	}
+	if err := uc.checkStock(ctx, companyID, warehouse.ID, s.Lines); err != nil {
 		return nil, err
 	}
 	if err := uc.checkCredit(ctx, companyID, s); err != nil {
@@ -83,7 +86,7 @@ func (uc *ConfirmUseCase) Execute(ctx context.Context, companyID, id uuid.UUID) 
 // del servidor — la venta quedaba "confirmada" igual, sin que el usuario se enterara de que
 // vendió algo que no tenía. Los productos de servicio (IsService) no llevan inventario, se
 // excluyen del chequeo.
-func (uc *ConfirmUseCase) checkStock(ctx context.Context, companyID uuid.UUID, lines []domain.SaleLine) error {
+func (uc *ConfirmUseCase) checkStock(ctx context.Context, companyID, warehouseID uuid.UUID, lines []domain.SaleLine) error {
 	needed := map[uuid.UUID]float64{}
 	for _, l := range lines {
 		needed[l.ProductID] += l.Quantity
@@ -95,7 +98,7 @@ func (uc *ConfirmUseCase) checkStock(ctx context.Context, companyID uuid.UUID, l
 		if err != nil || p.IsService {
 			continue
 		}
-		stock, err := uc.inventory.GetStock(ctx, companyID, productID, defaultWarehouse)
+		stock, err := uc.inventory.GetStock(ctx, companyID, productID, warehouseID)
 		var available float64
 		if err == nil {
 			available = stock.Quantity

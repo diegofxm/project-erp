@@ -34,7 +34,7 @@ func TestSchema_ProductTables(t *testing.T) {
 			unit_measure_code, standard_code, standard_code_type,
 			standard_code_id, standard_code_agency_id,
 			is_service, tax_scheme_code, tax_scheme_name, tax_rate, base_price,
-			is_active, created_at, updated_at`},
+			is_active, created_at, updated_at, min_stock`},
 	}
 	for _, tt := range tables {
 		t.Run(tt.name, func(t *testing.T) {

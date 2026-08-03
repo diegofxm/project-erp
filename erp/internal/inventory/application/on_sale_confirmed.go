@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	companydomain "github.com/diegofxm/erp/internal/company/domain"
 	"github.com/diegofxm/erp/internal/inventory/domain"
 	productdomain "github.com/diegofxm/erp/internal/product/domain"
 	salesdomain "github.com/diegofxm/erp/internal/sales/domain"
@@ -14,12 +15,13 @@ import (
 // ya se validó de forma síncrona y bloqueante en sales/application/confirm.go antes de llegar
 // acá — este handler asíncrono solo aplica el movimiento, no vuelve a decidir si hay stock.
 type OnSaleConfirmed struct {
-	repo     domain.Repository
-	products productdomain.Repository
+	repo       domain.Repository
+	products   productdomain.Repository
+	warehouses companydomain.WarehouseRepository
 }
 
-func NewOnSaleConfirmed(repo domain.Repository, products productdomain.Repository) *OnSaleConfirmed {
-	return &OnSaleConfirmed{repo: repo, products: products}
+func NewOnSaleConfirmed(repo domain.Repository, products productdomain.Repository, warehouses companydomain.WarehouseRepository) *OnSaleConfirmed {
+	return &OnSaleConfirmed{repo: repo, products: products, warehouses: warehouses}
 }
 
 func (h *OnSaleConfirmed) Register(bus *events.Bus) {
@@ -36,6 +38,10 @@ func (h *OnSaleConfirmed) Register(bus *events.Bus) {
 }
 
 func (h *OnSaleConfirmed) handle(ctx context.Context, ev salesdomain.SaleConfirmed) error {
+	warehouse, err := h.warehouses.GetOrCreateDefault(ctx, ev.CompanyID)
+	if err != nil {
+		return err
+	}
 	for _, line := range ev.Lines {
 		if p, err := h.products.GetByID(ctx, ev.CompanyID, line.ProductID); err == nil && p.IsService {
 			continue // los servicios no llevan inventario — nunca deben generar un movimiento
@@ -43,7 +49,7 @@ func (h *OnSaleConfirmed) handle(ctx context.Context, ev salesdomain.SaleConfirm
 		m := domain.Movement{
 			CompanyID:   ev.CompanyID,
 			ProductID:   line.ProductID,
-			Warehouse:   "principal",
+			WarehouseID: warehouse.ID,
 			Type:        domain.MovementExit,
 			Quantity:    line.Quantity,
 			Reference:   ev.SaleID.String(),

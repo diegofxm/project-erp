@@ -53,6 +53,14 @@ const SUB_NAVS: SubNavConfig[] = [
     ],
   },
   {
+    prefix: "/inventory",
+    items: [
+      { to: "/inventory", label: "Existencias", end: true },
+      { to: "/inventory/movements", label: "Movimientos" },
+      { to: "/inventory/warehouses", label: "Bodegas" },
+    ],
+  },
+  {
     prefix: "/settings",
     items: [
       { to: "/settings/general",  label: "General" },

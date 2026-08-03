@@ -62,10 +62,11 @@ func rangeLabel(r domain.RangeInfo) string {
 type ListSystemAlertsUseCase struct {
 	company   domain.CompanyPort
 	numbering domain.NumberingPort
+	stock     domain.StockPort
 }
 
-func NewListSystemAlertsUseCase(company domain.CompanyPort, numbering domain.NumberingPort) *ListSystemAlertsUseCase {
-	return &ListSystemAlertsUseCase{company: company, numbering: numbering}
+func NewListSystemAlertsUseCase(company domain.CompanyPort, numbering domain.NumberingPort, stock domain.StockPort) *ListSystemAlertsUseCase {
+	return &ListSystemAlertsUseCase{company: company, numbering: numbering, stock: stock}
 }
 
 func (uc *ListSystemAlertsUseCase) Execute(ctx context.Context, companyID uuid.UUID) ([]domain.Alert, error) {
@@ -133,6 +134,20 @@ func (uc *ListSystemAlertsUseCase) Execute(ctx context.Context, companyID uuid.U
 				LinkTo:   "/settings/company",
 			})
 		}
+	}
+
+	lowStock, err := uc.stock.ListLowStock(ctx, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("consultar stock bajo: %w", err)
+	}
+	for _, s := range lowStock {
+		out = append(out, domain.Alert{
+			ID:       fmt.Sprintf("low_stock:%s:%s", s.ProductID, s.WarehouseID),
+			Severity: domain.SeverityWarning,
+			Title:    fmt.Sprintf("%s con stock bajo", s.ProductName),
+			Message:  fmt.Sprintf("Quedan %.2f unidades en %s (mínimo configurado: %.2f).", s.Quantity, s.WarehouseName, s.MinStock),
+			LinkTo:   "/inventory",
+		})
 	}
 
 	return out, nil

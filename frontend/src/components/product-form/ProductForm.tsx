@@ -35,6 +35,7 @@ function defaultPayload(): ProductPayload {
     tax_scheme_name: "No aplica",
     tax_rate: 0,
     base_price: 0,
+    min_stock: 0,
   };
 }
 
@@ -53,6 +54,7 @@ function fromProduct(p: Product): ProductPayload {
     tax_scheme_name: p.tax_scheme_name,
     tax_rate: p.tax_rate,
     base_price: p.base_price,
+    min_stock: p.min_stock,
   };
 }
 
@@ -156,6 +158,20 @@ export function ProductForm({ initial, onSubmit, onCancel, loading }: ProductFor
             <span>Es servicio</span>
           </label>
         </div>
+
+        {!form.is_service && (
+          <div className="col-span-12 sm:col-span-4">
+            <Input
+              label="Stock mínimo (opcional)"
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.min_stock || ""}
+              onChange={(e) => set("min_stock", Number(e.target.value) || 0)}
+              placeholder="Vacío = sin aviso de stock bajo"
+            />
+          </div>
+        )}
 
         {/* Estándar de clasificación DIAN */}
         <div className="col-span-12 sm:col-span-5">

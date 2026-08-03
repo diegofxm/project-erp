@@ -35,6 +35,7 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, companyID, id uuid.UUID, r
 	existing.TaxSchemeName = req.TaxSchemeName
 	existing.TaxRate = req.TaxRate
 	existing.BasePrice = req.BasePrice
+	existing.MinStock = req.MinStock
 
 	return uc.repo.Update(ctx, *existing)
 }

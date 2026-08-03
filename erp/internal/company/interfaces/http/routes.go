@@ -24,4 +24,5 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/companies/active/warehouses/{id}", h.handleGetWarehouse)
 	mux.HandleFunc("PUT /api/v1/companies/active/warehouses/{id}", h.handleUpdateWarehouse)
 	mux.HandleFunc("DELETE /api/v1/companies/active/warehouses/{id}", h.handleDeactivateWarehouse)
+	mux.HandleFunc("PUT /api/v1/companies/active/warehouses/{id}/default", h.handleSetDefaultWarehouse)
 }

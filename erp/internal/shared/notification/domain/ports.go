@@ -36,3 +36,20 @@ type RangeInfo struct {
 type NumberingPort interface {
 	ListByCompany(ctx context.Context, companyID uuid.UUID) ([]RangeInfo, error)
 }
+
+// StockInfo es la vista de un producto por debajo de su punto de reorden en una bodega
+// puntual — inventory.StockEntry.Quantity y product.Product.MinStock ya vienen resueltos,
+// notification solo decide si avisar.
+type StockInfo struct {
+	ProductID     uuid.UUID
+	ProductName   string
+	WarehouseID   uuid.UUID
+	WarehouseName string
+	Quantity      float64
+	MinStock      float64
+}
+
+// StockPort lee los productos cuyo stock actual está por debajo de su mínimo configurado.
+type StockPort interface {
+	ListLowStock(ctx context.Context, companyID uuid.UUID) ([]StockInfo, error)
+}

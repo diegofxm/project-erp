@@ -39,7 +39,7 @@ func TestSchema_CompanyTables(t *testing.T) {
 			certificate_subject, certificate_issuer_cn, certificate_expires_at,
 			ne_software_id, ne_software_pin_enc,
 			logo, logo_content_type, is_active, created_at, updated_at`},
-		{"company.warehouses", "id, company_id, code, name, address, is_active, created_at, updated_at"},
+		{"company.warehouses", "id, company_id, code, name, address, is_active, is_default, created_at, updated_at"},
 	}
 	for _, tt := range tables {
 		t.Run(tt.name, func(t *testing.T) {

@@ -32,9 +32,9 @@ func (r *WarehouseRepository) Save(ctx context.Context, w domain.Warehouse) (*do
 	w.CreatedAt = now
 	w.UpdatedAt = now
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO company.warehouses (id, company_id, code, name, address, is_active, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-		w.ID, w.CompanyID, w.Code, w.Name, w.Address, w.IsActive, w.CreatedAt, w.UpdatedAt,
+		INSERT INTO company.warehouses (id, company_id, code, name, address, is_active, is_default, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		w.ID, w.CompanyID, w.Code, w.Name, w.Address, w.IsActive, w.IsDefault, w.CreatedAt, w.UpdatedAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -48,10 +48,10 @@ func (r *WarehouseRepository) Save(ctx context.Context, w domain.Warehouse) (*do
 func (r *WarehouseRepository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*domain.Warehouse, error) {
 	var w domain.Warehouse
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, company_id, code, name, address, is_active, created_at, updated_at
+		SELECT id, company_id, code, name, address, is_active, is_default, created_at, updated_at
 		FROM company.warehouses WHERE id=$1 AND company_id=$2`,
 		id, companyID,
-	).Scan(&w.ID, &w.CompanyID, &w.Code, &w.Name, &w.Address, &w.IsActive, &w.CreatedAt, &w.UpdatedAt)
+	).Scan(&w.ID, &w.CompanyID, &w.Code, &w.Name, &w.Address, &w.IsActive, &w.IsDefault, &w.CreatedAt, &w.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrWarehouseNotFound
 	}
@@ -63,7 +63,7 @@ func (r *WarehouseRepository) GetByID(ctx context.Context, companyID, id uuid.UU
 
 func (r *WarehouseRepository) List(ctx context.Context, companyID uuid.UUID) ([]domain.Warehouse, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, company_id, code, name, address, is_active, created_at, updated_at
+		SELECT id, company_id, code, name, address, is_active, is_default, created_at, updated_at
 		FROM company.warehouses WHERE company_id=$1 ORDER BY code`,
 		companyID,
 	)
@@ -75,7 +75,7 @@ func (r *WarehouseRepository) List(ctx context.Context, companyID uuid.UUID) ([]
 	var out []domain.Warehouse
 	for rows.Next() {
 		var w domain.Warehouse
-		if err := rows.Scan(&w.ID, &w.CompanyID, &w.Code, &w.Name, &w.Address, &w.IsActive, &w.CreatedAt, &w.UpdatedAt); err != nil {
+		if err := rows.Scan(&w.ID, &w.CompanyID, &w.Code, &w.Name, &w.Address, &w.IsActive, &w.IsDefault, &w.CreatedAt, &w.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("leer bodega: %w", err)
 		}
 		out = append(out, w)
@@ -96,7 +96,7 @@ func (r *WarehouseRepository) Update(ctx context.Context, w domain.Warehouse) (*
 		}
 		return nil, fmt.Errorf("actualizar bodega: %w", err)
 	}
-	return &w, nil
+	return r.GetByID(ctx, w.CompanyID, w.ID)
 }
 
 func (r *WarehouseRepository) Deactivate(ctx context.Context, companyID, id uuid.UUID) error {
@@ -105,4 +105,77 @@ func (r *WarehouseRepository) Deactivate(ctx context.Context, companyID, id uuid
 		id, companyID,
 	)
 	return err
+}
+
+// SetDefault marca `id` como bodega por defecto y desmarca cualquier otra de la empresa, en una
+// sola transacción (el índice único parcial `idx_warehouses_one_default_per_company` reventaría
+// si se hiciera en dos pasos sueltos y algo fallara entre medio).
+func (r *WarehouseRepository) SetDefault(ctx context.Context, companyID, id uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("iniciar transacción: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err := tx.Exec(ctx,
+		"UPDATE company.warehouses SET is_default=FALSE, updated_at=NOW() WHERE company_id=$1 AND is_default",
+		companyID,
+	); err != nil {
+		return fmt.Errorf("desmarcar bodega por defecto anterior: %w", err)
+	}
+	tag, err := tx.Exec(ctx,
+		"UPDATE company.warehouses SET is_default=TRUE, updated_at=NOW() WHERE id=$1 AND company_id=$2",
+		id, companyID,
+	)
+	if err != nil {
+		return fmt.Errorf("marcar bodega por defecto: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrWarehouseNotFound
+	}
+	return tx.Commit(ctx)
+}
+
+// GetOrCreateDefault ver comentario en domain.WarehouseRepository.
+func (r *WarehouseRepository) GetOrCreateDefault(ctx context.Context, companyID uuid.UUID) (*domain.Warehouse, error) {
+	var w domain.Warehouse
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, company_id, code, name, address, is_active, is_default, created_at, updated_at
+		FROM company.warehouses WHERE company_id=$1 AND is_default LIMIT 1`,
+		companyID,
+	).Scan(&w.ID, &w.CompanyID, &w.Code, &w.Name, &w.Address, &w.IsActive, &w.IsDefault, &w.CreatedAt, &w.UpdatedAt)
+	if err == nil {
+		return &w, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("obtener bodega por defecto: %w", err)
+	}
+
+	// Ninguna marcada como default — promover la primera activa si existe alguna.
+	err = r.pool.QueryRow(ctx, `
+		SELECT id, company_id, code, name, address, is_active, is_default, created_at, updated_at
+		FROM company.warehouses WHERE company_id=$1 AND is_active ORDER BY created_at LIMIT 1`,
+		companyID,
+	).Scan(&w.ID, &w.CompanyID, &w.Code, &w.Name, &w.Address, &w.IsActive, &w.IsDefault, &w.CreatedAt, &w.UpdatedAt)
+	if err == nil {
+		if err := r.SetDefault(ctx, companyID, w.ID); err != nil {
+			return nil, fmt.Errorf("promover bodega existente a default: %w", err)
+		}
+		w.IsDefault = true
+		return &w, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("buscar bodega activa: %w", err)
+	}
+
+	// La empresa no tiene ninguna bodega todavía — crear "Principal" automáticamente.
+	created, err := r.Save(ctx, domain.Warehouse{
+		ID: uuid.New(), CompanyID: companyID,
+		Code: "PRINCIPAL", Name: "Principal",
+		IsActive: true, IsDefault: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("crear bodega principal: %w", err)
+	}
+	return created, nil
 }

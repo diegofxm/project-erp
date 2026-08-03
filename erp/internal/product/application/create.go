@@ -30,6 +30,7 @@ type SaveRequest struct {
 	TaxSchemeName         string  `json:"tax_scheme_name"`
 	TaxRate               float64 `json:"tax_rate"`
 	BasePrice             float64 `json:"base_price"`
+	MinStock              float64 `json:"min_stock"`
 }
 
 func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req SaveRequest) (*domain.Product, error) {
@@ -54,6 +55,7 @@ func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req S
 		TaxSchemeName:        req.TaxSchemeName,
 		TaxRate:              req.TaxRate,
 		BasePrice:            req.BasePrice,
+		MinStock:             req.MinStock,
 		IsActive:             true,
 	}
 

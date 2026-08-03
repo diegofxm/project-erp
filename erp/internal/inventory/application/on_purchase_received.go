@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	companydomain "github.com/diegofxm/erp/internal/company/domain"
 	"github.com/diegofxm/erp/internal/inventory/domain"
 	productdomain "github.com/diegofxm/erp/internal/product/domain"
 	purchasedomain "github.com/diegofxm/erp/internal/purchase/domain"
@@ -15,12 +16,13 @@ import (
 // OnSaleConfirmed (antes generaban entradas de stock sin sentido para "productos" que en
 // realidad son servicios).
 type OnPurchaseReceived struct {
-	repo     domain.Repository
-	products productdomain.Repository
+	repo       domain.Repository
+	products   productdomain.Repository
+	warehouses companydomain.WarehouseRepository
 }
 
-func NewOnPurchaseReceived(repo domain.Repository, products productdomain.Repository) *OnPurchaseReceived {
-	return &OnPurchaseReceived{repo: repo, products: products}
+func NewOnPurchaseReceived(repo domain.Repository, products productdomain.Repository, warehouses companydomain.WarehouseRepository) *OnPurchaseReceived {
+	return &OnPurchaseReceived{repo: repo, products: products, warehouses: warehouses}
 }
 
 func (h *OnPurchaseReceived) Register(bus *events.Bus) {
@@ -37,6 +39,10 @@ func (h *OnPurchaseReceived) Register(bus *events.Bus) {
 }
 
 func (h *OnPurchaseReceived) handle(ctx context.Context, ev purchasedomain.PurchaseReceived) error {
+	warehouse, err := h.warehouses.GetOrCreateDefault(ctx, ev.CompanyID)
+	if err != nil {
+		return err
+	}
 	for _, line := range ev.Lines {
 		if p, err := h.products.GetByID(ctx, ev.CompanyID, line.ProductID); err == nil && p.IsService {
 			continue
@@ -44,7 +50,7 @@ func (h *OnPurchaseReceived) handle(ctx context.Context, ev purchasedomain.Purch
 		m := domain.Movement{
 			CompanyID:   ev.CompanyID,
 			ProductID:   line.ProductID,
-			Warehouse:   "principal",
+			WarehouseID: warehouse.ID,
 			Type:        domain.MovementEntry,
 			Quantity:    line.Quantity,
 			Reference:   ev.PurchaseID.String(),

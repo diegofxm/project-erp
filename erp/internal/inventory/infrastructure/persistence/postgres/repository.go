@@ -21,14 +21,14 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool}
 }
 
-func (r *Repository) GetStock(ctx context.Context, companyID, productID uuid.UUID, warehouse string) (*domain.StockEntry, error) {
+func (r *Repository) GetStock(ctx context.Context, companyID, productID, warehouseID uuid.UUID) (*domain.StockEntry, error) {
 	var e domain.StockEntry
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, company_id, product_id, warehouse, quantity, updated_at
+		`SELECT id, company_id, product_id, warehouse_id, quantity, updated_at
 		 FROM inventory.stock
-		 WHERE company_id=$1 AND product_id=$2 AND warehouse=$3`,
-		companyID, productID, warehouse,
-	).Scan(&e.ID, &e.CompanyID, &e.ProductID, &e.Warehouse, &e.Quantity, &e.UpdatedAt)
+		 WHERE company_id=$1 AND product_id=$2 AND warehouse_id=$3`,
+		companyID, productID, warehouseID,
+	).Scan(&e.ID, &e.CompanyID, &e.ProductID, &e.WarehouseID, &e.Quantity, &e.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrStockNotFound
 	}
@@ -40,9 +40,9 @@ func (r *Repository) GetStock(ctx context.Context, companyID, productID uuid.UUI
 
 func (r *Repository) ListStock(ctx context.Context, companyID uuid.UUID) ([]domain.StockEntry, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, company_id, product_id, warehouse, quantity, updated_at
+		`SELECT id, company_id, product_id, warehouse_id, quantity, updated_at
 		 FROM inventory.stock
-		 WHERE company_id=$1 ORDER BY warehouse, product_id`,
+		 WHERE company_id=$1 ORDER BY warehouse_id, product_id`,
 		companyID,
 	)
 	if err != nil {
@@ -53,7 +53,7 @@ func (r *Repository) ListStock(ctx context.Context, companyID uuid.UUID) ([]doma
 	var out []domain.StockEntry
 	for rows.Next() {
 		var e domain.StockEntry
-		if err := rows.Scan(&e.ID, &e.CompanyID, &e.ProductID, &e.Warehouse, &e.Quantity, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.CompanyID, &e.ProductID, &e.WarehouseID, &e.Quantity, &e.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("leer stock: %w", err)
 		}
 		out = append(out, e)
@@ -64,11 +64,11 @@ func (r *Repository) ListStock(ctx context.Context, companyID uuid.UUID) ([]doma
 func (r *Repository) UpsertStock(ctx context.Context, e domain.StockEntry) error {
 	e.UpdatedAt = time.Now()
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO inventory.stock (id, company_id, product_id, warehouse, quantity, updated_at)
+		`INSERT INTO inventory.stock (id, company_id, product_id, warehouse_id, quantity, updated_at)
 		 VALUES ($1,$2,$3,$4,$5,$6)
-		 ON CONFLICT (company_id, product_id, warehouse)
+		 ON CONFLICT (company_id, product_id, warehouse_id)
 		 DO UPDATE SET quantity=$5, updated_at=$6`,
-		e.ID, e.CompanyID, e.ProductID, e.Warehouse, e.Quantity, e.UpdatedAt,
+		e.ID, e.CompanyID, e.ProductID, e.WarehouseID, e.Quantity, e.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("actualizar stock: %w", err)
@@ -80,10 +80,10 @@ func (r *Repository) SaveMovement(ctx context.Context, m domain.Movement) (*doma
 	m.CreatedAt = time.Now()
 	_, err := r.pool.Exec(ctx,
 		`INSERT INTO inventory.movements
-		 (id, company_id, product_id, warehouse, type, quantity, reference, description, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-		m.ID, m.CompanyID, m.ProductID, m.Warehouse, string(m.Type),
-		m.Quantity, m.Reference, m.Description, m.CreatedAt,
+		 (id, company_id, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		m.ID, m.CompanyID, m.ProductID, m.WarehouseID, string(m.Type),
+		m.Quantity, m.Reference, m.Description, m.CreatedAt, m.TransferGroupID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("guardar movimiento: %w", err)
@@ -96,14 +96,14 @@ func (r *Repository) ListMovements(ctx context.Context, companyID uuid.UUID, pro
 	var err error
 	if productID != nil {
 		rows, err = r.pool.Query(ctx,
-			`SELECT id, company_id, product_id, warehouse, type, quantity, reference, description, created_at
+			`SELECT id, company_id, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id
 			 FROM inventory.movements
 			 WHERE company_id=$1 AND product_id=$2 ORDER BY created_at DESC`,
 			companyID, *productID,
 		)
 	} else {
 		rows, err = r.pool.Query(ctx,
-			`SELECT id, company_id, product_id, warehouse, type, quantity, reference, description, created_at
+			`SELECT id, company_id, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id
 			 FROM inventory.movements
 			 WHERE company_id=$1 ORDER BY created_at DESC`,
 			companyID,
@@ -119,8 +119,8 @@ func (r *Repository) ListMovements(ctx context.Context, companyID uuid.UUID, pro
 		var m domain.Movement
 		var mType string
 		if err := rows.Scan(
-			&m.ID, &m.CompanyID, &m.ProductID, &m.Warehouse,
-			&mType, &m.Quantity, &m.Reference, &m.Description, &m.CreatedAt,
+			&m.ID, &m.CompanyID, &m.ProductID, &m.WarehouseID,
+			&mType, &m.Quantity, &m.Reference, &m.Description, &m.CreatedAt, &m.TransferGroupID,
 		); err != nil {
 			return nil, fmt.Errorf("leer movimiento: %w", err)
 		}
@@ -128,4 +128,82 @@ func (r *Repository) ListMovements(ctx context.Context, companyID uuid.UUID, pro
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+// Transfer traslada `quantity` de `fromWarehouseID` a `toWarehouseID` en una sola transacción:
+// valida stock suficiente en origen, genera los dos movimientos enlazados por un
+// TransferGroupID compartido, y actualiza ambos saldos de stock.
+func (r *Repository) Transfer(ctx context.Context, companyID, productID, fromWarehouseID, toWarehouseID uuid.UUID, quantity float64, reference, description string) (*domain.Movement, *domain.Movement, error) {
+	if quantity <= 0 {
+		return nil, nil, fmt.Errorf("la cantidad a trasladar debe ser mayor a cero")
+	}
+	if fromWarehouseID == toWarehouseID {
+		return nil, nil, fmt.Errorf("la bodega de origen y destino no pueden ser la misma")
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("iniciar transacción: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var fromQty float64
+	err = tx.QueryRow(ctx,
+		`SELECT quantity FROM inventory.stock WHERE company_id=$1 AND product_id=$2 AND warehouse_id=$3 FOR UPDATE`,
+		companyID, productID, fromWarehouseID,
+	).Scan(&fromQty)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil, fmt.Errorf("consultar stock de origen: %w", err)
+	}
+	if fromQty < quantity {
+		return nil, nil, domain.ErrInsufficientStock
+	}
+
+	groupID := uuid.New()
+	now := time.Now()
+
+	fromMovement := domain.Movement{
+		ID: uuid.New(), CompanyID: companyID, ProductID: productID, WarehouseID: fromWarehouseID,
+		Type: domain.MovementTransfer, Quantity: quantity, Reference: reference, Description: description,
+		TransferGroupID: &groupID, CreatedAt: now,
+	}
+	toMovement := domain.Movement{
+		ID: uuid.New(), CompanyID: companyID, ProductID: productID, WarehouseID: toWarehouseID,
+		Type: domain.MovementTransfer, Quantity: quantity, Reference: reference, Description: description,
+		TransferGroupID: &groupID, CreatedAt: now,
+	}
+
+	for _, m := range []domain.Movement{fromMovement, toMovement} {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO inventory.movements
+			 (id, company_id, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			m.ID, m.CompanyID, m.ProductID, m.WarehouseID, string(m.Type),
+			m.Quantity, m.Reference, m.Description, m.CreatedAt, m.TransferGroupID,
+		); err != nil {
+			return nil, nil, fmt.Errorf("guardar movimiento de traslado: %w", err)
+		}
+	}
+
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO inventory.stock (id, company_id, product_id, warehouse_id, quantity, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6)
+		 ON CONFLICT (company_id, product_id, warehouse_id) DO UPDATE SET quantity = inventory.stock.quantity - $5, updated_at=$6`,
+		uuid.New(), companyID, productID, fromWarehouseID, quantity, now,
+	); err != nil {
+		return nil, nil, fmt.Errorf("descontar stock de origen: %w", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO inventory.stock (id, company_id, product_id, warehouse_id, quantity, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6)
+		 ON CONFLICT (company_id, product_id, warehouse_id) DO UPDATE SET quantity = inventory.stock.quantity + $5, updated_at=$6`,
+		uuid.New(), companyID, productID, toWarehouseID, quantity, now,
+	); err != nil {
+		return nil, nil, fmt.Errorf("acreditar stock de destino: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, nil, fmt.Errorf("commit: %w", err)
+	}
+	return &fromMovement, &toMovement, nil
 }

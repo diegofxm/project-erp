@@ -65,6 +65,7 @@ import (
 	notificationsmtp "github.com/diegofxm/erp/internal/shared/notification/infrastructure/email/smtp"
 	notificationcompany "github.com/diegofxm/erp/internal/shared/notification/infrastructure/company"
 	notificationnumbering "github.com/diegofxm/erp/internal/shared/notification/infrastructure/numbering"
+	notificationstock "github.com/diegofxm/erp/internal/shared/notification/infrastructure/stock"
 	notificationhttp "github.com/diegofxm/erp/internal/shared/notification/interfaces/http"
 	reportsdomain "github.com/diegofxm/erp/internal/shared/reports/domain"
 	htmlreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/html"
@@ -184,7 +185,7 @@ func main() {
 	// ── Casos de uso — sales ────────────────────────────────────────────────────
 	createSaleUC := salesapp.NewCreateUseCase(salesRepo)
 	getSaleUC := salesapp.NewGetUseCase(salesRepo)
-	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus, productRepo, inventoryRepo, customerRepo, paymentRepo)
+	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus, productRepo, inventoryRepo, customerRepo, paymentRepo, warehouseRepo)
 	cancelSaleUC := salesapp.NewCancelUseCase(salesRepo)
 	quoteUC := salesapp.NewQuoteUseCase(quoteRepo, salesRepo)
 	paymentUC := salesapp.NewPaymentUseCase(paymentRepo, salesRepo)
@@ -196,11 +197,11 @@ func main() {
 	managePeriodUC := accountingapp.NewManagePeriodUseCase(accountingPeriodRepo)
 	onSaleConfirmed := accountingapp.NewOnSaleConfirmed(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onSaleConfirmed.Register(bus)
-	inventoryOnSaleConfirmed := inventoryapp.NewOnSaleConfirmed(inventoryRepo, productRepo)
+	inventoryOnSaleConfirmed := inventoryapp.NewOnSaleConfirmed(inventoryRepo, productRepo, warehouseRepo)
 	inventoryOnSaleConfirmed.Register(bus)
 	onPurchaseReceived := accountingapp.NewOnPurchaseReceived(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onPurchaseReceived.Register(bus)
-	inventoryOnPurchaseReceived := inventoryapp.NewOnPurchaseReceived(inventoryRepo, productRepo)
+	inventoryOnPurchaseReceived := inventoryapp.NewOnPurchaseReceived(inventoryRepo, productRepo, warehouseRepo)
 	inventoryOnPurchaseReceived.Register(bus)
 	onPayrollGenerated := accountingapp.NewOnPayrollGenerated(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onPayrollGenerated.Register(bus)
@@ -211,7 +212,8 @@ func main() {
 	// ── Notificaciones de sistema (certificado/rangos por vencer) ───────────────
 	notificationCompanyPort := notificationcompany.New(companyRepo)
 	notificationNumberingPort := notificationnumbering.New(electronicNumRepo)
-	notificationAlertsUC := notificationapp.NewListSystemAlertsUseCase(notificationCompanyPort, notificationNumberingPort)
+	notificationStockPort := notificationstock.New(inventoryRepo, productRepo, warehouseRepo)
+	notificationAlertsUC := notificationapp.NewListSystemAlertsUseCase(notificationCompanyPort, notificationNumberingPort, notificationStockPort)
 
 	// ── Casos de uso — electronic ───────────────────────────────────────────────
 	electronicCreateDraftUC := electronicapp.NewCreateDraftUseCase(electronicDocRepo, electronicNumRepo, electronicCompanyPort, catalogRepo)

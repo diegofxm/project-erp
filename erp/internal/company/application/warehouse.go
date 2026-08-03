@@ -27,6 +27,14 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, companyID uuid.UUID, req
 	if req.Code == "" || req.Name == "" {
 		return nil, fmt.Errorf("código y nombre son requeridos")
 	}
+	// La primera bodega de la empresa nace como default automáticamente — sin esto, una
+	// empresa que crea su primera bodega manualmente seguiría usando la "Principal" implícita
+	// hasta que alguien marcara una a mano.
+	existing, err := uc.repo.List(ctx, companyID)
+	if err != nil {
+		return nil, err
+	}
+	isFirst := len(existing) == 0
 	w := domain.Warehouse{
 		ID:        uuid.New(),
 		CompanyID: companyID,
@@ -34,8 +42,15 @@ func (uc *WarehouseUseCase) Create(ctx context.Context, companyID uuid.UUID, req
 		Name:      req.Name,
 		Address:   req.Address,
 		IsActive:  true,
+		IsDefault: isFirst,
 	}
 	return uc.repo.Save(ctx, w)
+}
+
+// SetDefault marca una bodega como la que usan las ventas/compras cuando el documento no elige
+// una explícitamente.
+func (uc *WarehouseUseCase) SetDefault(ctx context.Context, companyID, id uuid.UUID) error {
+	return uc.repo.SetDefault(ctx, companyID, id)
 }
 
 func (uc *WarehouseUseCase) List(ctx context.Context, companyID uuid.UUID) ([]domain.Warehouse, error) {

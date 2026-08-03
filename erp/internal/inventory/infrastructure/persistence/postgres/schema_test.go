@@ -30,8 +30,8 @@ func TestSchema_InventoryTables(t *testing.T) {
 		name string
 		cols string
 	}{
-		{"inventory.stock", "id, company_id, product_id, warehouse, quantity, updated_at"},
-		{"inventory.movements", "id, company_id, product_id, warehouse, type, quantity, reference, description, created_at"},
+		{"inventory.stock", "id, company_id, product_id, warehouse_id, quantity, updated_at"},
+		{"inventory.movements", "id, company_id, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id"},
 	}
 	for _, tt := range tables {
 		t.Run(tt.name, func(t *testing.T) {

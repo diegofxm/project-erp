@@ -36,6 +36,11 @@ type Product struct {
 	// Precio base
 	BasePrice float64 `json:"base_price"`
 
+	// MinStock — punto de reorden ("stock mínimo" en SIESA / "reordering rule" en Odoo). 0 =
+	// sin umbral configurado, no se resalta como bajo. Solo aplica a productos físicos
+	// (IsService=false lo ignora en la práctica, pero no se valida acá).
+	MinStock float64 `json:"min_stock"`
+
 	IsActive  bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
