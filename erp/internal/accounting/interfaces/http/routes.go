@@ -56,6 +56,15 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/accounting/journals/{id}", h.handleGetJournal)
 	mux.HandleFunc("POST /api/v1/accounting/journals/{id}/void", h.handleVoidJournal)
 
+	// Tasas de cambio (TRM)
+	mux.HandleFunc("POST /api/v1/accounting/exchange-rates", h.handleSetExchangeRate)
+	mux.HandleFunc("GET /api/v1/accounting/exchange-rates", h.handleListExchangeRates)
+
+	// Conciliación de cuentas (cruce de partidas, distinto de la conciliación bancaria)
+	mux.HandleFunc("GET /api/v1/accounting/reconciliation/open-lines", h.handleListOpenLines)
+	mux.HandleFunc("POST /api/v1/accounting/reconciliation", h.handleMarkReconciled)
+	mux.HandleFunc("DELETE /api/v1/accounting/reconciliation/{line_id}", h.handleUnmarkReconciled)
+
 	// Reportes financieros
 	mux.HandleFunc("GET /api/v1/accounting/reports/pl", h.handlePLReport)
 	mux.HandleFunc("GET /api/v1/accounting/reports/bs", h.handleBSReport)

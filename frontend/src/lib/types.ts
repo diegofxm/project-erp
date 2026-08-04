@@ -1280,3 +1280,25 @@ export interface ICADeclaration {
   carry_forward: number;
   status: DeclarationStatus;
 }
+
+// ExchangeRate — TRM diaria, no está ligada a la empresa (dato de mercado).
+export interface ExchangeRate {
+  rate_date: string;
+  from_currency: string;
+  to_currency: string;
+  rate: number;
+  source: string;
+}
+
+// OpenLine — línea de asiento sin conciliar de una cuenta, candidata a cruzarse contra otra
+// (conciliación de cuentas / cruce de partidas, distinto de la conciliación bancaria).
+export interface OpenLine {
+  line_id: string;
+  journal_id: string;
+  date: string;
+  description: string;
+  voucher_number: string;
+  third_party_nit: string;
+  debit_cents: number;
+  credit_cents: number;
+}

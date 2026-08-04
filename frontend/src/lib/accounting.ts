@@ -15,6 +15,8 @@ import type {
   IVADeclaration,
   JournalEntry,
   LedgerLine,
+  ExchangeRate,
+  OpenLine,
   PostJournalPayload,
   ReconciliationCandidate,
   StatementLine,
@@ -241,4 +243,38 @@ export function listICA(): Promise<ICADeclaration[]> {
 
 export function fileICA(id: string): Promise<{ status: string }> {
   return apiClient.post<{ status: string }>(`/accounting/declarations/ica/${id}/file`);
+}
+
+// ── Tasas de cambio (TRM) ──────────────────────────────────────────────────────
+
+export interface SetExchangeRatePayload {
+  rate_date: string;
+  from_currency: string;
+  to_currency?: string;
+  rate: number;
+  source?: string;
+}
+
+export function setExchangeRate(payload: SetExchangeRatePayload): Promise<ExchangeRate> {
+  return apiClient.post<ExchangeRate>("/accounting/exchange-rates", payload);
+}
+
+export function listExchangeRates(from: string, to: string): Promise<ExchangeRate[]> {
+  return apiClient.get<ExchangeRate[]>(`/accounting/exchange-rates?from=${from}&to=${to}`);
+}
+
+// ── Conciliación de cuentas (cruce de partidas) ─────────────────────────────────
+
+export function listOpenLines(accountCode: string): Promise<OpenLine[]> {
+  return apiClient.get<OpenLine[]>(`/accounting/reconciliation/open-lines?account_code=${accountCode}`);
+}
+
+export function markReconciled(journalLineId: string, reconciledWith: string | null, note: string): Promise<void> {
+  return apiClient.post<void>("/accounting/reconciliation", {
+    journal_line_id: journalLineId, reconciled_with: reconciledWith, note,
+  });
+}
+
+export function unmarkReconciled(journalLineId: string): Promise<void> {
+  return apiClient.del<void>(`/accounting/reconciliation/${journalLineId}`);
 }

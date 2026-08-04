@@ -165,6 +165,8 @@ func main() {
 	accountingICATariffRepo := accountingpostgres.NewICATariffRepository(pool)
 	accountingICARepo := accountingpostgres.NewICADeclarationRepository(pool)
 	accountingPeriodRepo := accountingpostgres.NewPeriodRepository(pool)
+	accountingExchangeRateRepo := accountingpostgres.NewExchangeRateRepository(pool)
+	accountingReconciliationRepo := accountingpostgres.NewReconciliationRepository(pool)
 	accountingJournalRepo := accountingpostgres.NewJournalRepository(pool)
 
 	// ── Repositorios — electronic ───────────────────────────────────────────────
@@ -204,6 +206,8 @@ func main() {
 	ivaUC := accountingapp.NewIVAUseCase(accountingIVARepo, accountingJournalRepo, accountingAccountRepo)
 	incomeTaxUC := accountingapp.NewIncomeTaxUseCase(accountingIncomeTaxRepo, accountingJournalRepo)
 	icaUC := accountingapp.NewICAUseCase(accountingICARepo, accountingICATariffRepo, accountingJournalRepo)
+	exchangeRateUC := accountingapp.NewExchangeRateUseCase(accountingExchangeRateRepo)
+	reconciliationUC := accountingapp.NewReconciliationUseCase(accountingReconciliationRepo)
 
 	// ── Casos de uso — sales ────────────────────────────────────────────────────
 	createSaleUC := salesapp.NewCreateUseCase(salesRepo)
@@ -356,7 +360,7 @@ func main() {
 	inventoryhttp.NewHandler(moveInventoryUC, getInventoryUC, auditUC).RegisterRoutes(mux)
 	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC, deletePurchaseUC, purchasePaymentUC, purchasePDFUC, sendPurchaseEmailUC, purchaseWithholdingUC, auditUC).RegisterRoutes(mux)
 	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC, quotePDFUC, sendQuoteEmailUC, auditUC).RegisterRoutes(mux)
-	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo, accountingWithholdingRepo, issueCertificatesUC, manageBankUC, fixedAssetUC, runDepreciationUC, budgetUC, ivaUC, incomeTaxUC, icaUC, auditUC).RegisterRoutes(mux)
+	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo, accountingWithholdingRepo, issueCertificatesUC, manageBankUC, fixedAssetUC, runDepreciationUC, budgetUC, ivaUC, incomeTaxUC, icaUC, exchangeRateUC, reconciliationUC, auditUC).RegisterRoutes(mux)
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, fromPurchaseUC, electronicDianRangesUC, electronicSendEmailUC, auditUC).RegisterRoutes(mux)
 	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)

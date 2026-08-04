@@ -36,6 +36,8 @@ type Handler struct {
 	iva          *application.IVAUseCase
 	incomeTax    *application.IncomeTaxUseCase
 	ica          *application.ICAUseCase
+	exchangeRate *application.ExchangeRateUseCase
+	reconcile    *application.ReconciliationUseCase
 	audit        AuditLogger
 }
 
@@ -54,12 +56,14 @@ func NewHandler(
 	iva *application.IVAUseCase,
 	incomeTax *application.IncomeTaxUseCase,
 	ica *application.ICAUseCase,
+	exchangeRate *application.ExchangeRateUseCase,
+	reconcile *application.ReconciliationUseCase,
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
 		post: post, get: get, void: void, period: period, accounts: accounts, withholding: withholding,
 		certificates: certificates, bank: bank, assets: assets, depreciation: depreciation, budget: budget,
-		iva: iva, incomeTax: incomeTax, ica: ica, audit: audit,
+		iva: iva, incomeTax: incomeTax, ica: ica, exchangeRate: exchangeRate, reconcile: reconcile, audit: audit,
 	}
 }
 
@@ -1084,6 +1088,159 @@ func parseDateRange(w http.ResponseWriter, r *http.Request) (time.Time, time.Tim
 		return time.Time{}, time.Time{}, false
 	}
 	return from, to, true
+}
+
+// ── Tasas de cambio (TRM) ────────────────────────────────────────────────────
+// No están ligadas a la empresa (es un dato de mercado) — solo exige sesión autenticada.
+
+type exchangeRateDTO struct {
+	RateDate     string  `json:"rate_date"`
+	FromCurrency string  `json:"from_currency"`
+	ToCurrency   string  `json:"to_currency"`
+	Rate         float64 `json:"rate"`
+	Source       string  `json:"source"`
+}
+
+func toExchangeRateDTO(e domain.ExchangeRate) exchangeRateDTO {
+	return exchangeRateDTO{
+		RateDate: e.RateDate.Format("2006-01-02"), FromCurrency: e.FromCurrency,
+		ToCurrency: e.ToCurrency, Rate: e.Rate(), Source: e.Source,
+	}
+}
+
+func (h *Handler) handleSetExchangeRate(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireTenant(w, r); !ok {
+		return
+	}
+	var body struct {
+		RateDate     string  `json:"rate_date"`
+		FromCurrency string  `json:"from_currency"`
+		ToCurrency   string  `json:"to_currency"`
+		Rate         float64 `json:"rate"`
+		Source       string  `json:"source"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	date, err := time.Parse("2006-01-02", body.RateDate)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "rate_date debe ser YYYY-MM-DD")
+		return
+	}
+	rate, err := h.exchangeRate.Set(r.Context(), application.SetExchangeRateRequest{
+		RateDate: date, FromCurrency: body.FromCurrency, ToCurrency: body.ToCurrency,
+		Rate: body.Rate, Source: body.Source,
+	})
+	if err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toExchangeRateDTO(*rate))
+}
+
+func (h *Handler) handleListExchangeRates(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireTenant(w, r); !ok {
+		return
+	}
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+	list, err := h.exchangeRate.List(r.Context(), from, to)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	dtos := make([]exchangeRateDTO, len(list))
+	for i, e := range list {
+		dtos[i] = toExchangeRateDTO(e)
+	}
+	respond(w, http.StatusOK, dtos)
+}
+
+// ── Conciliación de cuentas (cruce de partidas) ─────────────────────────────
+
+type openLineDTO struct {
+	LineID        uuid.UUID `json:"line_id"`
+	JournalID     uuid.UUID `json:"journal_id"`
+	Date          string    `json:"date"`
+	Description   string    `json:"description"`
+	VoucherNumber string    `json:"voucher_number"`
+	ThirdPartyNIT string    `json:"third_party_nit"`
+	DebitCents    int64     `json:"debit_cents"`
+	CreditCents   int64     `json:"credit_cents"`
+}
+
+func toOpenLineDTO(l domain.OpenLine) openLineDTO {
+	return openLineDTO{
+		LineID: l.LineID, JournalID: l.JournalID, Date: l.Date.Format("2006-01-02"),
+		Description: l.Description, VoucherNumber: l.VoucherNumber, ThirdPartyNIT: l.ThirdPartyNIT,
+		DebitCents: l.Debit, CreditCents: l.Credit,
+	}
+}
+
+func (h *Handler) handleListOpenLines(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	code := r.URL.Query().Get("account_code")
+	if code == "" {
+		respondError(w, http.StatusBadRequest, "account_code requerido")
+		return
+	}
+	list, err := h.reconcile.OpenLines(r.Context(), cid, code)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	dtos := make([]openLineDTO, len(list))
+	for i, l := range list {
+		dtos[i] = toOpenLineDTO(l)
+	}
+	respond(w, http.StatusOK, dtos)
+}
+
+func (h *Handler) handleMarkReconciled(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		JournalLineID  uuid.UUID  `json:"journal_line_id"`
+		ReconciledWith *uuid.UUID `json:"reconciled_with"`
+		Note           string     `json:"note"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	mark, err := h.reconcile.Mark(r.Context(), cid, body.JournalLineID, body.ReconciledWith, body.Note)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.logAudit(r.Context(), cid, "reconciliation.marked", "journal_line", body.JournalLineID, nil)
+	respond(w, http.StatusCreated, mark)
+}
+
+func (h *Handler) handleUnmarkReconciled(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	lineID, err := uuid.Parse(r.PathValue("line_id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "line_id inválido")
+		return
+	}
+	if err := h.reconcile.Unmark(r.Context(), cid, lineID); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.logAudit(r.Context(), cid, "reconciliation.unmarked", "journal_line", lineID, nil)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────

@@ -50,6 +50,8 @@ import { AccountingAccountsPage } from "./pages/AccountingAccountsPage";
 import { AccountingPeriodsPage } from "./pages/AccountingPeriodsPage";
 import { AccountingReportsPage } from "./pages/AccountingReportsPage";
 import { AccountingBankPage } from "./pages/AccountingBankPage";
+import { AccountingReconciliationPage } from "./pages/AccountingReconciliationPage";
+import { AccountingExchangeRatesPage } from "./pages/AccountingExchangeRatesPage";
 import { AccountingFixedAssetsPage } from "./pages/AccountingFixedAssetsPage";
 import { AccountingBudgetsPage } from "./pages/AccountingBudgetsPage";
 import { AccountingTaxDeclarationsPage } from "./pages/AccountingTaxDeclarationsPage";
@@ -114,6 +116,8 @@ function App() {
                     <Route path="/accounting/periods" element={<AccountingPeriodsPage />} />
                     <Route path="/accounting/reports" element={<AccountingReportsPage />} />
                     <Route path="/accounting/bank" element={<AccountingBankPage />} />
+                    <Route path="/accounting/reconciliation" element={<AccountingReconciliationPage />} />
+                    <Route path="/accounting/exchange-rates" element={<AccountingExchangeRatesPage />} />
                     <Route path="/accounting/fixed-assets" element={<AccountingFixedAssetsPage />} />
                     <Route path="/accounting/budgets" element={<AccountingBudgetsPage />} />
                     <Route path="/accounting/declarations" element={<AccountingTaxDeclarationsPage />} />
