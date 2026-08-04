@@ -1,3 +1,1 @@
-DROP TABLE IF EXISTS purchase.order_lines;
-DROP TABLE IF EXISTS purchase.orders;
-DROP SCHEMA IF EXISTS purchase;
+DROP SCHEMA IF EXISTS purchase CASCADE;

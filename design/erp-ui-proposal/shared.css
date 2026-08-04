@@ -228,10 +228,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
    sidebar si se deja con el padding/margin por defecto. Desaparece en modo
    colapsado igual que item-label. */
 .sidebar-group-title {
-  margin-top: 2px;
-  padding: 3px 9px 0;
-  font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
-  line-height: 1.4;
+  margin-top: 1px;
+  padding: 2px 9px 0;
+  font-size: 8.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+  line-height: 1.3;
   color: var(--text-muted); white-space: nowrap;
 }
 .sidebar-nav > .sidebar-group-title:first-child { margin-top: 0; }

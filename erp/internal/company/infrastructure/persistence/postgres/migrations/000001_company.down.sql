@@ -1,2 +1,1 @@
-DROP TABLE IF EXISTS company.companies;
-DROP SCHEMA IF EXISTS company;
+DROP SCHEMA IF EXISTS company CASCADE;

@@ -1,3 +1,8 @@
+-- Clientes: esquema unificado.
+--
+-- Consolida lo que antes eran 000001_customer/000002_credit_limit en una sola migración — sin
+-- datos reales todavía.
+
 CREATE SCHEMA IF NOT EXISTS customer;
 
 CREATE TABLE IF NOT EXISTS customer.customers (
@@ -32,6 +37,10 @@ CREATE TABLE IF NOT EXISTS customer.customers (
     -- Contacto
     email                   TEXT NOT NULL DEFAULT '',
     phone                   TEXT NOT NULL DEFAULT '',
+
+    -- Cupo de crédito — NULL significa sin límite. Se valida al confirmar una venta
+    -- (sales/application/confirm.go) contra la cartera pendiente del cliente.
+    credit_limit             NUMERIC,
 
     is_active               BOOLEAN NOT NULL DEFAULT TRUE,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),

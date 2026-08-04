@@ -1,2 +1,1 @@
-DROP TABLE IF EXISTS product.products;
-DROP SCHEMA IF EXISTS product;
+DROP SCHEMA IF EXISTS product CASCADE;

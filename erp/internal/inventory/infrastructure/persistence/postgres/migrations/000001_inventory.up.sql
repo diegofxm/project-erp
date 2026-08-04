@@ -1,31 +1,42 @@
+-- Inventario: esquema unificado (existencias, movimientos).
+--
+-- Consolida lo que antes eran 000001_inventory/000002_warehouse_id en una sola migración — sin
+-- datos reales todavía. La bodega ya nace como referencia a company.warehouses.id (sin FK a
+-- nivel de base de datos porque cada módulo es dueño de su propio schema — mismo criterio que
+-- en el resto del proyecto —, la integridad se garantiza en la aplicación: ver inventory
+-- application, que resuelve la bodega vía company.WarehouseRepository.GetOrCreateDefault antes
+-- de escribir cualquier movimiento).
+
 CREATE SCHEMA IF NOT EXISTS inventory;
 
 -- Stock actual por producto y bodega
 CREATE TABLE IF NOT EXISTS inventory.stock (
-    id          UUID PRIMARY KEY,
-    company_id  UUID NOT NULL,
-    product_id  UUID NOT NULL,
-    warehouse   TEXT NOT NULL DEFAULT 'principal',
-    quantity    NUMERIC(18,4) NOT NULL DEFAULT 0,
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id           UUID PRIMARY KEY,
+    company_id   UUID NOT NULL,
+    product_id   UUID NOT NULL,
+    warehouse_id UUID NOT NULL,
+    quantity     NUMERIC(18,4) NOT NULL DEFAULT 0,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    UNIQUE (company_id, product_id, warehouse)
+    UNIQUE (company_id, product_id, warehouse_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_stock_company ON inventory.stock(company_id);
 
 -- Historial de movimientos
 CREATE TABLE IF NOT EXISTS inventory.movements (
-    id          UUID PRIMARY KEY,
-    company_id  UUID NOT NULL,
-    product_id  UUID NOT NULL,
-    warehouse   TEXT NOT NULL DEFAULT 'principal',
-    type        VARCHAR(20) NOT NULL,  -- entry, exit, transfer, adjust
-    quantity    NUMERIC(18,4) NOT NULL,
-    reference   TEXT NOT NULL DEFAULT '',
-    description TEXT NOT NULL DEFAULT '',
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                UUID PRIMARY KEY,
+    company_id        UUID NOT NULL,
+    product_id        UUID NOT NULL,
+    warehouse_id      UUID NOT NULL,
+    type              VARCHAR(20) NOT NULL,  -- entry, exit, transfer, adjust
+    quantity          NUMERIC(18,4) NOT NULL,
+    reference         TEXT NOT NULL DEFAULT '',
+    description       TEXT NOT NULL DEFAULT '',
+    transfer_group_id UUID,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_movements_company    ON inventory.movements(company_id);
-CREATE INDEX IF NOT EXISTS idx_movements_product    ON inventory.movements(company_id, product_id);
+CREATE INDEX IF NOT EXISTS idx_movements_company        ON inventory.movements(company_id);
+CREATE INDEX IF NOT EXISTS idx_movements_product        ON inventory.movements(company_id, product_id);
+CREATE INDEX IF NOT EXISTS idx_movements_transfer_group ON inventory.movements(transfer_group_id) WHERE transfer_group_id IS NOT NULL;

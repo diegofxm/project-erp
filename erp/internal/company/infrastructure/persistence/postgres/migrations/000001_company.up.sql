@@ -1,3 +1,8 @@
+-- Empresa: esquema unificado (empresas, bodegas).
+--
+-- Consolida lo que antes eran 000001_company/000002_warehouses/000003_warehouse_default en una
+-- sola migración — sin datos reales todavía.
+
 CREATE SCHEMA IF NOT EXISTS company;
 
 CREATE TABLE IF NOT EXISTS company.companies (
@@ -47,3 +52,22 @@ CREATE TABLE IF NOT EXISTS company.companies (
     created_at                      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at                      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS company.warehouses (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL,
+    code       VARCHAR(20) NOT NULL,
+    name       TEXT NOT NULL,
+    address    TEXT NOT NULL DEFAULT '',
+    -- Bodega por defecto: la que usan las ventas/compras cuando el documento no elige una
+    -- explícitamente. Un índice único parcial garantiza que solo pueda haber una por empresa.
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active  BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (company_id, code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_warehouses_company ON company.warehouses(company_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_warehouses_one_default_per_company
+    ON company.warehouses (company_id) WHERE is_default;
