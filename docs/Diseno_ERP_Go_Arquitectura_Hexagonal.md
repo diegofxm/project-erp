@@ -121,11 +121,12 @@ Los seeds deben ir en `erp/internal/security/infrastructure/persistence/postgres
 
 - `POST /auth/invite` — crea el usuario y genera el `invite_token` en DB, pero **no envía el correo** (TODO pendiente en el código). El token queda en la base de datos; para que funcione hoy hay que sacarlo manualmente de la DB o exponerlo temporalmente en la respuesta.
 - `GET /auth/companies` — stub que no lista las empresas reales del usuario. Afecta el caso de un usuario con múltiples empresas: el login auto-selecciona la empresa solo cuando hay exactamente una; con más de una empresa el JWT queda con `cid=nil` y no hay pantalla de selección funcional.
-- **Sin RBAC por módulo** — el campo `role` existe en `security.users` y `security.user_companies` (`owner/admin/member`) pero no hay middleware que lo aplique. Todos los usuarios autenticados acceden a todos los endpoints del tenant. La granularidad por módulo (counter solo ve contabilidad, user solo ve ventas) aún no está implementada.
+- **RBAC — implementado en versión jerárquica simple, no granular por módulo.** El rol (`owner`/`admin`/`member`) viaja en el JWT (`security.user_companies` → login/select-company lo resuelven) y `shared/tenant.CanManage(ctx)` protege server-side las operaciones administrativas: invitar usuarios, y perfil/credenciales/logo/configuración de empresa. `member` opera el resto del ERP sin restricción — pero **no hay granularidad por módulo** (el `counter`-solo-ve-contabilidad / `user`-solo-ve-ventas del diseño de abajo no se construyó; eso sigue siendo aspiracional).
+  - ⚠️ **Pendiente real:** el frontend no oculta ni deshabilita los botones de gestión para un usuario con rol `member` — el backend ya los rechaza con 403, pero el botón sigue visible y clicable, y el usuario solo se entera del rechazo al hacer clic. Falta leer el rol de la sesión en el frontend (ya viaja en la respuesta de login/`/auth/me`) y condicionar la UI de esos botones.
 
 ---
 
-**Diseño propuesto de roles:**
+**Diseño propuesto de roles** (aspiracional — granularidad por módulo, no implementada; lo que sí existe hoy es el modelo jerárquico simple de arriba):
 
 ```text
 superadmin     ← plataforma SaaS (transversal a todos los tenants)
@@ -170,18 +171,16 @@ El middleware de autorización por rol debe ir en `shared/tenant/` como una segu
 
 #### Módulo `accounting/` — pendientes de la fase de cierre contable
 
-Contexto: en `v2/db-architecture` se completó de punta a punta pagos→contabilidad, retenciones en compras + certificados, conciliación bancaria, activos fijos + depreciación, presupuestos, y declaraciones de IVA/Renta/ICA (backend + frontend, commit `58c2cf1`). De esa fase quedaron los siguientes pendientes identificados, sin resolver todavía:
+Contexto: en `v2/db-architecture` se completó de punta a punta pagos→contabilidad, retenciones en compras + certificados, conciliación bancaria, activos fijos + depreciación, presupuestos, y declaraciones de IVA/Renta/ICA (backend + frontend, commit `58c2cf1`). De esa fase quedaron pendientes identificados; `voucher_types` (ya valida contra el catálogo al postear) y las tablas `reconciliation_marks`/`exchange_rates` (ya tienen dominio/caso de uso/frontend — TRM real vía dolarapi.com + conciliación de cuentas) se resolvieron después y se sacaron de esta lista. Lo que sigue sin resolver:
 
 | Pendiente | Descripción | Prioridad |
 |---|---|---|
 | Import masivo de tarifas ICA | Hoy la carga de tarifas (`accounting.ica_tariffs`) es manual, una fila a la vez, por formulario. Cada contador conoce la tarifa de su propio municipio (+1100 en Colombia) — se necesita: botón "Descargar plantilla" (CSV con columnas `municipality_code,ciiu_code,fiscal_year,rate_bp,surcharge_bp` + fila de ejemplo), subida del archivo lleno, y un endpoint que valide cada fila (contra el catálogo CIIU real, ver siguiente ítem) y haga upsert por lote | Alta |
 | Sincronizar CIIU de ICA con el catálogo ya existente | El sistema ya tiene el catálogo CIIU oficial completo: tabla `catalog.ciiu_codes` (508 códigos), servido en `GET /api/v1/catalogs/ciiu-codes`, ya usado por el frontend (`lib/ciiu.ts`, `TaxStep.tsx`) para el perfil de empresa. Los formularios de tarifa/declaración ICA (`AccountingTaxDeclarationsPage.tsx`) dejaron el campo CIIU como texto libre en vez de reusar ese mismo catálogo — no requiere cambio de esquema (accounting no cruza FKs con catalog, por diseño), solo cambiar el `<Input>` por el `Combobox` de `listCiiuOptions()` que ya existe | Alta |
 | Import masivo de extracto bancario | La conciliación bancaria (`AccountingBankPage.tsx`) solo permite agregar movimientos del extracto uno por uno a mano. Falta poder subir el extracto real del banco (CSV/Excel/OFX) y parsearlo en lote | Media |
-| Baja de activos fijos (disposal) | Se construyó alta + depreciación mensual por línea recta, pero no el flujo de "dar de baja" un activo. Los campos `gain_account`/`loss_account`/`disposed_at`/`disposal_amount`/`disposal_journal_id` ya existen en el esquema (agregados al unificar migraciones, commit pendiente) pero ningún caso de uso los postea todavía | Media |
-| `voucher_types` no está conectado al posteo | El CRUD de tipos de comprobante (`POST/GET /accounting/voucher-types`) es administrativo nada más — verificado que `PostJournalUseCase` acepta cualquier string en `voucher_type` sin validarlo contra esa tabla. No rompe nada, pero hoy no sirve para nada tampoco | Baja |
-| Tablas del esquema sin usar | `accounting.reconciliation_marks` y `accounting.exchange_rates` existen desde la migración original pero no tienen dominio/caso de uso/handler — confirmado con búsqueda exhaustiva. Eran para una conciliación genérica y multi-moneda que nunca se construyó (la conciliación bancaria real usa `bank_statement_lines`, diseño aparte que sí funciona). Decidir: implementarlas si se necesita multi-moneda, o limpiarlas del esquema | Baja |
+| Baja de activos fijos (disposal) | Se construyó alta + depreciación mensual por línea recta, pero no el flujo de "dar de baja" un activo. Los campos `gain_account`/`loss_account`/`disposed_at`/`disposal_amount`/`disposal_journal_id` ya existen en el esquema (agregados al unificar migraciones) pero ningún caso de uso los postea todavía | Media |
 | Nombre de cuenta `143505` | Se agregó `143505 Mercancías no fabricadas por la empresa` (repite el nombre del padre `1435`) porque no existía subcuenta de mercancías en el PUC real extraído de puc.com.co — hay 2 precedentes de ese patrón en el catálogo (`540505`, `590505`) pero no es lo común. Pendiente decidir si se le pone un nombre más específico | Baja |
-| Verificación visual en navegador | Todo el frontend de esta fase (bancos, activos fijos, presupuestos, declaraciones, certificados, retenciones) se verificó por `npm run build` + pruebas curl contra el backend real, nunca abriendo un navegador de verdad | Media |
+| Verificación visual en navegador | Todo el frontend de esta fase (bancos, activos fijos, presupuestos, declaraciones, certificados, retenciones, TRM, conciliación de cuentas) se verificó por `npm run build` + pruebas curl contra el backend real, nunca abriendo un navegador de verdad | Media |
 
 ---
 
