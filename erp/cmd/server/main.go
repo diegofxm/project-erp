@@ -14,6 +14,7 @@ import (
 	"github.com/joho/godotenv"
 
 	accountingapp "github.com/diegofxm/erp/internal/accounting/application"
+	accountingdolarapi "github.com/diegofxm/erp/internal/accounting/infrastructure/dolarapi"
 	accountingpostgres "github.com/diegofxm/erp/internal/accounting/infrastructure/persistence/postgres"
 	accountingseed "github.com/diegofxm/erp/internal/accounting/infrastructure/persistence/postgres/seed"
 	accountinghttp "github.com/diegofxm/erp/internal/accounting/interfaces/http"
@@ -206,7 +207,7 @@ func main() {
 	ivaUC := accountingapp.NewIVAUseCase(accountingIVARepo, accountingJournalRepo, accountingAccountRepo)
 	incomeTaxUC := accountingapp.NewIncomeTaxUseCase(accountingIncomeTaxRepo, accountingJournalRepo)
 	icaUC := accountingapp.NewICAUseCase(accountingICARepo, accountingICATariffRepo, accountingJournalRepo)
-	exchangeRateUC := accountingapp.NewExchangeRateUseCase(accountingExchangeRateRepo)
+	exchangeRateUC := accountingapp.NewExchangeRateUseCase(accountingExchangeRateRepo, accountingdolarapi.New())
 	reconciliationUC := accountingapp.NewReconciliationUseCase(accountingReconciliationRepo)
 
 	// ── Casos de uso — sales ────────────────────────────────────────────────────

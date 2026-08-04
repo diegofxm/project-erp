@@ -5,6 +5,7 @@ import { listQuotes } from "../lib/quotes";
 import { listCustomers } from "../lib/customers";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import type { Quote, QuoteStatus, Customer } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
@@ -140,9 +141,9 @@ export function QuotesPage() {
                   >
                     <td className="px-3 py-2 font-mono text-(--text-primary)">{q.number || "Borrador"}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{customerName(q.customer_id)}</td>
-                    <td className="px-3 py-2 text-(--text-secondary)">{new Date(q.issue_date).toLocaleDateString("es-CO")}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{formatDateOnly(q.issue_date)}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">
-                      {q.valid_until ? new Date(q.valid_until).toLocaleDateString("es-CO") : "—"}
+                      {q.valid_until ? formatDateOnly(q.valid_until) : "—"}
                     </td>
                     <td className="px-3 py-2 font-mono text-(--text-primary)">{formatCOP.format(total)}</td>
                     <td className="px-3 py-2"><StatusPill tone={STATUS_TONE[q.status]} label={STATUS_LABEL[q.status]} /></td>

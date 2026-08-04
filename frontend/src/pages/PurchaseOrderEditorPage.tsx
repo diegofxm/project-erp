@@ -11,6 +11,7 @@ import { openInNewTab } from "../lib/openInNewTab";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import type { Purchase, PurchaseStatus, PurchaseLineInput, NumberingRange, Supplier, WithholdingConcept } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
@@ -295,11 +296,11 @@ export function PurchaseOrderEditorPage() {
               </div>
               <div>
                 <p className="text-xs font-medium text-(--text-secondary)">Fecha</p>
-                <p className="text-xs text-(--text-primary)">{new Date(purchase.issue_date).toLocaleDateString("es-CO")}</p>
+                <p className="text-xs text-(--text-primary)">{formatDateOnly(purchase.issue_date)}</p>
               </div>
               <div>
                 <p className="text-xs font-medium text-(--text-secondary)">Recepción esperada</p>
-                <p className="text-xs text-(--text-primary)">{purchase.due_date ? new Date(purchase.due_date).toLocaleDateString("es-CO") : "—"}</p>
+                <p className="text-xs text-(--text-primary)">{purchase.due_date ? formatDateOnly(purchase.due_date) : "—"}</p>
               </div>
               {purchase.notes && (
                 <div className="sm:col-span-3">

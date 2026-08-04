@@ -5,6 +5,7 @@ import { listCustomers } from "../lib/customers";
 import { ApiError } from "../lib/apiClient";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import type { Customer, PaymentMethod, ReceivableBalance } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Card } from "../components/ui/Card";
@@ -105,13 +106,13 @@ export function ReceivablesPage() {
                   <tr key={r.sale_id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
                     <td className="px-3 py-2 font-mono text-(--text-primary)">{r.sale_number || "—"}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{customerName(r.customer_id)}</td>
-                    <td className="px-3 py-2 text-(--text-secondary)">{new Date(r.issue_date).toLocaleDateString("es-CO")}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{formatDateOnly(r.issue_date)}</td>
                     <td className="px-3 py-2">
                       {r.due_date ? (
                         overdue ? (
-                          <StatusPill tone="danger" label={new Date(r.due_date).toLocaleDateString("es-CO")} />
+                          <StatusPill tone="danger" label={formatDateOnly(r.due_date)} />
                         ) : (
-                          <span className="text-(--text-secondary)">{new Date(r.due_date).toLocaleDateString("es-CO")}</span>
+                          <span className="text-(--text-secondary)">{formatDateOnly(r.due_date)}</span>
                         )
                       ) : "—"}
                     </td>

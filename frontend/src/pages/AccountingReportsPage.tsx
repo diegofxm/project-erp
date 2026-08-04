@@ -4,6 +4,7 @@ import { FileBarChart } from "lucide-react";
 import { getAccountLedger, getBSReport, getPLReport, getTrialBalance, listAccounts } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import type { Account, AccountBalance, LedgerLine, TrialBalanceRow } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Combobox } from "../components/ui/Combobox";
@@ -195,7 +196,7 @@ export function AccountingReportsPage() {
 
           {report === "bs" && bsGroups && (
             bsGroups.assets.length === 0 && bsGroups.liabilities.length === 0 && bsGroups.equity.length === 0 ? (
-              <p className="text-xs text-(--text-secondary)">Sin saldos al {new Date(asOf).toLocaleDateString("es-CO")}.</p>
+              <p className="text-xs text-(--text-secondary)">Sin saldos al {formatDateOnly(asOf)}.</p>
             ) : (
               <div className="overflow-x-auto rounded border border-(--border-color)">
                 <table className="w-full text-left text-xs">
@@ -285,7 +286,7 @@ export function AccountingReportsPage() {
                   <tbody>
                     {ledgerRows.map((l, i) => (
                       <tr key={`${l.journal_id}-${i}`} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
-                        <td className="px-3 py-1.5 text-(--text-secondary)">{new Date(l.date).toLocaleDateString("es-CO")}</td>
+                        <td className="px-3 py-1.5 text-(--text-secondary)">{formatDateOnly(l.date)}</td>
                         <td className="px-3 py-1.5 font-mono text-(--text-secondary)">{l.voucher_number || "—"}</td>
                         <td className="px-3 py-1.5 text-(--text-primary)">{l.description}</td>
                         <td className="px-3 py-1.5 font-mono text-(--text-primary)">{l.debit ? money(l.debit) : "—"}</td>

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import { listJournals } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import type { JournalEntry, JournalStatus } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
@@ -91,7 +92,7 @@ export function AccountingJournalsPage() {
                     className={`cursor-pointer hover:bg-(--bg-hover) ${i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}`}
                     onClick={() => navigate(`/accounting/journals/${e.id}`)}
                   >
-                    <td className="px-3 py-2 text-(--text-secondary)">{new Date(e.date).toLocaleDateString("es-CO")}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{formatDateOnly(e.date)}</td>
                     <td className="px-3 py-2 text-(--text-primary)">{e.description}</td>
                     <td className="px-3 py-2 font-mono text-(--text-secondary)">{e.voucher_number || "—"}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{e.source}</td>

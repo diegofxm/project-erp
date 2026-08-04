@@ -6,6 +6,7 @@ import { getPayables } from "../lib/purchasePayments";
 import { listSuppliers } from "../lib/suppliers";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import { useAuth } from "../context/AuthContext";
 import type { PayableBalance, Purchase, PurchaseStatus, Supplier } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -203,7 +204,7 @@ export function PurchaseDashboardPage() {
                   <tbody>
                     {recent.map((p, i) => (
                       <tr key={p.id} className={`cursor-pointer border-t border-(--border-light) hover:bg-(--bg-hover) ${i % 2 === 1 ? "bg-(--bg-secondary)" : ""}`} onClick={() => navigate(`/purchases/${p.id}`)}>
-                        <td className="py-1.5 pr-3 text-(--text-secondary)">{new Date(p.issue_date).toLocaleDateString("es-CO")}</td>
+                        <td className="py-1.5 pr-3 text-(--text-secondary)">{formatDateOnly(p.issue_date)}</td>
                         <td className="py-1.5 pr-3 font-mono text-(--text-primary)">{p.number || "Borrador"}</td>
                         <td className="py-1.5 pr-3 text-(--text-primary)">{supplierName(p.supplier_id)}</td>
                         <td className="py-1.5 pr-3 text-right font-mono text-(--text-primary)">{money(purchaseTotal(p))}</td>

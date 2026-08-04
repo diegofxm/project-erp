@@ -5,6 +5,7 @@ import { listSales } from "../lib/sales";
 import { listCustomers } from "../lib/customers";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import type { Sale, SaleStatus, Customer } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
@@ -127,8 +128,8 @@ export function SalesPage() {
                   >
                     <td className="px-3 py-2 font-mono text-(--text-primary)">{s.number || "Borrador"}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{customerName(s.customer_id)}</td>
-                    <td className="px-3 py-2 text-(--text-secondary)">{new Date(s.issue_date).toLocaleDateString("es-CO")}</td>
-                    <td className="px-3 py-2 text-(--text-secondary)">{s.due_date ? new Date(s.due_date).toLocaleDateString("es-CO") : "—"}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{formatDateOnly(s.issue_date)}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{s.due_date ? formatDateOnly(s.due_date) : "—"}</td>
                     <td className="px-3 py-2 font-mono text-(--text-primary)">{formatCOP.format(total)}</td>
                     <td className="px-3 py-2"><StatusPill tone={STATUS_TONE[s.status]} label={STATUS_LABEL[s.status]} /></td>
                   </tr>

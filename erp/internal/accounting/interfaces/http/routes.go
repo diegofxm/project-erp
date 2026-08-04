@@ -59,6 +59,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Tasas de cambio (TRM)
 	mux.HandleFunc("POST /api/v1/accounting/exchange-rates", h.handleSetExchangeRate)
 	mux.HandleFunc("GET /api/v1/accounting/exchange-rates", h.handleListExchangeRates)
+	mux.HandleFunc("POST /api/v1/accounting/exchange-rates/sync", h.handleSyncExchangeRate)
 
 	// Conciliación de cuentas (cruce de partidas, distinto de la conciliación bancaria)
 	mux.HandleFunc("GET /api/v1/accounting/reconciliation/open-lines", h.handleListOpenLines)

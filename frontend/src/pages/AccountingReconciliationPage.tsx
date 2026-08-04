@@ -3,6 +3,7 @@ import { GitMerge } from "lucide-react";
 import { listAccounts, listOpenLines, markReconciled } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import { useToast } from "../context/ToastContext";
 import type { Account, OpenLine } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -121,7 +122,7 @@ export function AccountingReconciliationPage() {
                     <td className="px-3 py-2">
                       <input type="checkbox" checked={selected.includes(l.line_id)} onChange={() => toggle(l.line_id)} onClick={(e) => e.stopPropagation()} />
                     </td>
-                    <td className="px-3 py-2 text-(--text-secondary)">{new Date(l.date).toLocaleDateString("es-CO")}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{formatDateOnly(l.date)}</td>
                     <td className="px-3 py-2 font-mono text-(--text-primary)">{l.voucher_number || "—"}</td>
                     <td className="px-3 py-2 text-(--text-primary)">{l.description}</td>
                     <td className="px-3 py-2 font-mono text-(--text-secondary)">{l.third_party_nit || "—"}</td>

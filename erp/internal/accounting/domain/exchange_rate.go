@@ -32,3 +32,12 @@ type ExchangeRateRepository interface {
 	Get(ctx context.Context, date time.Time, from, to string) (*ExchangeRate, error)
 	List(ctx context.Context, from, to time.Time) ([]ExchangeRate, error)
 }
+
+// TRMFetcher consulta la TRM oficial vigente (la que fija la Superintendencia Financiera, un
+// solo valor por día) desde una fuente externa — implementado en infrastructure, nunca en
+// application/domain, para no acoplar el dominio a detalles de HTTP. Deliberadamente NO es
+// "compra/venta" comercial (esa es otra tasa, con spread, que cambia todo el día y no es la que
+// exige la norma colombiana para contabilizar transacciones en moneda extranjera).
+type TRMFetcher interface {
+	FetchTRM(ctx context.Context) (rate float64, date time.Time, err error)
+}

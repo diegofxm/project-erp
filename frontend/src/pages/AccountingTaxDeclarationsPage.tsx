@@ -6,6 +6,7 @@ import {
 } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import { useToast } from "../context/ToastContext";
 import type { ICADeclaration, ICATariff, IncomeTaxDeclaration, IVADeclaration } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -181,7 +182,7 @@ export function AccountingTaxDeclarationsPage() {
                 <tbody>
                   {ivaList.map((d, i) => (
                     <tr key={d.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
-                      <td className="px-3 py-2 text-(--text-primary)">{new Date(d.period_start).toLocaleDateString("es-CO")} – {new Date(d.period_end).toLocaleDateString("es-CO")}</td>
+                      <td className="px-3 py-2 text-(--text-primary)">{formatDateOnly(d.period_start)} – {formatDateOnly(d.period_end)}</td>
                       <td className="px-3 py-2 text-right font-mono text-(--text-secondary)">{money(d.generated_iva)}</td>
                       <td className="px-3 py-2 text-right font-mono text-(--text-secondary)">{money(d.deductible_iva)}</td>
                       <td className="px-3 py-2 text-right font-mono text-(--text-primary)">{money(d.amount_to_pay)}</td>
@@ -318,7 +319,7 @@ export function AccountingTaxDeclarationsPage() {
                 <tbody>
                   {icaList.map((d, i) => (
                     <tr key={d.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
-                      <td className="px-3 py-2 text-(--text-primary)">{new Date(d.period_start).toLocaleDateString("es-CO")} – {new Date(d.period_end).toLocaleDateString("es-CO")}</td>
+                      <td className="px-3 py-2 text-(--text-primary)">{formatDateOnly(d.period_start)} – {formatDateOnly(d.period_end)}</td>
                       <td className="px-3 py-2 text-(--text-secondary)">{d.municipality_code}</td>
                       <td className="px-3 py-2 text-right font-mono text-(--text-secondary)">{money(d.gross_revenue)}</td>
                       <td className="px-3 py-2 text-right font-mono text-(--text-primary)">{money(d.amount_due)}</td>

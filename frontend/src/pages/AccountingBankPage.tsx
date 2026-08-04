@@ -5,6 +5,7 @@ import {
 } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import { useToast } from "../context/ToastContext";
 import type { Account, BankAccount, ReconciliationCandidate, StatementLine } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -225,7 +226,7 @@ export function AccountingBankPage() {
                     <tbody>
                       {statement.map((l, i) => (
                         <tr key={l.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
-                          <td className="px-3 py-2 text-(--text-secondary)">{new Date(l.date).toLocaleDateString("es-CO")}</td>
+                          <td className="px-3 py-2 text-(--text-secondary)">{formatDateOnly(l.date)}</td>
                           <td className="px-3 py-2 text-(--text-primary)">{l.description}</td>
                           <td className="px-3 py-2 font-mono text-(--text-primary)">{l.debit ? money(l.debit) : "—"}</td>
                           <td className="px-3 py-2 font-mono text-(--text-primary)">{l.credit ? money(l.credit) : "—"}</td>
@@ -255,7 +256,7 @@ export function AccountingBankPage() {
           <Card className="w-full max-w-lg p-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="mb-1 text-xs font-semibold text-(--text-primary)">Conciliar: {candidateFor.description}</h3>
             <p className="mb-3 text-xs text-(--text-secondary)">
-              Monto {money(candidateFor.debit || candidateFor.credit)} · {new Date(candidateFor.date).toLocaleDateString("es-CO")}
+              Monto {money(candidateFor.debit || candidateFor.credit)} · {formatDateOnly(candidateFor.date)}
             </p>
             {candidates === null ? (
               <div className="flex min-h-16 items-center justify-center"><Spinner className="h-4 w-4 text-(--text-muted)" /></div>
@@ -272,7 +273,7 @@ export function AccountingBankPage() {
                   >
                     <span>
                       <span className="text-(--text-primary)">{c.description}</span>{" "}
-                      <span className="text-(--text-muted)">{c.voucher_number || "—"} · {new Date(c.date).toLocaleDateString("es-CO")}</span>
+                      <span className="text-(--text-muted)">{c.voucher_number || "—"} · {formatDateOnly(c.date)}</span>
                     </span>
                     <span className="font-mono text-(--text-primary)">{money(c.debit || c.credit)}</span>
                   </button>

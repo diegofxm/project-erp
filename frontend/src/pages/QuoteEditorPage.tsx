@@ -8,6 +8,7 @@ import { openInNewTab } from "../lib/openInNewTab";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import type { Customer, Quote, QuoteStatus, SalesLineInput } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
@@ -232,11 +233,11 @@ export function QuoteEditorPage() {
               </div>
               <div>
                 <p className="text-xs font-medium text-(--text-secondary)">Fecha</p>
-                <p className="text-xs text-(--text-primary)">{new Date(quote.issue_date).toLocaleDateString("es-CO")}</p>
+                <p className="text-xs text-(--text-primary)">{formatDateOnly(quote.issue_date)}</p>
               </div>
               <div>
                 <p className="text-xs font-medium text-(--text-secondary)">Válida hasta</p>
-                <p className="text-xs text-(--text-primary)">{quote.valid_until ? new Date(quote.valid_until).toLocaleDateString("es-CO") : "—"}</p>
+                <p className="text-xs text-(--text-primary)">{quote.valid_until ? formatDateOnly(quote.valid_until) : "—"}</p>
               </div>
               {quote.notes && (
                 <div className="sm:col-span-3">

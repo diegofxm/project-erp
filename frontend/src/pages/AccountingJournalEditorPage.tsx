@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router";
 import { getJournal, listAccounts, postJournal, voidJournal } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { amountToCents, formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import type { Account, JournalEntry, JournalStatus } from "../lib/types";
@@ -170,7 +171,7 @@ export function AccountingJournalEditorPage() {
         {error && <Banner tone="danger">{error}</Banner>}
 
         <Card className="mb-3 grid grid-cols-2 gap-3 p-4 text-xs sm:grid-cols-4">
-          <div><span className="text-(--text-secondary)">Fecha</span><p className="text-(--text-primary)">{new Date(entry.date).toLocaleDateString("es-CO")}</p></div>
+          <div><span className="text-(--text-secondary)">Fecha</span><p className="text-(--text-primary)">{formatDateOnly(entry.date)}</p></div>
           <div><span className="text-(--text-secondary)">Comprobante</span><p className="font-mono text-(--text-primary)">{entry.voucher_number || "—"}</p></div>
           <div><span className="text-(--text-secondary)">Origen</span><p className="text-(--text-primary)">{entry.source}</p></div>
           <div><span className="text-(--text-secondary)">Tipo</span><p className="text-(--text-primary)">{entry.entry_type}</p></div>

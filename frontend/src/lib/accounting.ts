@@ -263,6 +263,12 @@ export function listExchangeRates(from: string, to: string): Promise<ExchangeRat
   return apiClient.get<ExchangeRate[]>(`/accounting/exchange-rates?from=${from}&to=${to}`);
 }
 
+// Consulta la TRM oficial vigente (Superfinanciera, vía dolarapi.com) y la guarda como tasa del
+// día — si falla (sin red, API caída), la captura manual de arriba sigue siendo el respaldo.
+export function syncExchangeRate(): Promise<ExchangeRate> {
+  return apiClient.post<ExchangeRate>("/accounting/exchange-rates/sync");
+}
+
 // ── Conciliación de cuentas (cruce de partidas) ─────────────────────────────────
 
 export function listOpenLines(accountCode: string): Promise<OpenLine[]> {

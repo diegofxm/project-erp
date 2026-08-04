@@ -7,6 +7,7 @@ import { getReceivables } from "../lib/payments";
 import { listCustomers } from "../lib/customers";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import { useAuth } from "../context/AuthContext";
 import type { Customer, Quote, ReceivableBalance, Sale, SaleStatus } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -217,7 +218,7 @@ export function SalesDashboardPage() {
                   <tbody>
                     {recent.map((s, i) => (
                       <tr key={s.id} className={`cursor-pointer border-t border-(--border-light) hover:bg-(--bg-hover) ${i % 2 === 1 ? "bg-(--bg-secondary)" : ""}`} onClick={() => navigate(`/sales/${s.id}`)}>
-                        <td className="py-1.5 pr-3 text-(--text-secondary)">{new Date(s.issue_date).toLocaleDateString("es-CO")}</td>
+                        <td className="py-1.5 pr-3 text-(--text-secondary)">{formatDateOnly(s.issue_date)}</td>
                         <td className="py-1.5 pr-3 font-mono text-(--text-primary)">{s.number || "Borrador"}</td>
                         <td className="py-1.5 pr-3 text-(--text-primary)">{customerName(s.customer_id)}</td>
                         <td className="py-1.5 pr-3 text-right font-mono text-(--text-primary)">{money(saleTotal(s))}</td>

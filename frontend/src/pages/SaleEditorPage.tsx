@@ -9,6 +9,7 @@ import { ApiError } from "../lib/apiClient";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import type { Customer, NumberingRange, Sale, SaleStatus, SalesLineInput } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
@@ -190,11 +191,11 @@ export function SaleEditorPage() {
               </div>
               <div>
                 <p className="text-xs font-medium text-(--text-secondary)">Fecha</p>
-                <p className="text-xs text-(--text-primary)">{new Date(sale.issue_date).toLocaleDateString("es-CO")}</p>
+                <p className="text-xs text-(--text-primary)">{formatDateOnly(sale.issue_date)}</p>
               </div>
               <div>
                 <p className="text-xs font-medium text-(--text-secondary)">Vence cartera</p>
-                <p className="text-xs text-(--text-primary)">{sale.due_date ? new Date(sale.due_date).toLocaleDateString("es-CO") : "—"}</p>
+                <p className="text-xs text-(--text-primary)">{sale.due_date ? formatDateOnly(sale.due_date) : "—"}</p>
               </div>
               {sale.notes && (
                 <div className="sm:col-span-3">

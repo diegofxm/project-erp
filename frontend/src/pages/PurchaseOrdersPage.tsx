@@ -5,6 +5,7 @@ import { listPurchases } from "../lib/purchases";
 import { listSuppliers } from "../lib/suppliers";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import type { Purchase, PurchaseStatus, Supplier } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
@@ -131,8 +132,8 @@ export function PurchaseOrdersPage() {
                   >
                     <td className="px-3 py-2 font-mono text-(--text-primary)">{o.number || "Borrador"}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{supplierName(o.supplier_id)}</td>
-                    <td className="px-3 py-2 text-(--text-secondary)">{new Date(o.issue_date).toLocaleDateString("es-CO")}</td>
-                    <td className="px-3 py-2 text-(--text-secondary)">{o.due_date ? new Date(o.due_date).toLocaleDateString("es-CO") : "—"}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{formatDateOnly(o.issue_date)}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{o.due_date ? formatDateOnly(o.due_date) : "—"}</td>
                     <td className="px-3 py-2 font-mono text-(--text-primary)">{formatCOP.format(total)}</td>
                     <td className="px-3 py-2"><StatusPill tone={STATUS_TONE[o.status]} label={STATUS_LABEL[o.status]} /></td>
                   </tr>

@@ -14,6 +14,7 @@ import {
 import { ApiError } from "../lib/apiClient";
 import { openInNewTab } from "../lib/openInNewTab";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import { idTypeLabel } from "../lib/idTypes";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
@@ -279,7 +280,7 @@ export function SupportDocumentEditorPage() {
             <div className="col-span-6 sm:col-span-3">
               <span className="text-(--text-secondary)">Fecha de emisión</span>
               <p className="text-(--text-primary)">
-                {doc.issue_date ? new Date(doc.issue_date).toLocaleDateString("es-CO") : "—"}
+                {doc.issue_date ? formatDateOnly(doc.issue_date) : "—"}
               </p>
             </div>
             <div className="col-span-12">

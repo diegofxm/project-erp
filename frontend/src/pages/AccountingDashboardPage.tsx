@@ -8,6 +8,7 @@ import { getReceivables } from "../lib/payments";
 import { getPayables } from "../lib/purchasePayments";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { formatDateOnly } from "../lib/dateFormat";
 import { useAuth } from "../context/AuthContext";
 import type { AccountingPeriod, JournalEntry, JournalStatus, PayableBalance, ReceivableBalance } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -273,7 +274,7 @@ export function AccountingDashboardPage() {
                           className={`cursor-pointer border-t border-(--border-light) hover:bg-(--bg-hover) ${i % 2 === 1 ? "bg-(--bg-secondary)" : ""}`}
                           onClick={() => navigate(`/accounting/journals/${e.id}`)}
                         >
-                          <td className="py-1.5 pr-3 text-(--text-secondary)">{new Date(e.date).toLocaleDateString("es-CO")}</td>
+                          <td className="py-1.5 pr-3 text-(--text-secondary)">{formatDateOnly(e.date)}</td>
                           <td className="py-1.5 pr-3 text-(--text-primary)">{e.description}</td>
                           <td className="py-1.5 pr-3 text-(--text-secondary)">{e.source}</td>
                           <td className="py-1.5 pr-3 text-right font-mono text-(--text-primary)">{money(entryTotal(e))}</td>

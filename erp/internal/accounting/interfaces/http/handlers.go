@@ -1139,6 +1139,18 @@ func (h *Handler) handleSetExchangeRate(w http.ResponseWriter, r *http.Request) 
 	respond(w, http.StatusCreated, toExchangeRateDTO(*rate))
 }
 
+func (h *Handler) handleSyncExchangeRate(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireTenant(w, r); !ok {
+		return
+	}
+	rate, err := h.exchangeRate.Sync(r.Context())
+	if err != nil {
+		respondError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toExchangeRateDTO(*rate))
+}
+
 func (h *Handler) handleListExchangeRates(w http.ResponseWriter, r *http.Request) {
 	if _, ok := requireTenant(w, r); !ok {
 		return

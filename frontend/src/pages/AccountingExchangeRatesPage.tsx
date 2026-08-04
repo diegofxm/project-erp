@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { DollarSign, Plus } from "lucide-react";
-import { listExchangeRates, setExchangeRate } from "../lib/accounting";
+import { DollarSign, Plus, RefreshCw } from "lucide-react";
+import { listExchangeRates, setExchangeRate, syncExchangeRate } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
+import { formatDateOnly } from "../lib/dateFormat";
 import { useToast } from "../context/ToastContext";
 import type { ExchangeRate } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -31,6 +32,7 @@ export function AccountingExchangeRatesPage() {
   const [from, setFrom] = useState("USD");
   const [rate, setRate] = useState("");
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   function refresh() {
     listExchangeRates(daysAgoISO(90), todayISO())
@@ -39,6 +41,19 @@ export function AccountingExchangeRatesPage() {
   }
 
   useEffect(() => { refresh(); }, []);
+
+  async function handleSync() {
+    setSyncing(true);
+    try {
+      const r = await syncExchangeRate();
+      toast.success(`TRM sincronizada: ${r.rate.toLocaleString("es-CO")} (${formatDateOnly(r.rate_date)})`);
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo sincronizar la TRM — puedes registrarla manualmente mientras tanto");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function handleSave() {
     if (!from || !rate) return;
@@ -64,9 +79,14 @@ export function AccountingExchangeRatesPage() {
           <DollarSign className="h-4 w-4 shrink-0 text-(--accent-primary)" />
           Tasas de cambio (TRM)
         </h1>
-        <Button type="button" variant="secondary" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setShowNew(true)}>
-          Registrar tasa
-        </Button>
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" loading={syncing} icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={handleSync}>
+            Sincronizar TRM de hoy
+          </Button>
+          <Button type="button" variant="secondary" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setShowNew(true)}>
+            Registrar tasa
+          </Button>
+        </div>
       </div>
 
       {error && <Banner tone="danger">{error}</Banner>}
@@ -104,7 +124,7 @@ export function AccountingExchangeRatesPage() {
             <tbody>
               {rates.map((r, i) => (
                 <tr key={`${r.rate_date}-${r.from_currency}-${r.to_currency}`} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
-                  <td className="px-3 py-2 text-(--text-secondary)">{new Date(r.rate_date).toLocaleDateString("es-CO")}</td>
+                  <td className="px-3 py-2 text-(--text-secondary)">{formatDateOnly(r.rate_date)}</td>
                   <td className="px-3 py-2 font-mono text-(--text-primary)">{r.from_currency} → {r.to_currency}</td>
                   <td className="px-3 py-2 font-mono text-(--text-primary)">{r.rate.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
                   <td className="px-3 py-2 text-(--text-secondary)">{r.source}</td>
