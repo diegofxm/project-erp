@@ -42,6 +42,18 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, id uuid.UUID, req U
 		return nil, err
 	}
 
+	// liability_codes e industry_classification_codes son TEXT[] NOT NULL en el esquema — un
+	// payload que omita esas claves decodifica a nil (no a []string{}), y guardar nil ahí
+	// revienta la restricción NOT NULL en vez de dar un error legible. PUT reemplaza el recurso
+	// completo (igual que el resto del proyecto), así que "no mandaste el campo" se trata como
+	// "sin códigos", no como "deja lo que había".
+	if req.LiabilityCodes == nil {
+		req.LiabilityCodes = []string{}
+	}
+	if req.IndustryClassificationCodes == nil {
+		req.IndustryClassificationCodes = []string{}
+	}
+
 	existing.BusinessName = req.BusinessName
 	existing.TradeName = req.TradeName
 	existing.IdentificationTypeCode = req.IdentificationTypeCode

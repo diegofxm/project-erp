@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router";
-import { Layers, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../lib/apiClient";
+import { CofactureLogo } from "../components/CofactureLogo";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
@@ -36,8 +37,8 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-(--bg-primary) px-4">
       <Card className="w-full max-w-sm">
         <div className="flex items-center gap-2 border-b border-(--border-light) px-4 py-3">
-          <Layers className="h-5 w-5 text-(--accent-primary)" />
-          <h1 className="text-sm font-semibold text-(--text-primary)">apidian</h1>
+          <CofactureLogo className="h-5 w-5 text-(--accent-primary)" />
+          <h1 className="text-base font-normal text-(--text-primary)">cofacture</h1>
         </div>
         <form className="flex flex-col gap-3 p-4" onSubmit={handleSubmit}>
           {error && <Banner tone="danger">{error}</Banner>}

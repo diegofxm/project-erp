@@ -16,6 +16,19 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// sourceDescription explica de dónde salió la tasa — el texto de "dolarapi" es el mismo que esa
+// fuente usa para describir la TRM en su propia página (Superintendencia Financiera).
+function sourceDescription(source: string): string {
+  switch (source) {
+    case "DOLARAPI":
+      return "TRM oficial de Colombia publicada por la Superintendencia Financiera";
+    case "MANUAL":
+      return "Editado manualmente";
+    default:
+      return "—";
+  }
+}
+
 function daysAgoISO(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -119,6 +132,7 @@ export function AccountingExchangeRatesPage() {
                 <th className="px-3 py-2 font-medium">Par</th>
                 <th className="px-3 py-2 font-medium">Tasa</th>
                 <th className="px-3 py-2 font-medium">Fuente</th>
+                <th className="px-3 py-2 font-medium">Descripción</th>
               </tr>
             </thead>
             <tbody>
@@ -128,6 +142,7 @@ export function AccountingExchangeRatesPage() {
                   <td className="px-3 py-2 font-mono text-(--text-primary)">{r.from_currency} → {r.to_currency}</td>
                   <td className="px-3 py-2 font-mono text-(--text-primary)">{r.rate.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
                   <td className="px-3 py-2 text-(--text-secondary)">{r.source}</td>
+                  <td className="px-3 py-2 text-(--text-secondary)">{sourceDescription(r.source)}</td>
                 </tr>
               ))}
             </tbody>

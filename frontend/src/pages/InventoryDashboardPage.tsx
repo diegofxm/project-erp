@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { AlertTriangle, ArrowRight, ArrowRightLeft, Boxes, Warehouse as WarehouseIcon } from "lucide-react";
+import { AlertTriangle, ArrowRight, ArrowRightLeft, Boxes, ClipboardCheck, Warehouse as WarehouseIcon } from "lucide-react";
 import { listStock, listMovements } from "../lib/inventory";
 import { listWarehouses } from "../lib/warehouses";
 import { listProducts } from "../lib/products";
@@ -77,7 +77,7 @@ export function InventoryDashboardPage() {
       <Breadcrumbs items={[{ label: "Inventario" }]} />
       <div className="mb-3">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
-          <Boxes className="h-4 w-4 shrink-0 text-(--accent-primary)" />
+          <ClipboardCheck className="h-4 w-4 shrink-0 text-(--accent-primary)" />
           Panel de inventario
         </h1>
         <p className="mt-0.5 text-xs text-(--text-secondary)">{activeCompany?.trade_name || activeCompany?.business_name}</p>

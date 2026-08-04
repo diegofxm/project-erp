@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router";
 import {
-  Banknote, Boxes, Calculator, Crown, Files, Home, Package, Settings,
+  Banknote, Calculator, ClipboardCheck, Crown, Files, Home, Package, Settings,
   ShoppingBag, ShoppingCart, Truck, User, UserCheck, Users,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -43,7 +43,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/documents/invoices", label: "Documentos", icon: <Files className="h-3.5 w-3.5" />, activePrefix: "/documents" },
       { to: "/sales", label: "Ventas", icon: <ShoppingCart className="h-3.5 w-3.5" />, activePrefix: "/sales" },
       { to: "/purchases", label: "Compras", icon: <ShoppingBag className="h-3.5 w-3.5" />, activePrefix: "/purchases" },
-      { to: "/inventory", label: "Inventario", icon: <Boxes className="h-3.5 w-3.5" />, activePrefix: "/inventory" },
+      { to: "/inventory", label: "Inventario", icon: <ClipboardCheck className="h-3.5 w-3.5" />, activePrefix: "/inventory" },
     ],
   },
   {
