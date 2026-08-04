@@ -209,16 +209,37 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 }
 .sidebar.collapsed { width: 40px; }
 .sidebar.collapsed .item-label { display: none; }
-.sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 6px 6px; overflow-y: auto; }
+/* flex:1 + overflow-y:auto en el nav de arriba es lo que ancla .sidebar-bottom
+   (Configuración) al fondo aunque el contenido de arriba sea corto o largo —
+   mismo mecanismo que el flex-1 real en Sidebar.tsx. */
+.sidebar-nav { display: flex; flex: 1; flex-direction: column; gap: 1px; padding: 6px 6px 4px; overflow-y: auto; }
 .sidebar-item {
   display: flex; align-items: center; border-radius: 4px;
-  padding: 6px 8px 6px 7px; font-size: 12px; font-weight: 500; color: var(--text-secondary);
+  padding: 4px 8px 4px 7px; font-size: 12px; font-weight: 500; color: var(--text-secondary);
   transition: background-color .15s, color .15s;
 }
 .sidebar-item svg { flex-shrink: 0; }
 .sidebar-item .item-label { margin-left: 8px; white-space: nowrap; }
 .sidebar-item:hover { background: var(--bg-hover); }
 .sidebar-item.active { background: var(--bg-selected); color: var(--accent-primary); }
+
+/* Título de grupo — no clicable, separa OPERACIÓN / FINANZAS / etc. sin línea
+   divisoria pesada. Compacto a propósito: es el elemento que más alarga el
+   sidebar si se deja con el padding/margin por defecto. Desaparece en modo
+   colapsado igual que item-label. */
+.sidebar-group-title {
+  margin-top: 2px;
+  padding: 3px 9px 0;
+  font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  line-height: 1.4;
+  color: var(--text-muted); white-space: nowrap;
+}
+.sidebar-nav > .sidebar-group-title:first-child { margin-top: 0; }
+.sidebar.collapsed .sidebar-group-title { display: none; }
+
+/* Bloque anclado al fondo (Configuración) — separado por línea divisoria real,
+   la única del sidebar. */
+.sidebar-bottom { flex-shrink: 0; display: flex; flex-direction: column; gap: 1px; padding: 4px 6px; border-top: 1px solid var(--border-color); }
 
 /* Sub-nav — barra de pestañas por sección, calco de SubNav.tsx */
 .subnav {

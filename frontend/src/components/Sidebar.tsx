@@ -23,6 +23,12 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/customers", label: "Clientes", icon: <Users className="h-3.5 w-3.5" />, activePrefix: "/customers" },
   { to: "/suppliers", label: "Proveedores", icon: <Truck className="h-3.5 w-3.5" />, activePrefix: "/suppliers" },
   { to: "/products", label: "Productos", icon: <Package className="h-3.5 w-3.5" />, activePrefix: "/products" },
+];
+
+// Anclado al fondo del sidebar (ver render: flex-1 en el nav de arriba empuja este bloque)
+// — organización jerárquica completa (grupos por plan SaaS futuro) pendiente de confirmar,
+// por ahora solo Configuración queda fija abajo, separada del resto.
+const BOTTOM_NAV_ITEMS: NavItem[] = [
   { to: "/settings", label: "Configuración", icon: <Settings className="h-3.5 w-3.5" />, activePrefix: "/settings" },
 ];
 
@@ -30,9 +36,41 @@ interface SidebarProps {
   collapsed: boolean;
 }
 
+function renderItem(item: NavItem, collapsed: boolean, active: boolean) {
+  return (
+    <NavLink
+      key={item.to}
+      to={item.to}
+      title={collapsed ? item.label : undefined}
+      className={`flex items-center rounded py-1.5 pl-1.75 pr-2 text-xs font-medium transition-colors ${
+        active
+          ? "bg-(--bg-selected) text-(--accent-primary)"
+          : "text-(--text-secondary) hover:bg-(--bg-hover)"
+      }`}
+    >
+      <span className="shrink-0">{item.icon}</span>
+      <span
+        className={`whitespace-nowrap overflow-hidden transition-[max-width,opacity,margin-left] duration-200 ${
+          collapsed ? "max-w-0 opacity-0 ml-0" : "max-w-30 opacity-100 ml-2"
+        }`}
+      >
+        {item.label}
+      </span>
+    </NavLink>
+  );
+}
+
 export function Sidebar({ collapsed }: SidebarProps) {
   const location = useLocation();
   const { user } = useAuth();
+
+  function isActive(item: NavItem) {
+    return item.activePrefix
+      ? location.pathname.startsWith(item.activePrefix)
+      : item.end
+      ? location.pathname === "/"
+      : location.pathname.startsWith(item.to);
+  }
 
   return (
     <aside
@@ -40,36 +78,14 @@ export function Sidebar({ collapsed }: SidebarProps) {
         collapsed ? "w-10" : "w-48"
       }`}
     >
-      <nav className="flex flex-col gap-0.5 p-1.5 pt-2">
+      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-1.5 pt-2">
         {NAV_ITEMS.map((item) => {
           if (item.superAdminOnly && !user?.is_superadmin) return null;
-          const active = item.activePrefix
-            ? location.pathname.startsWith(item.activePrefix)
-            : item.end
-            ? location.pathname === "/"
-            : location.pathname.startsWith(item.to);
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              title={collapsed ? item.label : undefined}
-              className={`flex items-center rounded py-1.5 pl-1.75 pr-2 text-xs font-medium transition-colors ${
-                active
-                  ? "bg-(--bg-selected) text-(--accent-primary)"
-                  : "text-(--text-secondary) hover:bg-(--bg-hover)"
-              }`}
-            >
-              <span className="shrink-0">{item.icon}</span>
-              <span
-                className={`whitespace-nowrap overflow-hidden transition-[max-width,opacity,margin-left] duration-200 ${
-                  collapsed ? "max-w-0 opacity-0 ml-0" : "max-w-30 opacity-100 ml-2"
-                }`}
-              >
-                {item.label}
-              </span>
-            </NavLink>
-          );
+          return renderItem(item, collapsed, isActive(item));
         })}
+      </nav>
+      <nav className="flex flex-col gap-0.5 border-t border-(--border-color) p-1.5">
+        {BOTTOM_NAV_ITEMS.map((item) => renderItem(item, collapsed, isActive(item)))}
       </nav>
     </aside>
   );

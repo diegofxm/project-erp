@@ -170,6 +170,111 @@ El middleware de autorización por rol debe ir en `shared/tenant/` como una segu
 | `inventory/` | Lotes/vencimientos, seriales |
 | `electronic/` | Nómina electrónica DIAN (tipos 102/103) |
 
+#### Módulo `accounting/` — pendientes de la fase de cierre contable
+
+Contexto: en `v2/db-architecture` se completó de punta a punta pagos→contabilidad, retenciones en compras + certificados, conciliación bancaria, activos fijos + depreciación, presupuestos, y declaraciones de IVA/Renta/ICA (backend + frontend, commit `58c2cf1`). De esa fase quedaron los siguientes pendientes identificados, sin resolver todavía:
+
+| Pendiente | Descripción | Prioridad |
+|---|---|---|
+| Import masivo de tarifas ICA | Hoy la carga de tarifas (`accounting.ica_tariffs`) es manual, una fila a la vez, por formulario. Cada contador conoce la tarifa de su propio municipio (+1100 en Colombia) — se necesita: botón "Descargar plantilla" (CSV con columnas `municipality_code,ciiu_code,fiscal_year,rate_bp,surcharge_bp` + fila de ejemplo), subida del archivo lleno, y un endpoint que valide cada fila (contra el catálogo CIIU real, ver siguiente ítem) y haga upsert por lote | Alta |
+| Sincronizar CIIU de ICA con el catálogo ya existente | El sistema ya tiene el catálogo CIIU oficial completo: tabla `catalog.ciiu_codes` (508 códigos), servido en `GET /api/v1/catalogs/ciiu-codes`, ya usado por el frontend (`lib/ciiu.ts`, `TaxStep.tsx`) para el perfil de empresa. Los formularios de tarifa/declaración ICA (`AccountingTaxDeclarationsPage.tsx`) dejaron el campo CIIU como texto libre en vez de reusar ese mismo catálogo — no requiere cambio de esquema (accounting no cruza FKs con catalog, por diseño), solo cambiar el `<Input>` por el `Combobox` de `listCiiuOptions()` que ya existe | Alta |
+| Import masivo de extracto bancario | La conciliación bancaria (`AccountingBankPage.tsx`) solo permite agregar movimientos del extracto uno por uno a mano. Falta poder subir el extracto real del banco (CSV/Excel/OFX) y parsearlo en lote | Media |
+| Baja de activos fijos (disposal) | Se construyó alta + depreciación mensual por línea recta, pero no el flujo de "dar de baja" un activo. Los campos `gain_account`/`loss_account` ya se guardan por activo pero ningún caso de uso los postea todavía | Media |
+| `voucher_types` no está conectado al posteo | El CRUD de tipos de comprobante (`POST/GET /accounting/voucher-types`) es administrativo nada más — verificado que `PostJournalUseCase` acepta cualquier string en `voucher_type` sin validarlo contra esa tabla. No rompe nada, pero hoy no sirve para nada tampoco | Baja |
+| Tablas del esquema sin usar | `accounting.reconciliation_marks` y `accounting.exchange_rates` existen desde la migración original pero no tienen dominio/caso de uso/handler — confirmado con búsqueda exhaustiva. Eran para una conciliación genérica y multi-moneda que nunca se construyó (la conciliación bancaria real usa `bank_statement_lines`, diseño aparte que sí funciona). Decidir: implementarlas si se necesita multi-moneda, o limpiarlas del esquema | Baja |
+| Nombre de cuenta `143505` | Se agregó `143505 Mercancías no fabricadas por la empresa` (repite el nombre del padre `1435`) porque no existía subcuenta de mercancías en el PUC real extraído de puc.com.co — hay 2 precedentes de ese patrón en el catálogo (`540505`, `590505`) pero no es lo común. Pendiente decidir si se le pone un nombre más específico | Baja |
+| Verificación visual en navegador | Todo el frontend de esta fase (bancos, activos fijos, presupuestos, declaraciones, certificados, retenciones) se verificó por `npm run build` + pruebas curl contra el backend real, nunca abriendo un navegador de verdad | Media |
+
+---
+
+#### Menú (sidebar) — jerarquía pendiente de aplicar + catálogos vs. sub-entidades
+
+Contexto: se diseñó y prototipó una jerarquía nueva para el sidebar (hoy es una lista plana de 11 ítems). El prototipo vive en `design/erp-ui-proposal/dashboard.html` + `shared.css` — **todavía no está aplicado al `frontend/src/components/Sidebar.tsx` real**, solo la parte de anclar Configuración al fondo (con `flex:1` en el nav de arriba + bloque separado abajo).
+
+**Jerarquía acordada (3 grupos + Configuración anclada abajo, sin FKs entre módulos, pensada para poder prender/apagar un grupo completo según el plan SaaS que contrate cada empresa a futuro — solo Documentos Electrónicos / solo Nómina / ERP completo):**
+
+```
+Inicio
+Comando                    ← solo superadmin, separado (es modo plataforma, no modo empresa)
+─────────────
+OPERACIÓN
+  Documentos electrónicos
+  Ventas
+  Compras
+  Inventario
+FINANZAS
+  Contabilidad
+  Nómina                   ← módulo backend existe (payroll/), sin frontend
+  RRHH                     ← módulo backend existe (hr/), sin frontend
+CATÁLOGOS
+  Clientes
+  Proveedores
+  Productos
+─────────────
+Configuración               ← anclada al fondo (ya aplicado en el Sidebar.tsx real)
+```
+
+Pendiente: aplicar los 3 grupos (`OPERACIÓN`/`FINANZAS`/`CATÁLOGOS`) con títulos de sección al `Sidebar.tsx` real — hoy solo tiene Configuración anclada, sin agrupar el resto.
+
+**Regla para decidir si algo es un catálogo (`CATÁLOGOS`) o vive dentro de su módulo dueño:** un ítem va en `CATÁLOGOS` solo si lo necesitan *varios módulos no relacionados* al mismo tiempo (Clientes/Proveedores/Productos los usan Ventas, Compras, Inventario y Documentos). Si solo lo usa un módulo para su propio flujo interno, va como pestaña *dentro* de ese módulo — mismo patrón que Bodegas dentro de Inventario (`WarehousesPage.tsx`, subnav Existencias/Movimientos/Bodegas).
+
+Aplicando esa regla, quedan pendientes (ninguno cambia la estructura del menú ya definida, solo dónde entra cada uno):
+
+| Elemento | Estado | Dónde debería vivir |
+|---|---|---|
+| Empleados | Backend existe (`payroll.Employee`, `erp/internal/payroll/domain/employee.go`), sin página frontend | Pestaña dentro de **Nómina** — NO como catálogo aparte, y NO reusando las tablas de Clientes/Proveedores (retención salarial, aportes a seguridad social y cuenta contable 2505 son completamente distintos al tratamiento comercial de Cliente/Proveedor — son 3 structs Go independientes hoy, y así debe seguir) |
+| Sucursales | No existe (ni backend ni frontend) — ya estaba anotado en "Sub-entidades pendientes por módulo" arriba (`company/`) | Dentro de **Configuración → Empresa**, no como catálogo — es sub-configuración de la empresa, no dato maestro compartido |
+| Aviso de identificación duplicada entre catálogos | No existe — diseño detallado abajo (ver "Búsqueda cruzada de terceros") | Mejora de UX, no de esquema: una misma cédula/NIT puede existir legítimamente en más de un catálogo a la vez (ej. un empleado que también es cliente por compras con descuento de empleado). Al crear un Cliente/Proveedor/Empleado, avisar (sin bloquear ni fusionar) si esa identificación ya existe en otro catálogo — "ya existe como Empleado, ¿es la misma persona?" |
+
+---
+
+#### Búsqueda cruzada de terceros al crear Cliente/Proveedor/Empleado (para cuando se construya Información Exógena)
+
+Contexto: surgió al comparar con Odoo (modelo `res.partner` unificado) y SIESA (catálogo de "Terceros" unificado, típico en ERPs colombianos por el reporte de Información Exógena DIAN, que agrega montos por NIT sin importar el rol). Se decidió **no** unificar Cliente/Proveedor/Empleado en una sola tabla — rompería el principio de módulos independientes sin FKs cruzadas que ya sigue todo el proyecto, y el reporte de exógena no lo necesita (se resuelve en la capa de lectura/CQRS cruzando por NIT al momento de generarse, no en el modelo de escritura). En cambio, se diseñó una asistencia de captura: buscar el NIT en los otros catálogos y ofrecer copiar los datos, sin fusionar ni crear relación estructural.
+
+**1. Módulo nuevo, de solo lectura, sin tabla propia:**
+
+```
+shared/thirdparty/
+    domain/
+        port.go        ← CustomerPort, SupplierPort, EmployeePort
+                          (cada uno: FindByIdentification(ctx, companyID, idNumber) → *Match)
+        match.go        ← ThirdPartyMatch{Source, ID, Name, Email, Phone, Address...}
+    application/
+        lookup.go        ← LookupUseCase: llama a los 3 puertos, arma la lista de coincidencias
+    infrastructure/
+        customer/adapter.go   ← implementa CustomerPort envolviendo customer.Repository real
+        supplier/adapter.go   ← igual, con supplier.Repository
+        payroll/adapter.go    ← igual, con payroll.EmployeeRepository
+    interfaces/http/
+        handlers.go      ← GET /api/v1/third-parties/lookup?identification_number=XXX
+```
+
+Mismo patrón de "puerto local" que ya usa `shared/notification` para leer stock/numeración de otros módulos sin ser dueño de esos datos — nada de tabla nueva ni FK cruzado.
+
+**2. Flujo en el frontend:**
+
+```
+Usuario escribe el NIT en el formulario de "Nuevo cliente"
+    ↓ (onBlur del campo identificación)
+GET /third-parties/lookup?identification_number=900123456
+    ↓
+¿Hay coincidencia en Proveedor o Empleado?
+    ↓ sí
+Banner: "Ya existe como Proveedor: ACME SAS  [Copiar datos →]"
+    ↓ clic
+Se rellenan nombre, dirección, email, teléfono, régimen tributario...
+en el formulario — el usuario revisa y confirma como cualquier alta normal
+    ↓
+POST /customers  (crea un registro Cliente totalmente independiente, sin FK)
+```
+
+Mismo patrón al revés en el formulario de Proveedor (busca en Cliente/Empleado) y a futuro en el de Empleado.
+
+**3. Detalle fino — los campos no calzan 1 a 1:** Cliente/Proveedor comparten casi todos los campos, pero Empleado tiene `FirstName`+`LastName` en vez de `Name`, y no tiene régimen tributario ni responsabilidades fiscales. Hace falta una función de mapeo explícita por par de orígenes (`Proveedor→Cliente` casi directo; `Empleado→Cliente` necesita unir nombre y dejar los campos fiscales en blanco para que el usuario los complete) — no asumir que todos los campos coinciden.
+
+---
+
 #### Reportería cruzada (CQRS)
 
 | Query | Estado |
