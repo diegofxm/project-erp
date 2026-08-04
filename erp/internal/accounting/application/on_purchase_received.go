@@ -12,9 +12,12 @@ import (
 // OnPurchaseReceived registra el asiento contable de la compra recibida.
 //
 // PUC colombiano:
-//   - DB 143505 Inventario de mercancías  (subtotal sin IVA)
-//   - DB 240810 IVA por descontar         (IVA soportado, si aplica)
-//   - CR 220505 Proveedores nacionales    (total = subtotal + IVA)
+//   - DB 143505 Mercancías no fabricadas por la empresa (subtotal sin IVA)
+//   - DB 2408   Impuesto sobre las ventas por pagar     (IVA soportado/descontable, si aplica —
+//     misma cuenta que usa on_sale_confirmed para el IVA generado; el saldo neto de 2408
+//     ya refleja "generado - descontable")
+//   - CR 2205   Proveedores nacionales    (total - retenciones = lo que realmente se le paga)
+//   - CR <cuenta del concepto>            (una línea por cada retención aplicada, pasivo con la DIAN)
 type OnPurchaseReceived struct {
 	accounts domain.AccountRepository
 	periods  domain.PeriodRepository
@@ -51,7 +54,12 @@ func (h *OnPurchaseReceived) handle(ctx context.Context, ev purchasedomain.Purch
 	if err != nil {
 		return err
 	}
-	acctSupplier, err := h.accounts.GetPostable(ctx, "220505")
+
+	var withholdingCents int64
+	for _, w := range ev.Withholdings {
+		withholdingCents += toCents(w.Amount)
+	}
+	acctSupplier, err := h.accounts.GetPostable(ctx, "2205")
 	if err != nil {
 		return err
 	}
@@ -66,13 +74,13 @@ func (h *OnPurchaseReceived) handle(ctx context.Context, ev purchasedomain.Purch
 		{
 			AccountID:   acctSupplier.ID,
 			AccountCode: acctSupplier.Code,
-			Credit:      totalCents,
+			Credit:      totalCents - withholdingCents,
 			Description: "Proveedor por pagar",
 		},
 	}
 
 	if taxCents > 0 {
-		acctIVA, err := h.accounts.GetPostable(ctx, "240810")
+		acctIVA, err := h.accounts.GetPostable(ctx, "2408")
 		if err != nil {
 			return err
 		}
@@ -81,6 +89,19 @@ func (h *OnPurchaseReceived) handle(ctx context.Context, ev purchasedomain.Purch
 			AccountCode: acctIVA.Code,
 			Debit:       taxCents,
 			Description: "IVA descontable",
+		})
+	}
+
+	for _, w := range ev.Withholdings {
+		acctWh, err := h.accounts.GetPostable(ctx, w.AccountPayable)
+		if err != nil {
+			return err
+		}
+		lines = append(lines, &domain.JournalLine{
+			AccountID:   acctWh.ID,
+			AccountCode: acctWh.Code,
+			Credit:      toCents(w.Amount),
+			Description: "Retención " + w.ConceptName,
 		})
 	}
 

@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { CreatePurchasePayload, Purchase } from "./types";
+import type { CreatePurchasePayload, Purchase, PurchaseWithholding } from "./types";
 
 export function listPurchases(): Promise<Purchase[]> {
   return apiClient.get<Purchase[]>("/purchases");
@@ -40,4 +40,15 @@ export async function getPurchasePdfBlobUrl(id: string): Promise<string> {
 // si se especifica). La orden debe estar confirmada o recibida.
 export function sendPurchaseEmail(id: string, to?: string): Promise<void> {
   return apiClient.post<void>(`/purchases/${id}/send-email`, to ? { to } : undefined);
+}
+
+// addWithholding — aplica una retención a una orden confirmada (antes de recibirla). base va
+// en pesos (igual que unit_price en las líneas), el backend calcula el monto con la tarifa
+// del concepto elegido.
+export function addWithholding(purchaseId: string, conceptId: string, base: number): Promise<PurchaseWithholding> {
+  return apiClient.post<PurchaseWithholding>(`/purchases/${purchaseId}/withholdings`, { concept_id: conceptId, base });
+}
+
+export function listWithholdings(purchaseId: string): Promise<PurchaseWithholding[]> {
+  return apiClient.get<PurchaseWithholding[]>(`/purchases/${purchaseId}/withholdings`);
 }

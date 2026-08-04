@@ -297,6 +297,23 @@ func (r *JournalRepository) GetTrialBalance(ctx context.Context, companyID uuid.
 	return out, rows.Err()
 }
 
+func (r *JournalRepository) GetIncomeInPeriod(ctx context.Context, companyID uuid.UUID, from, to time.Time) (int64, error) {
+	var total int64
+	err := r.pool.QueryRow(ctx, `
+		SELECT COALESCE(SUM(l.credit - l.debit), 0)
+		FROM accounting.journal_lines l
+		JOIN accounting.journal_entries e ON e.id = l.journal_id
+		JOIN accounting.accounts a ON a.id = l.account_id
+		WHERE e.company_id = $1 AND e.status = 'POSTED' AND a.category = 'Ingreso'
+		  AND e.date BETWEEN $2 AND $3`,
+		companyID, from, to,
+	).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("ingresos del período: %w", err)
+	}
+	return total, nil
+}
+
 // GetAccountLedger devuelve los movimientos de una cuenta en el rango dado, con saldo
 // acumulado (Libro Mayor). El saldo corrido se calcula en Go recorriendo en orden cronológico.
 func (r *JournalRepository) GetAccountLedger(ctx context.Context, companyID uuid.UUID, accountCode string, from, to time.Time) ([]domain.LedgerLine, error) {

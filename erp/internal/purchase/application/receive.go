@@ -36,13 +36,14 @@ func (uc *ReceiveUseCase) Execute(ctx context.Context, companyID, id uuid.UUID) 
 		taxAmount += l.TaxAmount
 	}
 	uc.bus.Publish(domain.PurchaseReceived{
-		PurchaseID: o.ID,
-		CompanyID:  o.CompanyID,
-		SupplierID: o.SupplierID,
-		Total:      o.GrandTotal(),
-		TaxAmount:  taxAmount,
-		IssueDate:  o.IssueDate,
-		Lines:      o.Lines,
+		PurchaseID:   o.ID,
+		CompanyID:    o.CompanyID,
+		SupplierID:   o.SupplierID,
+		Total:        o.GrandTotal(),
+		TaxAmount:    taxAmount,
+		IssueDate:    o.IssueDate,
+		Lines:        o.Lines,
+		Withholdings: o.Withholdings,
 	})
 
 	return o, nil

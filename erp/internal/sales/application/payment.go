@@ -8,15 +8,17 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/diegofxm/erp/internal/sales/domain"
+	"github.com/diegofxm/erp/internal/shared/events"
 )
 
 type PaymentUseCase struct {
 	paymentRepo domain.PaymentRepository
 	saleRepo    domain.Repository
+	bus         *events.Bus
 }
 
-func NewPaymentUseCase(paymentRepo domain.PaymentRepository, saleRepo domain.Repository) *PaymentUseCase {
-	return &PaymentUseCase{paymentRepo: paymentRepo, saleRepo: saleRepo}
+func NewPaymentUseCase(paymentRepo domain.PaymentRepository, saleRepo domain.Repository, bus *events.Bus) *PaymentUseCase {
+	return &PaymentUseCase{paymentRepo: paymentRepo, saleRepo: saleRepo, bus: bus}
 }
 
 type RecordPaymentRequest struct {
@@ -63,7 +65,21 @@ func (uc *PaymentUseCase) Record(ctx context.Context, companyID uuid.UUID, req R
 		Reference:     req.Reference,
 		Notes:         req.Notes,
 	}
-	return uc.paymentRepo.Save(ctx, p)
+	saved, err := uc.paymentRepo.Save(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+
+	uc.bus.Publish(domain.SalePaymentRecorded{
+		PaymentID:     saved.ID,
+		CompanyID:     companyID,
+		SaleID:        saved.SaleID,
+		Amount:        saved.Amount,
+		PaymentMethod: saved.PaymentMethod,
+		PaymentDate:   saved.PaymentDate,
+	})
+
+	return saved, nil
 }
 
 func (uc *PaymentUseCase) ListBySale(ctx context.Context, companyID, saleID uuid.UUID) ([]domain.SalePayment, error) {

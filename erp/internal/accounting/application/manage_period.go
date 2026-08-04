@@ -35,6 +35,17 @@ func (uc *ManagePeriodUseCase) Close(ctx context.Context, companyID, id uuid.UUI
 	return uc.periods.Close(ctx, companyID, id)
 }
 
+func (uc *ManagePeriodUseCase) Reopen(ctx context.Context, companyID, id uuid.UUID) error {
+	p, err := uc.periods.GetByID(ctx, companyID, id)
+	if err != nil {
+		return err
+	}
+	if p.Status == domain.PeriodOpen {
+		return nil
+	}
+	return uc.periods.Reopen(ctx, companyID, id)
+}
+
 func (uc *ManagePeriodUseCase) CloseYear(ctx context.Context, companyID uuid.UUID, year int) error {
 	return uc.periods.CloseAllForYear(ctx, companyID, year)
 }

@@ -44,3 +44,11 @@ func (uc *GetJournalUseCase) TrialBalance(ctx context.Context, companyID uuid.UU
 func (uc *GetJournalUseCase) AccountLedger(ctx context.Context, companyID uuid.UUID, accountCode string, from, to time.Time) ([]domain.LedgerLine, error) {
 	return uc.journals.GetAccountLedger(ctx, companyID, accountCode, from, to)
 }
+
+func (uc *GetJournalUseCase) RegisterVoucherType(ctx context.Context, cfg domain.VoucherTypeConfig) (*domain.VoucherTypeConfig, error) {
+	return uc.journals.RegisterVoucherType(ctx, cfg)
+}
+
+func (uc *GetJournalUseCase) ListVoucherTypes(ctx context.Context, companyID uuid.UUID) ([]*domain.VoucherTypeConfig, error) {
+	return uc.journals.ListVoucherTypes(ctx, companyID)
+}

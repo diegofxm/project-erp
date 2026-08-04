@@ -16,3 +16,20 @@ type Repository interface {
 	// evita generar dos veces desde la misma orden (ver electronic CreateFromPurchaseUseCase).
 	SetSupportDocumentID(ctx context.Context, companyID, id, documentID uuid.UUID) error
 }
+
+// WithholdingRepository gestiona las retenciones aplicadas a una orden de compra.
+type WithholdingRepository interface {
+	Add(ctx context.Context, w PurchaseWithholding) (*PurchaseWithholding, error)
+	ListByPurchase(ctx context.Context, purchaseOrderID uuid.UUID) ([]PurchaseWithholding, error)
+	// GetWithholdingSummary agrupa las retenciones aplicadas a un proveedor en un año fiscal —
+	// base para emitir el certificado de retención anual (ver accounting IssueWithholdingCertificates).
+	GetWithholdingSummary(ctx context.Context, companyID, supplierID uuid.UUID, year int) ([]WithholdingSummary, error)
+}
+
+// WithholdingSummary es el total retenido a un proveedor por concepto en un año fiscal.
+type WithholdingSummary struct {
+	ConceptCode string
+	ConceptName string
+	Base        float64
+	Amount      float64
+}

@@ -49,6 +49,11 @@ import { AccountingJournalEditorPage } from "./pages/AccountingJournalEditorPage
 import { AccountingAccountsPage } from "./pages/AccountingAccountsPage";
 import { AccountingPeriodsPage } from "./pages/AccountingPeriodsPage";
 import { AccountingReportsPage } from "./pages/AccountingReportsPage";
+import { AccountingBankPage } from "./pages/AccountingBankPage";
+import { AccountingFixedAssetsPage } from "./pages/AccountingFixedAssetsPage";
+import { AccountingBudgetsPage } from "./pages/AccountingBudgetsPage";
+import { AccountingTaxDeclarationsPage } from "./pages/AccountingTaxDeclarationsPage";
+import { AccountingCertificatesPage } from "./pages/AccountingCertificatesPage";
 import { PublicCustomerRegisterPage } from "./pages/PublicCustomerRegisterPage";
 import { AdminBillingPage, AdminRenewalsPage, AdminCompanyPage, AdminPlansPage, AdminUsersPage, AdminProspectsPage } from "./pages/AdminPage";
 
@@ -108,6 +113,11 @@ function App() {
                     <Route path="/accounting/accounts" element={<AccountingAccountsPage />} />
                     <Route path="/accounting/periods" element={<AccountingPeriodsPage />} />
                     <Route path="/accounting/reports" element={<AccountingReportsPage />} />
+                    <Route path="/accounting/bank" element={<AccountingBankPage />} />
+                    <Route path="/accounting/fixed-assets" element={<AccountingFixedAssetsPage />} />
+                    <Route path="/accounting/budgets" element={<AccountingBudgetsPage />} />
+                    <Route path="/accounting/declarations" element={<AccountingTaxDeclarationsPage />} />
+                    <Route path="/accounting/certificates" element={<AccountingCertificatesPage />} />
                     <Route path="/admin" element={<Navigate to="/admin/billing" replace />} />
                     <Route path="/admin/billing" element={<AdminBillingPage />} />
                     <Route path="/admin/renewals" element={<AdminRenewalsPage />} />

@@ -32,8 +32,40 @@ type PurchaseOrder struct {
 	// se ha generado. Evita generar dos veces desde la misma orden (ver electronic
 	// CreateFromPurchaseUseCase).
 	SupportDocumentID *uuid.UUID
+	Withholdings      []PurchaseWithholding
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+}
+
+// PurchaseWithholding es una retención (ReteFuente/ReteIVA/ReteICA) aplicada a la orden antes
+// de recibirla — reduce lo que se le paga al proveedor y genera un pasivo por retención a
+// favor de la DIAN. ConceptName, RateBP y AccountPayable son una foto del concepto (accounting.
+// withholding_concepts) al momento de aplicarla — si el concepto cambia después, esta orden no
+// se ve afectada retroactivamente.
+type PurchaseWithholding struct {
+	ID              uuid.UUID
+	PurchaseOrderID uuid.UUID
+	ConceptCode     string
+	ConceptName     string
+	Base            float64
+	RateBP          int
+	Amount          float64
+	AccountPayable  string
+	CreatedAt       time.Time
+}
+
+// TotalWithholding suma las retenciones aplicadas a la orden.
+func (o *PurchaseOrder) TotalWithholding() float64 {
+	var t float64
+	for _, w := range o.Withholdings {
+		t += w.Amount
+	}
+	return t
+}
+
+// NetPayable es lo que realmente se le paga al proveedor: total de la orden menos retenciones.
+func (o *PurchaseOrder) NetPayable() float64 {
+	return o.GrandTotal() - o.TotalWithholding()
 }
 
 type PurchaseLine struct {
@@ -71,13 +103,14 @@ func (o *PurchaseOrder) GrandTotal() float64 {
 // PurchaseReceived se publica cuando la OC pasa a estado "recibida".
 // inventory/ y accounting/ lo consumen.
 type PurchaseReceived struct {
-	PurchaseID uuid.UUID
-	CompanyID  uuid.UUID
-	SupplierID uuid.UUID
-	Total      float64
-	TaxAmount  float64
-	IssueDate  time.Time
-	Lines      []PurchaseLine
+	PurchaseID   uuid.UUID
+	CompanyID    uuid.UUID
+	SupplierID   uuid.UUID
+	Total        float64
+	TaxAmount    float64
+	IssueDate    time.Time
+	Lines        []PurchaseLine
+	Withholdings []PurchaseWithholding
 }
 
 func (PurchaseReceived) EventName() string { return "purchase.received" }

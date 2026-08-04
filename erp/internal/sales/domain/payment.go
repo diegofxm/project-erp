@@ -32,6 +32,19 @@ type SalePayment struct {
 	CreatedAt     time.Time
 }
 
+// SalePaymentRecorded se publica al registrar un pago sobre una venta confirmada.
+// accounting/ lo consume para reducir cartera y aumentar caja/bancos.
+type SalePaymentRecorded struct {
+	PaymentID     uuid.UUID
+	CompanyID     uuid.UUID
+	SaleID        uuid.UUID
+	Amount        float64
+	PaymentMethod PaymentMethod
+	PaymentDate   time.Time
+}
+
+func (SalePaymentRecorded) EventName() string { return "sale.payment_recorded" }
+
 // ReceivableBalance agrupa el saldo pendiente de una venta.
 type ReceivableBalance struct {
 	SaleID     uuid.UUID

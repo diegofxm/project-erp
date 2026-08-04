@@ -17,6 +17,9 @@ import (
 	accountingpostgres "github.com/diegofxm/erp/internal/accounting/infrastructure/persistence/postgres"
 	accountingseed "github.com/diegofxm/erp/internal/accounting/infrastructure/persistence/postgres/seed"
 	accountinghttp "github.com/diegofxm/erp/internal/accounting/interfaces/http"
+	auditapp "github.com/diegofxm/erp/internal/audit/application"
+	auditpostgres "github.com/diegofxm/erp/internal/audit/infrastructure/persistence/postgres"
+	audithttp "github.com/diegofxm/erp/internal/audit/interfaces/http"
 	catalogpostgres "github.com/diegofxm/erp/internal/catalog/infrastructure/persistence/postgres"
 	"github.com/diegofxm/erp/internal/catalog/infrastructure/persistence/postgres/seed"
 	cataloghttp "github.com/diegofxm/erp/internal/catalog/interfaces/http"
@@ -44,6 +47,7 @@ import (
 	productapp "github.com/diegofxm/erp/internal/product/application"
 	productpostgres "github.com/diegofxm/erp/internal/product/infrastructure/persistence/postgres"
 	producthttp "github.com/diegofxm/erp/internal/product/interfaces/http"
+	publichttp "github.com/diegofxm/erp/internal/public/interfaces/http"
 	purchaseapp "github.com/diegofxm/erp/internal/purchase/application"
 	purchasecompany "github.com/diegofxm/erp/internal/purchase/infrastructure/company"
 	purchasepostgres "github.com/diegofxm/erp/internal/purchase/infrastructure/persistence/postgres"
@@ -61,9 +65,9 @@ import (
 	"github.com/diegofxm/erp/internal/shared/logger"
 	notificationapp "github.com/diegofxm/erp/internal/shared/notification/application"
 	notificationdomain "github.com/diegofxm/erp/internal/shared/notification/domain"
+	notificationcompany "github.com/diegofxm/erp/internal/shared/notification/infrastructure/company"
 	notificationnoop "github.com/diegofxm/erp/internal/shared/notification/infrastructure/email/noop"
 	notificationsmtp "github.com/diegofxm/erp/internal/shared/notification/infrastructure/email/smtp"
-	notificationcompany "github.com/diegofxm/erp/internal/shared/notification/infrastructure/company"
 	notificationnumbering "github.com/diegofxm/erp/internal/shared/notification/infrastructure/numbering"
 	notificationstock "github.com/diegofxm/erp/internal/shared/notification/infrastructure/stock"
 	notificationhttp "github.com/diegofxm/erp/internal/shared/notification/interfaces/http"
@@ -72,10 +76,6 @@ import (
 	multireports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/multi"
 	pdfreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/pdf"
 	"github.com/diegofxm/erp/internal/shared/tenant"
-	auditapp "github.com/diegofxm/erp/internal/audit/application"
-	auditpostgres "github.com/diegofxm/erp/internal/audit/infrastructure/persistence/postgres"
-	audithttp "github.com/diegofxm/erp/internal/audit/interfaces/http"
-	publichttp "github.com/diegofxm/erp/internal/public/interfaces/http"
 	statsapp "github.com/diegofxm/erp/internal/stats/application"
 	statspostgres "github.com/diegofxm/erp/internal/stats/infrastructure/persistence/postgres"
 	statshttp "github.com/diegofxm/erp/internal/stats/interfaces/http"
@@ -155,6 +155,17 @@ func main() {
 
 	// ── Repositorios — accounting ───────────────────────────────────────────────
 	accountingAccountRepo := accountingpostgres.NewAccountRepository(pool)
+	accountingWithholdingRepo := accountingpostgres.NewWithholdingConceptRepository(pool)
+	accountingCertificateRepo := accountingpostgres.NewWithholdingCertificateRepository(pool)
+	accountingBankAccountRepo := accountingpostgres.NewBankAccountRepository(pool)
+	accountingBankStatementRepo := accountingpostgres.NewBankStatementRepository(pool)
+	accountingFixedAssetRepo := accountingpostgres.NewFixedAssetRepository(pool)
+	accountingDepreciationRepo := accountingpostgres.NewDepreciationRepository(pool)
+	accountingBudgetRepo := accountingpostgres.NewBudgetRepository(pool)
+	accountingIVARepo := accountingpostgres.NewIVADeclarationRepository(pool)
+	accountingIncomeTaxRepo := accountingpostgres.NewIncomeTaxDeclarationRepository(pool)
+	accountingICATariffRepo := accountingpostgres.NewICATariffRepository(pool)
+	accountingICARepo := accountingpostgres.NewICADeclarationRepository(pool)
 	accountingPeriodRepo := accountingpostgres.NewPeriodRepository(pool)
 	accountingJournalRepo := accountingpostgres.NewJournalRepository(pool)
 
@@ -180,7 +191,16 @@ func main() {
 	cancelPurchaseUC := purchaseapp.NewCancelUseCase(purchaseRepo)
 	receivePurchaseUC := purchaseapp.NewReceiveUseCase(purchaseRepo, bus)
 	deletePurchaseUC := purchaseapp.NewDeleteUseCase(purchaseRepo)
-	purchasePaymentUC := purchaseapp.NewPaymentUseCase(purchasePaymentRepo, purchaseRepo)
+	purchasePaymentUC := purchaseapp.NewPaymentUseCase(purchasePaymentRepo, purchaseRepo, bus)
+	purchaseWithholdingUC := purchaseapp.NewAddWithholdingUseCase(purchaseRepo, purchaseRepo, accountingWithholdingRepo)
+	issueCertificatesUC := accountingapp.NewIssueWithholdingCertificatesUseCase(purchaseRepo, accountingCertificateRepo)
+	manageBankUC := accountingapp.NewManageBankUseCase(accountingBankAccountRepo, accountingBankStatementRepo, accountingAccountRepo)
+	fixedAssetUC := accountingapp.NewFixedAssetUseCase(accountingFixedAssetRepo, accountingAccountRepo)
+	runDepreciationUC := accountingapp.NewRunDepreciationUseCase(accountingFixedAssetRepo, accountingDepreciationRepo, accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
+	budgetUC := accountingapp.NewBudgetUseCase(accountingBudgetRepo, accountingAccountRepo)
+	ivaUC := accountingapp.NewIVAUseCase(accountingIVARepo, accountingJournalRepo, accountingAccountRepo)
+	incomeTaxUC := accountingapp.NewIncomeTaxUseCase(accountingIncomeTaxRepo, accountingJournalRepo)
+	icaUC := accountingapp.NewICAUseCase(accountingICARepo, accountingICATariffRepo, accountingJournalRepo)
 
 	// ── Casos de uso — sales ────────────────────────────────────────────────────
 	createSaleUC := salesapp.NewCreateUseCase(salesRepo)
@@ -188,7 +208,7 @@ func main() {
 	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus, productRepo, inventoryRepo, customerRepo, paymentRepo, warehouseRepo)
 	cancelSaleUC := salesapp.NewCancelUseCase(salesRepo)
 	quoteUC := salesapp.NewQuoteUseCase(quoteRepo, salesRepo)
-	paymentUC := salesapp.NewPaymentUseCase(paymentRepo, salesRepo)
+	paymentUC := salesapp.NewPaymentUseCase(paymentRepo, salesRepo, bus)
 
 	// ── Casos de uso — accounting ───────────────────────────────────────────────
 	postJournalUC := accountingapp.NewPostJournalUseCase(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
@@ -205,6 +225,10 @@ func main() {
 	inventoryOnPurchaseReceived.Register(bus)
 	onPayrollGenerated := accountingapp.NewOnPayrollGenerated(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onPayrollGenerated.Register(bus)
+	onSalePaymentRecorded := accountingapp.NewOnSalePaymentRecorded(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
+	onSalePaymentRecorded.Register(bus)
+	onPurchasePaymentRecorded := accountingapp.NewOnPurchasePaymentRecorded(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
+	onPurchasePaymentRecorded.Register(bus)
 
 	// ── Audit ───────────────────────────────────────────────────────────────────
 	auditUC := auditapp.NewUseCase(auditpostgres.NewRepository(pool), logger.New("audit"))
@@ -330,9 +354,9 @@ func main() {
 	supplierhttp.NewHandler(createSupplierUC, getSupplierUC, updateSupplierUC, deleteSupplierUC).RegisterRoutes(mux)
 	producthttp.NewHandler(createProductUC, getProductUC, updateProductUC, deleteProductUC).RegisterRoutes(mux)
 	inventoryhttp.NewHandler(moveInventoryUC, getInventoryUC).RegisterRoutes(mux)
-	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC, deletePurchaseUC, purchasePaymentUC, purchasePDFUC, sendPurchaseEmailUC).RegisterRoutes(mux)
+	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC, deletePurchaseUC, purchasePaymentUC, purchasePDFUC, sendPurchaseEmailUC, purchaseWithholdingUC).RegisterRoutes(mux)
 	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC, quotePDFUC, sendQuoteEmailUC).RegisterRoutes(mux)
-	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo).RegisterRoutes(mux)
+	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo, accountingWithholdingRepo, issueCertificatesUC, manageBankUC, fixedAssetUC, runDepreciationUC, budgetUC, ivaUC, incomeTaxUC, icaUC).RegisterRoutes(mux)
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, fromPurchaseUC, electronicDianRangesUC, electronicSendEmailUC, auditUC).RegisterRoutes(mux)
 	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)

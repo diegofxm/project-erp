@@ -45,6 +45,25 @@ type purchaseLineDTO struct {
 	Total       float64   `json:"total"`
 }
 
+type withholdingDTO struct {
+	ID              uuid.UUID `json:"id"`
+	PurchaseOrderID uuid.UUID `json:"purchase_order_id"`
+	ConceptCode     string    `json:"concept_code"`
+	ConceptName     string    `json:"concept_name"`
+	Base            float64   `json:"base"`
+	RateBP          int       `json:"rate_bp"`
+	Amount          float64   `json:"amount"`
+	AccountPayable  string    `json:"account_payable"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+func toWithholdingDTO(w domain.PurchaseWithholding) withholdingDTO {
+	return withholdingDTO{
+		ID: w.ID, PurchaseOrderID: w.PurchaseOrderID, ConceptCode: w.ConceptCode, ConceptName: w.ConceptName,
+		Base: w.Base, RateBP: w.RateBP, Amount: w.Amount, AccountPayable: w.AccountPayable, CreatedAt: w.CreatedAt,
+	}
+}
+
 type purchaseDTO struct {
 	ID                uuid.UUID         `json:"id"`
 	CompanyID         uuid.UUID         `json:"company_id"`
@@ -55,6 +74,7 @@ type purchaseDTO struct {
 	DueDate           string            `json:"due_date,omitempty"`
 	Notes             string            `json:"notes"`
 	Lines             []purchaseLineDTO `json:"lines"`
+	Withholdings      []withholdingDTO  `json:"withholdings"`
 	SupportDocumentID *uuid.UUID        `json:"support_document_id,omitempty"`
 	CreatedAt         time.Time         `json:"created_at"`
 	UpdatedAt         time.Time         `json:"updated_at"`
@@ -69,11 +89,15 @@ func toPurchaseDTO(o *domain.PurchaseOrder) purchaseDTO {
 			Subtotal: l.Subtotal, TaxAmount: l.TaxAmount, Total: l.Total,
 		}
 	}
+	withholdings := make([]withholdingDTO, len(o.Withholdings))
+	for i, wh := range o.Withholdings {
+		withholdings[i] = toWithholdingDTO(wh)
+	}
 	return purchaseDTO{
 		ID: o.ID, CompanyID: o.CompanyID, SupplierID: o.SupplierID,
 		Number: o.Number, Status: string(o.Status),
 		IssueDate: formatDate(o.IssueDate), DueDate: formatDatePtr(o.DueDate),
-		Notes: o.Notes, Lines: lines, SupportDocumentID: o.SupportDocumentID,
+		Notes: o.Notes, Lines: lines, Withholdings: withholdings, SupportDocumentID: o.SupportDocumentID,
 		CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt,
 	}
 }
@@ -119,15 +143,16 @@ func toPayableDTO(b domain.PayableBalance) payableDTO {
 }
 
 type Handler struct {
-	create    *application.CreateUseCase
-	get       *application.GetUseCase
-	confirm   *application.ConfirmUseCase
-	cancel    *application.CancelUseCase
-	receive   *application.ReceiveUseCase
-	delete    *application.DeleteUseCase
-	payment   *application.PaymentUseCase
-	pdf       *application.GetPurchaseOrderPDFUseCase
-	sendEmail *application.SendPurchaseOrderEmailUseCase
+	create      *application.CreateUseCase
+	get         *application.GetUseCase
+	confirm     *application.ConfirmUseCase
+	cancel      *application.CancelUseCase
+	receive     *application.ReceiveUseCase
+	delete      *application.DeleteUseCase
+	payment     *application.PaymentUseCase
+	pdf         *application.GetPurchaseOrderPDFUseCase
+	sendEmail   *application.SendPurchaseOrderEmailUseCase
+	withholding *application.AddWithholdingUseCase
 }
 
 func NewHandler(
@@ -140,11 +165,74 @@ func NewHandler(
 	payment *application.PaymentUseCase,
 	pdf *application.GetPurchaseOrderPDFUseCase,
 	sendEmail *application.SendPurchaseOrderEmailUseCase,
+	withholding *application.AddWithholdingUseCase,
 ) *Handler {
 	return &Handler{
 		create: create, get: get, confirm: confirm, cancel: cancel, receive: receive, delete: del, payment: payment,
-		pdf: pdf, sendEmail: sendEmail,
+		pdf: pdf, sendEmail: sendEmail, withholding: withholding,
 	}
+}
+
+func (h *Handler) handleAddWithholding(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var body struct {
+		ConceptID uuid.UUID `json:"concept_id"`
+		Base      float64   `json:"base"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	wh, err := h.withholding.Execute(r.Context(), cid, application.AddWithholdingRequest{
+		PurchaseID: id, ConceptID: body.ConceptID, Base: body.Base,
+	})
+	if err != nil {
+		if errors.Is(err, domain.ErrPurchaseNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrPurchaseNotConfirmed) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toWithholdingDTO(*wh))
+}
+
+func (h *Handler) handleListWithholdings(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	list, err := h.withholding.List(r.Context(), cid, id)
+	if err != nil {
+		if errors.Is(err, domain.ErrPurchaseNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	dtos := make([]withholdingDTO, len(list))
+	for i, wh := range list {
+		dtos[i] = toWithholdingDTO(wh)
+	}
+	respond(w, http.StatusOK, dtos)
 }
 
 func (h *Handler) handleGetPDF(w http.ResponseWriter, r *http.Request) {

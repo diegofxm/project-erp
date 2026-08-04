@@ -14,9 +14,11 @@ import (
 // automático cuando se confirma una venta.
 //
 // Cuentas PUC colombiano:
-//   - 130505 Clientes nacionales  (débito = total de la venta)
-//   - 413505 Comercio al por menor (crédito = subtotal sin IVA)
-//   - 240808 IVA por pagar        (crédito = IVA)
+//   - 130505 Clientes nacionales      (débito = total de la venta)
+//   - 413595 Venta de otros productos (crédito = subtotal sin IVA)
+//   - 2408   Impuesto sobre las ventas por pagar (crédito = IVA generado; misma cuenta que
+//     on_purchase_received usa para el IVA descontable — el saldo neto de 2408 ya refleja
+//     "generado - descontable")
 type OnSaleConfirmed struct {
 	accounts domain.AccountRepository
 	periods  domain.PeriodRepository
@@ -55,7 +57,7 @@ func (h *OnSaleConfirmed) handle(ctx context.Context, ev salesdomain.SaleConfirm
 	if err != nil {
 		return err
 	}
-	acctIncome, err := h.accounts.GetPostable(ctx, "413505")
+	acctIncome, err := h.accounts.GetPostable(ctx, "413595")
 	if err != nil {
 		return err
 	}
@@ -76,7 +78,7 @@ func (h *OnSaleConfirmed) handle(ctx context.Context, ev salesdomain.SaleConfirm
 	}
 
 	if taxCents > 0 {
-		acctIVA, err := h.accounts.GetPostable(ctx, "240808")
+		acctIVA, err := h.accounts.GetPostable(ctx, "2408")
 		if err != nil {
 			return err
 		}

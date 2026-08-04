@@ -860,6 +860,7 @@ export interface Purchase {
   due_date?: string;
   notes: string;
   lines: PurchaseLine[];
+  withholdings: PurchaseWithholding[];
   // Documento Soporte ya generado desde esta orden, si alguno — cuando está presente, no se
   // puede volver a generar (ver electronic CreateFromPurchaseUseCase).
   support_document_id?: string;
@@ -1087,4 +1088,195 @@ export interface LedgerLine {
   debit: number;
   credit: number;
   running_balance: number;
+}
+
+export interface VoucherType {
+  id: string;
+  code: string;
+  name: string;
+  resets_annually: boolean;
+  is_active: boolean;
+}
+
+// ── Retenciones (erp/internal/purchase + accounting) ────────────────────────────
+
+export interface WithholdingConcept {
+  id: string;
+  code: string;
+  name: string;
+  type: string; // RETEFUENTE | RETEIVA | RETEICA
+  rate_bp: number;
+  min_base_uvt: number;
+  account_payable: string;
+  account_receivable: string;
+  applicable_to: string; // JURIDICA | NATURAL | BOTH
+}
+
+export interface PurchaseWithholding {
+  id: string;
+  purchase_order_id: string;
+  concept_code: string;
+  concept_name: string;
+  base: number;
+  rate_bp: number;
+  amount: number;
+  account_payable: string;
+  created_at: string;
+}
+
+export interface WithholdingCertificate {
+  id: string;
+  fiscal_year: number;
+  third_party_nit: string;
+  concept_code: string;
+  concept_name: string;
+  wh_type: string;
+  // En pesos (no centavos) — espejo de PurchaseWithholding.Base/Amount, no de journal_lines.
+  gross_amount: number;
+  tax_withheld: number;
+  status: string;
+  issued_at?: string;
+}
+
+// ── Bancos (erp/internal/accounting) ─────────────────────────────────────────────
+
+export interface BankAccount {
+  id: string;
+  name: string;
+  bank_name: string;
+  account_no: string;
+  account_id: string;
+  is_active: boolean;
+}
+
+export interface StatementLine {
+  id: string;
+  bank_account_id: string;
+  date: string;
+  description: string;
+  debit: number;
+  credit: number;
+  reference: string;
+  is_reconciled: boolean;
+  journal_line_id?: string;
+}
+
+export interface ReconciliationCandidate {
+  line_id: string;
+  journal_id: string;
+  date: string;
+  description: string;
+  voucher_type: string;
+  voucher_number: string;
+  debit: number;
+  credit: number;
+}
+
+// ── Activos fijos (erp/internal/accounting) ──────────────────────────────────────
+
+export type AssetStatus = "ACTIVE" | "FULLY_DEPRECIATED" | "DISPOSED";
+
+export interface FixedAsset {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  asset_account: string;
+  depreciation_account: string;
+  accumulated_account: string;
+  acquisition_date: string;
+  acquisition_cost: number;
+  salvage_value: number;
+  useful_life_months: number;
+  monthly_depreciation: number;
+  accumulated: number;
+  status: AssetStatus;
+  third_party_nit?: string;
+}
+
+export interface DepreciationRun {
+  id: string;
+  run_date: string;
+  status: string;
+  journal_id?: string;
+}
+
+// ── Presupuestos (erp/internal/accounting) ───────────────────────────────────────
+
+export type BudgetStatus = "DRAFT" | "APPROVED" | "CLOSED";
+
+export interface Budget {
+  id: string;
+  year: number;
+  name: string;
+  status: BudgetStatus;
+}
+
+export interface BudgetLine {
+  account_code: string;
+  account_name: string;
+  months: [number, number, number, number, number, number, number, number, number, number, number, number];
+  total: number;
+}
+
+export interface BudgetActualRow {
+  account_code: string;
+  account_name: string;
+  budgeted_months: [number, number, number, number, number, number, number, number, number, number, number, number];
+  actual_months: [number, number, number, number, number, number, number, number, number, number, number, number];
+}
+
+// ── Declaraciones de impuestos (erp/internal/accounting) ─────────────────────────
+
+export type DeclarationStatus = "DRAFT" | "FILED" | "PAID" | "CORRECTED";
+
+export interface IVADeclaration {
+  id: string;
+  period_start: string;
+  period_end: string;
+  period_type: string;
+  generated_iva: number;
+  deductible_iva: number;
+  net_iva: number;
+  previous_balance: number;
+  amount_to_pay: number;
+  carry_forward: number;
+  status: DeclarationStatus;
+}
+
+export interface IncomeTaxDeclaration {
+  id: string;
+  fiscal_year: number;
+  taxable_income: number;
+  tax_rate_bp: number;
+  tax_computed: number;
+  tax_to_pay: number;
+  amount_due: number;
+  status: DeclarationStatus;
+}
+
+export interface ICATariff {
+  id: string;
+  municipality_code: string;
+  ciiu_code: string;
+  fiscal_year: number;
+  rate_bp: number;
+  surcharge_bp: number;
+}
+
+export interface ICADeclaration {
+  id: string;
+  municipality_code: string;
+  period_start: string;
+  period_end: string;
+  ciiu_code: string;
+  gross_revenue: number;
+  net_base: number;
+  tax_computed: number;
+  surcharge_amount: number;
+  tax_to_pay: number;
+  previous_balance: number;
+  amount_due: number;
+  carry_forward: number;
+  status: DeclarationStatus;
 }

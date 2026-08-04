@@ -81,6 +81,12 @@ func (r *Repository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*dom
 		return nil, err
 	}
 	o.Lines = lines
+
+	withholdings, err := r.loadWithholdings(ctx, o.ID)
+	if err != nil {
+		return nil, err
+	}
+	o.Withholdings = withholdings
 	return &o, nil
 }
 
@@ -146,6 +152,29 @@ func (r *Repository) Delete(ctx context.Context, companyID, id uuid.UUID) error 
 	}
 	_, err = r.pool.Exec(ctx, "DELETE FROM purchase.orders WHERE id=$1 AND company_id=$2", id, companyID)
 	return err
+}
+
+func (r *Repository) loadWithholdings(ctx context.Context, orderID uuid.UUID) ([]domain.PurchaseWithholding, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, purchase_order_id, concept_code, concept_name, base, rate_bp, amount, account_payable, created_at
+		FROM purchase.purchase_withholdings WHERE purchase_order_id=$1 ORDER BY created_at`,
+		orderID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cargar retenciones: %w", err)
+	}
+	defer rows.Close()
+
+	var out []domain.PurchaseWithholding
+	for rows.Next() {
+		var w domain.PurchaseWithholding
+		if err := rows.Scan(&w.ID, &w.PurchaseOrderID, &w.ConceptCode, &w.ConceptName,
+			&w.Base, &w.RateBP, &w.Amount, &w.AccountPayable, &w.CreatedAt); err != nil {
+			return nil, fmt.Errorf("leer retención: %w", err)
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
 }
 
 func (r *Repository) loadLines(ctx context.Context, orderID uuid.UUID) ([]domain.PurchaseLine, error) {

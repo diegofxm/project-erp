@@ -67,6 +67,15 @@ func (r *PeriodRepository) Close(ctx context.Context, companyID, id uuid.UUID) e
 	return err
 }
 
+func (r *PeriodRepository) Reopen(ctx context.Context, companyID, id uuid.UUID) error {
+	const q = `
+		UPDATE accounting.accounting_periods
+		SET status = 'OPEN', closed_at = NULL, updated_at = NOW()
+		WHERE id = $1 AND company_id = $2`
+	_, err := r.pool.Exec(ctx, q, id, companyID)
+	return err
+}
+
 func (r *PeriodRepository) CloseAllForYear(ctx context.Context, companyID uuid.UUID, year int) error {
 	const q = `
 		UPDATE accounting.accounting_periods

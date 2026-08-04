@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
-import { ShoppingBag, Check, Ban, PackageCheck, Trash2, FileText, Mail } from "lucide-react";
+import { ShoppingBag, Check, Ban, PackageCheck, Trash2, FileText, Mail, Receipt, Plus } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
-import { cancelPurchase, confirmPurchase, createPurchase, deletePurchase, fetchPurchase, getPurchasePdfBlobUrl, receivePurchase, sendPurchaseEmail } from "../lib/purchases";
+import { addWithholding, cancelPurchase, confirmPurchase, createPurchase, deletePurchase, fetchPurchase, getPurchasePdfBlobUrl, receivePurchase, sendPurchaseEmail } from "../lib/purchases";
 import { listSuppliers } from "../lib/suppliers";
 import { listNumberingRanges } from "../lib/numberingRanges";
+import { listWithholdingConcepts } from "../lib/accounting";
 import { createSupportDocFromPurchase } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
 import { openInNewTab } from "../lib/openInNewTab";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
-import type { Purchase, PurchaseStatus, PurchaseLineInput, NumberingRange, Supplier } from "../lib/types";
+import type { Purchase, PurchaseStatus, PurchaseLineInput, NumberingRange, Supplier, WithholdingConcept } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -59,9 +60,14 @@ export function PurchaseOrderEditorPage() {
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<PurchaseLineInput[]>([]);
   const [rangeId, setRangeId] = useState("");
+  const [concepts, setConcepts] = useState<WithholdingConcept[]>([]);
+  const [whConceptId, setWhConceptId] = useState("");
+  const [whBase, setWhBase] = useState("");
+  const [addingWh, setAddingWh] = useState(false);
 
   useEffect(() => {
     listSuppliers().then(setSuppliers).catch(() => setSuppliers([]));
+    listWithholdingConcepts().then(setConcepts).catch(() => setConcepts([]));
   }, []);
 
   useEffect(() => {
@@ -154,6 +160,23 @@ export function PurchaseOrderEditorPage() {
       navigate("/purchases/orders");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar la orden");
+    }
+  }
+
+  async function handleAddWithholding() {
+    if (!purchase || !whConceptId || !whBase) return;
+    setAddingWh(true);
+    try {
+      await addWithholding(purchase.id, whConceptId, Number(whBase));
+      const updated = await fetchPurchase(purchase.id);
+      setPurchase(updated);
+      setWhConceptId("");
+      setWhBase("");
+      toast.success("Retención aplicada.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo aplicar la retención");
+    } finally {
+      setAddingWh(false);
     }
   }
 
@@ -296,6 +319,58 @@ export function PurchaseOrderEditorPage() {
           </span>
         </div>
       </Card>
+
+      {purchase && (purchase.status === "confirmed" || purchase.status === "received") && (
+        <Card className="mt-3 p-4">
+          <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-(--text-primary)">
+            <Receipt className="h-3.5 w-3.5 text-(--accent-primary)" />
+            Retenciones
+          </h3>
+          {purchase.withholdings.length > 0 && (
+            <div className="mb-3 overflow-x-auto rounded border border-(--border-color)">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Concepto</th>
+                    <th className="px-3 py-2 font-medium">Base</th>
+                    <th className="px-3 py-2 font-medium">Tarifa</th>
+                    <th className="px-3 py-2 font-medium">Monto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {purchase.withholdings.map((w, i) => (
+                    <tr key={w.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
+                      <td className="px-3 py-2 text-(--text-primary)">{w.concept_name}</td>
+                      <td className="px-3 py-2 font-mono text-(--text-secondary)">{formatCOP.format(w.base)}</td>
+                      <td className="px-3 py-2 text-(--text-secondary)">{(w.rate_bp / 100).toFixed(2)}%</td>
+                      <td className="px-3 py-2 font-mono text-(--text-primary)">{formatCOP.format(w.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {purchase.status === "confirmed" ? (
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="w-64">
+                <Combobox
+                  label="Concepto"
+                  value={whConceptId}
+                  onChange={setWhConceptId}
+                  options={concepts.map((c) => ({ value: c.id, label: `${c.code} — ${c.name} (${(c.rate_bp / 100).toFixed(2)}%)` }))}
+                  placeholder="Buscar concepto…"
+                />
+              </div>
+              <Input label="Base" type="number" min="0" value={whBase} onChange={(e) => setWhBase(e.target.value)} className="w-36" />
+              <Button type="button" variant="secondary" icon={<Plus className="h-3.5 w-3.5" />} disabled={!whConceptId || !whBase} loading={addingWh} onClick={handleAddWithholding}>
+                Aplicar
+              </Button>
+            </div>
+          ) : purchase.withholdings.length === 0 ? (
+            <p className="text-xs text-(--text-secondary)">Esta orden se recibió sin retenciones aplicadas.</p>
+          ) : null}
+        </Card>
+      )}
 
       {purchase?.status === "received" && purchase.support_document_id && (
         <Card className="mt-3 p-4">

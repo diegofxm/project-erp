@@ -286,6 +286,7 @@ code,name,parent_code,level,category,is_posting,is_active
 143025,Productos de pesca,1430,4,Activo,true,true
 143099,Ajustes por inflación,1430,4,Activo,true,true
 1435,Mercancías no fabricadas por la empresa,14,3,Activo,false,true
+143505,Mercancías no fabricadas por la empresa,1435,4,Activo,true,true
 143599,Ajustes por inflación,1435,4,Activo,true,true
 1440,Bienes raíces para la venta,14,3,Activo,false,true
 144099,Ajustes por inflación,1440,4,Activo,true,true

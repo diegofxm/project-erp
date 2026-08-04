@@ -71,6 +71,11 @@ const SUB_NAVS: SubNavConfig[] = [
       { to: "/accounting/accounts", label: "Cuentas" },
       { to: "/accounting/periods", label: "Periodos" },
       { to: "/accounting/reports", label: "Reportes" },
+      { to: "/accounting/bank", label: "Bancos" },
+      { to: "/accounting/fixed-assets", label: "Activos fijos" },
+      { to: "/accounting/budgets", label: "Presupuestos" },
+      { to: "/accounting/declarations", label: "Declaraciones" },
+      { to: "/accounting/certificates", label: "Certificados" },
     ],
   },
   {

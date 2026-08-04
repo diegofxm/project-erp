@@ -12,6 +12,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/v1/purchases/{id}", h.handleDelete)
 	mux.HandleFunc("GET /api/v1/purchases/{id}/pdf", h.handleGetPDF)
 	mux.HandleFunc("POST /api/v1/purchases/{id}/send-email", h.handleSendEmail)
+	mux.HandleFunc("POST /api/v1/purchases/{id}/withholdings", h.handleAddWithholding)
+	mux.HandleFunc("GET /api/v1/purchases/{id}/withholdings", h.handleListWithholdings)
 
 	// Pagos y cuentas por pagar
 	mux.HandleFunc("POST /api/v1/purchase-payments", h.handleRecordPayment)

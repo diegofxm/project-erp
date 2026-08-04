@@ -15,11 +15,20 @@ import (
 )
 
 type Handler struct {
-	post    *application.PostJournalUseCase
-	get     *application.GetJournalUseCase
-	void    *application.VoidJournalUseCase
-	period  *application.ManagePeriodUseCase
-	accounts domain.AccountRepository
+	post         *application.PostJournalUseCase
+	get          *application.GetJournalUseCase
+	void         *application.VoidJournalUseCase
+	period       *application.ManagePeriodUseCase
+	accounts     domain.AccountRepository
+	withholding  domain.WithholdingConceptRepository
+	certificates *application.IssueWithholdingCertificatesUseCase
+	bank         *application.ManageBankUseCase
+	assets       *application.FixedAssetUseCase
+	depreciation *application.RunDepreciationUseCase
+	budget       *application.BudgetUseCase
+	iva          *application.IVAUseCase
+	incomeTax    *application.IncomeTaxUseCase
+	ica          *application.ICAUseCase
 }
 
 func NewHandler(
@@ -28,8 +37,650 @@ func NewHandler(
 	void *application.VoidJournalUseCase,
 	period *application.ManagePeriodUseCase,
 	accounts domain.AccountRepository,
+	withholding domain.WithholdingConceptRepository,
+	certificates *application.IssueWithholdingCertificatesUseCase,
+	bank *application.ManageBankUseCase,
+	assets *application.FixedAssetUseCase,
+	depreciation *application.RunDepreciationUseCase,
+	budget *application.BudgetUseCase,
+	iva *application.IVAUseCase,
+	incomeTax *application.IncomeTaxUseCase,
+	ica *application.ICAUseCase,
 ) *Handler {
-	return &Handler{post: post, get: get, void: void, period: period, accounts: accounts}
+	return &Handler{
+		post: post, get: get, void: void, period: period, accounts: accounts, withholding: withholding,
+		certificates: certificates, bank: bank, assets: assets, depreciation: depreciation, budget: budget,
+		iva: iva, incomeTax: incomeTax, ica: ica,
+	}
+}
+
+// ── Declaración de IVA ───────────────────────────────────────────────────────
+
+func (h *Handler) handleGenerateIVA(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		PeriodStart string `json:"period_start"`
+		PeriodEnd   string `json:"period_end"`
+		PeriodType  string `json:"period_type"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	from, err1 := time.Parse("2006-01-02", body.PeriodStart)
+	to, err2 := time.Parse("2006-01-02", body.PeriodEnd)
+	if err1 != nil || err2 != nil {
+		respondError(w, http.StatusBadRequest, "period_start/period_end deben ser YYYY-MM-DD")
+		return
+	}
+	d, err := h.iva.Generate(r.Context(), cid, from, to, body.PeriodType)
+	if err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toIVADTOs([]domain.IVADeclaration{*d})[0])
+}
+
+func (h *Handler) handleListIVA(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	list, err := h.iva.List(r.Context(), cid)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toIVADTOs(list))
+}
+
+func (h *Handler) handleFileIVA(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.iva.MarkFiled(r.Context(), cid, id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]string{"status": "filed"})
+}
+
+// ── Declaración de Renta ─────────────────────────────────────────────────────
+
+func (h *Handler) handleGenerateIncomeTax(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		FiscalYear int `json:"fiscal_year"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	d, err := h.incomeTax.Generate(r.Context(), cid, body.FiscalYear)
+	if err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toIncomeTaxDTOs([]domain.IncomeTaxDeclaration{*d})[0])
+}
+
+func (h *Handler) handleListIncomeTax(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	list, err := h.incomeTax.List(r.Context(), cid)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toIncomeTaxDTOs(list))
+}
+
+func (h *Handler) handleFileIncomeTax(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.incomeTax.MarkFiled(r.Context(), cid, id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]string{"status": "filed"})
+}
+
+// ── Declaración de ICA ───────────────────────────────────────────────────────
+
+func (h *Handler) handleSetICATariff(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireTenant(w, r); !ok {
+		return
+	}
+	var body struct {
+		MunicipalityCode string `json:"municipality_code"`
+		CIIUCode         string `json:"ciiu_code"`
+		FiscalYear       int    `json:"fiscal_year"`
+		RateBP           int    `json:"rate_bp"`
+		SurchargeBP      int    `json:"surcharge_bp"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	t, err := h.ica.SetTariff(r.Context(), body.MunicipalityCode, body.CIIUCode, body.FiscalYear, body.RateBP, body.SurchargeBP)
+	if err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toICATariffDTOs([]domain.ICATariff{*t})[0])
+}
+
+func (h *Handler) handleListICATariffs(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireTenant(w, r); !ok {
+		return
+	}
+	list, err := h.ica.ListTariffs(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toICATariffDTOs(list))
+}
+
+func (h *Handler) handleGenerateICA(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		MunicipalityCode string `json:"municipality_code"`
+		CIIUCode         string `json:"ciiu_code"`
+		PeriodStart      string `json:"period_start"`
+		PeriodEnd        string `json:"period_end"`
+		PeriodType       string `json:"period_type"`
+		DeductionsCents  int64  `json:"deductions_cents"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	from, err1 := time.Parse("2006-01-02", body.PeriodStart)
+	to, err2 := time.Parse("2006-01-02", body.PeriodEnd)
+	if err1 != nil || err2 != nil {
+		respondError(w, http.StatusBadRequest, "period_start/period_end deben ser YYYY-MM-DD")
+		return
+	}
+	d, err := h.ica.Generate(r.Context(), cid, application.GenerateICARequest{
+		MunicipalityCode: body.MunicipalityCode, CIIUCode: body.CIIUCode, PeriodStart: from, PeriodEnd: to,
+		PeriodType: body.PeriodType, DeductionsCents: body.DeductionsCents,
+	})
+	if err != nil {
+		if errors.Is(err, domain.ErrICATariffNotFound) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toICADTOs([]domain.ICADeclaration{*d})[0])
+}
+
+func (h *Handler) handleListICA(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	list, err := h.ica.List(r.Context(), cid)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toICADTOs(list))
+}
+
+func (h *Handler) handleFileICA(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.ica.MarkFiled(r.Context(), cid, id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]string{"status": "filed"})
+}
+
+// ── Presupuestos ─────────────────────────────────────────────────────────────
+
+func (h *Handler) handleCreateBudget(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Year int    `json:"year"`
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	b, err := h.budget.Create(r.Context(), cid, body.Year, body.Name)
+	if err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toBudgetDTO(*b))
+}
+
+func (h *Handler) handleListBudgets(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	year, _ := strconv.Atoi(r.URL.Query().Get("year"))
+	list, err := h.budget.List(r.Context(), cid, year)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toBudgetDTOs(list))
+}
+
+func (h *Handler) handleSetBudgetLine(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	budgetID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var body struct {
+		AccountCode string    `json:"account_code"`
+		Months      [12]int64 `json:"months"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	line, err := h.budget.SetLine(r.Context(), cid, application.SetBudgetLineRequest{BudgetID: budgetID, AccountCode: body.AccountCode, Months: body.Months})
+	if err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toBudgetLineDTOs([]domain.BudgetLine{*line})[0])
+}
+
+func (h *Handler) handleListBudgetLines(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	budgetID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	list, err := h.budget.ListLines(r.Context(), cid, budgetID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toBudgetLineDTOs(list))
+}
+
+func (h *Handler) handleBudgetCompare(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	budgetID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	list, err := h.budget.Compare(r.Context(), cid, budgetID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toBudgetActualDTOs(list))
+}
+
+func (h *Handler) handleApproveBudget(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	budgetID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.budget.SetStatus(r.Context(), cid, budgetID, domain.BudgetApproved); err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]string{"status": "approved"})
+}
+
+// ── Activos fijos ────────────────────────────────────────────────────────────
+
+func (h *Handler) handleCreateFixedAsset(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Code                 string `json:"code"`
+		Name                 string `json:"name"`
+		Description          string `json:"description"`
+		AssetAccount         string `json:"asset_account"`
+		DepreciationAccount  string `json:"depreciation_account"`
+		AccumulatedAccount   string `json:"accumulated_account"`
+		AcquisitionDate      string `json:"acquisition_date"`
+		AcquisitionCostCents int64  `json:"acquisition_cost_cents"`
+		SalvageValueCents    int64  `json:"salvage_value_cents"`
+		UsefulLifeMonths     int    `json:"useful_life_months"`
+		ThirdPartyNIT        string `json:"third_party_nit"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	date, err := time.Parse("2006-01-02", body.AcquisitionDate)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "acquisition_date debe ser YYYY-MM-DD")
+		return
+	}
+	a, err := h.assets.Create(r.Context(), cid, application.CreateFixedAssetRequest{
+		Code: body.Code, Name: body.Name, Description: body.Description,
+		AssetAccount: body.AssetAccount, DepreciationAccount: body.DepreciationAccount, AccumulatedAccount: body.AccumulatedAccount,
+		AcquisitionDate: date, AcquisitionCostCents: body.AcquisitionCostCents, SalvageValueCents: body.SalvageValueCents,
+		UsefulLifeMonths: body.UsefulLifeMonths, ThirdPartyNIT: body.ThirdPartyNIT,
+	})
+	if err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toFixedAssetDTO(application.AssetWithAccumulated{FixedAsset: *a}))
+}
+
+func (h *Handler) handleListFixedAssets(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	list, err := h.assets.ListWithAccumulated(r.Context(), cid)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toFixedAssetDTOs(list))
+}
+
+func (h *Handler) handleRunDepreciation(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Date string `json:"date"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	date, err := time.Parse("2006-01-02", body.Date)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "date debe ser YYYY-MM-DD")
+		return
+	}
+	run, err := h.depreciation.Execute(r.Context(), cid, date)
+	if err != nil {
+		if errors.Is(err, domain.ErrDepreciationExists) || errors.Is(err, domain.ErrNoDepreciableAssets) || errors.Is(err, domain.ErrPeriodClosed) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toDepreciationRunDTOs([]domain.DepreciationRun{*run})[0])
+}
+
+func (h *Handler) handleListDepreciationRuns(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	list, err := h.depreciation.ListRuns(r.Context(), cid)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toDepreciationRunDTOs(list))
+}
+
+// ── Bancos ────────────────────────────────────────────────────────────────────
+
+func (h *Handler) handleCreateBankAccount(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Name        string `json:"name"`
+		BankName    string `json:"bank_name"`
+		AccountNo   string `json:"account_no"`
+		AccountCode string `json:"account_code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	a, err := h.bank.CreateAccount(r.Context(), cid, application.CreateBankAccountRequest{
+		Name: body.Name, BankName: body.BankName, AccountNo: body.AccountNo, AccountCode: body.AccountCode,
+	})
+	if err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toBankAccountDTO(*a))
+}
+
+func (h *Handler) handleListBankAccounts(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	list, err := h.bank.ListAccounts(r.Context(), cid)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toBankAccountDTOs(list))
+}
+
+func (h *Handler) handleAddStatementLine(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	bankAccountID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var body struct {
+		Date        string `json:"date"`
+		Description string `json:"description"`
+		DebitCents  int64  `json:"debit_cents"`
+		CreditCents int64  `json:"credit_cents"`
+		Reference   string `json:"reference"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	date, err := time.Parse("2006-01-02", body.Date)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "date debe ser YYYY-MM-DD")
+		return
+	}
+	l, err := h.bank.AddStatementLine(r.Context(), cid, bankAccountID, application.AddStatementLineRequest{
+		Date: date, Description: body.Description, DebitCents: body.DebitCents, CreditCents: body.CreditCents, Reference: body.Reference,
+	})
+	if err != nil {
+		if errors.Is(err, domain.ErrBankAccountNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toStatementLineDTO(*l))
+}
+
+func (h *Handler) handleListStatement(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	bankAccountID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	list, err := h.bank.ListStatement(r.Context(), cid, bankAccountID)
+	if err != nil {
+		if errors.Is(err, domain.ErrBankAccountNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toStatementLineDTOs(list))
+}
+
+func (h *Handler) handleCandidates(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	lineID, err := uuid.Parse(r.PathValue("line_id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "line_id inválido")
+		return
+	}
+	list, err := h.bank.Candidates(r.Context(), cid, lineID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toCandidateDTOs(list))
+}
+
+func (h *Handler) handleReconcile(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	lineID, err := uuid.Parse(r.PathValue("line_id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "line_id inválido")
+		return
+	}
+	var body struct {
+		JournalLineID uuid.UUID `json:"journal_line_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	if err := h.bank.Reconcile(r.Context(), cid, lineID, body.JournalLineID); err != nil {
+		if errors.Is(err, domain.ErrAlreadyReconciled) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]string{"status": "reconciled"})
+}
+
+func (h *Handler) handleListWithholdingConcepts(w http.ResponseWriter, r *http.Request) {
+	list, err := h.withholding.List(r.Context())
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toWithholdingConceptDTOs(list))
+}
+
+func (h *Handler) handleIssueCertificates(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		SupplierID    uuid.UUID `json:"supplier_id"`
+		ThirdPartyNIT string    `json:"third_party_nit"`
+		FiscalYear    int       `json:"fiscal_year"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	list, err := h.certificates.Execute(r.Context(), cid, application.IssueCertificatesRequest{
+		SupplierID: body.SupplierID, ThirdPartyNIT: body.ThirdPartyNIT, FiscalYear: body.FiscalYear,
+	})
+	if err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toCertificateDTOs(list))
+}
+
+func (h *Handler) handleListCertificates(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	year, err := strconv.Atoi(r.URL.Query().Get("year"))
+	if err != nil || year < 2000 {
+		respondError(w, http.StatusBadRequest, "year requerido (YYYY)")
+		return
+	}
+	list, err := h.certificates.List(r.Context(), cid, year)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toCertificateDTOs(list))
 }
 
 // ── Asientos ─────────────────────────────────────────────────────────────────
@@ -81,15 +732,15 @@ func (h *Handler) handlePostJournal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Date               string                  `json:"date"`
-		Description        string                  `json:"description"`
-		Source             string                  `json:"source"`
-		EntryType          string                  `json:"entry_type"`
-		VoucherType        string                  `json:"voucher_type"`
-		SourceDocumentID   string                  `json:"source_document_id"`
-		SourceDocumentType string                  `json:"source_document_type"`
-		Book               string                  `json:"book"`
-		Lines              []postLineBody          `json:"lines"`
+		Date               string         `json:"date"`
+		Description        string         `json:"description"`
+		Source             string         `json:"source"`
+		EntryType          string         `json:"entry_type"`
+		VoucherType        string         `json:"voucher_type"`
+		SourceDocumentID   string         `json:"source_document_id"`
+		SourceDocumentType string         `json:"source_document_type"`
+		Book               string         `json:"book"`
+		Lines              []postLineBody `json:"lines"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		respondError(w, http.StatusBadRequest, "cuerpo inválido")
@@ -243,6 +894,66 @@ func (h *Handler) handleClosePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, http.StatusOK, map[string]string{"status": "closed"})
+}
+
+func (h *Handler) handleReopenPeriod(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.period.Reopen(r.Context(), cid, id); err != nil {
+		if errors.Is(err, domain.ErrPeriodNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]string{"status": "open"})
+}
+
+// ── Tipos de comprobante ─────────────────────────────────────────────────────
+
+func (h *Handler) handleCreateVoucherType(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Code           string `json:"code"`
+		Name           string `json:"name"`
+		ResetsAnnually bool   `json:"resets_annually"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	cfg, err := h.get.RegisterVoucherType(r.Context(), domain.VoucherTypeConfig{
+		CompanyID: cid, Code: body.Code, Name: body.Name, ResetsAnnually: body.ResetsAnnually, IsActive: true,
+	})
+	if err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusCreated, toVoucherTypeDTOs([]*domain.VoucherTypeConfig{cfg})[0])
+}
+
+func (h *Handler) handleListVoucherTypes(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	list, err := h.get.ListVoucherTypes(r.Context(), cid)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toVoucherTypeDTOs(list))
 }
 
 // ── Reportes ──────────────────────────────────────────────────────────────────

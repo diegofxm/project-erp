@@ -5,11 +5,50 @@ import "net/http"
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Cuentas (PUC — globales, sin company_id)
 	mux.HandleFunc("GET /api/v1/accounting/accounts", h.handleListAccounts)
+	mux.HandleFunc("GET /api/v1/accounting/withholding-concepts", h.handleListWithholdingConcepts)
+	mux.HandleFunc("POST /api/v1/accounting/withholding-certificates", h.handleIssueCertificates)
+	mux.HandleFunc("GET /api/v1/accounting/withholding-certificates", h.handleListCertificates)
+
+	mux.HandleFunc("POST /api/v1/accounting/bank-accounts", h.handleCreateBankAccount)
+	mux.HandleFunc("GET /api/v1/accounting/bank-accounts", h.handleListBankAccounts)
+	mux.HandleFunc("POST /api/v1/accounting/bank-accounts/{id}/statement-lines", h.handleAddStatementLine)
+	mux.HandleFunc("GET /api/v1/accounting/bank-accounts/{id}/statement-lines", h.handleListStatement)
+	mux.HandleFunc("GET /api/v1/accounting/statement-lines/{line_id}/candidates", h.handleCandidates)
+	mux.HandleFunc("POST /api/v1/accounting/statement-lines/{line_id}/reconcile", h.handleReconcile)
+
+	mux.HandleFunc("POST /api/v1/accounting/fixed-assets", h.handleCreateFixedAsset)
+	mux.HandleFunc("GET /api/v1/accounting/fixed-assets", h.handleListFixedAssets)
+	mux.HandleFunc("POST /api/v1/accounting/depreciation-runs", h.handleRunDepreciation)
+	mux.HandleFunc("GET /api/v1/accounting/depreciation-runs", h.handleListDepreciationRuns)
+
+	mux.HandleFunc("POST /api/v1/accounting/budgets", h.handleCreateBudget)
+	mux.HandleFunc("GET /api/v1/accounting/budgets", h.handleListBudgets)
+	mux.HandleFunc("POST /api/v1/accounting/budgets/{id}/lines", h.handleSetBudgetLine)
+	mux.HandleFunc("GET /api/v1/accounting/budgets/{id}/lines", h.handleListBudgetLines)
+	mux.HandleFunc("GET /api/v1/accounting/budgets/{id}/compare", h.handleBudgetCompare)
+	mux.HandleFunc("POST /api/v1/accounting/budgets/{id}/approve", h.handleApproveBudget)
+
+	mux.HandleFunc("POST /api/v1/accounting/declarations/iva", h.handleGenerateIVA)
+	mux.HandleFunc("GET /api/v1/accounting/declarations/iva", h.handleListIVA)
+	mux.HandleFunc("POST /api/v1/accounting/declarations/iva/{id}/file", h.handleFileIVA)
+
+	mux.HandleFunc("POST /api/v1/accounting/declarations/income-tax", h.handleGenerateIncomeTax)
+	mux.HandleFunc("GET /api/v1/accounting/declarations/income-tax", h.handleListIncomeTax)
+	mux.HandleFunc("POST /api/v1/accounting/declarations/income-tax/{id}/file", h.handleFileIncomeTax)
+
+	mux.HandleFunc("POST /api/v1/accounting/ica-tariffs", h.handleSetICATariff)
+	mux.HandleFunc("GET /api/v1/accounting/ica-tariffs", h.handleListICATariffs)
+	mux.HandleFunc("POST /api/v1/accounting/declarations/ica", h.handleGenerateICA)
+	mux.HandleFunc("GET /api/v1/accounting/declarations/ica", h.handleListICA)
+	mux.HandleFunc("POST /api/v1/accounting/declarations/ica/{id}/file", h.handleFileICA)
 	mux.HandleFunc("GET /api/v1/accounting/accounts/{code}", h.handleGetAccount)
 
 	// Períodos contables
 	mux.HandleFunc("GET /api/v1/accounting/periods", h.handleListPeriods)
 	mux.HandleFunc("POST /api/v1/accounting/periods/{id}/close", h.handleClosePeriod)
+	mux.HandleFunc("POST /api/v1/accounting/periods/{id}/reopen", h.handleReopenPeriod)
+	mux.HandleFunc("POST /api/v1/accounting/voucher-types", h.handleCreateVoucherType)
+	mux.HandleFunc("GET /api/v1/accounting/voucher-types", h.handleListVoucherTypes)
 
 	// Asientos contables
 	mux.HandleFunc("GET /api/v1/accounting/journals", h.handleListJournals)

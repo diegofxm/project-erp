@@ -16,7 +16,7 @@ import (
 // PUC colombiano (simplificado):
 //   - DB 510506 Sueldos y salarios        (devengado bruto)
 //   - CR 236540 Retenciones y aportes     (deducciones empleado)
-//   - CR 250505 Salarios por pagar        (neto a pagar)
+//   - CR 2505   Salarios por pagar        (neto a pagar)
 type OnPayrollGenerated struct {
 	accounts domain.AccountRepository
 	periods  domain.PeriodRepository
@@ -53,7 +53,7 @@ func (h *OnPayrollGenerated) handle(ctx context.Context, ev payrolldomain.Payrol
 	if err != nil {
 		return err
 	}
-	acctPayable, err := h.accounts.GetPostable(ctx, "250505")
+	acctPayable, err := h.accounts.GetPostable(ctx, "2505")
 	if err != nil {
 		return err
 	}

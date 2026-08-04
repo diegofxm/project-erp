@@ -32,6 +32,19 @@ type PurchasePayment struct {
 	CreatedAt     time.Time
 }
 
+// PurchasePaymentRecorded se publica al registrar un pago sobre una orden recibida.
+// accounting/ lo consume para reducir cuentas por pagar y disminuir caja/bancos.
+type PurchasePaymentRecorded struct {
+	PaymentID     uuid.UUID
+	CompanyID     uuid.UUID
+	PurchaseID    uuid.UUID
+	Amount        float64
+	PaymentMethod PaymentMethod
+	PaymentDate   time.Time
+}
+
+func (PurchasePaymentRecorded) EventName() string { return "purchase.payment_recorded" }
+
 // PayableBalance agrupa el saldo pendiente de una orden de compra recibida — espejo de
 // sales.ReceivableBalance pero del lado de lo que nosotros debemos al proveedor.
 type PayableBalance struct {
