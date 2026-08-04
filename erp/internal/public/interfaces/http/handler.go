@@ -9,16 +9,16 @@ import (
 
 	companyapp "github.com/diegofxm/erp/internal/company/application"
 	companydomain "github.com/diegofxm/erp/internal/company/domain"
-	customerapp "github.com/diegofxm/erp/internal/customer/application"
-	customerdomain "github.com/diegofxm/erp/internal/customer/domain"
+	thirdpartyapp "github.com/diegofxm/erp/internal/thirdparty/application"
+	thirdpartydomain "github.com/diegofxm/erp/internal/thirdparty/domain"
 )
 
 type Handler struct {
 	company  *companyapp.GetUseCase
-	customer *customerapp.CreateUseCase
+	customer *thirdpartyapp.CreateUseCase
 }
 
-func NewHandler(company *companyapp.GetUseCase, customer *customerapp.CreateUseCase) *Handler {
+func NewHandler(company *companyapp.GetUseCase, customer *thirdpartyapp.CreateUseCase) *Handler {
 	return &Handler{company: company, customer: customer}
 }
 
@@ -117,7 +117,7 @@ func (h *Handler) handleRegisterCustomer(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	cust, err := h.customer.Execute(r.Context(), companyID, customerapp.SaveRequest{
+	cust, err := h.customer.Execute(r.Context(), companyID, thirdpartydomain.RoleCustomer, thirdpartyapp.SaveRequest{
 		IdentificationTypeCode: body.Identification.TypeCode,
 		IdentificationNumber:   body.Identification.Number,
 		Name:                   body.Name,
@@ -130,7 +130,7 @@ func (h *Handler) handleRegisterCustomer(w http.ResponseWriter, r *http.Request)
 		AddressCountryName:     "Colombia",
 	})
 	if err != nil {
-		if errors.Is(err, customerdomain.ErrDuplicateCustomer) {
+		if errors.Is(err, thirdpartydomain.ErrDuplicateCustomer) {
 			respondError(w, http.StatusConflict, "ya existe un cliente con esta identificación")
 			return
 		}

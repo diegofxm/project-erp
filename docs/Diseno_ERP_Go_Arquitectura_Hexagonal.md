@@ -12,8 +12,7 @@
 | `security/` | Usuarios, JWT, invitaciones, perfiles, multi-empresa |
 | `company/` | Empresa (NIT, configuración fiscal, certificado DIAN, logo) |
 | `company/ → warehouses` | Bodegas: CRUD completo bajo `/companies/active/warehouses` |
-| `customer/` | Clientes con datos tributarios |
-| `supplier/` | Proveedores |
+| `thirdparty/` | Terceros unificados (Clientes + Proveedores, roles independientes `IsCustomer`/`IsSupplier` sobre la misma fila) — ver "Terceros — unificación de Cliente y Proveedor" más abajo |
 | `product/` | Productos con unidad, clasificación DIAN, precios |
 | `inventory/` | Movimientos de inventario (entrada, salida, ajuste) + stock por bodega |
 | `purchase/` | Órdenes de compra + recepción de mercancía (`POST /purchases/{id}/receive`) |
@@ -56,8 +55,7 @@ Módulos pendientes de integrar cuando se requiera:
 |---|---|
 | `company/` | perfil actualizado, credenciales cambiadas, logo subido/eliminado |
 | `security/` | login, registro, invitación aceptada, selección de empresa |
-| `customer/` | creado, actualizado, eliminado |
-| `supplier/` | creado, actualizado, eliminado |
+| `thirdparty/` | tercero creado, rol agregado/quitado, actualizado |
 | `product/` | creado, actualizado, eliminado |
 | `sales/` | venta confirmada, cancelada, pago registrado |
 | `purchase/` | orden confirmada, recepción registrada |
@@ -145,7 +143,7 @@ counter        ← contabilidad y documentos electrónicos
   └─ sin acceso a: company/credentials, security/users
 
 user           ← operativo
-  └─ módulos: sales/, purchase/, inventory/, customers/, suppliers/, products/
+  └─ módulos: sales/, purchase/, inventory/, thirdparty/, products/
   └─ sin acceso a: accounting/, payroll/, hr/, electronic/, configuración
 ```
 
@@ -218,60 +216,58 @@ Pendiente: aplicar los 3 grupos (`OPERACIÓN`/`FINANZAS`/`CATÁLOGOS`) con títu
 
 **Regla para decidir si algo es un catálogo (`CATÁLOGOS`) o vive dentro de su módulo dueño:** un ítem va en `CATÁLOGOS` solo si lo necesitan *varios módulos no relacionados* al mismo tiempo (Clientes/Proveedores/Productos los usan Ventas, Compras, Inventario y Documentos). Si solo lo usa un módulo para su propio flujo interno, va como pestaña *dentro* de ese módulo — mismo patrón que Bodegas dentro de Inventario (`WarehousesPage.tsx`, subnav Existencias/Movimientos/Bodegas).
 
-Aplicando esa regla, quedan pendientes (ninguno cambia la estructura del menú ya definida, solo dónde entra cada uno):
+Aplicando esa regla, queda pendiente (no cambia la estructura del menú ya definida, solo dónde entra):
 
 | Elemento | Estado | Dónde debería vivir |
 |---|---|---|
-| Empleados | Backend existe (`payroll.Employee`, `erp/internal/payroll/domain/employee.go`), sin página frontend | Pestaña dentro de **Nómina** — NO como catálogo aparte, y NO reusando las tablas de Clientes/Proveedores (retención salarial, aportes a seguridad social y cuenta contable 2505 son completamente distintos al tratamiento comercial de Cliente/Proveedor — son 3 structs Go independientes hoy, y así debe seguir) |
+| Empleados | Backend existe (`payroll.Employee`, `erp/internal/payroll/domain/employee.go`), sin página frontend | Pestaña dentro de **Nómina** — NO como catálogo aparte. `payroll.Employee` sigue siendo un struct independiente de `thirdparty.Party` (ver sección siguiente): no tiene campos tributarios DIAN, usa `FirstName`/`LastName` en vez de `Name`, y su tratamiento (retención salarial, aportes a seguridad social, cuenta contable 2505) no tiene nada que ver con el comercial de Cliente/Proveedor. Unificarlo es un paso deliberadamente aplazado — ver siguiente sección |
 | Sucursales | No existe (ni backend ni frontend) — ya estaba anotado en "Sub-entidades pendientes por módulo" arriba (`company/`) | Dentro de **Configuración → Empresa**, no como catálogo — es sub-configuración de la empresa, no dato maestro compartido |
-| Aviso de identificación duplicada entre catálogos | No existe — diseño detallado abajo (ver "Búsqueda cruzada de terceros") | Mejora de UX, no de esquema: una misma cédula/NIT puede existir legítimamente en más de un catálogo a la vez (ej. un empleado que también es cliente por compras con descuento de empleado). Al crear un Cliente/Proveedor/Empleado, avisar (sin bloquear ni fusionar) si esa identificación ya existe en otro catálogo — "ya existe como Empleado, ¿es la misma persona?" |
 
 ---
 
-#### Búsqueda cruzada de terceros al crear Cliente/Proveedor/Empleado (para cuando se construya Información Exógena)
+#### Terceros — unificación de Cliente y Proveedor en `thirdparty/` (implementado)
 
-Contexto: surgió al comparar con Odoo (modelo `res.partner` unificado) y SIESA (catálogo de "Terceros" unificado, típico en ERPs colombianos por el reporte de Información Exógena DIAN, que agrega montos por NIT sin importar el rol). Se decidió **no** unificar Cliente/Proveedor/Empleado en una sola tabla — rompería el principio de módulos independientes sin FKs cruzadas que ya sigue todo el proyecto, y el reporte de exógena no lo necesita (se resuelve en la capa de lectura/CQRS cruzando por NIT al momento de generarse, no en el modelo de escritura). En cambio, se diseñó una asistencia de captura: buscar el NIT en los otros catálogos y ofrecer copiar los datos, sin fusionar ni crear relación estructural.
+Contexto: surgió al comparar con Odoo (modelo `res.partner` unificado) y SIESA (catálogo de "Terceros" unificado, típico en ERPs colombianos por el reporte de Información Exógena DIAN, que agrega montos por NIT sin importar el rol). La primera propuesta fue una simple "asistencia de captura" (buscar el NIT en el otro catálogo y ofrecer copiar los datos) manteniendo las tablas separadas — al revisarlo con más calma, y aprovechando que aún no había datos reales en producción, se decidió ir más allá: **unificar `customer/` y `supplier/` en un solo módulo `thirdparty/`**, porque:
 
-**1. Módulo nuevo, de solo lectura, sin tabla propia:**
+- Los dos structs eran prácticamente el mismo dato: 24 de 26 campos idénticos, solo `Customer.CreditLimit` y `Supplier.PaymentTermsDays` los diferenciaban.
+- El diseño "sin FKs cruzadas" ya protegía esta unificación: `customer_id`/`supplier_id` en otros módulos son `UUID` sueltos, resueltos vía puerto local — fusionar las tablas de origen no rompe nada en los consumidores, solo cambia qué implementa el puerto.
+- Los consumidores (`sales`, `purchase`, `electronic`, `public`) ya importaban `customerdomain.Repository`/`supplierdomain.Repository` completos y directos, sin el patrón de puerto local que sí sigue correctamente todo lo que toca `company` (`CompanyPort` + adaptador por consumidor) — la "pureza" de módulos independientes que se quería proteger ya no existía en la práctica.
+
+**Empleado se dejó explícitamente fuera** de esta unificación: no es mellizo de Cliente/Proveedor como estos lo son entre sí (sin campos DIAN, nombre partido en `FirstName`/`LastName`), y no existe frontend de Nómina/RRHH todavía contra el cual validar cómo debería verse esa fila unificada. Cuando se construya ese frontend, ahí se decide si `payroll.employees` pasa a referenciar `thirdparty.parties` en vez de duplicar identificación/nombre/dirección.
+
+**Diseño implementado:**
 
 ```
-shared/thirdparty/
+internal/thirdparty/
     domain/
-        port.go        ← CustomerPort, SupplierPort, EmployeePort
-                          (cada uno: FindByIdentification(ctx, companyID, idNumber) → *Match)
-        match.go        ← ThirdPartyMatch{Source, ID, Name, Email, Phone, Address...}
+        party.go        ← Party{...24 campos comunes..., IsCustomer, IsSupplier,
+                            CreditLimit *float64, PaymentTermsDays int}
+                            Role = "customer" | "supplier"
+        repository.go    ← Repository{Save, GetByID, GetByIdentification (sin filtrar
+                            por rol), List(role), Update, Delete}
     application/
-        lookup.go        ← LookupUseCase: llama a los 3 puertos, arma la lista de coincidencias
-    infrastructure/
-        customer/adapter.go   ← implementa CustomerPort envolviendo customer.Repository real
-        supplier/adapter.go   ← igual, con supplier.Repository
-        payroll/adapter.go    ← igual, con payroll.EmployeeRepository
+        create.go, get.go, update.go, delete.go  ← reciben Role como parámetro;
+                            un mismo juego de casos de uso sirve a ambos catálogos
+    infrastructure/persistence/postgres/
+        repository.go, migrations/000001_thirdparty.up.sql  ← schema thirdparty,
+                            tabla parties, UNIQUE(company_id, identification_type_code,
+                            identification_number) — una identificación, una fila
     interfaces/http/
-        handlers.go      ← GET /api/v1/third-parties/lookup?identification_number=XXX
+        handlers.go      ← NewCustomerHandler/NewSupplierHandler fijan el Role;
+                            rutas y forma del JSON idénticas a los módulos viejos
+                            (/customers, /suppliers, wrapper "customers"/"suppliers")
+                            → CERO cambios en el frontend
 ```
 
-Mismo patrón de "puerto local" que ya usa `shared/notification` para leer stock/numeración de otros módulos sin ser dueño de esos datos — nada de tabla nueva ni FK cruzado.
+Puertos locales nuevos (mismo patrón que `CompanyPort`, uno por consumidor):
 
-**2. Flujo en el frontend:**
+| Consumidor | Puerto | Vista (`domain.Customer`/`domain.Supplier`/`domain.Party`) |
+|---|---|---|
+| `sales` | `CustomerPort` | Reducida: nombre, identificación, dirección, contacto, `CreditLimit` |
+| `purchase` | `SupplierPort` | Reducida: nombre, identificación, dirección, contacto (sin plazo de pago, no se usa) |
+| `electronic` | `CustomerPort` + `SupplierPort` (un solo `Adapter` implementa ambos) | Casi completa — necesita los campos tributarios DIAN para armar `cofdom.Party` |
 
-```
-Usuario escribe el NIT en el formulario de "Nuevo cliente"
-    ↓ (onBlur del campo identificación)
-GET /third-parties/lookup?identification_number=900123456
-    ↓
-¿Hay coincidencia en Proveedor o Empleado?
-    ↓ sí
-Banner: "Ya existe como Proveedor: ACME SAS  [Copiar datos →]"
-    ↓ clic
-Se rellenan nombre, dirección, email, teléfono, régimen tributario...
-en el formulario — el usuario revisa y confirma como cualquier alta normal
-    ↓
-POST /customers  (crea un registro Cliente totalmente independiente, sin FK)
-```
-
-Mismo patrón al revés en el formulario de Proveedor (busca en Cliente/Empleado) y a futuro en el de Empleado.
-
-**3. Detalle fino — los campos no calzan 1 a 1:** Cliente/Proveedor comparten casi todos los campos, pero Empleado tiene `FirstName`+`LastName` en vez de `Name`, y no tiene régimen tributario ni responsabilidades fiscales. Hace falta una función de mapeo explícita por par de orígenes (`Proveedor→Cliente` casi directo; `Empleado→Cliente` necesita unir nombre y dejar los campos fiscales en blanco para que el usuario los complete) — no asumir que todos los campos coinciden.
+**El efecto colateral más importante — reemplaza la idea original de "avisar y copiar datos":** al dar de alta un Cliente cuya identificación ya existe como Proveedor (o viceversa), `CreateUseCase.Execute` ya no crea una fila duplicada ni necesita avisar nada — encuentra el tercero existente por `GetByIdentification` (que busca sin filtrar por rol) y le agrega el rol nuevo directamente, conservando los datos del rol que ya tenía. Verificado en vivo: crear Cliente NIT 900999999, luego crear Proveedor con el mismo NIT → misma fila, `is_customer=true` y `is_supplier=true`, `credit_limit` y `payment_terms_days` conviven sin pisarse. Borrar el rol Cliente deja la fila viva como Proveedor (`is_customer=false`, `credit_limit=null`) en vez de borrar el tercero completo.
 
 ---
 

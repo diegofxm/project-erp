@@ -43,6 +43,35 @@ type CompanyPort interface {
 	GetCompany(ctx context.Context, id uuid.UUID) (*CompanyInfo, error)
 }
 
+// Party es la vista de thirdparty.Party que necesita electronic para armar cofdom.Party — a
+// diferencia de sales.Customer/purchase.Supplier (vistas reducidas para PDF/email), electronic
+// sí necesita casi todos los campos tributarios DIAN porque los usa para el XML firmado.
+type Party struct {
+	IdentificationTypeCode string
+	IdentificationNumber   string
+	CheckDigit             string
+	Name                   string
+	AddressLine            string
+	MunicipalityCode       string
+	DepartmentCode         string
+	TaxSchemeCode          string
+	TaxSchemeName          string
+	TaxRegimeCode          *string
+	LiabilityCodes         []string
+	Phone                  string
+	Email                  string
+}
+
+// CustomerPort lee el cliente para armar la factura electrónica desde una venta.
+type CustomerPort interface {
+	GetByID(ctx context.Context, companyID, id uuid.UUID) (*Party, error)
+}
+
+// SupplierPort lee el proveedor para armar el Documento Soporte desde una compra.
+type SupplierPort interface {
+	GetByID(ctx context.Context, companyID, id uuid.UUID) (*Party, error)
+}
+
 // BuilderSignerPort construye el XML según el tipo de documento y lo firma con XAdES-EPES.
 // Devuelve el XML firmado listo para empaquetar en ZIP.
 // Encapsula cofacture/builder + cofacture/signer — el dominio/aplicación no importan etree.

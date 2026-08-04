@@ -7,7 +7,6 @@ import (
 	cofdom "github.com/diegofxm/cofacture/domain"
 	"github.com/google/uuid"
 
-	customerdomain "github.com/diegofxm/erp/internal/customer/domain"
 	"github.com/diegofxm/erp/internal/electronic/domain"
 	productdomain "github.com/diegofxm/erp/internal/product/domain"
 	salesdomain "github.com/diegofxm/erp/internal/sales/domain"
@@ -17,14 +16,14 @@ import (
 type CreateFromSaleUseCase struct {
 	draft     *CreateDraftUseCase
 	sales     salesdomain.Repository
-	customers customerdomain.Repository
+	customers domain.CustomerPort
 	products  productdomain.Repository
 }
 
 func NewCreateFromSaleUseCase(
 	draft *CreateDraftUseCase,
 	sales salesdomain.Repository,
-	customers customerdomain.Repository,
+	customers domain.CustomerPort,
 	products productdomain.Repository,
 ) *CreateFromSaleUseCase {
 	return &CreateFromSaleUseCase{draft: draft, sales: sales, customers: customers, products: products}
@@ -88,7 +87,7 @@ func (uc *CreateFromSaleUseCase) Execute(ctx context.Context, req FromSaleReques
 	return doc, nil
 }
 
-func saleCustomerToParty(c *customerdomain.Customer) cofdom.Party {
+func saleCustomerToParty(c *domain.Party) cofdom.Party {
 	verif := ""
 	if c.IdentificationTypeCode == "31" {
 		verif = c.CheckDigit

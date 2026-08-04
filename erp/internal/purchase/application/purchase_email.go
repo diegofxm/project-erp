@@ -10,7 +10,6 @@ import (
 	"github.com/diegofxm/erp/internal/purchase/domain"
 	notificationdomain "github.com/diegofxm/erp/internal/shared/notification/domain"
 	reportsdomain "github.com/diegofxm/erp/internal/shared/reports/domain"
-	supplierdomain "github.com/diegofxm/erp/internal/supplier/domain"
 )
 
 // SendPurchaseOrderEmailUseCase genera el PDF de una orden de compra y lo envía por correo al
@@ -19,7 +18,7 @@ import (
 // (o ya recibida) para poder mandarse, pero enviarla no cambia su estado.
 type SendPurchaseOrderEmailUseCase struct {
 	purchases domain.Repository
-	suppliers supplierdomain.Repository
+	suppliers domain.SupplierPort
 	company   domain.CompanyPort
 	renderer  reportsdomain.Renderer
 	notifier  notificationdomain.Notifier
@@ -28,7 +27,7 @@ type SendPurchaseOrderEmailUseCase struct {
 
 func NewSendPurchaseOrderEmailUseCase(
 	purchases domain.Repository,
-	suppliers supplierdomain.Repository,
+	suppliers domain.SupplierPort,
 	company domain.CompanyPort,
 	renderer reportsdomain.Renderer,
 	notifier notificationdomain.Notifier,

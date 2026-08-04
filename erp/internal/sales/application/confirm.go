@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	companydomain "github.com/diegofxm/erp/internal/company/domain"
-	customerdomain "github.com/diegofxm/erp/internal/customer/domain"
 	inventorydomain "github.com/diegofxm/erp/internal/inventory/domain"
 	productdomain "github.com/diegofxm/erp/internal/product/domain"
 	"github.com/diegofxm/erp/internal/sales/domain"
@@ -21,7 +20,7 @@ type ConfirmUseCase struct {
 	bus        *events.Bus
 	products   productdomain.Repository
 	inventory  inventorydomain.Repository
-	customers  customerdomain.Repository
+	customers  domain.CustomerPort
 	payments   domain.PaymentRepository
 	warehouses companydomain.WarehouseRepository
 }
@@ -31,7 +30,7 @@ func NewConfirmUseCase(
 	bus *events.Bus,
 	products productdomain.Repository,
 	inventory inventorydomain.Repository,
-	customers customerdomain.Repository,
+	customers domain.CustomerPort,
 	payments domain.PaymentRepository,
 	warehouses companydomain.WarehouseRepository,
 ) *ConfirmUseCase {

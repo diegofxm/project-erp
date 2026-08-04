@@ -26,3 +26,21 @@ type CompanyInfo struct {
 type CompanyPort interface {
 	GetCompany(ctx context.Context, id uuid.UUID) (*CompanyInfo, error)
 }
+
+// Supplier es la vista de thirdparty.Party que necesita purchase para representar el proveedor
+// en el PDF/email de la orden de compra — mismo criterio que sales.Customer, no requiere los
+// campos tributarios DIAN completos (eso lo usa electronic).
+type Supplier struct {
+	Name                   string
+	IdentificationTypeCode string
+	IdentificationNumber   string
+	CheckDigit             string
+	AddressLine            string
+	Phone                  string
+	Email                  string
+}
+
+// SupplierPort lee el proveedor de una orden de compra.
+type SupplierPort interface {
+	GetByID(ctx context.Context, companyID, id uuid.UUID) (*Supplier, error)
+}

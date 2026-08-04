@@ -10,7 +10,6 @@ import (
 	"github.com/diegofxm/erp/internal/electronic/domain"
 	productdomain "github.com/diegofxm/erp/internal/product/domain"
 	purchasedomain "github.com/diegofxm/erp/internal/purchase/domain"
-	supplierdomain "github.com/diegofxm/erp/internal/supplier/domain"
 )
 
 // CreateFromPurchaseUseCase genera un borrador de Documento Soporte (DS) a partir de una orden
@@ -19,14 +18,14 @@ import (
 type CreateFromPurchaseUseCase struct {
 	draft     *CreateDraftUseCase
 	purchases purchasedomain.Repository
-	suppliers supplierdomain.Repository
+	suppliers domain.SupplierPort
 	products  productdomain.Repository
 }
 
 func NewCreateFromPurchaseUseCase(
 	draft *CreateDraftUseCase,
 	purchases purchasedomain.Repository,
-	suppliers supplierdomain.Repository,
+	suppliers domain.SupplierPort,
 	products productdomain.Repository,
 ) *CreateFromPurchaseUseCase {
 	return &CreateFromPurchaseUseCase{draft: draft, purchases: purchases, suppliers: suppliers, products: products}
@@ -96,7 +95,7 @@ func (uc *CreateFromPurchaseUseCase) Execute(ctx context.Context, req FromPurcha
 	return doc, nil
 }
 
-func purchaseSupplierToParty(s *supplierdomain.Supplier) cofdom.Party {
+func purchaseSupplierToParty(s *domain.Party) cofdom.Party {
 	verif := ""
 	if s.IdentificationTypeCode == "31" {
 		verif = s.CheckDigit

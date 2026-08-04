@@ -11,7 +11,6 @@ import (
 
 	"github.com/diegofxm/erp/internal/purchase/domain"
 	reportsdomain "github.com/diegofxm/erp/internal/shared/reports/domain"
-	supplierdomain "github.com/diegofxm/erp/internal/supplier/domain"
 )
 
 // GetPurchaseOrderPDFUseCase genera la representación gráfica (PDF) de una orden de compra.
@@ -19,14 +18,14 @@ import (
 // interno hacia el proveedor, no un documento electrónico DIAN.
 type GetPurchaseOrderPDFUseCase struct {
 	purchases domain.Repository
-	suppliers supplierdomain.Repository
+	suppliers domain.SupplierPort
 	company   domain.CompanyPort
 	renderer  reportsdomain.Renderer
 }
 
 func NewGetPurchaseOrderPDFUseCase(
 	purchases domain.Repository,
-	suppliers supplierdomain.Repository,
+	suppliers domain.SupplierPort,
 	company domain.CompanyPort,
 	renderer reportsdomain.Renderer,
 ) *GetPurchaseOrderPDFUseCase {
@@ -61,7 +60,7 @@ func (uc *GetPurchaseOrderPDFUseCase) buildData(ctx context.Context, companyID, 
 	return buildPurchasePDFData(o, supplier, co), nil
 }
 
-func buildPurchasePDFData(o *domain.PurchaseOrder, supplier *supplierdomain.Supplier, co *domain.CompanyInfo) map[string]any {
+func buildPurchasePDFData(o *domain.PurchaseOrder, supplier *domain.Supplier, co *domain.CompanyInfo) map[string]any {
 	var logoURL template.URL
 	if len(co.Logo) > 0 {
 		mime := "image/png"
@@ -149,7 +148,7 @@ func purchaseStatusNameES(s domain.PurchaseStatus) string {
 	}
 }
 
-func purchaseFormatSupplierID(s *supplierdomain.Supplier) string {
+func purchaseFormatSupplierID(s *domain.Supplier) string {
 	if s.IdentificationTypeCode == "31" && s.CheckDigit != "" {
 		return s.IdentificationNumber + "-" + s.CheckDigit
 	}

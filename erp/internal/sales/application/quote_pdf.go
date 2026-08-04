@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 
-	customerdomain "github.com/diegofxm/erp/internal/customer/domain"
 	"github.com/diegofxm/erp/internal/sales/domain"
 	reportsdomain "github.com/diegofxm/erp/internal/shared/reports/domain"
 )
@@ -19,14 +18,14 @@ import (
 // no un documento electrónico DIAN.
 type GetQuotePDFUseCase struct {
 	quotes    domain.QuoteRepository
-	customers customerdomain.Repository
+	customers domain.CustomerPort
 	company   domain.CompanyPort
 	renderer  reportsdomain.Renderer
 }
 
 func NewGetQuotePDFUseCase(
 	quotes domain.QuoteRepository,
-	customers customerdomain.Repository,
+	customers domain.CustomerPort,
 	company domain.CompanyPort,
 	renderer reportsdomain.Renderer,
 ) *GetQuotePDFUseCase {
@@ -61,7 +60,7 @@ func (uc *GetQuotePDFUseCase) buildData(ctx context.Context, companyID, quoteID 
 	return buildQuotePDFData(q, customer, co), nil
 }
 
-func buildQuotePDFData(q *domain.Quote, customer *customerdomain.Customer, co *domain.CompanyInfo) map[string]any {
+func buildQuotePDFData(q *domain.Quote, customer *domain.Customer, co *domain.CompanyInfo) map[string]any {
 	var logoURL template.URL
 	if len(co.Logo) > 0 {
 		mime := "image/png"
@@ -151,7 +150,7 @@ func quoteStatusNameES(s domain.QuoteStatus) string {
 	}
 }
 
-func quoteFormatCustomerID(c *customerdomain.Customer) string {
+func quoteFormatCustomerID(c *domain.Customer) string {
 	if c.IdentificationTypeCode == "31" && c.CheckDigit != "" {
 		return c.IdentificationNumber + "-" + c.CheckDigit
 	}

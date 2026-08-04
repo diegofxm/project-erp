@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	customerdomain "github.com/diegofxm/erp/internal/customer/domain"
 	"github.com/diegofxm/erp/internal/sales/domain"
 	notificationdomain "github.com/diegofxm/erp/internal/shared/notification/domain"
 	reportsdomain "github.com/diegofxm/erp/internal/shared/reports/domain"
@@ -18,7 +17,7 @@ import (
 // "Enviar" (antes solo cambiaba el estado sin mandar nada).
 type SendQuoteEmailUseCase struct {
 	quotes    domain.QuoteRepository
-	customers customerdomain.Repository
+	customers domain.CustomerPort
 	company   domain.CompanyPort
 	renderer  reportsdomain.Renderer
 	notifier  notificationdomain.Notifier
@@ -27,7 +26,7 @@ type SendQuoteEmailUseCase struct {
 
 func NewSendQuoteEmailUseCase(
 	quotes domain.QuoteRepository,
-	customers customerdomain.Repository,
+	customers domain.CustomerPort,
 	company domain.CompanyPort,
 	renderer reportsdomain.Renderer,
 	notifier notificationdomain.Notifier,

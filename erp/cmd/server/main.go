@@ -26,13 +26,11 @@ import (
 	companyapp "github.com/diegofxm/erp/internal/company/application"
 	companypostgres "github.com/diegofxm/erp/internal/company/infrastructure/persistence/postgres"
 	companyhttp "github.com/diegofxm/erp/internal/company/interfaces/http"
-	customerapp "github.com/diegofxm/erp/internal/customer/application"
-	customerpostgres "github.com/diegofxm/erp/internal/customer/infrastructure/persistence/postgres"
-	customerhttp "github.com/diegofxm/erp/internal/customer/interfaces/http"
 	electronicapp "github.com/diegofxm/erp/internal/electronic/application"
 	electroniccofacture "github.com/diegofxm/erp/internal/electronic/infrastructure/cofacture"
 	electroniccompany "github.com/diegofxm/erp/internal/electronic/infrastructure/company"
 	electronicpostgres "github.com/diegofxm/erp/internal/electronic/infrastructure/persistence/postgres"
+	electronicthirdparty "github.com/diegofxm/erp/internal/electronic/infrastructure/thirdparty"
 	electronichttp "github.com/diegofxm/erp/internal/electronic/interfaces/http"
 	hrapp "github.com/diegofxm/erp/internal/hr/application"
 	hrpostgres "github.com/diegofxm/erp/internal/hr/infrastructure/persistence/postgres"
@@ -51,10 +49,12 @@ import (
 	purchaseapp "github.com/diegofxm/erp/internal/purchase/application"
 	purchasecompany "github.com/diegofxm/erp/internal/purchase/infrastructure/company"
 	purchasepostgres "github.com/diegofxm/erp/internal/purchase/infrastructure/persistence/postgres"
+	purchasethirdparty "github.com/diegofxm/erp/internal/purchase/infrastructure/thirdparty"
 	purchasehttp "github.com/diegofxm/erp/internal/purchase/interfaces/http"
 	salesapp "github.com/diegofxm/erp/internal/sales/application"
 	salescompany "github.com/diegofxm/erp/internal/sales/infrastructure/company"
 	salespostgres "github.com/diegofxm/erp/internal/sales/infrastructure/persistence/postgres"
+	salesthirdparty "github.com/diegofxm/erp/internal/sales/infrastructure/thirdparty"
 	saleshttp "github.com/diegofxm/erp/internal/sales/interfaces/http"
 	securityapp "github.com/diegofxm/erp/internal/security/application"
 	securityjwt "github.com/diegofxm/erp/internal/security/infrastructure/jwt"
@@ -79,9 +79,9 @@ import (
 	statsapp "github.com/diegofxm/erp/internal/stats/application"
 	statspostgres "github.com/diegofxm/erp/internal/stats/infrastructure/persistence/postgres"
 	statshttp "github.com/diegofxm/erp/internal/stats/interfaces/http"
-	supplierapp "github.com/diegofxm/erp/internal/supplier/application"
-	supplierpostgres "github.com/diegofxm/erp/internal/supplier/infrastructure/persistence/postgres"
-	supplierhttp "github.com/diegofxm/erp/internal/supplier/interfaces/http"
+	thirdpartyapp "github.com/diegofxm/erp/internal/thirdparty/application"
+	thirdpartypostgres "github.com/diegofxm/erp/internal/thirdparty/infrastructure/persistence/postgres"
+	thirdpartyhttp "github.com/diegofxm/erp/internal/thirdparty/interfaces/http"
 )
 
 func main() {
@@ -102,8 +102,7 @@ func main() {
 	mustMigrate(mlog, "catalog", catalogpostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "security", securitypostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "company", companypostgres.Migrate(databaseURL))
-	mustMigrate(mlog, "customer", customerpostgres.Migrate(databaseURL))
-	mustMigrate(mlog, "supplier", supplierpostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "thirdparty", thirdpartypostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "product", productpostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "inventory", inventorypostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "purchase", purchasepostgres.Migrate(databaseURL))
@@ -142,8 +141,7 @@ func main() {
 	catalogRepo := catalogpostgres.NewRepository(pool)
 	securityRepo := securitypostgres.NewRepository(pool)
 	companyRepo := companypostgres.NewRepository(pool, encryptionKey)
-	customerRepo := customerpostgres.NewRepository(pool)
-	supplierRepo := supplierpostgres.NewRepository(pool)
+	thirdpartyRepo := thirdpartypostgres.NewRepository(pool)
 	productRepo := productpostgres.NewRepository(pool)
 	inventoryRepo := inventorypostgres.NewRepository(pool)
 	purchaseRepo := purchasepostgres.NewRepository(pool)
@@ -175,6 +173,11 @@ func main() {
 	electronicCompanyPort := electroniccompany.New(companyRepo)
 	electronicAdapter := electroniccofacture.New()
 
+	// ── Puertos locales — terceros (customer/supplier unificados) ──────────────
+	salesCustomerPort := salesthirdparty.New(thirdpartyRepo)
+	purchaseSupplierPort := purchasethirdparty.New(thirdpartyRepo)
+	electronicThirdpartyPort := electronicthirdparty.New(thirdpartyRepo)
+
 	// ── Casos de uso — security ─────────────────────────────────────────────────
 	registerUC := securityapp.NewRegisterUseCase(securityRepo, jwtSvc)
 	loginUC := securityapp.NewLoginUseCase(securityRepo, jwtSvc)
@@ -205,7 +208,7 @@ func main() {
 	// ── Casos de uso — sales ────────────────────────────────────────────────────
 	createSaleUC := salesapp.NewCreateUseCase(salesRepo)
 	getSaleUC := salesapp.NewGetUseCase(salesRepo)
-	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus, productRepo, inventoryRepo, customerRepo, paymentRepo, warehouseRepo)
+	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus, productRepo, inventoryRepo, salesCustomerPort, paymentRepo, warehouseRepo)
 	cancelSaleUC := salesapp.NewCancelUseCase(salesRepo)
 	quoteUC := salesapp.NewQuoteUseCase(quoteRepo, salesRepo)
 	paymentUC := salesapp.NewPaymentUseCase(paymentRepo, salesRepo, bus)
@@ -246,8 +249,8 @@ func main() {
 	electronicListUC := electronicapp.NewListDocumentsUseCase(electronicDocRepo)
 	electronicNumberingUC := electronicapp.NewManageNumberingUseCase(electronicNumRepo)
 	electronicDianRangesUC := electronicapp.NewGetDianRangesUseCase(electronicCompanyPort, electronicAdapter)
-	fromSaleUC := electronicapp.NewCreateFromSaleUseCase(electronicCreateDraftUC, salesRepo, customerRepo, productRepo)
-	fromPurchaseUC := electronicapp.NewCreateFromPurchaseUseCase(electronicCreateDraftUC, purchaseRepo, supplierRepo, productRepo)
+	fromSaleUC := electronicapp.NewCreateFromSaleUseCase(electronicCreateDraftUC, salesRepo, electronicThirdpartyPort, productRepo)
+	fromPurchaseUC := electronicapp.NewCreateFromPurchaseUseCase(electronicCreateDraftUC, purchaseRepo, electronicThirdpartyPort, productRepo)
 
 	// ── Renderer de reportes ─────────────────────────────────────────────────────
 	htmlRenderer, err := htmlreports.NewRenderer()
@@ -292,15 +295,15 @@ func main() {
 
 	// ── Casos de uso — PDF/email de cotizaciones ────────────────────────────────
 	salesCompanyPort := salescompany.New(companyRepo)
-	quotePDFUC := salesapp.NewGetQuotePDFUseCase(quoteRepo, customerRepo, salesCompanyPort, multiRenderer)
-	sendQuoteEmailUC := salesapp.NewSendQuoteEmailUseCase(quoteRepo, customerRepo, salesCompanyPort, multiRenderer, notifier, appURL)
+	quotePDFUC := salesapp.NewGetQuotePDFUseCase(quoteRepo, salesCustomerPort, salesCompanyPort, multiRenderer)
+	sendQuoteEmailUC := salesapp.NewSendQuoteEmailUseCase(quoteRepo, salesCustomerPort, salesCompanyPort, multiRenderer, notifier, appURL)
 
 	// ── Casos de uso — PDF/email de órdenes de compra ───────────────────────────
 	purchaseCompanyPort := purchasecompany.New(companyRepo)
-	purchasePDFUC := purchaseapp.NewGetPurchaseOrderPDFUseCase(purchaseRepo, supplierRepo, purchaseCompanyPort, multiRenderer)
-	sendPurchaseEmailUC := purchaseapp.NewSendPurchaseOrderEmailUseCase(purchaseRepo, supplierRepo, purchaseCompanyPort, multiRenderer, notifier, appURL)
+	purchasePDFUC := purchaseapp.NewGetPurchaseOrderPDFUseCase(purchaseRepo, purchaseSupplierPort, purchaseCompanyPort, multiRenderer)
+	sendPurchaseEmailUC := purchaseapp.NewSendPurchaseOrderEmailUseCase(purchaseRepo, purchaseSupplierPort, purchaseCompanyPort, multiRenderer, notifier, appURL)
 
-	// ── Casos de uso — hr / payroll / company / inventory / supplier / product / customer ──
+	// ── Casos de uso — hr / payroll / company / inventory / product ────────────
 	hrAbsenceRepo := hrpostgres.NewAbsenceRepository(pool)
 	hrAbsenceUC := hrapp.NewAbsenceUseCase(hrAbsenceRepo)
 
@@ -314,20 +317,17 @@ func main() {
 	moveInventoryUC := inventoryapp.NewMoveUseCase(inventoryRepo)
 	getInventoryUC := inventoryapp.NewGetUseCase(inventoryRepo)
 
-	createSupplierUC := supplierapp.NewCreateUseCase(supplierRepo)
-	getSupplierUC := supplierapp.NewGetUseCase(supplierRepo)
-	updateSupplierUC := supplierapp.NewUpdateUseCase(supplierRepo)
-	deleteSupplierUC := supplierapp.NewDeleteUseCase(supplierRepo)
-
 	createProductUC := productapp.NewCreateUseCase(productRepo)
 	getProductUC := productapp.NewGetUseCase(productRepo)
 	updateProductUC := productapp.NewUpdateUseCase(productRepo)
 	deleteProductUC := productapp.NewDeleteUseCase(productRepo)
 
-	createCustomerUC := customerapp.NewCreateUseCase(customerRepo)
-	getCustomerUC := customerapp.NewGetUseCase(customerRepo)
-	updateCustomerUC := customerapp.NewUpdateUseCase(customerRepo)
-	deleteCustomerUC := customerapp.NewDeleteUseCase(customerRepo)
+	// Terceros — un mismo juego de casos de uso sirve a los catálogos de Clientes y Proveedores;
+	// el rol lo fija el handler HTTP (NewCustomerHandler/NewSupplierHandler) en cada llamada.
+	createPartyUC := thirdpartyapp.NewCreateUseCase(thirdpartyRepo)
+	getPartyUC := thirdpartyapp.NewGetUseCase(thirdpartyRepo)
+	updatePartyUC := thirdpartyapp.NewUpdateUseCase(thirdpartyRepo)
+	deletePartyUC := thirdpartyapp.NewDeleteUseCase(thirdpartyRepo)
 
 	createCompanyUC := companyapp.NewCreateUseCase(companyRepo, securityRepo)
 	getCompanyUC := companyapp.NewGetUseCase(companyRepo)
@@ -350,8 +350,8 @@ func main() {
 		updateCompanyProfile, updateCompanyCreds, clearCompanyCreds, updateCompanyLogo,
 		warehouseUC,
 	).RegisterRoutes(mux)
-	customerhttp.NewHandler(createCustomerUC, getCustomerUC, updateCustomerUC, deleteCustomerUC).RegisterRoutes(mux)
-	supplierhttp.NewHandler(createSupplierUC, getSupplierUC, updateSupplierUC, deleteSupplierUC).RegisterRoutes(mux)
+	thirdpartyhttp.NewCustomerHandler(createPartyUC, getPartyUC, updatePartyUC, deletePartyUC).RegisterRoutes(mux)
+	thirdpartyhttp.NewSupplierHandler(createPartyUC, getPartyUC, updatePartyUC, deletePartyUC).RegisterRoutes(mux)
 	producthttp.NewHandler(createProductUC, getProductUC, updateProductUC, deleteProductUC).RegisterRoutes(mux)
 	inventoryhttp.NewHandler(moveInventoryUC, getInventoryUC).RegisterRoutes(mux)
 	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC, deletePurchaseUC, purchasePaymentUC, purchasePDFUC, sendPurchaseEmailUC, purchaseWithholdingUC).RegisterRoutes(mux)
@@ -361,7 +361,7 @@ func main() {
 	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)
 	notificationhttp.NewHandler(notificationAlertsUC).RegisterRoutes(mux)
-	publichttp.NewHandler(getCompanyUC, createCustomerUC).RegisterRoutes(mux)
+	publichttp.NewHandler(getCompanyUC, createPartyUC).RegisterRoutes(mux)
 	payrollhttp.NewHandler(payrollEmpUC, payrollContractUC, payrollPayslipUC).RegisterRoutes(mux)
 	hrhttp.NewHandler(hrAbsenceUC).RegisterRoutes(mux)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {

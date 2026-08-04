@@ -26,3 +26,22 @@ type CompanyInfo struct {
 type CompanyPort interface {
 	GetCompany(ctx context.Context, id uuid.UUID) (*CompanyInfo, error)
 }
+
+// Customer es la vista de thirdparty.Party que necesita sales — para el chequeo de cupo de
+// cartera (checkCredit) y para representar el cliente en el PDF/email de la cotización. No
+// necesita los campos tributarios DIAN completos (eso lo usa electronic, no sales).
+type Customer struct {
+	Name                   string
+	IdentificationTypeCode string
+	IdentificationNumber   string
+	CheckDigit             string
+	AddressLine            string
+	Phone                  string
+	Email                  string
+	CreditLimit            *float64
+}
+
+// CustomerPort lee el cliente de una venta/cotización.
+type CustomerPort interface {
+	GetByID(ctx context.Context, companyID, id uuid.UUID) (*Customer, error)
+}
