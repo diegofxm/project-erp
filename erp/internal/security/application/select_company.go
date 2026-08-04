@@ -31,7 +31,12 @@ func (uc *SelectCompanyUseCase) Execute(ctx context.Context, userID, companyID u
 		return nil, domain.ErrNotAMember
 	}
 
-	tok, err := uc.token.Issue(userID, companyID)
+	role, err := uc.repo.GetRole(ctx, userID, companyID)
+	if err != nil {
+		return nil, err
+	}
+
+	tok, err := uc.token.Issue(userID, companyID, role)
 	if err != nil {
 		return nil, err
 	}

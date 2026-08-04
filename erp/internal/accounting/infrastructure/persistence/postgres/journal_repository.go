@@ -365,6 +365,15 @@ func (r *JournalRepository) RegisterVoucherType(ctx context.Context, cfg domain.
 	return &out, err
 }
 
+func (r *JournalRepository) IsRegisteredVoucherType(ctx context.Context, companyID uuid.UUID, code string) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		"SELECT EXISTS(SELECT 1 FROM accounting.voucher_types WHERE company_id = $1 AND code = $2 AND is_active)",
+		companyID, code,
+	).Scan(&exists)
+	return exists, err
+}
+
 func (r *JournalRepository) ListVoucherTypes(ctx context.Context, companyID uuid.UUID) ([]*domain.VoucherTypeConfig, error) {
 	const q = `
 		SELECT id, company_id, code, name, resets_annually, is_active, created_at, updated_at

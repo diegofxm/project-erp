@@ -121,6 +121,15 @@ func (uc *PostJournalUseCase) Execute(ctx context.Context, req PostJournalReques
 	}
 
 	if req.VoucherType != "" {
+		if !domain.IsStandardVoucherType(req.VoucherType) {
+			registered, err := uc.journals.IsRegisteredVoucherType(ctx, req.CompanyID, req.VoucherType)
+			if err != nil {
+				return nil, fmt.Errorf("validar tipo de comprobante: %w", err)
+			}
+			if !registered {
+				return nil, fmt.Errorf("%w: %q", domain.ErrVoucherTypeUnknown, req.VoucherType)
+			}
+		}
 		seq, err := uc.journals.NextVoucherSeq(ctx, req.CompanyID, req.VoucherType, req.Date.Year())
 		if err != nil {
 			return nil, fmt.Errorf("asignar comprobante: %w", err)

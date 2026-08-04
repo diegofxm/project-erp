@@ -41,4 +41,8 @@ type JournalRepository interface {
 	GetAccountLedger(ctx context.Context, companyID uuid.UUID, accountCode string, from, to time.Time) ([]LedgerLine, error)
 	RegisterVoucherType(ctx context.Context, cfg VoucherTypeConfig) (*VoucherTypeConfig, error)
 	ListVoucherTypes(ctx context.Context, companyID uuid.UUID) ([]*VoucherTypeConfig, error)
+	// IsRegisteredVoucherType indica si code está registrado y activo para la empresa — usado
+	// por PostJournalUseCase para validar tipos personalizados (los estándar del sistema no
+	// necesitan estar aquí, ver domain.IsStandardVoucherType).
+	IsRegisteredVoucherType(ctx context.Context, companyID uuid.UUID, code string) (bool, error)
 }

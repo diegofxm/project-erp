@@ -785,7 +785,7 @@ func (h *Handler) handlePostJournal(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
-		if errors.Is(err, domain.ErrPeriodClosed) || errors.Is(err, domain.ErrAccountNotFound) || errors.Is(err, domain.ErrAccountNotPosting) {
+		if errors.Is(err, domain.ErrPeriodClosed) || errors.Is(err, domain.ErrAccountNotFound) || errors.Is(err, domain.ErrAccountNotPosting) || errors.Is(err, domain.ErrVoucherTypeUnknown) {
 			respondError(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}

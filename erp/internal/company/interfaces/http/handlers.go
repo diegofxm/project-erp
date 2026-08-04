@@ -99,7 +99,7 @@ func (h *Handler) handleGetActive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := requireTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -123,7 +123,7 @@ func (h *Handler) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleUpdateCredentials(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := requireTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -177,7 +177,7 @@ func (h *Handler) handleUpdateCredentials(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleClearSoftware(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := requireTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -194,7 +194,7 @@ func (h *Handler) handleClearSoftware(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleClearNeSoftware(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := requireTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -211,7 +211,7 @@ func (h *Handler) handleClearNeSoftware(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) handleClearCertificate(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := requireTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -255,7 +255,7 @@ func (h *Handler) handleGetLogo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleUpdateLogo(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := requireTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -311,7 +311,7 @@ func (h *Handler) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := requireTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -332,7 +332,7 @@ func (h *Handler) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleDeleteLogo(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := requireTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -495,6 +495,21 @@ func requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	cid := tenant.GetCompanyID(r.Context())
 	if cid == uuid.Nil {
 		respondError(w, http.StatusUnauthorized, "empresa activa requerida")
+		return uuid.Nil, false
+	}
+	return cid, true
+}
+
+// requireManage exige, además de empresa activa, rol owner/admin — usado por operaciones
+// administrativas de la empresa (perfil, credenciales DIAN, logo, configuración). member puede
+// operar el resto del ERP pero no estas.
+func requireManage(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return uuid.Nil, false
+	}
+	if !tenant.CanManage(r.Context()) {
+		respondError(w, http.StatusForbidden, "requiere rol de administrador")
 		return uuid.Nil, false
 	}
 	return cid, true

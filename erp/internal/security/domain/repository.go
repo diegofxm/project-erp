@@ -20,10 +20,14 @@ type Repository interface {
 	AddCompany(ctx context.Context, userID, companyID uuid.UUID, role string) error
 	ListCompanyIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	HasCompany(ctx context.Context, userID, companyID uuid.UUID) (bool, error)
+	// GetRole devuelve el rol del usuario en esa empresa ("owner"/"admin"/"member") — usado para
+	// incrustar el rol en el JWT al emitirlo (login/select-company), y así el RBAC del lado del
+	// servidor (shared/tenant.CanManage) no necesita una consulta a BD en cada request.
+	GetRole(ctx context.Context, userID, companyID uuid.UUID) (string, error)
 }
 
 // TokenService es el puerto de firma y verificación de JWT.
 type TokenService interface {
-	Issue(userID, companyID uuid.UUID) (string, error)
-	Verify(raw string) (userID, companyID uuid.UUID, err error)
+	Issue(userID, companyID uuid.UUID, role string) (string, error)
+	Verify(raw string) (userID, companyID uuid.UUID, role string, err error)
 }

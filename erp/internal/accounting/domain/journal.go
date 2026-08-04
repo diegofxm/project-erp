@@ -33,6 +33,26 @@ const (
 	VoucherOpening = "AP"
 )
 
+// standardVoucherTypes son los tipos de comprobante que usa el propio sistema al contabilizar
+// automáticamente (ventas, compras, nómina, pagos, cierre/apertura de período) — siempre válidos
+// sin que la empresa tenga que registrarlos a mano, para no romper esas contabilizaciones.
+// Cualquier otro tipo (los que crea la empresa desde Configuración de comprobantes) sí debe
+// existir y estar activo en accounting.voucher_types antes de poder usarse — ver
+// PostJournalUseCase.validateVoucherType.
+var standardVoucherTypes = map[string]bool{
+	VoucherExpense: true,
+	VoucherIncome:  true,
+	VoucherNote:    true,
+	VoucherPayroll: true,
+	VoucherClosing: true,
+	VoucherOpening: true,
+}
+
+// IsStandardVoucherType indica si code es uno de los tipos de comprobante propios del sistema.
+func IsStandardVoucherType(code string) bool {
+	return standardVoucherTypes[code]
+}
+
 type JournalEntry struct {
 	ID                 uuid.UUID
 	CompanyID          uuid.UUID

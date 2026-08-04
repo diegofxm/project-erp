@@ -130,6 +130,18 @@ func (r *Repository) ListCompanyIDs(ctx context.Context, userID uuid.UUID) ([]uu
 	return ids, rows.Err()
 }
 
+func (r *Repository) GetRole(ctx context.Context, userID, companyID uuid.UUID) (string, error) {
+	var role string
+	err := r.pool.QueryRow(ctx,
+		"SELECT role FROM security.user_companies WHERE user_id=$1 AND company_id=$2",
+		userID, companyID,
+	).Scan(&role)
+	if err != nil {
+		return "", fmt.Errorf("obtener rol: %w", err)
+	}
+	return role, nil
+}
+
 func (r *Repository) HasCompany(ctx context.Context, userID, companyID uuid.UUID) (bool, error) {
 	var ok bool
 	err := r.pool.QueryRow(ctx,

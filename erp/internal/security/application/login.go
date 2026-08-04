@@ -36,11 +36,13 @@ func (uc *LoginUseCase) Execute(ctx context.Context, email, password string) (*d
 	// Auto-seleccionar empresa si el usuario tiene exactamente una
 	companyIDs, _ := uc.repo.ListCompanyIDs(ctx, u.ID)
 	var companyID uuid.UUID
+	var role string
 	if len(companyIDs) == 1 {
 		companyID = companyIDs[0]
+		role, _ = uc.repo.GetRole(ctx, u.ID, companyID)
 	}
 
-	tok, err := uc.token.Issue(u.ID, companyID)
+	tok, err := uc.token.Issue(u.ID, companyID, role)
 	if err != nil {
 		return nil, err
 	}

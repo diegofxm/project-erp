@@ -19,7 +19,12 @@ func NewInviteUserUseCase(repo domain.Repository) *InviteUserUseCase {
 	return &InviteUserUseCase{repo: repo}
 }
 
-func (uc *InviteUserUseCase) Execute(ctx context.Context, email, name string) (*domain.User, error) {
+// Execute crea al usuario invitado y lo vincula de una vez a companyID con el rol dado — antes
+// de este cambio la invitación creaba el usuario pero nunca llamaba AddCompany, así que al
+// aceptarla el invitado quedaba sin ninguna empresa vinculada (ListCompanyIDs vacío, sin forma
+// de entrar). role debe ser "admin" o "member" (nunca "owner" — el owner es quien crea la
+// empresa, no se otorga por invitación).
+func (uc *InviteUserUseCase) Execute(ctx context.Context, companyID uuid.UUID, email, name string, role domain.Role) (*domain.User, error) {
 	if _, err := uc.repo.GetByEmail(ctx, email); err == nil {
 		return nil, domain.ErrEmailTaken
 	}
@@ -37,7 +42,14 @@ func (uc *InviteUserUseCase) Execute(ctx context.Context, email, name string) (*
 		InviteTokenExpiresAt: &expires,
 	}
 
-	return uc.repo.Save(ctx, u)
+	saved, err := uc.repo.Save(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	if err := uc.repo.AddCompany(ctx, saved.ID, companyID, string(role)); err != nil {
+		return nil, err
+	}
+	return saved, nil
 	// TODO: emitir evento para que shared/notification envíe el correo de invitación
 }
 
@@ -78,7 +90,7 @@ func (uc *AcceptInviteUseCase) Execute(ctx context.Context, rawToken, password s
 		return nil, err
 	}
 
-	jwtTok, err := uc.token.Issue(updated.ID, uuid.Nil)
+	jwtTok, err := uc.token.Issue(updated.ID, uuid.Nil, "")
 	if err != nil {
 		return nil, err
 	}

@@ -128,17 +128,23 @@ func (h *Handler) handleSelectCompany(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleInvite(w http.ResponseWriter, r *http.Request) {
-	if _, ok := requireAuth(w, r); !ok {
+	companyID, ok := requireManage(w, r)
+	if !ok {
 		return
 	}
 	var body struct {
 		Email string `json:"email"`
 		Name  string `json:"name"`
+		Role  string `json:"role"`
 	}
 	if !decode(w, r, &body) {
 		return
 	}
-	u, err := h.inviteUser.Execute(r.Context(), body.Email, body.Name)
+	role := domain.Role(body.Role)
+	if role != domain.RoleAdmin {
+		role = domain.RoleMember // default — el owner solo existe por creación de empresa
+	}
+	u, err := h.inviteUser.Execute(r.Context(), companyID, body.Email, body.Name, role)
 	respond(w, u, err)
 }
 
@@ -170,6 +176,25 @@ func requireAuth(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return id, true
+}
+
+// requireManage exige, además de sesión con empresa activa, que el rol sea owner/admin — usado
+// por operaciones administrativas (invitar usuarios, credenciales de empresa, etc.).
+func requireManage(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	cid := tenant.GetCompanyID(r.Context())
+	if cid == uuid.Nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error":"empresa activa requerida"}`))
+		return uuid.Nil, false
+	}
+	if !tenant.CanManage(r.Context()) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"error":"requiere rol de administrador"}`))
+		return uuid.Nil, false
+	}
+	return cid, true
 }
 
 func decode(w http.ResponseWriter, r *http.Request, dst any) bool {
