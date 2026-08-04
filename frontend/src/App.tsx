@@ -29,17 +29,21 @@ import { SupportDocumentsPage } from "./pages/SupportDocumentsPage";
 import { SupportDocumentEditorPage } from "./pages/SupportDocumentEditorPage";
 import { AdjustmentNotesPage } from "./pages/AdjustmentNotesPage";
 import { AdjustmentNoteEditorPage } from "./pages/AdjustmentNoteEditorPage";
+import { SalesDashboardPage } from "./pages/SalesDashboardPage";
 import { QuotesPage } from "./pages/QuotesPage";
 import { QuoteEditorPage } from "./pages/QuoteEditorPage";
 import { SalesPage } from "./pages/SalesPage";
 import { SaleEditorPage } from "./pages/SaleEditorPage";
 import { ReceivablesPage } from "./pages/ReceivablesPage";
+import { PurchaseDashboardPage } from "./pages/PurchaseDashboardPage";
 import { PurchaseOrdersPage } from "./pages/PurchaseOrdersPage";
 import { PurchaseOrderEditorPage } from "./pages/PurchaseOrderEditorPage";
 import { PayablesPage } from "./pages/PayablesPage";
+import { InventoryDashboardPage } from "./pages/InventoryDashboardPage";
 import { InventoryStockPage } from "./pages/InventoryStockPage";
 import { InventoryMovementsPage } from "./pages/InventoryMovementsPage";
 import { WarehousesPage } from "./pages/WarehousesPage";
+import { AccountingDashboardPage } from "./pages/AccountingDashboardPage";
 import { AccountingJournalsPage } from "./pages/AccountingJournalsPage";
 import { AccountingJournalEditorPage } from "./pages/AccountingJournalEditorPage";
 import { AccountingAccountsPage } from "./pages/AccountingAccountsPage";
@@ -84,18 +88,21 @@ function App() {
                     <Route path="/documents/support-documents/:id" element={<SupportDocumentEditorPage />} />
                     <Route path="/documents/adjustment-notes" element={<AdjustmentNotesPage />} />
                     <Route path="/documents/adjustment-notes/:id" element={<AdjustmentNoteEditorPage />} />
+                    <Route path="/sales" element={<SalesDashboardPage />} />
                     <Route path="/sales/quotes" element={<QuotesPage />} />
                     <Route path="/sales/quotes/:id" element={<QuoteEditorPage />} />
-                    <Route path="/sales" element={<SalesPage />} />
+                    <Route path="/sales/orders" element={<SalesPage />} />
                     <Route path="/sales/receivables" element={<ReceivablesPage />} />
                     <Route path="/sales/:id" element={<SaleEditorPage />} />
+                    <Route path="/purchases" element={<PurchaseDashboardPage />} />
                     <Route path="/purchases/payables" element={<PayablesPage />} />
-                    <Route path="/purchases" element={<PurchaseOrdersPage />} />
+                    <Route path="/purchases/orders" element={<PurchaseOrdersPage />} />
                     <Route path="/purchases/:id" element={<PurchaseOrderEditorPage />} />
-                    <Route path="/inventory" element={<InventoryStockPage />} />
+                    <Route path="/inventory" element={<InventoryDashboardPage />} />
+                    <Route path="/inventory/stock" element={<InventoryStockPage />} />
                     <Route path="/inventory/movements" element={<InventoryMovementsPage />} />
                     <Route path="/inventory/warehouses" element={<WarehousesPage />} />
-                    <Route path="/accounting" element={<Navigate to="/accounting/journals" replace />} />
+                    <Route path="/accounting" element={<AccountingDashboardPage />} />
                     <Route path="/accounting/journals" element={<AccountingJournalsPage />} />
                     <Route path="/accounting/journals/:id" element={<AccountingJournalEditorPage />} />
                     <Route path="/accounting/accounts" element={<AccountingAccountsPage />} />

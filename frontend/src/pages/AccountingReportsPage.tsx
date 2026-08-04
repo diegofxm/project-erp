@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
 import { FileBarChart } from "lucide-react";
 import { getAccountLedger, getBSReport, getPLReport, getTrialBalance, listAccounts } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
@@ -28,8 +29,16 @@ function firstOfYearISO(): string {
   return `${new Date().getFullYear()}-01-01`;
 }
 
+const REPORT_TYPES = Object.keys(REPORT_LABEL) as ReportType[];
+
 export function AccountingReportsPage() {
-  const [report, setReport] = useState<ReportType>("pl");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialType = searchParams.get("type") as ReportType | null;
+  const [report, setReportState] = useState<ReportType>(initialType && REPORT_TYPES.includes(initialType) ? initialType : "pl");
+  function setReport(r: ReportType) {
+    setReportState(r);
+    setSearchParams((prev) => { prev.set("type", r); return prev; }, { replace: true });
+  }
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 

@@ -151,7 +151,7 @@ export function PurchaseOrderEditorPage() {
     try {
       await deletePurchase(purchase.id);
       toast.success("Orden de compra eliminada.");
-      navigate("/purchases");
+      navigate("/purchases/orders");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar la orden");
     }

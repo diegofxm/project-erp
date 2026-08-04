@@ -40,22 +40,25 @@ const SUB_NAVS: SubNavConfig[] = [
   {
     prefix: "/sales",
     items: [
+      { to: "/sales", label: "Panel", end: true },
       { to: "/sales/quotes", label: "Cotizaciones" },
-      { to: "/sales", label: "Ventas", end: true },
+      { to: "/sales/orders", label: "Ventas" },
       { to: "/sales/receivables", label: "Cartera" },
     ],
   },
   {
     prefix: "/purchases",
     items: [
-      { to: "/purchases", label: "Compras", end: true },
+      { to: "/purchases", label: "Panel", end: true },
+      { to: "/purchases/orders", label: "Compras" },
       { to: "/purchases/payables", label: "Cuentas por pagar" },
     ],
   },
   {
     prefix: "/inventory",
     items: [
-      { to: "/inventory", label: "Existencias", end: true },
+      { to: "/inventory", label: "Panel", end: true },
+      { to: "/inventory/stock", label: "Existencias" },
       { to: "/inventory/movements", label: "Movimientos" },
       { to: "/inventory/warehouses", label: "Bodegas" },
     ],
@@ -63,6 +66,7 @@ const SUB_NAVS: SubNavConfig[] = [
   {
     prefix: "/accounting",
     items: [
+      { to: "/accounting", label: "Panel", end: true },
       { to: "/accounting/journals", label: "Asientos" },
       { to: "/accounting/accounts", label: "Cuentas" },
       { to: "/accounting/periods", label: "Periodos" },
