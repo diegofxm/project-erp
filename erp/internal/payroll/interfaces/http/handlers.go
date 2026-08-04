@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,22 +15,43 @@ import (
 	"github.com/diegofxm/erp/internal/shared/tenant"
 )
 
+// AuditLogger es la interfaz mínima para registrar eventos de auditoría.
+// La implementa audit/application.UseCase sin requerir importar ese paquete.
+type AuditLogger interface {
+	Log(ctx context.Context, companyID uuid.UUID, userID *uuid.UUID, action, resourceType string, resourceID *uuid.UUID, metadata map[string]any)
+}
+
 type Handler struct {
 	employees application.EmployeeUseCase
 	contracts application.ContractUseCase
 	payslips  application.PayslipUseCase
+	audit     AuditLogger
 }
 
 func NewHandler(
 	employees *application.EmployeeUseCase,
 	contracts *application.ContractUseCase,
 	payslips *application.PayslipUseCase,
+	audit AuditLogger,
 ) *Handler {
 	return &Handler{
 		employees: *employees,
 		contracts: *contracts,
 		payslips:  *payslips,
+		audit:     audit,
 	}
+}
+
+func (h *Handler) logAudit(ctx context.Context, companyID uuid.UUID, action, resourceType string, id uuid.UUID, meta map[string]any) {
+	if h.audit == nil {
+		return
+	}
+	uid := tenant.GetUserID(ctx)
+	var userID *uuid.UUID
+	if uid != uuid.Nil {
+		userID = &uid
+	}
+	h.audit.Log(ctx, companyID, userID, action, resourceType, &id, meta)
 }
 
 // ── Empleados ─────────────────────────────────────────────────────────────────
@@ -72,6 +94,7 @@ func (h *Handler) handleCreateEmployee(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	h.logAudit(r.Context(), companyID, "employee.created", "employee", e.ID, map[string]any{"name": e.FullName()})
 	writeJSON(w, http.StatusCreated, e)
 }
 
@@ -120,6 +143,7 @@ func (h *Handler) handleDeactivateEmployee(w http.ResponseWriter, r *http.Reques
 		writeErr(w, err)
 		return
 	}
+	h.logAudit(r.Context(), companyID, "employee.deactivated", "employee", id, nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -259,6 +283,9 @@ func (h *Handler) handleGeneratePayslip(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, err)
 		return
 	}
+	h.logAudit(r.Context(), companyID, "payroll.generated", "payslip", ps.ID, map[string]any{
+		"period_year": ps.PeriodYear, "period_month": ps.PeriodMonth,
+	})
 	writeJSON(w, http.StatusCreated, ps)
 }
 

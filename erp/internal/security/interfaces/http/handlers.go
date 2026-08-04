@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,6 +13,12 @@ import (
 	"github.com/diegofxm/erp/internal/shared/tenant"
 )
 
+// AuditLogger es la interfaz mínima para registrar eventos de auditoría.
+// La implementa audit/application.UseCase sin requerir importar ese paquete.
+type AuditLogger interface {
+	Log(ctx context.Context, companyID uuid.UUID, userID *uuid.UUID, action, resourceType string, resourceID *uuid.UUID, metadata map[string]any)
+}
+
 type Handler struct {
 	register      *application.RegisterUseCase
 	login         *application.LoginUseCase
@@ -20,6 +27,7 @@ type Handler struct {
 	acceptInvite  *application.AcceptInviteUseCase
 	updateProfile *application.UpdateProfileUseCase
 	getProfile    *application.GetProfileUseCase
+	audit         AuditLogger
 }
 
 func NewHandler(
@@ -30,6 +38,7 @@ func NewHandler(
 	acceptInvite *application.AcceptInviteUseCase,
 	updateProfile *application.UpdateProfileUseCase,
 	getProfile *application.GetProfileUseCase,
+	audit AuditLogger,
 ) *Handler {
 	return &Handler{
 		register:      register,
@@ -39,7 +48,19 @@ func NewHandler(
 		acceptInvite:  acceptInvite,
 		updateProfile: updateProfile,
 		getProfile:    getProfile,
+		audit:         audit,
 	}
+}
+
+// logAuth registra un evento de auditoría de sesión — solo si ya hay empresa activa
+// (audit.events es por empresa; login/registro antes de seleccionar empresa no tienen dónde
+// quedar registrados todavía).
+func (h *Handler) logAuth(ctx context.Context, result *domain.AuthResult, action string) {
+	if h.audit == nil || result == nil || result.CompanyID == uuid.Nil {
+		return
+	}
+	userID := result.User.ID
+	h.audit.Log(ctx, result.CompanyID, &userID, action, "user", &userID, map[string]any{"email": result.User.Email})
 }
 
 // --- rutas públicas ---
@@ -62,6 +83,9 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := h.login.Execute(r.Context(), body.Email, body.Password)
+	if err == nil {
+		h.logAuth(r.Context(), result, "auth.login")
+	}
 	respondAuth(w, result, err)
 }
 
@@ -74,6 +98,11 @@ func (h *Handler) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := h.acceptInvite.Execute(r.Context(), body.Token, body.Password)
+	if err == nil {
+		// CompanyID llega uuid.Nil aquí (falta select-company) — logAuth no hace nada por ahora,
+		// pero el sitio ya queda listo si el flujo alguna vez vincula la empresa antes.
+		h.logAuth(r.Context(), result, "auth.invite_accepted")
+	}
 	respondAuth(w, result, err)
 }
 
@@ -124,6 +153,9 @@ func (h *Handler) handleSelectCompany(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := h.selectCompany.Execute(r.Context(), userID, body.CompanyID)
+	if err == nil {
+		h.logAuth(r.Context(), result, "auth.company_selected")
+	}
 	respondAuth(w, result, err)
 }
 
@@ -145,6 +177,16 @@ func (h *Handler) handleInvite(w http.ResponseWriter, r *http.Request) {
 		role = domain.RoleMember // default — el owner solo existe por creación de empresa
 	}
 	u, err := h.inviteUser.Execute(r.Context(), companyID, body.Email, body.Name, role)
+	if err == nil && h.audit != nil {
+		uid := tenant.GetUserID(r.Context())
+		var inviterID *uuid.UUID
+		if uid != uuid.Nil {
+			inviterID = &uid
+		}
+		h.audit.Log(r.Context(), companyID, inviterID, "auth.user_invited", "user", &u.ID, map[string]any{
+			"email": u.Email, "role": string(role),
+		})
+	}
 	respond(w, u, err)
 }
 

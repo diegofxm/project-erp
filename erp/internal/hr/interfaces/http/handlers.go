@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -13,12 +14,31 @@ import (
 	"github.com/diegofxm/erp/internal/shared/tenant"
 )
 
-type Handler struct {
-	absences application.AbsenceUseCase
+// AuditLogger es la interfaz mínima para registrar eventos de auditoría.
+// La implementa audit/application.UseCase sin requerir importar ese paquete.
+type AuditLogger interface {
+	Log(ctx context.Context, companyID uuid.UUID, userID *uuid.UUID, action, resourceType string, resourceID *uuid.UUID, metadata map[string]any)
 }
 
-func NewHandler(absences *application.AbsenceUseCase) *Handler {
-	return &Handler{absences: *absences}
+type Handler struct {
+	absences application.AbsenceUseCase
+	audit    AuditLogger
+}
+
+func NewHandler(absences *application.AbsenceUseCase, audit AuditLogger) *Handler {
+	return &Handler{absences: *absences, audit: audit}
+}
+
+func (h *Handler) logAbsence(ctx context.Context, companyID uuid.UUID, action string, id uuid.UUID, meta map[string]any) {
+	if h.audit == nil {
+		return
+	}
+	uid := tenant.GetUserID(ctx)
+	var userID *uuid.UUID
+	if uid != uuid.Nil {
+		userID = &uid
+	}
+	h.audit.Log(ctx, companyID, userID, "absence."+action, "absence", &id, meta)
 }
 
 type requestAbsenceBody struct {
@@ -56,6 +76,7 @@ func (h *Handler) handleRequestAbsence(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	h.logAbsence(r.Context(), companyID, "requested", a.ID, map[string]any{"type": string(a.Type)})
 	writeJSON(w, http.StatusCreated, a)
 }
 
@@ -125,6 +146,7 @@ func (h *Handler) handleApproveAbsence(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	h.logAbsence(r.Context(), companyID, "approved", id, nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -144,6 +166,7 @@ func (h *Handler) handleRejectAbsence(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	h.logAbsence(r.Context(), companyID, "rejected", id, nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,6 +13,12 @@ import (
 	"github.com/diegofxm/erp/internal/inventory/domain"
 	"github.com/diegofxm/erp/internal/shared/tenant"
 )
+
+// AuditLogger es la interfaz mínima para registrar eventos de auditoría.
+// La implementa audit/application.UseCase sin requerir importar ese paquete.
+type AuditLogger interface {
+	Log(ctx context.Context, companyID uuid.UUID, userID *uuid.UUID, action, resourceType string, resourceID *uuid.UUID, metadata map[string]any)
+}
 
 // ── DTOs de salida ──────────────────────────────────────────────────────────────────────────
 // domain.StockEntry/Movement no llevan tags json (no deben — el dominio no conoce HTTP) — acá
@@ -56,12 +63,13 @@ func toMovementDTO(m domain.Movement) movementDTO {
 }
 
 type Handler struct {
-	move *application.MoveUseCase
-	get  *application.GetUseCase
+	move  *application.MoveUseCase
+	get   *application.GetUseCase
+	audit AuditLogger
 }
 
-func NewHandler(move *application.MoveUseCase, get *application.GetUseCase) *Handler {
-	return &Handler{move: move, get: get}
+func NewHandler(move *application.MoveUseCase, get *application.GetUseCase, audit AuditLogger) *Handler {
+	return &Handler{move: move, get: get, audit: audit}
 }
 
 func (h *Handler) handleMove(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +90,16 @@ func (h *Handler) handleMove(w http.ResponseWriter, r *http.Request) {
 		}
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if h.audit != nil {
+		uid := tenant.GetUserID(r.Context())
+		var userID *uuid.UUID
+		if uid != uuid.Nil {
+			userID = &uid
+		}
+		h.audit.Log(r.Context(), companyID, userID, "inventory.movement_created", "movement", &m.ID, map[string]any{
+			"type": string(m.Type), "quantity": m.Quantity,
+		})
 	}
 	respond(w, http.StatusCreated, toMovementDTO(*m))
 }

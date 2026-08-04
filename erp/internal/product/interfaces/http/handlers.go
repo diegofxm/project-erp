@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,11 +13,18 @@ import (
 	"github.com/diegofxm/erp/internal/shared/tenant"
 )
 
+// AuditLogger es la interfaz mínima para registrar eventos de auditoría.
+// La implementa audit/application.UseCase sin requerir importar ese paquete.
+type AuditLogger interface {
+	Log(ctx context.Context, companyID uuid.UUID, userID *uuid.UUID, action, resourceType string, resourceID *uuid.UUID, metadata map[string]any)
+}
+
 type Handler struct {
 	create *application.CreateUseCase
 	get    *application.GetUseCase
 	update *application.UpdateUseCase
 	delete *application.DeleteUseCase
+	audit  AuditLogger
 }
 
 func NewHandler(
@@ -24,8 +32,23 @@ func NewHandler(
 	get *application.GetUseCase,
 	update *application.UpdateUseCase,
 	del *application.DeleteUseCase,
+	audit AuditLogger,
 ) *Handler {
-	return &Handler{create: create, get: get, update: update, delete: del}
+	return &Handler{create: create, get: get, update: update, delete: del, audit: audit}
+}
+
+func (h *Handler) logProduct(ctx context.Context, companyID uuid.UUID, action string, p *domain.Product) {
+	if h.audit == nil {
+		return
+	}
+	uid := tenant.GetUserID(ctx)
+	var userID *uuid.UUID
+	if uid != uuid.Nil {
+		userID = &uid
+	}
+	h.audit.Log(ctx, companyID, userID, "product."+action, "product", &p.ID, map[string]any{
+		"code": p.Code, "name": p.Name,
+	})
 }
 
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +70,7 @@ func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logProduct(r.Context(), companyID, "created", p)
 	respond(w, http.StatusCreated, p)
 }
 
@@ -112,6 +136,7 @@ func (h *Handler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logProduct(r.Context(), companyID, "updated", p)
 	respond(w, http.StatusOK, p)
 }
 
@@ -132,6 +157,14 @@ func (h *Handler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		}
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if h.audit != nil {
+		uid := tenant.GetUserID(r.Context())
+		var userID *uuid.UUID
+		if uid != uuid.Nil {
+			userID = &uid
+		}
+		h.audit.Log(r.Context(), companyID, userID, "product.deleted", "product", &id, nil)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

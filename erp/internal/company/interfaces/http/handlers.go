@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,12 @@ import (
 	"github.com/diegofxm/erp/internal/shared/tenant"
 )
 
+// AuditLogger es la interfaz mínima para registrar eventos de auditoría.
+// La implementa audit/application.UseCase sin requerir importar ese paquete.
+type AuditLogger interface {
+	Log(ctx context.Context, companyID uuid.UUID, userID *uuid.UUID, action, resourceType string, resourceID *uuid.UUID, metadata map[string]any)
+}
+
 type Handler struct {
 	create    *application.CreateUseCase
 	get       *application.GetUseCase
@@ -21,6 +28,7 @@ type Handler struct {
 	clearCred *application.ClearCredentialUseCase
 	logo      *application.UpdateLogoUseCase
 	warehouse *application.WarehouseUseCase
+	audit     AuditLogger
 }
 
 func NewHandler(
@@ -31,12 +39,27 @@ func NewHandler(
 	clearCred *application.ClearCredentialUseCase,
 	logo *application.UpdateLogoUseCase,
 	warehouse *application.WarehouseUseCase,
+	audit AuditLogger,
 ) *Handler {
 	return &Handler{
 		create: create, get: get, profile: profile,
 		creds: creds, clearCred: clearCred,
-		logo: logo, warehouse: warehouse,
+		logo: logo, warehouse: warehouse, audit: audit,
 	}
+}
+
+// logAudit registra un evento de auditoría — nunca recibe secretos (PIN, password, certificado)
+// en metadata, solo qué campo cambió.
+func (h *Handler) logAudit(ctx context.Context, companyID uuid.UUID, action string, meta map[string]any) {
+	if h.audit == nil {
+		return
+	}
+	uid := tenant.GetUserID(ctx)
+	var userID *uuid.UUID
+	if uid != uuid.Nil {
+		userID = &uid
+	}
+	h.audit.Log(ctx, companyID, userID, action, "company", &companyID, meta)
 }
 
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -119,6 +142,7 @@ func (h *Handler) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), companyID, "company.profile_updated", nil)
 	respond(w, http.StatusOK, safeCompany(c))
 }
 
@@ -173,6 +197,7 @@ func (h *Handler) handleUpdateCredentials(w http.ResponseWriter, r *http.Request
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), companyID, "company.credentials_updated", nil)
 	respond(w, http.StatusOK, safeCompany(c))
 }
 
@@ -190,6 +215,7 @@ func (h *Handler) handleClearSoftware(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), companyID, "company.credentials_cleared", map[string]any{"credential": "software"})
 	respond(w, http.StatusOK, safeCompany(c))
 }
 
@@ -207,6 +233,7 @@ func (h *Handler) handleClearNeSoftware(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), companyID, "company.credentials_cleared", map[string]any{"credential": "ne_software"})
 	respond(w, http.StatusOK, safeCompany(c))
 }
 
@@ -224,6 +251,7 @@ func (h *Handler) handleClearCertificate(w http.ResponseWriter, r *http.Request)
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), companyID, "company.credentials_cleared", map[string]any{"credential": "certificate"})
 	respond(w, http.StatusOK, safeCompany(c))
 }
 
@@ -288,6 +316,7 @@ func (h *Handler) handleUpdateLogo(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), companyID, "company.logo_updated", nil)
 	respond(w, http.StatusOK, safeCompany(c))
 }
 
@@ -346,6 +375,7 @@ func (h *Handler) handleDeleteLogo(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), companyID, "company.logo_deleted", nil)
 	respond(w, http.StatusOK, safeCompany(c))
 }
 

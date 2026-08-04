@@ -343,27 +343,27 @@ func main() {
 	securityhttp.NewHandler(
 		registerUC, loginUC, selectCompanyUC,
 		inviteUserUC, acceptInviteUC,
-		updateProfileUC, getProfileUC,
+		updateProfileUC, getProfileUC, auditUC,
 	).RegisterRoutes(mux)
 	companyhttp.NewHandler(
 		createCompanyUC, getCompanyUC,
 		updateCompanyProfile, updateCompanyCreds, clearCompanyCreds, updateCompanyLogo,
-		warehouseUC,
+		warehouseUC, auditUC,
 	).RegisterRoutes(mux)
-	thirdpartyhttp.NewCustomerHandler(createPartyUC, getPartyUC, updatePartyUC, deletePartyUC).RegisterRoutes(mux)
-	thirdpartyhttp.NewSupplierHandler(createPartyUC, getPartyUC, updatePartyUC, deletePartyUC).RegisterRoutes(mux)
-	producthttp.NewHandler(createProductUC, getProductUC, updateProductUC, deleteProductUC).RegisterRoutes(mux)
-	inventoryhttp.NewHandler(moveInventoryUC, getInventoryUC).RegisterRoutes(mux)
-	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC, deletePurchaseUC, purchasePaymentUC, purchasePDFUC, sendPurchaseEmailUC, purchaseWithholdingUC).RegisterRoutes(mux)
-	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC, quotePDFUC, sendQuoteEmailUC).RegisterRoutes(mux)
-	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo, accountingWithholdingRepo, issueCertificatesUC, manageBankUC, fixedAssetUC, runDepreciationUC, budgetUC, ivaUC, incomeTaxUC, icaUC).RegisterRoutes(mux)
+	thirdpartyhttp.NewCustomerHandler(createPartyUC, getPartyUC, updatePartyUC, deletePartyUC, auditUC).RegisterRoutes(mux)
+	thirdpartyhttp.NewSupplierHandler(createPartyUC, getPartyUC, updatePartyUC, deletePartyUC, auditUC).RegisterRoutes(mux)
+	producthttp.NewHandler(createProductUC, getProductUC, updateProductUC, deleteProductUC, auditUC).RegisterRoutes(mux)
+	inventoryhttp.NewHandler(moveInventoryUC, getInventoryUC, auditUC).RegisterRoutes(mux)
+	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC, deletePurchaseUC, purchasePaymentUC, purchasePDFUC, sendPurchaseEmailUC, purchaseWithholdingUC, auditUC).RegisterRoutes(mux)
+	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC, quotePDFUC, sendQuoteEmailUC, auditUC).RegisterRoutes(mux)
+	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo, accountingWithholdingRepo, issueCertificatesUC, manageBankUC, fixedAssetUC, runDepreciationUC, budgetUC, ivaUC, incomeTaxUC, icaUC, auditUC).RegisterRoutes(mux)
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, fromPurchaseUC, electronicDianRangesUC, electronicSendEmailUC, auditUC).RegisterRoutes(mux)
 	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)
 	notificationhttp.NewHandler(notificationAlertsUC).RegisterRoutes(mux)
 	publichttp.NewHandler(getCompanyUC, createPartyUC).RegisterRoutes(mux)
-	payrollhttp.NewHandler(payrollEmpUC, payrollContractUC, payrollPayslipUC).RegisterRoutes(mux)
-	hrhttp.NewHandler(hrAbsenceUC).RegisterRoutes(mux)
+	payrollhttp.NewHandler(payrollEmpUC, payrollContractUC, payrollPayslipUC, auditUC).RegisterRoutes(mux)
+	hrhttp.NewHandler(hrAbsenceUC, auditUC).RegisterRoutes(mux)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

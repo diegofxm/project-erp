@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,6 +13,12 @@ import (
 	"github.com/diegofxm/erp/internal/sales/domain"
 	"github.com/diegofxm/erp/internal/shared/tenant"
 )
+
+// AuditLogger es la interfaz mínima para registrar eventos de auditoría.
+// La implementa audit/application.UseCase sin requerir importar ese paquete.
+type AuditLogger interface {
+	Log(ctx context.Context, companyID uuid.UUID, userID *uuid.UUID, action, resourceType string, resourceID *uuid.UUID, metadata map[string]any)
+}
 
 // ── DTOs de salida ──────────────────────────────────────────────────────────────────────────
 // domain.Sale/Quote/SalePayment/ReceivableBalance no llevan tags json (no deben — el dominio no
@@ -172,6 +179,7 @@ type Handler struct {
 	payment        *application.PaymentUseCase
 	quotePDF       *application.GetQuotePDFUseCase
 	sendQuoteEmail *application.SendQuoteEmailUseCase
+	audit          AuditLogger
 }
 
 func NewHandler(
@@ -183,11 +191,24 @@ func NewHandler(
 	payment *application.PaymentUseCase,
 	quotePDF *application.GetQuotePDFUseCase,
 	sendQuoteEmail *application.SendQuoteEmailUseCase,
+	audit AuditLogger,
 ) *Handler {
 	return &Handler{
 		create: create, get: get, confirm: confirm, cancel: cancel, quote: quote, payment: payment,
-		quotePDF: quotePDF, sendQuoteEmail: sendQuoteEmail,
+		quotePDF: quotePDF, sendQuoteEmail: sendQuoteEmail, audit: audit,
 	}
+}
+
+func (h *Handler) logAudit(ctx context.Context, companyID uuid.UUID, action, resourceType string, id uuid.UUID, meta map[string]any) {
+	if h.audit == nil {
+		return
+	}
+	uid := tenant.GetUserID(ctx)
+	var userID *uuid.UUID
+	if uid != uuid.Nil {
+		userID = &uid
+	}
+	h.audit.Log(ctx, companyID, userID, action, resourceType, &id, meta)
 }
 
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -273,6 +294,7 @@ func (h *Handler) handleConfirm(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), cid, "sale.confirmed", "sale", s.ID, map[string]any{"number": s.Number})
 	respond(w, http.StatusOK, toSaleDTO(s))
 }
 
@@ -294,6 +316,7 @@ func (h *Handler) handleCancel(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), cid, "sale.cancelled", "sale", id, nil)
 	respond(w, http.StatusOK, map[string]string{"status": "cancelled"})
 }
 
@@ -538,6 +561,7 @@ func (h *Handler) handleRecordPayment(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), cid, "sale.payment_recorded", "sale_payment", p.ID, map[string]any{"sale_id": p.SaleID, "amount": p.Amount})
 	respond(w, http.StatusCreated, toPaymentDTO(p))
 }
 

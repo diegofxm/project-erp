@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -13,6 +14,12 @@ import (
 	"github.com/diegofxm/erp/internal/accounting/domain"
 	"github.com/diegofxm/erp/internal/shared/tenant"
 )
+
+// AuditLogger es la interfaz mínima para registrar eventos de auditoría.
+// La implementa audit/application.UseCase sin requerir importar ese paquete.
+type AuditLogger interface {
+	Log(ctx context.Context, companyID uuid.UUID, userID *uuid.UUID, action, resourceType string, resourceID *uuid.UUID, metadata map[string]any)
+}
 
 type Handler struct {
 	post         *application.PostJournalUseCase
@@ -29,6 +36,7 @@ type Handler struct {
 	iva          *application.IVAUseCase
 	incomeTax    *application.IncomeTaxUseCase
 	ica          *application.ICAUseCase
+	audit        AuditLogger
 }
 
 func NewHandler(
@@ -46,12 +54,25 @@ func NewHandler(
 	iva *application.IVAUseCase,
 	incomeTax *application.IncomeTaxUseCase,
 	ica *application.ICAUseCase,
+	audit AuditLogger,
 ) *Handler {
 	return &Handler{
 		post: post, get: get, void: void, period: period, accounts: accounts, withholding: withholding,
 		certificates: certificates, bank: bank, assets: assets, depreciation: depreciation, budget: budget,
-		iva: iva, incomeTax: incomeTax, ica: ica,
+		iva: iva, incomeTax: incomeTax, ica: ica, audit: audit,
 	}
+}
+
+func (h *Handler) logAudit(ctx context.Context, companyID uuid.UUID, action, resourceType string, id uuid.UUID, meta map[string]any) {
+	if h.audit == nil {
+		return
+	}
+	uid := tenant.GetUserID(ctx)
+	var userID *uuid.UUID
+	if uid != uuid.Nil {
+		userID = &uid
+	}
+	h.audit.Log(ctx, companyID, userID, action, resourceType, &id, meta)
 }
 
 // ── Declaración de IVA ───────────────────────────────────────────────────────
@@ -111,6 +132,7 @@ func (h *Handler) handleFileIVA(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), cid, "declaration.iva_filed", "iva_declaration", id, nil)
 	respond(w, http.StatusOK, map[string]string{"status": "filed"})
 }
 
@@ -163,6 +185,7 @@ func (h *Handler) handleFileIncomeTax(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), cid, "declaration.income_tax_filed", "income_tax_declaration", id, nil)
 	respond(w, http.StatusOK, map[string]string{"status": "filed"})
 }
 
@@ -268,6 +291,7 @@ func (h *Handler) handleFileICA(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), cid, "declaration.ica_filed", "ica_declaration", id, nil)
 	respond(w, http.StatusOK, map[string]string{"status": "filed"})
 }
 
@@ -426,6 +450,7 @@ func (h *Handler) handleCreateFixedAsset(w http.ResponseWriter, r *http.Request)
 		respondError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), cid, "fixed_asset.created", "fixed_asset", a.ID, map[string]any{"code": a.Code, "name": a.Name})
 	respond(w, http.StatusCreated, toFixedAssetDTO(application.AssetWithAccumulated{FixedAsset: *a}))
 }
 
@@ -468,6 +493,7 @@ func (h *Handler) handleRunDepreciation(w http.ResponseWriter, r *http.Request) 
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), cid, "depreciation.run", "depreciation_run", run.ID, nil)
 	respond(w, http.StatusCreated, toDepreciationRunDTOs([]domain.DepreciationRun{*run})[0])
 }
 
@@ -792,6 +818,9 @@ func (h *Handler) handlePostJournal(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), req.CompanyID, "journal.posted", "journal", entry.ID, map[string]any{
+		"voucher_type": entry.VoucherType, "voucher_number": entry.VoucherNumber,
+	})
 	respond(w, http.StatusCreated, toJournalEntryDTO(entry))
 }
 
@@ -828,6 +857,7 @@ func (h *Handler) handleVoidJournal(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), cid, "journal.voided", "journal", id, nil)
 	respond(w, http.StatusOK, map[string]string{"status": "void"})
 }
 
@@ -893,6 +923,7 @@ func (h *Handler) handleClosePeriod(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), cid, "period.closed", "period", id, nil)
 	respond(w, http.StatusOK, map[string]string{"status": "closed"})
 }
 
@@ -914,6 +945,7 @@ func (h *Handler) handleReopenPeriod(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logAudit(r.Context(), cid, "period.reopened", "period", id, nil)
 	respond(w, http.StatusOK, map[string]string{"status": "open"})
 }
 

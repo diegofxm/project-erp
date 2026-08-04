@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,6 +13,12 @@ import (
 	"github.com/diegofxm/erp/internal/thirdparty/domain"
 )
 
+// AuditLogger es la interfaz mínima para registrar eventos de auditoría.
+// La implementa audit/application.UseCase sin requerir importar ese paquete.
+type AuditLogger interface {
+	Log(ctx context.Context, companyID uuid.UUID, userID *uuid.UUID, action, resourceType string, resourceID *uuid.UUID, metadata map[string]any)
+}
+
 // Handler expone un catálogo (Clientes o Proveedores) sobre el módulo unificado de terceros —
 // role fija cuál. Las rutas, el wrapper del listado ("customers"/"suppliers") y la forma del
 // JSON quedan iguales a los antiguos módulos customer/ y supplier/, así el frontend no necesitó
@@ -21,6 +28,7 @@ type Handler struct {
 	get    *application.GetUseCase
 	update *application.UpdateUseCase
 	delete *application.DeleteUseCase
+	audit  AuditLogger
 
 	role        domain.Role
 	pathPrefix  string
@@ -29,20 +37,37 @@ type Handler struct {
 	dupErr      error
 }
 
-func NewCustomerHandler(create *application.CreateUseCase, get *application.GetUseCase, update *application.UpdateUseCase, del *application.DeleteUseCase) *Handler {
+func NewCustomerHandler(create *application.CreateUseCase, get *application.GetUseCase, update *application.UpdateUseCase, del *application.DeleteUseCase, audit AuditLogger) *Handler {
 	return &Handler{
-		create: create, get: get, update: update, delete: del,
+		create: create, get: get, update: update, delete: del, audit: audit,
 		role: domain.RoleCustomer, pathPrefix: "/api/v1/customers", listKey: "customers",
 		notFoundErr: domain.ErrCustomerNotFound, dupErr: domain.ErrDuplicateCustomer,
 	}
 }
 
-func NewSupplierHandler(create *application.CreateUseCase, get *application.GetUseCase, update *application.UpdateUseCase, del *application.DeleteUseCase) *Handler {
+func NewSupplierHandler(create *application.CreateUseCase, get *application.GetUseCase, update *application.UpdateUseCase, del *application.DeleteUseCase, audit AuditLogger) *Handler {
 	return &Handler{
-		create: create, get: get, update: update, delete: del,
+		create: create, get: get, update: update, delete: del, audit: audit,
 		role: domain.RoleSupplier, pathPrefix: "/api/v1/suppliers", listKey: "suppliers",
 		notFoundErr: domain.ErrSupplierNotFound, dupErr: domain.ErrDuplicateSupplier,
 	}
+}
+
+// logParty registra un evento de auditoría sobre un tercero, con el rol (customer/supplier)
+// como prefijo de la acción (ej. "customer.created", "supplier.updated").
+func (h *Handler) logParty(ctx context.Context, companyID uuid.UUID, action string, p *domain.Party) {
+	if h.audit == nil {
+		return
+	}
+	uid := tenant.GetUserID(ctx)
+	var userID *uuid.UUID
+	if uid != uuid.Nil {
+		userID = &uid
+	}
+	h.audit.Log(ctx, companyID, userID, string(h.role)+"."+action, "party", &p.ID, map[string]any{
+		"name":                    p.Name,
+		"identification_number":   p.IdentificationNumber,
+	})
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
@@ -74,6 +99,7 @@ func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logParty(r.Context(), companyID, "created", p)
 	respond(w, http.StatusCreated, p)
 }
 
@@ -145,6 +171,7 @@ func (h *Handler) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.logParty(r.Context(), companyID, "updated", p)
 	respond(w, http.StatusOK, p)
 }
 
@@ -167,6 +194,14 @@ func (h *Handler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		}
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if h.audit != nil {
+		uid := tenant.GetUserID(r.Context())
+		var userID *uuid.UUID
+		if uid != uuid.Nil {
+			userID = &uid
+		}
+		h.audit.Log(r.Context(), companyID, userID, string(h.role)+".role_removed", "party", &id, nil)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
