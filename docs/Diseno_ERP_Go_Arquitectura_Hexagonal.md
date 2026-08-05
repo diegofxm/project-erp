@@ -199,7 +199,9 @@ Contexto: se implementó numeración consecutiva real (`sales.number_counters`, 
 
 No hizo falta tocar `electronic.Document` (factura, NC, ND, documento soporte, nota de ajuste) — ya tiene `Number`/`Prefix` resueltos vía `NumberingRange` (rango de resolución DIAN), sin gap ahí.
 
-**Pendiente de frontend** (ver sección de pendientes de frontend): `AccountingCertificatesPage.tsx` e `InventoryMovementsPage.tsx` no muestran todavía la columna `number` que el backend ya expone — `payroll.Payslip` no lo necesita porque el módulo de nómina no tiene frontend aún (deferred).
+**Frontend — ✅ Resuelto:** `AccountingCertificatesPage.tsx` e `InventoryMovementsPage.tsx` ya muestran la columna "Folio" (`number`) que el backend expone — `payroll.Payslip` no lo necesita porque el módulo de nómina no tiene frontend aún (deferred). De paso se agregó soporte en `Breadcrumbs.tsx` (`muted?: boolean`) para que el último ítem de la miga de pan muestre solo el número del documento (ej. `VTA-2026-00001`) en vez de repetir el título completo que ya muestra el H1 (ej. "Venta VTA-2026-00001") — aplicado en `SaleEditorPage`, `QuoteEditorPage`, `PurchaseOrderEditorPage`, `InvoiceEditorPage`, `CreditNoteEditorPage`, `DebitNoteEditorPage`, `AdjustmentNoteEditorPage`, `SupportDocumentEditorPage` y `AccountingJournalEditorPage`.
+
+**Pendiente — sembrar consecutivo inicial en los 3 folios nuevos:** el mecanismo `next_number` (ver punto 2 abajo) solo se construyó para `sales`/`purchase`/`accounting.voucher_counters`. `accounting.certificate_counters`, `inventory.number_counters` y `payroll.number_counters` no tienen ese endpoint — si una empresa migra con certificados/movimientos/nóminas ya numerados en otro sistema, no hay forma de fijar el punto de partida salvo SQL directo. Tampoco existe forma de personalizar el *prefijo* (`VTA-`, `CI-`, `ENT-`, etc.) en ningún documento excepto los electrónicos DIAN (`electronic.NumberingRange.Prefix`, que siempre lo tuvo) — prioridad baja hasta que alguien lo pida.
 
 **2) ✅ Resuelto — fijar un consecutivo inicial distinto de 1 (migración de empresas con numeración previa):**
 
@@ -210,6 +212,16 @@ Antes, `sales.number_counters`, `purchase.number_counters` y `accounting.voucher
 - `POST /api/v1/accounting/voucher-counters` — body `{code, year, next_number}` (valida el código contra `IsStandardVoucherType`/`IsRegisteredVoucherType`, igual que `PostJournalUseCase`).
 
 Los tres requieren rol `owner`/`admin` (`tenant.CanManage`) y rechazan con 422 (`ErrNumberCounterBackwards`) si `next_number` es menor o igual al último ya asignado — evita duplicar números ya emitidos; el `UPDATE` usa una condición (`WHERE EXCLUDED.last_seq > ...`) en vez de comparar en Go, así queda atómico. Verificado en vivo: sembrar next_number=100/200/300/400 y luego crear venta/cotización/orden/asiento reales produjo `VTA-2026-00100`, `COT-2026-00200`, `OC-2026-00300`, `CI-2026-00400` — y los intentos de retroceder fueron rechazados.
+
+---
+
+#### Hallazgos de la sesión 2026-08-05 (flujo de ventas/cotizaciones probado en vivo)
+
+**1) ✅ Resuelto — bodega por defecto no se creaba al registrar una empresa nueva.** `GetOrCreateDefault` (crea la bodega "Principal" si la empresa no tiene ninguna) solo se llamaba de forma perezosa al confirmar la primera venta o recibir la primera compra (`sales.ConfirmUseCase`, `inventory.OnPurchaseReceived`). Si el primer movimiento de un usuario nuevo era un "Ajuste manual" en Inventario, el selector de bodega salía vacío y el botón "Registrar" quedaba deshabilitado sin ninguna explicación en pantalla. Se corrigió `company.CreateUseCase.Execute` para llamar `warehouses.GetOrCreateDefault` justo después de crear la empresa — verificado en vivo: empresa nueva → `GET /companies/active/warehouses` ya trae "Principal" de inmediato.
+
+**2) Pendiente — el Panel de Control (dashboard de Inicio) no tiene ningún dato de `sales`/`purchase`.** `DashboardPage.tsx` + el módulo `stats` (`internal/stats`) están construidos enteramente sobre `electronic.documents` (factura/NC/ND/documento soporte DIAN) — cero consultas a `sales.quotes`, `sales.sales` o `purchase.orders`. Confirmar una venta o aceptar una cotización no cambia ninguna card del Inicio porque esas cards nunca leyeron esas tablas. No es un bug — nunca se conectó. Falta decidir qué widgets agregar (ej. "Cotizaciones pendientes/aceptadas", "Ventas del mes") y si van al mismo `stats` module o a uno nuevo.
+
+**3) Pendiente — no existe respuesta de cotización por email (aceptar/rechazar sin login).** El correo que manda `SendQuoteEmailUseCase` (plantilla `quote_issued.html`) es de una sola vía: adjunta el PDF y termina con "Mensaje automático — por favor no respondas a este correo". No hay link de "Aceptar"/"Rechazar" para que el cliente responda directamente — hoy `handleAcceptQuote`/`handleRejectQuote` solo los puede ejecutar el vendedor autenticado desde el ERP, asumiendo que el cliente avisó por otro canal (llamada, WhatsApp, etc.). Si se quiere self-service real, hace falta: token público de un solo uso por cotización, endpoint público (sin auth) en `sales/interfaces/http` o `public/`, y botones en la plantilla de correo.
 
 ---
 

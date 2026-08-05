@@ -16,12 +16,13 @@ type MembershipLinker interface {
 }
 
 type CreateUseCase struct {
-	repo    domain.Repository
-	members MembershipLinker
+	repo       domain.Repository
+	members    MembershipLinker
+	warehouses domain.WarehouseRepository
 }
 
-func NewCreateUseCase(repo domain.Repository, members MembershipLinker) *CreateUseCase {
-	return &CreateUseCase{repo: repo, members: members}
+func NewCreateUseCase(repo domain.Repository, members MembershipLinker, warehouses domain.WarehouseRepository) *CreateUseCase {
+	return &CreateUseCase{repo: repo, members: members, warehouses: warehouses}
 }
 
 type CreateRequest struct {
@@ -99,6 +100,13 @@ func (uc *CreateUseCase) Execute(ctx context.Context, creatorID uuid.UUID, req C
 	}
 
 	if err := uc.members.AddCompany(ctx, creatorID, saved.ID, "owner"); err != nil {
+		return nil, err
+	}
+
+	// La empresa nace con una bodega "Principal" ya lista — sin esto, el primer intento de
+	// ajustar inventario se encuentra con el selector de bodegas vacío (GetOrCreateDefault normalmente
+	// solo se llama de forma perezosa al confirmar la primera venta/compra, ver sales.ConfirmUseCase).
+	if _, err := uc.warehouses.GetOrCreateDefault(ctx, saved.ID); err != nil {
 		return nil, err
 	}
 

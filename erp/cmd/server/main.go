@@ -336,7 +336,7 @@ func main() {
 	updatePartyUC := thirdpartyapp.NewUpdateUseCase(thirdpartyRepo)
 	deletePartyUC := thirdpartyapp.NewDeleteUseCase(thirdpartyRepo)
 
-	createCompanyUC := companyapp.NewCreateUseCase(companyRepo, securityRepo)
+	createCompanyUC := companyapp.NewCreateUseCase(companyRepo, securityRepo, warehouseRepo)
 	getCompanyUC := companyapp.NewGetUseCase(companyRepo)
 	updateCompanyProfile := companyapp.NewUpdateProfileUseCase(companyRepo)
 	updateCompanyCreds := companyapp.NewUpdateCredentialsUseCase(companyRepo)
