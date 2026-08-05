@@ -11,11 +11,13 @@ import (
 type companyKey struct{}
 type userKey struct{}
 type roleKey struct{}
+type superAdminKey struct{}
 
-// Verifier verifica un JWT y devuelve userID, companyID y el rol del usuario en esa empresa.
+// Verifier verifica un JWT y devuelve userID, companyID, el rol del usuario en esa empresa, y si
+// es superadmin de la plataforma (transversal a todas las empresas, ver saas/interfaces/http).
 // Implementado por security/infrastructure/jwt.TokenService.
 type Verifier interface {
-	Verify(raw string) (userID, companyID uuid.UUID, role string, err error)
+	Verify(raw string) (userID, companyID uuid.UUID, role string, isSuperAdmin bool, err error)
 }
 
 func WithCompanyID(ctx context.Context, id uuid.UUID) context.Context {
@@ -59,6 +61,18 @@ func CanManage(ctx context.Context) bool {
 	}
 }
 
+func WithSuperAdmin(ctx context.Context, v bool) context.Context {
+	return context.WithValue(ctx, superAdminKey{}, v)
+}
+
+// IsSuperAdmin indica si el usuario de la sesión es dueño de la plataforma SaaS — transversal a
+// todas las empresas (ve/administra planes, suscripciones, facturación de todos los tenants). No
+// depende de GetCompanyID/GetRole, que son siempre relativos a la empresa activa.
+func IsSuperAdmin(ctx context.Context) bool {
+	v, _ := ctx.Value(superAdminKey{}).(bool)
+	return v
+}
+
 // Middleware extrae el JWT del header Authorization e inyecta userID, companyID y role en el
 // contexto. Es silencioso si no hay token o es inválido — las rutas protegidas llaman
 // requireAuth/requireTenant, y las que además requieren rol de administración llaman CanManage.
@@ -67,10 +81,11 @@ func Middleware(v Verifier) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 			if raw != "" {
-				if userID, companyID, role, err := v.Verify(raw); err == nil {
+				if userID, companyID, role, isSuperAdmin, err := v.Verify(raw); err == nil {
 					r = r.WithContext(WithUserID(r.Context(), userID))
 					r = r.WithContext(WithCompanyID(r.Context(), companyID))
 					r = r.WithContext(WithRole(r.Context(), role))
+					r = r.WithContext(WithSuperAdmin(r.Context(), isSuperAdmin))
 				}
 			}
 			next.ServeHTTP(w, r)

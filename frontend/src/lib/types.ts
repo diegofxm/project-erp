@@ -141,18 +141,31 @@ export interface UpdateCompanyProfilePayload {
   environment: CompanyEnvironment;
 }
 
-// Plan de suscripción — GET /admin/plans.
-export interface Plan {
-  id: string;
+// Módulo del sidebar que un plan puede desbloquear — catálogo fijo, GET /admin/modules.
+export interface SaasModule {
+  code: string;
   name: string;
   description: string;
-  max_documents_per_month: number | null; // null = ilimitado
-  max_issuers: number;
-  price_cop: number;
-  affiliation_fee_cop: number;  // tarifa única de afiliación inicial
-  renewal_fee_cop: number;      // tarifa de renovación anual
-  annual_increment_pct: number; // porcentaje de incremento anual (ej. 5.5 = 5.5%)
+}
+
+export type BillingCycle = "monthly" | "annual" | "none";
+
+// Plan de suscripción — GET /admin/plans. Precios en centavos (igual que accounting/electronic).
+export interface Plan {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  billing_cycle: BillingCycle;
+  price_cents: number;
+  included_documents: number | null; // null = ilimitado
+  price_per_extra_document_cents: number;
+  requires_certificate: boolean;
+  certificate_price_cents: number; // se suma a price_cents si la empresa no trae su propio certificado
+  annual_increment_pct: number; // ej. 5.5 = 5.5%
+  is_internal: boolean; // uso interno de la plataforma, excluido del catálogo público
   is_active: boolean;
+  modules: string[]; // códigos de SaasModule que este plan desbloquea
   created_at: string;
   updated_at: string;
 }
@@ -160,65 +173,66 @@ export interface Plan {
 // Suscripción activa de una empresa — GET /admin/companies/{id}/subscription.
 export interface Subscription {
   id: string;
-  issuer_id: string;
+  company_id: string;
   plan_id: string;
-  plan_name: string;
-  max_documents_per_month: number | null;
+  has_own_certificate: boolean;
   status: "active" | "cancelled" | "suspended";
-  started_at: string;
-  ends_at: string | null;
-  created_at: string;
+  contracted_price_cents: number;
+  current_period_start: string;
+  current_period_end: string;
+  cert_expires_at?: string;
+}
+
+// Configuración global de la plataforma — hoy solo la tasa de IVA. GET/PATCH /admin/settings.
+export interface SaasSettings {
+  iva_rate_bp: number; // puntos básicos: 1900 = 19%
   updated_at: string;
 }
 
-// Configuración de personalización y tarifas de la empresa — GET/PATCH /companies/me/settings.
+// Configuración de personalización de LA empresa activa (no de la plataforma) — GET/PATCH
+// /companies/active/settings, ver erp/internal/company/interfaces/http/handlers.go.
 export interface CompanySettings {
-  issuer_id: string;
   brand_color: string;
-  price_per_document_cop: number;
-  affiliation_fee_cop: number;
-  renewal_fee_cop: number;
-  affiliated_at: string | null;   // ISO 8601 o null si aún no está afiliado
-  renewal_due_at: string | null;  // ISO 8601 o null si no aplica
-  updated_at: string;
 }
 
-// Entrada del resumen de facturación mensual — GET /admin/billing/summary.
+// Entrada del resumen de facturación del período vigente — GET /admin/billing/summary.
 export interface BillingEntry {
-  IssuerID: string;
-  BusinessName: string;
-  NIT: string;
-  DocsThisMonth: number;
-  PricePerDocumentCOP: number;
-  SubtotalCOP: number;
-  IVA: number;
-  TotalCOP: number;
+  company_id: string;
+  business_name: string;
+  nit: string;
+  plan_name: string;
+  documents_included: number | null;
+  documents_used: number;
+  overage_documents: number;
+  base_cents: number;
+  overage_cents: number;
+  iva_cents: number;
+  total_cents: number;
 }
 
 // Entrada de renovaciones próximas — GET /admin/billing/renewals.
 export interface RenewalEntry {
-  IssuerID: string;
-  BusinessName: string;
-  NIT: string;
-  AffiliatedAt: string | null;
-  RenewalDueAt: string | null;
-  RenewalFeeCOP: number;
-  DaysUntilRenewal: number; // 0 si ya venció
+  company_id: string;
+  business_name: string;
+  nit: string;
+  plan_name: string;
+  current_period_end: string;
+  days_until_renewal: number; // negativo = ya venció
+  renewal_cents: number;
 }
 
-// Espejo de payments.Payment (apidian/internal/payments/model.go).
 export interface Payment {
   id: string;
-  issuer_id: string;
-  type: "affiliation" | "renewal" | "documents";
-  amount_cop: number;
+  company_id: string;
+  subscription_id?: string;
+  type: "plan" | "certificate" | "overage";
+  amount_cents: number;
   note: string;
   paid_at: string;
-  created_at: string;
 }
 
-// Espejo de adminUserResponse (apidian/internal/api/handler_admin.go).
-// invite_accepted_at null = usuario invitado que aún no ha configurado su contraseña.
+// Usuario de la plataforma (todas las empresas) — GET /admin/users, solo lectura.
+// invite_accepted_at vacío = usuario invitado que aún no ha configurado su contraseña.
 export interface AdminUser {
   id: string;
   email: string;
@@ -226,8 +240,29 @@ export interface AdminUser {
   role: string;
   is_superadmin: boolean;
   is_active: boolean;
-  invite_accepted_at: string | null;
+  invite_accepted_at?: string;
   created_at: string;
+}
+
+// Foto mínima de una empresa para el panel superadmin — GET /admin/companies/{id}.
+export interface CompanyInfo {
+  id: string;
+  business_name: string;
+  trade_name: string;
+  nit: string;
+}
+
+// Plan contratado por la empresa activa — GET /saas/my-plan. Alimenta la página "Mi plan" y el
+// gating de módulos del Sidebar.
+export interface MyPlan {
+  plan_name: string;
+  modules: string[];
+  included_documents: number | null;
+  documents_used: number;
+  current_period_end: string;
+  contracted_cents: number;
+  has_own_certificate: boolean;
+  cert_expires_at?: string;
 }
 
 export interface Prospect {
@@ -239,9 +274,8 @@ export interface Prospect {
   has_rut: boolean;
   status: "pending" | "approved" | "rejected";
   notes?: string;
-  reviewed_at?: string | null;
+  reviewed_at?: string;
   created_at: string;
-  updated_at: string;
 }
 
 // Formas compartidas por los catálogos de solo lectura en apidian/internal/catalogs/model.go.

@@ -1,26 +1,27 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router";
-import { BarChart2, Building2, CalendarClock, ClipboardList, Layers, RefreshCw, ChevronRight, Users, Plus } from "lucide-react";
+import { BarChart2, Building2, CalendarClock, ClipboardList, Layers, RefreshCw, ChevronRight, Users, Plus, Settings2, Pencil } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { apiClient, ApiError } from "../lib/apiClient";
 import {
+  adminListModules,
   adminListPlans,
-  adminGetCompany,
+  adminGetCompanyInfo,
   adminGetSubscription,
-  adminGetCompanySettings,
   adminAssignPlan,
+  adminRenewSubscription,
+  adminCreatePlan,
   adminUpdatePlan,
   adminApplyPlanIncrement,
-  adminUpdateCompanySettings,
-  adminAffiliateCompany,
-  adminRenewCompany,
+  adminGetSettings,
+  adminUpdateSettings,
   adminGetBillingSummary,
   adminGetRenewalsSummary,
   adminListUsers,
-  adminCreateUser,
   adminListCompanyPayments,
+  adminRecordPayment,
   adminListProspects,
   adminApproveProspect,
   adminRejectProspect,
@@ -28,18 +29,37 @@ import {
   adminProspectRutUrl,
 } from "../lib/admin";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
-import type { AdminUser, BillingEntry, CompanySettings, Payment, Plan, Prospect, RenewalEntry, Subscription, Company } from "../lib/types";
+import type {
+  AdminUser, BillingEntry, BillingCycle, CompanyInfo, Payment, Plan, Prospect, RenewalEntry,
+  SaasModule, SaasSettings, Subscription,
+} from "../lib/types";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
+import { Select } from "../components/ui/Select";
 
-function formatCOP(pesos: number) {
-  return `$ ${pesos.toLocaleString("es-CO")}`;
+// Los precios del módulo SaaS viajan en centavos (igual que accounting/electronic) — helpers
+// separados de formatCOP (pesos) que usa el resto de la app para no mezclar unidades por error.
+function formatCents(cents: number) {
+  return `$ ${Math.round(cents / 100).toLocaleString("es-CO")}`;
+}
+function pesosToCents(pesos: string) {
+  const n = parseFloat(pesos);
+  return isNaN(n) ? 0 : Math.round(n * 100);
+}
+function centsToPesosInput(cents: number) {
+  return cents === 0 ? "" : String(cents / 100);
 }
 
 const PAYMENT_TYPE_LABEL: Record<string, string> = {
-  affiliation: "Afiliación",
-  renewal:     "Renovación",
-  documents:   "Documentos",
+  plan: "Plan",
+  certificate: "Certificado",
+  overage: "Excedente de documentos",
+};
+
+const BILLING_CYCLE_LABEL: Record<BillingCycle, string> = {
+  monthly: "Mensual",
+  annual: "Anual",
+  none: "Sin ciclo (gratis)",
 };
 
 function formatDate(iso: string | null | undefined) {
@@ -58,20 +78,22 @@ function withSuperAdmin<P extends object>(Component: React.ComponentType<P>) {
 // ── Facturación ──────────────────────────────────────────────────────────────
 function BillingContent() {
   const [entries, setEntries] = useState<BillingEntry[]>([]);
+  const [ivaRateBP, setIvaRateBP] = useState(0);
   const [loading, setLoading] = useState(true);
 
   function load() {
     setLoading(true);
-    adminGetBillingSummary()
-      .then(setEntries)
+    Promise.all([adminGetBillingSummary(), adminGetSettings()])
+      .then(([e, s]) => { setEntries(e); setIvaRateBP(s.iva_rate_bp); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }
 
   useEffect(load, []);
 
-  const totalDocs = entries.reduce((s, e) => s + e.DocsThisMonth, 0);
-  const totalCOP = entries.reduce((s, e) => s + e.TotalCOP, 0);
+  const totalDocs = entries.reduce((s, e) => s + e.documents_used, 0);
+  const totalCents = entries.reduce((s, e) => s + e.total_cents, 0);
+  const ivaPct = (ivaRateBP / 100).toFixed(2);
 
   return (
     <>
@@ -83,12 +105,12 @@ function BillingContent() {
         </h1>
         <Button variant="secondary" onClick={load} icon={<RefreshCw className="h-3.5 w-3.5" />}>Actualizar</Button>
       </div>
-      <p className="mb-3 text-xs text-(--text-secondary)">Documentos emitidos en el mes actual por todos los emisores.</p>
+      <p className="mb-3 text-xs text-(--text-secondary)">Empresas con suscripción activa — cargos del período vigente de cada una.</p>
 
       {loading ? (
         <p className="text-xs text-(--text-secondary)">Cargando…</p>
       ) : entries.length === 0 ? (
-        <p className="text-xs text-(--text-secondary)">Ningún emisor ha emitido documentos este mes.</p>
+        <p className="text-xs text-(--text-secondary)">Ninguna empresa con suscripción activa.</p>
       ) : (
         <div className="overflow-x-auto rounded border border-(--border-color)">
           <table className="w-full text-left text-xs">
@@ -96,32 +118,38 @@ function BillingContent() {
               <tr>
                 <th className="px-3 py-2 font-medium">Empresa</th>
                 <th className="px-3 py-2 font-medium">NIT</th>
-                <th className="px-3 py-2 text-right font-medium">Docs</th>
-                <th className="px-3 py-2 text-right font-medium">$/doc</th>
-                <th className="px-3 py-2 text-right font-medium">Subtotal</th>
-                <th className="px-3 py-2 text-right font-medium">IVA 19%</th>
+                <th className="px-3 py-2 font-medium">Plan</th>
+                <th className="px-3 py-2 text-right font-medium">Docs usados</th>
+                <th className="px-3 py-2 text-right font-medium">Base</th>
+                <th className="px-3 py-2 text-right font-medium">Excedente</th>
+                <th className="px-3 py-2 text-right font-medium">IVA {ivaPct}%</th>
                 <th className="px-3 py-2 text-right font-medium">Total</th>
               </tr>
             </thead>
             <tbody>
               {entries.map((e, i) => (
-                <tr key={e.IssuerID} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
-                  <td className="px-3 py-2 text-(--text-primary)">{e.BusinessName}</td>
-                  <td className="px-3 py-2 font-mono text-(--text-secondary)">{e.NIT}</td>
-                  <td className="px-3 py-2 text-right">{e.DocsThisMonth}</td>
-                  <td className="px-3 py-2 text-right text-(--text-secondary)">{formatCOP(e.PricePerDocumentCOP)}</td>
-                  <td className="px-3 py-2 text-right text-(--text-secondary)">{formatCOP(e.SubtotalCOP)}</td>
-                  <td className="px-3 py-2 text-right text-(--text-secondary)">{formatCOP(e.IVA)}</td>
-                  <td className="px-3 py-2 text-right font-semibold">{formatCOP(e.TotalCOP)}</td>
+                <tr key={e.company_id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
+                  <td className="px-3 py-2 text-(--text-primary)">{e.business_name || "—"}</td>
+                  <td className="px-3 py-2 font-mono text-(--text-secondary)">{e.nit}</td>
+                  <td className="px-3 py-2 text-(--text-secondary)">{e.plan_name}</td>
+                  <td className="px-3 py-2 text-right">
+                    {e.documents_used}{e.documents_included != null ? ` / ${e.documents_included}` : " (ilimitado)"}
+                  </td>
+                  <td className="px-3 py-2 text-right text-(--text-secondary)">{formatCents(e.base_cents)}</td>
+                  <td className="px-3 py-2 text-right text-(--text-secondary)">
+                    {e.overage_cents > 0 ? `${formatCents(e.overage_cents)} (${e.overage_documents})` : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right text-(--text-secondary)">{formatCents(e.iva_cents)}</td>
+                  <td className="px-3 py-2 text-right font-semibold">{formatCents(e.total_cents)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot className="bg-(--bg-tertiary) font-semibold text-(--text-primary)">
               <tr className="border-t-2 border-(--border-color)">
-                <td colSpan={2} className="px-3 py-2">Total ({entries.length} empresas)</td>
+                <td colSpan={3} className="px-3 py-2">Total ({entries.length} empresas)</td>
                 <td className="px-3 py-2 text-right">{totalDocs}</td>
                 <td colSpan={3} />
-                <td className="px-3 py-2 text-right">{formatCOP(totalCOP)}</td>
+                <td className="px-3 py-2 text-right">{formatCents(totalCents)}</td>
               </tr>
             </tfoot>
           </table>
@@ -147,7 +175,7 @@ function RenewalsContent() {
   useEffect(load, []);
 
   function urgencyClass(days: number) {
-    if (days === 0) return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+    if (days <= 0) return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
     if (days <= 15) return "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400";
     if (days <= 30) return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
     return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
@@ -163,7 +191,7 @@ function RenewalsContent() {
         </h1>
         <Button variant="secondary" onClick={load} icon={<RefreshCw className="h-3.5 w-3.5" />}>Actualizar</Button>
       </div>
-      <p className="mb-3 text-xs text-(--text-secondary)">Emisores cuya renovación anual vence en los próximos 90 días (o ya venció).</p>
+      <p className="mb-3 text-xs text-(--text-secondary)">Suscripciones cuyo período vence en los próximos 90 días (o ya venció).</p>
 
       {loading ? (
         <p className="text-xs text-(--text-secondary)">Cargando…</p>
@@ -176,7 +204,7 @@ function RenewalsContent() {
               <tr>
                 <th className="px-3 py-2 font-medium">Empresa</th>
                 <th className="px-3 py-2 font-medium">NIT</th>
-                <th className="px-3 py-2 font-medium">Afiliación</th>
+                <th className="px-3 py-2 font-medium">Plan</th>
                 <th className="px-3 py-2 font-medium">Vencimiento</th>
                 <th className="px-3 py-2 text-right font-medium">Tarifa renovación</th>
                 <th className="px-3 py-2 text-center font-medium">Estado</th>
@@ -184,15 +212,15 @@ function RenewalsContent() {
             </thead>
             <tbody>
               {entries.map((e, i) => (
-                <tr key={e.IssuerID} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
-                  <td className="px-3 py-2 text-(--text-primary)">{e.BusinessName}</td>
-                  <td className="px-3 py-2 font-mono text-(--text-secondary)">{e.NIT}</td>
-                  <td className="px-3 py-2 text-(--text-secondary)">{formatDate(e.AffiliatedAt)}</td>
-                  <td className="px-3 py-2 font-medium text-(--text-primary)">{formatDate(e.RenewalDueAt)}</td>
-                  <td className="px-3 py-2 text-right text-(--text-secondary)">{formatCOP(e.RenewalFeeCOP)}</td>
+                <tr key={e.company_id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
+                  <td className="px-3 py-2 text-(--text-primary)">{e.business_name || "—"}</td>
+                  <td className="px-3 py-2 font-mono text-(--text-secondary)">{e.nit}</td>
+                  <td className="px-3 py-2 text-(--text-secondary)">{e.plan_name}</td>
+                  <td className="px-3 py-2 font-medium text-(--text-primary)">{formatDate(e.current_period_end)}</td>
+                  <td className="px-3 py-2 text-right text-(--text-secondary)">{formatCents(e.renewal_cents)}</td>
                   <td className="px-3 py-2 text-center">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${urgencyClass(e.DaysUntilRenewal)}`}>
-                      {e.DaysUntilRenewal === 0 ? "Vencido" : `${e.DaysUntilRenewal}d`}
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${urgencyClass(e.days_until_renewal)}`}>
+                      {e.days_until_renewal <= 0 ? "Vencido" : `${e.days_until_renewal}d`}
                     </span>
                   </td>
                 </tr>
@@ -209,20 +237,19 @@ function RenewalsContent() {
 function CompanyContent() {
   const toast = useToast();
   const [companyId, setCompanyId] = useState("");
-  const [company, setCompany] = useState<Company | null>(null);
+  const [company, setCompany] = useState<CompanyInfo | null>(null);
   const [sub, setSub] = useState<Subscription | null>(null);
-  const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState("");
-  const [priceInput, setPriceInput] = useState("");
-  const [affFeeInput, setAffFeeInput] = useState("");
-  const [renFeeInput, setRenFeeInput] = useState("");
+  const [hasOwnCert, setHasOwnCert] = useState(true);
   const [paymentsHistory, setPaymentsHistory] = useState<Payment[]>([]);
   const [searching, setSearching] = useState(false);
   const [assigning, setAssigning] = useState(false);
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [affiliating, setAffiliating] = useState(false);
   const [renewing, setRenewing] = useState(false);
+  const [payType, setPayType] = useState<Payment["type"]>("plan");
+  const [payAmount, setPayAmount] = useState("");
+  const [payNote, setPayNote] = useState("");
+  const [recordingPayment, setRecordingPayment] = useState(false);
 
   useEffect(() => { adminListPlans().then(setPlans).catch(() => {}); }, []);
 
@@ -231,94 +258,25 @@ function CompanyContent() {
     setSearching(true);
     setCompany(null);
     setSub(null);
-    setSettings(null);
     setPaymentsHistory([]);
     try {
-      const [issRes, subRes] = await Promise.allSettled([
-        adminGetCompany(companyId.trim()),
+      const [compRes, subRes] = await Promise.allSettled([
+        adminGetCompanyInfo(companyId.trim()),
         adminGetSubscription(companyId.trim()),
       ]);
-      if (issRes.status === "fulfilled") {
-        setCompany(issRes.value);
-        const [st, pmts] = await Promise.all([
-          adminGetCompanySettings(issRes.value.id).catch(() => null),
-          adminListCompanyPayments(issRes.value.id).catch(() => []),
-        ]);
-        if (st) {
-          setSettings(st);
-          setPriceInput(String(st.price_per_document_cop));
-          setAffFeeInput(String(st.affiliation_fee_cop));
-          setRenFeeInput(String(st.renewal_fee_cop));
-        }
-        setPaymentsHistory(pmts);
+      if (compRes.status === "fulfilled") {
+        setCompany(compRes.value);
+        adminListCompanyPayments(compRes.value.id).then(setPaymentsHistory).catch(() => {});
       } else {
         toast.error("No se encontró la empresa");
       }
       if (subRes.status === "fulfilled") {
         setSub(subRes.value);
         setSelectedPlanId(subRes.value.plan_id);
+        setHasOwnCert(subRes.value.has_own_certificate);
       }
     } finally {
       setSearching(false);
-    }
-  }
-
-  async function handleSaveSettings() {
-    if (!company) return;
-    const price = parseInt(priceInput, 10);
-    const affFee = parseInt(affFeeInput, 10);
-    const renFee = parseInt(renFeeInput, 10);
-    if ([price, affFee, renFee].some((v) => isNaN(v) || v < 0)) {
-      toast.error("Las tarifas deben ser números positivos.");
-      return;
-    }
-    setSavingSettings(true);
-    try {
-      const st = await adminUpdateCompanySettings(company.id, {
-        price_per_document_cop: price,
-        affiliation_fee_cop: affFee,
-        renewal_fee_cop: renFee,
-      });
-      setSettings(st);
-      toast.success("Tarifas actualizadas.");
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudieron actualizar las tarifas");
-    } finally {
-      setSavingSettings(false);
-    }
-  }
-
-  async function handleAffiliate() {
-    if (!company) return;
-    const fee = parseInt(affFeeInput, 10);
-    if (isNaN(fee) || fee < 0) { toast.error("Ingresa una tarifa válida."); return; }
-    setAffiliating(true);
-    try {
-      const st = await adminAffiliateCompany(company.id, fee);
-      setSettings(st);
-      adminListCompanyPayments(company.id).then(setPaymentsHistory).catch(() => {});
-      toast.success(`Afiliación registrada. Vigente hasta ${formatDate(st.renewal_due_at)}.`);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo registrar la afiliación");
-    } finally {
-      setAffiliating(false);
-    }
-  }
-
-  async function handleRenew() {
-    if (!company) return;
-    const fee = parseInt(renFeeInput, 10);
-    if (isNaN(fee) || fee < 0) { toast.error("Ingresa una tarifa válida."); return; }
-    setRenewing(true);
-    try {
-      const st = await adminRenewCompany(company.id, fee);
-      setSettings(st);
-      adminListCompanyPayments(company.id).then(setPaymentsHistory).catch(() => {});
-      toast.success(`Renovación registrada. Nueva vigencia hasta ${formatDate(st.renewal_due_at)}.`);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo registrar la renovación");
-    } finally {
-      setRenewing(false);
     }
   }
 
@@ -326,9 +284,10 @@ function CompanyContent() {
     if (!company || !selectedPlanId) return;
     setAssigning(true);
     try {
-      const s = await adminAssignPlan(company.id, selectedPlanId);
+      const s = await adminAssignPlan(company.id, selectedPlanId, hasOwnCert);
       setSub(s);
-      toast.success(`Plan asignado: ${s.plan_name}`);
+      const planName = plans.find((p) => p.id === selectedPlanId)?.name ?? "";
+      toast.success(`Plan asignado: ${planName}`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo asignar el plan");
     } finally {
@@ -336,7 +295,41 @@ function CompanyContent() {
     }
   }
 
-  const isAffiliated = !!settings?.affiliated_at;
+  async function handleRenew() {
+    if (!company) return;
+    setRenewing(true);
+    try {
+      const s = await adminRenewSubscription(company.id);
+      setSub(s);
+      toast.success(`Suscripción renovada. Nueva vigencia hasta ${formatDate(s.current_period_end)}.`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo renovar la suscripción");
+    } finally {
+      setRenewing(false);
+    }
+  }
+
+  async function handleRecordPayment() {
+    if (!company) return;
+    const amountCents = pesosToCents(payAmount);
+    if (amountCents <= 0) { toast.error("Ingresa un valor válido."); return; }
+    setRecordingPayment(true);
+    try {
+      const p = await adminRecordPayment(company.id, {
+        subscription_id: sub?.id, type: payType, amount_cents: amountCents, note: payNote,
+      });
+      setPaymentsHistory((prev) => [p, ...prev]);
+      setPayAmount("");
+      setPayNote("");
+      toast.success("Pago registrado.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo registrar el pago");
+    } finally {
+      setRecordingPayment(false);
+    }
+  }
+
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId);
 
   return (
     <>
@@ -347,7 +340,7 @@ function CompanyContent() {
           Por empresa
         </h1>
       </div>
-      <p className="mb-3 text-xs text-(--text-secondary)">Busca una empresa por su UUID para gestionar su plan, tarifas y vigencia.</p>
+      <p className="mb-3 text-xs text-(--text-secondary)">Busca una empresa por su UUID para gestionar su plan y pagos.</p>
 
       <div className="flex items-end gap-2 mb-4">
         <Input
@@ -367,66 +360,64 @@ function CompanyContent() {
         <div className="rounded border border-(--border-color) overflow-hidden">
           {/* Cabecera de la empresa */}
           <div className="bg-(--bg-tertiary) px-3 py-2 border-b border-(--border-color)">
-            <p className="text-xs font-semibold text-(--text-primary)">{company.business_name}</p>
-            <p className="text-xs text-(--text-secondary)">NIT {company.nit}-{company.check_digit}</p>
+            <p className="text-xs font-semibold text-(--text-primary)">{company.business_name || company.trade_name || "(sin nombre)"}</p>
+            <p className="text-xs text-(--text-secondary)">NIT {company.nit}</p>
             <div className="mt-1 flex flex-wrap gap-3 text-xs text-(--text-secondary)">
-              <span>Plan: <strong className="text-(--text-primary)">{sub?.plan_name ?? "sin suscripción"}</strong></span>
-              <span>Afiliado: <strong className="text-(--text-primary)">{formatDate(settings?.affiliated_at)}</strong></span>
-              <span>Vence: <strong className={settings?.renewal_due_at && new Date(settings.renewal_due_at) < new Date() ? "text-red-600" : "text-(--text-primary)"}>
-                {formatDate(settings?.renewal_due_at)}
-              </strong></span>
+              <span>Plan: <strong className="text-(--text-primary)">{sub ? plans.find((p) => p.id === sub.plan_id)?.name ?? sub.plan_id : "sin suscripción"}</strong></span>
+              {sub && (
+                <>
+                  <span>Vence: <strong className={new Date(sub.current_period_end) < new Date() ? "text-red-600" : "text-(--text-primary)"}>
+                    {formatDate(sub.current_period_end)}
+                  </strong></span>
+                  <span>Certificado: <strong className="text-(--text-primary)">{sub.has_own_certificate ? "propio" : "vendido por nosotros"}</strong></span>
+                </>
+              )}
             </div>
-          </div>
-
-          {/* Tarifas */}
-          <div className="border-b border-(--border-color) px-3 py-3">
-            <p className="mb-2 text-xs font-medium text-(--text-secondary)">Tarifas pactadas</p>
-            <div className="flex flex-wrap items-end gap-3">
-              <Input label="$/documento (COP)" type="number" min="0" value={priceInput}
-                onChange={(e) => setPriceInput(e.target.value)} className="w-36" />
-              <Input label="Afiliación (COP)" type="number" min="0" value={affFeeInput}
-                onChange={(e) => setAffFeeInput(e.target.value)} className="w-36" />
-              <Input label="Renovación (COP)" type="number" min="0" value={renFeeInput}
-                onChange={(e) => setRenFeeInput(e.target.value)} className="w-36" />
-              <Button loading={savingSettings} onClick={handleSaveSettings}>Guardar tarifas</Button>
-            </div>
-          </div>
-
-          {/* Afiliación / Renovación */}
-          <div className="border-b border-(--border-color) px-3 py-3 flex flex-wrap gap-2">
-            <Button
-              loading={affiliating}
-              onClick={handleAffiliate}
-              variant={isAffiliated ? "secondary" : "primary"}
-            >
-              {isAffiliated ? "Re-afiliar" : "Registrar afiliación"}
-            </Button>
-            <Button
-              loading={renewing}
-              onClick={handleRenew}
-              disabled={!isAffiliated}
-              variant="secondary"
-            >
-              Renovar (+1 año)
-            </Button>
           </div>
 
           {/* Plan */}
-          <div className="px-3 py-3 flex items-end gap-3">
-            <label className="flex flex-col gap-1 flex-1">
-              <span className="text-xs font-medium text-(--text-secondary)">Cambiar plan</span>
-              <select value={selectedPlanId} onChange={(e) => setSelectedPlanId(e.target.value)}
-                className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1.5 text-xs text-(--text-primary)">
-                <option value="">— elegir plan —</option>
-                {plans.filter((p) => p.is_active).map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </label>
-            <Button loading={assigning} disabled={!selectedPlanId} onClick={handleAssign}
-              icon={<RefreshCw className="h-3.5 w-3.5" />}>
-              Asignar
-            </Button>
+          <div className="border-b border-(--border-color) px-3 py-3">
+            <p className="mb-2 text-xs font-medium text-(--text-secondary)">Contratar / cambiar plan</p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-(--text-secondary)">Plan</span>
+                <select value={selectedPlanId} onChange={(e) => setSelectedPlanId(e.target.value)}
+                  className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1.5 text-xs text-(--text-primary)">
+                  <option value="">— elegir plan —</option>
+                  {plans.filter((p) => p.is_active).map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </label>
+              {selectedPlan?.requires_certificate && (
+                <label className="flex items-center gap-1.5 pb-1.5 text-xs text-(--text-secondary)">
+                  <input type="checkbox" checked={hasOwnCert} onChange={(e) => setHasOwnCert(e.target.checked)} />
+                  El cliente ya tiene su propio certificado
+                </label>
+              )}
+              <Button loading={assigning} disabled={!selectedPlanId} onClick={handleAssign}
+                icon={<RefreshCw className="h-3.5 w-3.5" />}>
+                Asignar
+              </Button>
+              {sub && (
+                <Button variant="secondary" loading={renewing} onClick={handleRenew}>
+                  Renovar suscripción
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Registrar pago */}
+          <div className="px-3 py-3 flex flex-wrap items-end gap-3">
+            <p className="w-full text-xs font-medium text-(--text-secondary)">Registrar pago manual</p>
+            <Select label="Tipo" value={payType} onChange={(e) => setPayType(e.target.value as Payment["type"])} className="w-40">
+              <option value="plan">Plan</option>
+              <option value="certificate">Certificado</option>
+              <option value="overage">Excedente de documentos</option>
+            </Select>
+            <Input label="Valor (COP)" type="number" min="0" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="w-36" />
+            <Input label="Nota" value={payNote} onChange={(e) => setPayNote(e.target.value)} className="w-56" />
+            <Button loading={recordingPayment} onClick={handleRecordPayment}>Registrar</Button>
           </div>
         </div>
 
@@ -442,6 +433,7 @@ function CompanyContent() {
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">Tipo</th>
                     <th className="px-3 py-2 text-right font-medium">Valor (COP)</th>
+                    <th className="px-3 py-2 text-left font-medium">Nota</th>
                     <th className="px-3 py-2 text-left font-medium">Fecha</th>
                   </tr>
                 </thead>
@@ -451,7 +443,8 @@ function CompanyContent() {
                       <td className="px-3 py-2 text-(--text-primary)">
                         {PAYMENT_TYPE_LABEL[p.type] ?? p.type}
                       </td>
-                      <td className="px-3 py-2 text-right font-medium text-(--text-primary)">{formatCOP(p.amount_cop)}</td>
+                      <td className="px-3 py-2 text-right font-medium text-(--text-primary)">{formatCents(p.amount_cents)}</td>
+                      <td className="px-3 py-2 text-(--text-secondary)">{p.note || "—"}</td>
                       <td className="px-3 py-2 text-(--text-secondary)">{formatDate(p.paid_at)}</td>
                     </tr>
                   ))}
@@ -467,15 +460,163 @@ function CompanyContent() {
 }
 
 // ── Planes ───────────────────────────────────────────────────────────────────
+
+interface PlanFormState {
+  code: string; name: string; description: string; billingCycle: BillingCycle;
+  price: string; includedDocuments: string; pricePerExtraDoc: string;
+  requiresCertificate: boolean; certificatePrice: string; annualIncrementPct: string;
+  modules: string[];
+}
+
+const EMPTY_PLAN_FORM: PlanFormState = {
+  code: "", name: "", description: "", billingCycle: "monthly",
+  price: "", includedDocuments: "", pricePerExtraDoc: "",
+  requiresCertificate: false, certificatePrice: "", annualIncrementPct: "",
+  modules: [],
+};
+
+function planToForm(p: Plan): PlanFormState {
+  return {
+    code: p.code, name: p.name, description: p.description, billingCycle: p.billing_cycle,
+    price: centsToPesosInput(p.price_cents),
+    includedDocuments: p.included_documents == null ? "" : String(p.included_documents),
+    pricePerExtraDoc: centsToPesosInput(p.price_per_extra_document_cents),
+    requiresCertificate: p.requires_certificate,
+    certificatePrice: centsToPesosInput(p.certificate_price_cents),
+    annualIncrementPct: p.annual_increment_pct === 0 ? "" : String(p.annual_increment_pct),
+    modules: p.modules,
+  };
+}
+
+function PlanFormModal({
+  modules, initial, onClose, onSaved,
+}: {
+  modules: SaasModule[];
+  initial: Plan | null; // null = crear
+  onClose: () => void;
+  onSaved: (p: Plan) => void;
+}) {
+  const toast = useToast();
+  const [form, setForm] = useState<PlanFormState>(initial ? planToForm(initial) : EMPTY_PLAN_FORM);
+  const [saving, setSaving] = useState(false);
+
+  function toggleModule(code: string) {
+    setForm((f) => ({
+      ...f,
+      modules: f.modules.includes(code) ? f.modules.filter((c) => c !== code) : [...f.modules, code],
+    }));
+  }
+
+  async function handleSave() {
+    if (!form.code.trim() || !form.name.trim()) {
+      toast.error("Código y nombre son requeridos.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        code: form.code.trim(), name: form.name.trim(), description: form.description,
+        billing_cycle: form.billingCycle,
+        price_cents: pesosToCents(form.price),
+        included_documents: form.includedDocuments.trim() === "" ? null : parseInt(form.includedDocuments, 10),
+        price_per_extra_document_cents: pesosToCents(form.pricePerExtraDoc),
+        requires_certificate: form.requiresCertificate,
+        certificate_price_cents: form.requiresCertificate ? pesosToCents(form.certificatePrice) : 0,
+        annual_increment_pct: form.annualIncrementPct.trim() === "" ? 0 : parseFloat(form.annualIncrementPct),
+        is_internal: initial?.is_internal ?? false,
+        modules: form.modules,
+      };
+      const saved = initial
+        ? await adminUpdatePlan(initial.id, { ...payload, is_active: initial.is_active })
+        : await adminCreatePlan(payload);
+      toast.success(`Plan "${saved.name}" guardado.`);
+      onSaved(saved);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo guardar el plan");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg border border-(--border-color) bg-(--bg-primary) p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="mb-4 text-sm font-semibold text-(--text-primary)">{initial ? `Editar plan "${initial.name}"` : "Nuevo plan"}</h2>
+
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <Input label="Código" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} disabled={!!initial} className="w-32" />
+            <Input label="Nombre" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="flex-1" />
+          </div>
+          <Input label="Descripción" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+
+          <div className="flex gap-2">
+            <Select label="Ciclo de cobro" value={form.billingCycle} onChange={(e) => setForm({ ...form, billingCycle: e.target.value as BillingCycle })} className="w-40">
+              <option value="monthly">Mensual</option>
+              <option value="annual">Anual</option>
+              <option value="none">Sin ciclo (gratis)</option>
+            </Select>
+            <Input label="Precio (COP)" type="number" min="0" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="flex-1" />
+          </div>
+
+          <div className="flex gap-2">
+            <Input label="Documentos incluidos" type="number" min="0" placeholder="vacío = ilimitado"
+              value={form.includedDocuments} onChange={(e) => setForm({ ...form, includedDocuments: e.target.value })} className="flex-1" />
+            <Input label="Excedente $/documento" type="number" min="0" value={form.pricePerExtraDoc}
+              onChange={(e) => setForm({ ...form, pricePerExtraDoc: e.target.value })} className="flex-1" />
+          </div>
+
+          <label className="flex items-center gap-1.5 text-xs text-(--text-secondary)">
+            <input type="checkbox" checked={form.requiresCertificate} onChange={(e) => setForm({ ...form, requiresCertificate: e.target.checked })} />
+            Requiere certificado DIAN
+          </label>
+          {form.requiresCertificate && (
+            <Input label="Precio si nosotros vendemos el certificado (COP/año)" type="number" min="0"
+              value={form.certificatePrice} onChange={(e) => setForm({ ...form, certificatePrice: e.target.value })} />
+          )}
+
+          <Input label="Incremento anual (%)" type="number" min="0" step="0.1" placeholder="0 = sin incremento"
+            value={form.annualIncrementPct} onChange={(e) => setForm({ ...form, annualIncrementPct: e.target.value })} className="w-40" />
+
+          <div>
+            <span className="mb-1 block text-xs font-medium text-(--text-secondary)">Módulos que desbloquea</span>
+            <div className="flex flex-col gap-1.5">
+              {modules.map((m) => (
+                <label key={m.code} className="flex items-center gap-1.5 text-xs text-(--text-primary)">
+                  <input type="checkbox" checked={form.modules.includes(m.code)} onChange={() => toggleModule(m.code)} />
+                  {m.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button type="button" loading={saving} onClick={handleSave}>Guardar</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PlansContent() {
   const toast = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [modules, setModules] = useState<SaasModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Plan | null | "new">(null);
 
-  useEffect(() => {
-    adminListPlans().then(setPlans).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  function load() {
+    setLoading(true);
+    Promise.all([adminListPlans(), adminListModules()])
+      .then(([p, m]) => { setPlans(p); setModules(m); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(load, []);
 
   async function toggleActive(plan: Plan) {
     try {
@@ -488,10 +629,6 @@ function PlansContent() {
   }
 
   async function applyIncrement(plan: Plan) {
-    if (plan.annual_increment_pct <= 0) {
-      toast.error("Este plan no tiene tasa de incremento configurada.");
-      return;
-    }
     setApplyingId(plan.id);
     try {
       const updated = await adminApplyPlanIncrement(plan.id);
@@ -512,6 +649,7 @@ function PlansContent() {
           <Layers className="h-4 w-4 shrink-0 text-(--accent-primary)" />
           Planes
         </h1>
+        <Button icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setEditing("new")}>Nuevo plan</Button>
       </div>
 
       {loading ? (
@@ -523,22 +661,28 @@ function PlansContent() {
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div>
                   <span className="text-xs font-semibold text-(--text-primary)">{p.name}</span>
+                  {p.is_internal && <span className="ml-1.5 rounded-full bg-blue-100 px-1.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Interno</span>}
                   {p.description && <p className="text-xs text-(--text-secondary) mt-0.5">{p.description}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${p.is_active ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>
                     {p.is_active ? "Activo" : "Inactivo"}
                   </span>
+                  <Button variant="secondary" icon={<Pencil className="h-3 w-3" />} onClick={() => setEditing(p)}>Editar</Button>
                   <Button variant="secondary" onClick={() => toggleActive(p)}>
                     {p.is_active ? "Desactivar" : "Activar"}
                   </Button>
                 </div>
               </div>
               <div className="flex flex-wrap gap-4 text-xs text-(--text-secondary)">
-                <span>Docs/mes: <strong className="text-(--text-primary)">{p.max_documents_per_month ?? "Ilimitado"}</strong></span>
-                <span>Afiliación: <strong className="text-(--text-primary)">{formatCOP(p.affiliation_fee_cop)}</strong></span>
-                <span>Renovación: <strong className="text-(--text-primary)">{formatCOP(p.renewal_fee_cop)}</strong></span>
+                <span>Ciclo: <strong className="text-(--text-primary)">{BILLING_CYCLE_LABEL[p.billing_cycle]}</strong></span>
+                <span>Precio: <strong className="text-(--text-primary)">{formatCents(p.price_cents)}</strong></span>
+                <span>Docs incluidos: <strong className="text-(--text-primary)">{p.included_documents ?? "Ilimitado"}</strong></span>
+                {p.requires_certificate && (
+                  <span>Certificado (si lo vendemos): <strong className="text-(--text-primary)">{formatCents(p.certificate_price_cents)}/año</strong></span>
+                )}
                 <span>Incremento anual: <strong className="text-(--text-primary)">{p.annual_increment_pct > 0 ? `${p.annual_increment_pct}%` : "—"}</strong></span>
+                <span>Módulos: <strong className="text-(--text-primary)">{p.modules.length > 0 ? p.modules.join(", ") : "ninguno"}</strong></span>
               </div>
               {p.annual_increment_pct > 0 && (
                 <div className="mt-2">
@@ -555,41 +699,75 @@ function PlansContent() {
           ))}
         </div>
       )}
+
+      {editing !== null && (
+        <PlanFormModal
+          modules={modules}
+          initial={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={(saved) => {
+            setPlans((ps) => (ps.some((p) => p.id === saved.id) ? ps.map((p) => (p.id === saved.id ? saved : p)) : [...ps, saved]));
+            setEditing(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Configuración (IVA) ────────────────────────────────────────────────────────
+function SettingsContent() {
+  const toast = useToast();
+  const [settings, setSettings] = useState<SaasSettings | null>(null);
+  const [ivaPct, setIvaPct] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    adminGetSettings().then((s) => { setSettings(s); setIvaPct(String(s.iva_rate_bp / 100)); }).catch(() => {});
+  }, []);
+
+  async function handleSave() {
+    const pct = parseFloat(ivaPct);
+    if (isNaN(pct) || pct < 0) { toast.error("Ingresa un porcentaje válido."); return; }
+    setSaving(true);
+    try {
+      const s = await adminUpdateSettings(Math.round(pct * 100));
+      setSettings(s);
+      toast.success("Configuración actualizada.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo actualizar la configuración");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <Breadcrumbs items={[{ label: "Comando", to: "/admin/billing" }, { label: "Configuración" }]} />
+      <h1 className="mb-3 flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
+        <Settings2 className="h-4 w-4 shrink-0 text-(--accent-primary)" />
+        Configuración de la plataforma
+      </h1>
+      <p className="mb-3 text-xs text-(--text-secondary)">Tasa de IVA aplicada a todos los cobros (planes, certificados, excedente de documentos).</p>
+
+      {settings && (
+        <div className="flex items-end gap-2">
+          <Input label="IVA (%)" type="number" min="0" step="0.01" value={ivaPct} onChange={(e) => setIvaPct(e.target.value)} className="w-32" />
+          <Button loading={saving} onClick={handleSave}>Guardar</Button>
+        </div>
+      )}
     </>
   );
 }
 
 // ── Usuarios ─────────────────────────────────────────────────────────────────
 function UsersContent() {
-  const toast = useToast();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [creating, setCreating] = useState(false);
 
-  function load() {
-    setLoading(true);
+  useEffect(() => {
     adminListUsers().then(setUsers).catch(() => {}).finally(() => setLoading(false));
-  }
-
-  useEffect(() => { load(); }, []);
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setCreating(true);
-    try {
-      const u = await adminCreateUser({ email, name });
-      setUsers((prev) => [u, ...prev]);
-      setEmail("");
-      setName("");
-      toast.success(`Invitación enviada a ${u.email}.`);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo crear el usuario");
-    } finally {
-      setCreating(false);
-    }
-  }
+  }, []);
 
   return (
     <>
@@ -600,15 +778,7 @@ function UsersContent() {
           Usuarios
         </h1>
       </div>
-
-      {/* Formulario para crear usuario invitado */}
-      <form onSubmit={handleCreate} className="mb-4 flex flex-wrap items-end gap-2 rounded border border-(--border-color) bg-(--bg-secondary) p-3">
-        <Input label="Nombre" value={name} onChange={(e) => setName(e.target.value)} required className="w-44" />
-        <Input label="Correo" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-56" />
-        <Button type="submit" loading={creating} icon={<Plus className="h-3.5 w-3.5" />}>
-          Invitar usuario
-        </Button>
-      </form>
+      <p className="mb-3 text-xs text-(--text-secondary)">Usuarios de toda la plataforma. Para invitar uno nuevo a una empresa, usa Configuración → Empresa dentro de esa empresa.</p>
 
       {loading ? (
         <p className="text-xs text-(--text-secondary)">Cargando usuarios…</p>
@@ -693,11 +863,11 @@ function ProspectsContent() {
   }
 
   async function handleApprove(p: Prospect) {
-    if (!(await confirm(`¿Aprobar la solicitud de ${p.name} y enviar invitación a ${p.email}?`, { confirmLabel: "Aprobar y enviar" }))) return;
+    if (!(await confirm(`¿Aprobar la solicitud de ${p.name}?`, { confirmLabel: "Aprobar" }))) return;
     try {
       const updated = await adminApproveProspect(p.id);
       setProspects((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-      toast.success(`Invitación enviada a ${p.email}.`);
+      toast.success("Solicitud aprobada.");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo aprobar la solicitud.");
     }
@@ -814,6 +984,10 @@ export const AdminCompanyPage = withSuperAdmin(function AdminCompanyPage() {
 
 export const AdminPlansPage = withSuperAdmin(function AdminPlansPage() {
   return <div className="p-4"><PlansContent /></div>;
+});
+
+export const AdminSettingsPage = withSuperAdmin(function AdminSettingsPage() {
+  return <div className="p-4"><SettingsContent /></div>;
 });
 
 export const AdminUsersPage = withSuperAdmin(function AdminUsersPage() {

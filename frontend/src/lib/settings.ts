@@ -5,6 +5,6 @@ export async function getMySettings(): Promise<CompanySettings> {
   return apiClient.get<CompanySettings>("/companies/active/settings");
 }
 
-export async function updateMySettings(data: Partial<Pick<CompanySettings, "brand_color" | "price_per_document_cop">>): Promise<CompanySettings> {
+export async function updateMySettings(data: Partial<Pick<CompanySettings, "brand_color">>): Promise<CompanySettings> {
   return apiClient.patch<CompanySettings>("/companies/active/settings", data);
 }

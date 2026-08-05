@@ -259,13 +259,14 @@ func respond(w http.ResponseWriter, data any, err error) {
 // safeUser convierte un User del dominio en un mapa seguro para la respuesta HTTP (sin campos sensibles).
 func safeUser(u *domain.User) map[string]any {
 	return map[string]any{
-		"id":         u.ID,
-		"email":      u.Email,
-		"name":       u.Name,
-		"role":       u.Role,
-		"is_active":  u.IsActive,
-		"created_at": u.CreatedAt,
-		"updated_at": u.UpdatedAt,
+		"id":            u.ID,
+		"email":         u.Email,
+		"name":          u.Name,
+		"role":          u.Role,
+		"is_active":     u.IsActive,
+		"is_superadmin": u.IsSuperAdmin,
+		"created_at":    u.CreatedAt,
+		"updated_at":    u.UpdatedAt,
 	}
 }
 

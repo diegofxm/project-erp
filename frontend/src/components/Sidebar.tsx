@@ -5,6 +5,7 @@ import {
   ShoppingBag, ShoppingCart, Truck, User, UserCheck, Users,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useMyPlan } from "../hooks/useMyPlan";
 
 interface NavItem {
   to: string;
@@ -16,6 +17,9 @@ interface NavItem {
   // Sin página propia todavía (ej. Nómina/RRHH/Empleados — módulo backend existe, sin
   // frontend) — se muestra en el sidebar para reflejar la jerarquía completa, pero no navega.
   disabled?: boolean;
+  // Módulo del plan SaaS que debe incluir la empresa activa para ver este ítem (ver
+  // useMyPlan) — sin esto, el ítem siempre se muestra (ej. Catálogos, Configuración).
+  moduleCode?: string;
 }
 
 interface NavGroup {
@@ -34,24 +38,24 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Finanzas",
     items: [
-      { to: "/accounting", label: "Contabilidad", icon: <Calculator className="h-3.5 w-3.5" />, activePrefix: "/accounting" },
+      { to: "/accounting", label: "Contabilidad", icon: <Calculator className="h-3.5 w-3.5" />, activePrefix: "/accounting", moduleCode: "erp_core" },
     ],
   },
   {
     title: "Operación",
     items: [
-      { to: "/documents/invoices", label: "Documentos", icon: <Files className="h-3.5 w-3.5" />, activePrefix: "/documents" },
-      { to: "/sales", label: "Ventas", icon: <ShoppingCart className="h-3.5 w-3.5" />, activePrefix: "/sales" },
-      { to: "/purchases", label: "Compras", icon: <ShoppingBag className="h-3.5 w-3.5" />, activePrefix: "/purchases" },
-      { to: "/inventory", label: "Inventario", icon: <ClipboardCheck className="h-3.5 w-3.5" />, activePrefix: "/inventory" },
+      { to: "/documents/invoices", label: "Documentos", icon: <Files className="h-3.5 w-3.5" />, activePrefix: "/documents", moduleCode: "electronic_invoicing" },
+      { to: "/sales", label: "Ventas", icon: <ShoppingCart className="h-3.5 w-3.5" />, activePrefix: "/sales", moduleCode: "erp_core" },
+      { to: "/purchases", label: "Compras", icon: <ShoppingBag className="h-3.5 w-3.5" />, activePrefix: "/purchases", moduleCode: "erp_core" },
+      { to: "/inventory", label: "Inventario", icon: <ClipboardCheck className="h-3.5 w-3.5" />, activePrefix: "/inventory", moduleCode: "erp_core" },
     ],
   },
   {
     title: "Nómina y RRHH",
     items: [
-      { to: "/payroll", label: "Nómina", icon: <Banknote className="h-3.5 w-3.5" />, disabled: true },
-      { to: "/hr", label: "RRHH", icon: <UserCheck className="h-3.5 w-3.5" />, disabled: true },
-      { to: "/employees", label: "Empleados", icon: <User className="h-3.5 w-3.5" />, disabled: true },
+      { to: "/payroll", label: "Nómina", icon: <Banknote className="h-3.5 w-3.5" />, disabled: true, moduleCode: "payroll_hr" },
+      { to: "/hr", label: "RRHH", icon: <UserCheck className="h-3.5 w-3.5" />, disabled: true, moduleCode: "payroll_hr" },
+      { to: "/employees", label: "Empleados", icon: <User className="h-3.5 w-3.5" />, disabled: true, moduleCode: "payroll_hr" },
     ],
   },
   {
@@ -118,6 +122,7 @@ function renderItem(item: NavItem, collapsed: boolean, active: boolean) {
 export function Sidebar({ collapsed }: SidebarProps) {
   const location = useLocation();
   const { user } = useAuth();
+  const myModules = useMyPlan();
 
   function isActive(item: NavItem) {
     return item.activePrefix
@@ -135,7 +140,11 @@ export function Sidebar({ collapsed }: SidebarProps) {
     >
       <nav className="flex flex-1 flex-col gap-px overflow-y-auto p-1.5 pt-2">
         {NAV_GROUPS.map((group, gi) => {
-          const items = group.items.filter((item) => !item.superAdminOnly || user?.is_superadmin);
+          const items = group.items.filter((item) => {
+            if (item.superAdminOnly && !user?.is_superadmin) return false;
+            if (item.moduleCode && myModules && !myModules.includes(item.moduleCode)) return false;
+            return true;
+          });
           if (items.length === 0) return null;
           return (
             <div key={group.title ?? `g${gi}`} className="flex flex-col gap-px">

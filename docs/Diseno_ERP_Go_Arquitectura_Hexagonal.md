@@ -344,7 +344,30 @@ Puertos locales nuevos (mismo patrón que `CompanyPort`, uno por consumidor):
 | Módulos nuevos | Ventas, cotizaciones, pagos, compras, inventario, contabilidad, nómina, RRHH — no tienen páginas frontend aún |
 | Actualización de borrador (PUT) | Los endpoints `PUT /electronic/invoices/{id}`, `/credit-notes/{id}`, etc. aún no existen en el ERP |
 | XML / Clone / Send-email | `GET /documents/{id}/xml`, `POST /documents/{id}/clone`, `POST /documents/{id}/send-email` — pendientes en el ERP |
-| Panel admin SaaS | Estadísticas, gestión de suscripciones, auditoría — requiere endpoints y páginas nuevas |
+| Panel admin SaaS | ✅ Resuelto — ver sección "Módulo SaaS" más abajo |
+
+---
+
+## Módulo SaaS: planes, suscripciones y facturación de plataforma
+
+Contexto: para poner en producción la facturación electrónica hacía falta el módulo que la vende como servicio — hasta ahora no existía en el backend hexagonal (`erp/internal`), solo en el backend legado (`_legacy/apidian/internal/{plans,subscriptions}`) contra el que el frontend `/admin/*` (`AdminPage.tsx`) seguía apuntando sin que esas rutas existieran del lado nuevo. Se construyó desde cero con un modelo más rico que el legado: variante de certificado DIAN (propio vs. vendido por nosotros), cupo de documentos con cobro de excedente (no bloquea), IVA configurable, y módulos habilitables por plan pensando en Nómina/ERP como productos futuros sin tener que tocar el esquema de nuevo.
+
+**Modelo de datos** (`erp/internal/saas`, esquema `saas`):
+- `saas.modules` — catálogo fijo (`electronic_invoicing`, `erp_core`, `payroll_hr`), sembrado por seed — coincide con la agrupación que ya estaba en el diseño del sidebar ("solo Documentos Electrónicos / solo Nómina / ERP completo").
+- `saas.plans` — `billing_cycle` (mensual/anual/sin ciclo) por plan (no uno solo para todo el catálogo), cupo de documentos + precio de excedente, `requires_certificate` + `certificate_price_cents` (el certificado se renueva siempre anual, independiente del ciclo del plan), `annual_increment_pct` (aplicado manualmente vía `POST /admin/plans/{id}/apply-increment`, no retroactivo a suscripciones vigentes), `is_internal` (plan usado por la empresa operadora — Cofacture —, excluido del catálogo público).
+- `saas.plan_modules` — qué módulos desbloquea cada plan (M2M).
+- `saas.subscriptions` — una activa por empresa (índice único parcial), con `contracted_price_cents` como foto del precio al contratar/renovar y `cert_expires_at` propio.
+- `saas.payments`, `saas.settings` (IVA, fila única), `saas.prospects` (solicitudes de acceso con cédula/RUT, portado del legado).
+
+**Catálogo semilla** (100% editable después desde `/admin/plans`, sin estudio de mercado — punto de partida): Gratis (10 docs/mes, $0), Emprendedor (100 docs/mes, $49.900+IVA), Ilimitado (sin límite, $499.900+IVA), Estrella (anual, documentos ilimitados + ERP completo, $1.990.000+IVA propio certificado / $2.390.000+IVA con certificado nuestro), Interno (los 3 módulos, $0, no aparece en catálogo público — el que usa Cofacture).
+
+**Superadmin** — `security.users.is_superadmin` existía en dominio/BD pero no llegaba a ningún lado (JWT no lo llevaba, `safeUser()` no lo exponía, el guard `withSuperAdmin` del frontend siempre veía `undefined`). Se completó el plumbing: claim `isa` en el JWT (`security/infrastructure/jwt`), `tenant.WithSuperAdmin`/`IsSuperAdmin(ctx)` en `shared/tenant`, y `safeUser()` ahora incluye `is_superadmin`. Rutas `/api/v1/admin/*` usan `requireSuperAdmin` (local a `saas/interfaces/http`, inspirado en `_legacy/apidian/internal/api/handler_admin.go`) — no dependen de `company_id` activo, operan sobre todas las empresas.
+
+**Endpoints**: `/api/v1/admin/{modules,plans,settings,companies/{id}/subscription,companies/{id}/payments,billing/summary,billing/renewals,users,prospects}` (superadmin) + `GET /api/v1/saas/my-plan` (empresa activa) + `POST /api/v1/public/prospects` (solicitud de acceso sin cuenta).
+
+**Frontend**: `AdminPage.tsx` reescrito contra el contrato nuevo — la pestaña Planes ahora tiene el formulario completo de creación/edición que nunca existió (ciclo, precio, cupo, certificado, módulos), nueva pestaña Configuración (IVA). Página nueva "Mi plan" (`Configuración → Mi plan`) para el usuario normal: plan contratado, cupo usado/restante, módulos incluidos. `Sidebar.tsx` gana `moduleCode` opcional por ítem — oculta Contabilidad/Ventas/Compras/Inventario (`erp_core`) o Documentos (`electronic_invoicing`) si el plan de la empresa no los incluye (`useMyPlan()` falla abierto — sin dato todavía = no oculta nada, mismo criterio "sin suscripción = sin límite" que ya usaba el backend).
+
+**Deliberadamente fuera de alcance**: no hay bloqueo duro a nivel de API cuando un módulo no está en el plan — el gating es solo de UI (ocultar/deshabilitar en el sidebar). El límite de documentos sí se aplica con dinero real (excedente facturado vía `saas/billing`), no bloqueando la emisión. `Renew` no extiende `cert_expires_at` automáticamente (queda con la fecha de cuando se vendió el certificado la primera vez) — pendiente si se necesita ese detalle más adelante. No hay pasarela de pago integrada — los pagos se registran manualmente desde `/admin/companies/{id}`.
 
 ---
 

@@ -9,9 +9,10 @@ import (
 )
 
 type claims struct {
-	UserID    uuid.UUID `json:"uid"`
-	CompanyID uuid.UUID `json:"cid"`
-	Role      string    `json:"rol"`
+	UserID       uuid.UUID `json:"uid"`
+	CompanyID    uuid.UUID `json:"cid"`
+	Role         string    `json:"rol"`
+	IsSuperAdmin bool      `json:"isa"`
 	gojwt.RegisteredClaims
 }
 
@@ -24,11 +25,12 @@ func NewTokenService(secret []byte) *TokenService {
 	return &TokenService{secret: secret}
 }
 
-func (s *TokenService) Issue(userID, companyID uuid.UUID, role string) (string, error) {
+func (s *TokenService) Issue(userID, companyID uuid.UUID, role string, isSuperAdmin bool) (string, error) {
 	c := claims{
-		UserID:    userID,
-		CompanyID: companyID,
-		Role:      role,
+		UserID:       userID,
+		CompanyID:    companyID,
+		Role:         role,
+		IsSuperAdmin: isSuperAdmin,
 		RegisteredClaims: gojwt.RegisteredClaims{
 			ExpiresAt: gojwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  gojwt.NewNumericDate(time.Now()),
@@ -37,7 +39,7 @@ func (s *TokenService) Issue(userID, companyID uuid.UUID, role string) (string, 
 	return gojwt.NewWithClaims(gojwt.SigningMethodHS256, c).SignedString(s.secret)
 }
 
-func (s *TokenService) Verify(raw string) (uuid.UUID, uuid.UUID, string, error) {
+func (s *TokenService) Verify(raw string) (uuid.UUID, uuid.UUID, string, bool, error) {
 	tok, err := gojwt.ParseWithClaims(raw, &claims{}, func(t *gojwt.Token) (any, error) {
 		if _, ok := t.Method.(*gojwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("método de firma inesperado: %v", t.Header["alg"])
@@ -45,11 +47,11 @@ func (s *TokenService) Verify(raw string) (uuid.UUID, uuid.UUID, string, error) 
 		return s.secret, nil
 	})
 	if err != nil || !tok.Valid {
-		return uuid.Nil, uuid.Nil, "", fmt.Errorf("token inválido")
+		return uuid.Nil, uuid.Nil, "", false, fmt.Errorf("token inválido")
 	}
 	c, ok := tok.Claims.(*claims)
 	if !ok {
-		return uuid.Nil, uuid.Nil, "", fmt.Errorf("claims inválidos")
+		return uuid.Nil, uuid.Nil, "", false, fmt.Errorf("claims inválidos")
 	}
-	return c.UserID, c.CompanyID, c.Role, nil
+	return c.UserID, c.CompanyID, c.Role, c.IsSuperAdmin, nil
 }

@@ -28,6 +28,6 @@ type Repository interface {
 
 // TokenService es el puerto de firma y verificación de JWT.
 type TokenService interface {
-	Issue(userID, companyID uuid.UUID, role string) (string, error)
-	Verify(raw string) (userID, companyID uuid.UUID, role string, err error)
+	Issue(userID, companyID uuid.UUID, role string, isSuperAdmin bool) (string, error)
+	Verify(raw string) (userID, companyID uuid.UUID, role string, isSuperAdmin bool, err error)
 }

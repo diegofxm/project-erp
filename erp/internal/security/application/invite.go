@@ -90,7 +90,7 @@ func (uc *AcceptInviteUseCase) Execute(ctx context.Context, rawToken, password s
 		return nil, err
 	}
 
-	jwtTok, err := uc.token.Issue(updated.ID, uuid.Nil, "")
+	jwtTok, err := uc.token.Issue(updated.ID, uuid.Nil, "", updated.IsSuperAdmin)
 	if err != nil {
 		return nil, err
 	}

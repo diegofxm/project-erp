@@ -42,7 +42,7 @@ func (uc *LoginUseCase) Execute(ctx context.Context, email, password string) (*d
 		role, _ = uc.repo.GetRole(ctx, u.ID, companyID)
 	}
 
-	tok, err := uc.token.Issue(u.ID, companyID, role)
+	tok, err := uc.token.Issue(u.ID, companyID, role, u.IsSuperAdmin)
 	if err != nil {
 		return nil, err
 	}

@@ -36,7 +36,7 @@ func (uc *SelectCompanyUseCase) Execute(ctx context.Context, userID, companyID u
 		return nil, err
 	}
 
-	tok, err := uc.token.Issue(userID, companyID, role)
+	tok, err := uc.token.Issue(userID, companyID, role, u.IsSuperAdmin)
 	if err != nil {
 		return nil, err
 	}

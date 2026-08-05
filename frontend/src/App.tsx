@@ -15,6 +15,7 @@ import { SettingsGeneralPage } from "./pages/SettingsGeneralPage";
 import { SettingsAccountPage } from "./pages/SettingsAccountPage";
 import { SettingsCompanyPage } from "./pages/SettingsCompanyPage";
 import { SettingsActivityPage } from "./pages/SettingsActivityPage";
+import { MyPlanPage } from "./pages/MyPlanPage";
 import { CompaniesPage } from "./pages/CompaniesPage";
 import { CustomersPage } from "./pages/CustomersPage";
 import { SuppliersPage } from "./pages/SuppliersPage";
@@ -57,7 +58,7 @@ import { AccountingBudgetsPage } from "./pages/AccountingBudgetsPage";
 import { AccountingTaxDeclarationsPage } from "./pages/AccountingTaxDeclarationsPage";
 import { AccountingCertificatesPage } from "./pages/AccountingCertificatesPage";
 import { PublicCustomerRegisterPage } from "./pages/PublicCustomerRegisterPage";
-import { AdminBillingPage, AdminRenewalsPage, AdminCompanyPage, AdminPlansPage, AdminUsersPage, AdminProspectsPage } from "./pages/AdminPage";
+import { AdminBillingPage, AdminRenewalsPage, AdminCompanyPage, AdminPlansPage, AdminSettingsPage, AdminUsersPage, AdminProspectsPage } from "./pages/AdminPage";
 
 function App() {
   return (
@@ -81,6 +82,7 @@ function App() {
                     <Route path="/settings/account" element={<SettingsAccountPage />} />
                     <Route path="/settings/company" element={<SettingsCompanyPage />} />
                     <Route path="/settings/activity" element={<SettingsActivityPage />} />
+                    <Route path="/settings/my-plan" element={<MyPlanPage />} />
                     <Route path="/companies" element={<CompaniesPage />} />
                     <Route path="/customers" element={<CustomersPage />} />
                     <Route path="/suppliers" element={<SuppliersPage />} />
@@ -127,6 +129,7 @@ function App() {
                     <Route path="/admin/renewals" element={<AdminRenewalsPage />} />
                     <Route path="/admin/company" element={<AdminCompanyPage />} />
                     <Route path="/admin/plans" element={<AdminPlansPage />} />
+                    <Route path="/admin/settings" element={<AdminSettingsPage />} />
                     <Route path="/admin/users" element={<AdminUsersPage />} />
                     <Route path="/admin/prospects" element={<AdminProspectsPage />} />
                   </Route>

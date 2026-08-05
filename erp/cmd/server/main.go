@@ -52,6 +52,13 @@ import (
 	purchasepostgres "github.com/diegofxm/erp/internal/purchase/infrastructure/persistence/postgres"
 	purchasethirdparty "github.com/diegofxm/erp/internal/purchase/infrastructure/thirdparty"
 	purchasehttp "github.com/diegofxm/erp/internal/purchase/interfaces/http"
+	saasapp "github.com/diegofxm/erp/internal/saas/application"
+	saascompany "github.com/diegofxm/erp/internal/saas/infrastructure/company"
+	saaselectronic "github.com/diegofxm/erp/internal/saas/infrastructure/electronic"
+	saaspostgres "github.com/diegofxm/erp/internal/saas/infrastructure/persistence/postgres"
+	saasseed "github.com/diegofxm/erp/internal/saas/infrastructure/persistence/postgres/seed"
+	saassecurity "github.com/diegofxm/erp/internal/saas/infrastructure/security"
+	saashttp "github.com/diegofxm/erp/internal/saas/interfaces/http"
 	salesapp "github.com/diegofxm/erp/internal/sales/application"
 	salescompany "github.com/diegofxm/erp/internal/sales/infrastructure/company"
 	salespostgres "github.com/diegofxm/erp/internal/sales/infrastructure/persistence/postgres"
@@ -103,6 +110,7 @@ func main() {
 	mustMigrate(mlog, "catalog", catalogpostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "security", securitypostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "company", companypostgres.Migrate(databaseURL))
+	mustMigrate(mlog, "saas", saaspostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "thirdparty", thirdpartypostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "product", productpostgres.Migrate(databaseURL))
 	mustMigrate(mlog, "inventory", inventorypostgres.Migrate(databaseURL))
@@ -129,6 +137,11 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("accounting OK")
+	if err := saasseed.All(context.Background(), pool); err != nil {
+		slog.Error("seed saas fallido", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("saas OK")
 	if err := payrollseed.All(context.Background(), pool); err != nil {
 		slog.Error("seed payroll fallido", "error", err)
 		os.Exit(1)
@@ -150,6 +163,17 @@ func main() {
 	salesRepo := salespostgres.NewRepository(pool)
 	warehouseRepo := companypostgres.NewWarehouseRepository(pool)
 	quoteRepo := salespostgres.NewQuoteRepository(pool)
+
+	// ── Repositorios — saas ──────────────────────────────────────────────────────
+	saasModuleRepo := saaspostgres.NewModuleRepository(pool)
+	saasPlanRepo := saaspostgres.NewPlanRepository(pool)
+	saasSubscriptionRepo := saaspostgres.NewSubscriptionRepository(pool)
+	saasPaymentRepo := saaspostgres.NewPaymentRepository(pool)
+	saasSettingsRepo := saaspostgres.NewSettingsRepository(pool)
+	saasProspectRepo := saaspostgres.NewProspectRepository(pool)
+	saasDocumentCounter := saaselectronic.New(pool)
+	saasCompanyPort := saascompany.New(companyRepo)
+	saasUserPort := saassecurity.New(securityRepo)
 	paymentRepo := salespostgres.NewPaymentRepository(pool)
 
 	// ── Repositorios — accounting ───────────────────────────────────────────────
@@ -239,6 +263,15 @@ func main() {
 	onSalePaymentRecorded.Register(bus)
 	onPurchasePaymentRecorded := accountingapp.NewOnPurchasePaymentRecorded(accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	onPurchasePaymentRecorded.Register(bus)
+
+	// ── Casos de uso — saas ──────────────────────────────────────────────────────
+	saasPlanUC := saasapp.NewPlanUseCase(saasPlanRepo, saasModuleRepo)
+	saasSettingsUC := saasapp.NewSettingsUseCase(saasSettingsRepo)
+	saasSubscriptionUC := saasapp.NewSubscriptionUseCase(saasSubscriptionRepo, saasPlanRepo)
+	saasBillingUC := saasapp.NewBillingUseCase(saasSubscriptionRepo, saasPlanRepo, saasSettingsRepo, saasDocumentCounter, saasCompanyPort)
+	saasPaymentUC := saasapp.NewPaymentUseCase(saasPaymentRepo)
+	saasProspectUC := saasapp.NewProspectUseCase(saasProspectRepo)
+	saasMyPlanUC := saasapp.NewMyPlanUseCase(saasSubscriptionRepo, saasPlanRepo, saasDocumentCounter)
 
 	// ── Audit ───────────────────────────────────────────────────────────────────
 	auditUC := auditapp.NewUseCase(auditpostgres.NewRepository(pool), logger.New("audit"))
@@ -371,6 +404,11 @@ func main() {
 	publichttp.NewHandler(getCompanyUC, createPartyUC).RegisterRoutes(mux)
 	payrollhttp.NewHandler(payrollEmpUC, payrollContractUC, payrollPayslipUC, auditUC).RegisterRoutes(mux)
 	hrhttp.NewHandler(hrAbsenceUC, auditUC).RegisterRoutes(mux)
+
+	saasHandler := saashttp.NewHandler(saasPlanUC, saasSettingsUC, saasSubscriptionUC, saasBillingUC, saasPaymentUC, saasProspectUC, saasMyPlanUC, saasUserPort, saasCompanyPort, auditUC)
+	saasHandler.RegisterAdminRoutes(mux)
+	saasHandler.RegisterTenantRoutes(mux)
+	saasHandler.RegisterPublicRoutes(mux)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
