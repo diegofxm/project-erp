@@ -188,16 +188,18 @@ Contexto: en `v2/db-architecture` se completó de punta a punta pagos→contabil
 
 Contexto: se implementó numeración consecutiva real (`sales.number_counters`, `purchase.number_counters`, patrón `PREFIJO-AÑO-00001`) para ventas (`VTA-`), cotizaciones (`COT-`) y órdenes de compra (`OC-`), más la corrección de los asientos automáticos de `accounting` (`on_sale_confirmed`, `on_purchase_received`, `on_sale_payment_recorded`, `on_purchase_payment_recorded`) que antes posteaban sin `VoucherNumber` y con el UUID crudo en la descripción — commit `6d9e47e`. De ahí salieron dos frentes pendientes:
 
-**1) Otros documentos que todavía solo se identifican por UUID y probablemente necesiten folio:**
+**1) ✅ Resuelto (parcial) — folio en documentos que solo se identificaban por UUID:**
 
-| Documento | Descripción | Prioridad |
+| Documento | Folio | Prioridad |
 |---|---|---|
-| `accounting.WithholdingCertificate` | Certificado de retención entregado al tercero como soporte de su declaración de renta — no tiene `Number`. Necesita folio antes de (o al mismo tiempo que) construir su generación de PDF/email, que hoy tampoco existe | Alta |
-| `inventory.Movement` | Entradas, salidas, ajustes y traslados solo tienen UUID. El campo `Reference` es texto libre para anotar *otro* documento (ej. "factura tal"), no un consecutivo propio del movimiento. Útil para kardex/auditoría (ej. "Comprobante de ajuste #00042") | Media |
-| `payroll.Payslip` (desprendible de nómina) | No exige numeración legal DIAN, pero es práctica estándar tener folio interno — sobre todo el día que se construya el PDF del desprendible, que hoy tampoco existe | Media |
-| `payroll.Contract`, `hr.Absence` | Sin obligación legal ni PDF que lo requiera todavía | Baja |
+| `accounting.WithholdingCertificate` | `CERT-AÑO-00001` — un contador por empresa/año (`accounting.certificate_counters`), asignado en `IssueWithholdingCertificatesUseCase.Execute` antes de cada `Create`. De paso se corrigió un bug preexistente nunca antes ejercitado en vivo: el código guardaba `Status: "issued"` en minúscula pero el `CHECK` de la tabla exige `'DRAFT'/'ISSUED'/'CORRECTED'` — toda emisión de certificados fallaba con violación de constraint | ✅ Hecho |
+| `inventory.Movement` | Un contador por empresa/tipo/año (`inventory.number_counters`, `doc_type` = entry/exit/transfer/adjust): `ENT-`/`SAL-`/`TRA-`/`AJU-`. Asignado dentro de `SaveMovement`/`Transfer` (postgres), no en la capa de aplicación — hay 3 puntos de entrada (ajuste manual, traslado, posteos automáticos de venta/compra confirmada) y centralizarlo ahí evita que alguno se quede sin folio | ✅ Hecho |
+| `payroll.Payslip` (desprendible de nómina) | `NOM-AÑO-00001` — un contador por empresa/año (`payroll.number_counters`), asignado dentro de `PayslipRepository.Create` en la misma transacción. Sin obligación legal DIAN, es folio interno | ✅ Hecho |
+| `payroll.Contract`, `hr.Absence` | Sin obligación legal ni PDF que lo requiera todavía | Pendiente (baja) |
 
-No hace falta tocar `electronic.Document` (factura, NC, ND, documento soporte, nota de ajuste) — ya tiene `Number`/`Prefix` resueltos vía `NumberingRange` (rango de resolución DIAN), sin gap ahí.
+No hizo falta tocar `electronic.Document` (factura, NC, ND, documento soporte, nota de ajuste) — ya tiene `Number`/`Prefix` resueltos vía `NumberingRange` (rango de resolución DIAN), sin gap ahí.
+
+**Pendiente de frontend** (ver sección de pendientes de frontend): `AccountingCertificatesPage.tsx` e `InventoryMovementsPage.tsx` no muestran todavía la columna `number` que el backend ya expone — `payroll.Payslip` no lo necesita porque el módulo de nómina no tiene frontend aún (deferred).
 
 **2) ✅ Resuelto — fijar un consecutivo inicial distinto de 1 (migración de empresas con numeración previa):**
 

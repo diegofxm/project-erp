@@ -60,11 +60,11 @@ func (r *WithholdingCertificateRepository) Create(ctx context.Context, c domain.
 	c.ID = uuid.New()
 	err := r.pool.QueryRow(ctx, `
 		INSERT INTO accounting.withholding_certificates
-			(id, company_id, fiscal_year, third_party_nit, concept_code, concept_name, wh_type,
+			(id, company_id, number, fiscal_year, third_party_nit, concept_code, concept_name, wh_type,
 			 gross_amount, tax_withheld, status, issued_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
 		RETURNING issued_at, created_at`,
-		c.ID, c.CompanyID, c.FiscalYear, c.ThirdPartyNIT, c.ConceptCode, c.ConceptName, c.WHType,
+		c.ID, c.CompanyID, c.Number, c.FiscalYear, c.ThirdPartyNIT, c.ConceptCode, c.ConceptName, c.WHType,
 		c.GrossAmount, c.TaxWithheld, c.Status,
 	).Scan(&c.IssuedAt, &c.CreatedAt)
 	if err != nil {
@@ -75,7 +75,7 @@ func (r *WithholdingCertificateRepository) Create(ctx context.Context, c domain.
 
 func (r *WithholdingCertificateRepository) List(ctx context.Context, companyID uuid.UUID, year int) ([]domain.WithholdingCertificate, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, company_id, fiscal_year, third_party_nit, concept_code, concept_name, wh_type,
+		SELECT id, company_id, number, fiscal_year, third_party_nit, concept_code, concept_name, wh_type,
 		       gross_amount, tax_withheld, status, issued_at, created_at
 		FROM accounting.withholding_certificates
 		WHERE company_id = $1 AND fiscal_year = $2
@@ -90,13 +90,29 @@ func (r *WithholdingCertificateRepository) List(ctx context.Context, companyID u
 	var out []domain.WithholdingCertificate
 	for rows.Next() {
 		var c domain.WithholdingCertificate
-		if err := rows.Scan(&c.ID, &c.CompanyID, &c.FiscalYear, &c.ThirdPartyNIT, &c.ConceptCode, &c.ConceptName,
+		if err := rows.Scan(&c.ID, &c.CompanyID, &c.Number, &c.FiscalYear, &c.ThirdPartyNIT, &c.ConceptCode, &c.ConceptName,
 			&c.WHType, &c.GrossAmount, &c.TaxWithheld, &c.Status, &c.IssuedAt, &c.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// NextCertificateNumber asigna el siguiente folio de certificado para la empresa y el año dados —
+// arranca en 1 cada año. Mismo patrón que JournalRepository.NextVoucherSeq.
+func (r *WithholdingCertificateRepository) NextCertificateNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error) {
+	const q = `
+		INSERT INTO accounting.certificate_counters (company_id, year, last_seq)
+		VALUES ($1, $2, 1)
+		ON CONFLICT (company_id, year)
+		DO UPDATE SET last_seq = accounting.certificate_counters.last_seq + 1
+		RETURNING last_seq`
+	var seq int
+	if err := r.pool.QueryRow(ctx, q, companyID, year).Scan(&seq); err != nil {
+		return 0, fmt.Errorf("asignar folio de certificado: %w", err)
+	}
+	return seq, nil
 }
 
 func scanWithholding(row pgx.Row) (*domain.WithholdingConcept, error) {

@@ -76,13 +76,41 @@ func (r *Repository) UpsertStock(ctx context.Context, e domain.StockEntry) error
 	return nil
 }
 
+// querier abstrae *pgxpool.Pool/pgx.Tx — nextMovementNumber corre tanto suelto (SaveMovement)
+// como dentro de una transacción (Transfer, ver abajo).
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// nextMovementNumber asigna el siguiente folio de movimiento para la empresa, tipo y año dados —
+// arranca en 1 cada año, un contador por tipo (ENT-/SAL-/TRA-/AJU-). Mismo patrón que
+// sales.Repository.NextSaleNumber.
+func nextMovementNumber(ctx context.Context, q querier, companyID uuid.UUID, t domain.MovementType, year int) (string, error) {
+	const query = `
+		INSERT INTO inventory.number_counters (company_id, doc_type, year, last_seq)
+		VALUES ($1, $2, $3, 1)
+		ON CONFLICT (company_id, doc_type, year)
+		DO UPDATE SET last_seq = inventory.number_counters.last_seq + 1
+		RETURNING last_seq`
+	var seq int
+	if err := q.QueryRow(ctx, query, companyID, string(t), year).Scan(&seq); err != nil {
+		return "", fmt.Errorf("asignar folio de movimiento: %w", err)
+	}
+	return fmt.Sprintf("%s-%d-%05d", t.NumberPrefix(), year, seq), nil
+}
+
 func (r *Repository) SaveMovement(ctx context.Context, m domain.Movement) (*domain.Movement, error) {
 	m.CreatedAt = time.Now()
-	_, err := r.pool.Exec(ctx,
+	number, err := nextMovementNumber(ctx, r.pool, m.CompanyID, m.Type, m.CreatedAt.Year())
+	if err != nil {
+		return nil, err
+	}
+	m.Number = number
+	_, err = r.pool.Exec(ctx,
 		`INSERT INTO inventory.movements
-		 (id, company_id, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-		m.ID, m.CompanyID, m.ProductID, m.WarehouseID, string(m.Type),
+		 (id, company_id, number, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		m.ID, m.CompanyID, m.Number, m.ProductID, m.WarehouseID, string(m.Type),
 		m.Quantity, m.Reference, m.Description, m.CreatedAt, m.TransferGroupID,
 	)
 	if err != nil {
@@ -96,14 +124,14 @@ func (r *Repository) ListMovements(ctx context.Context, companyID uuid.UUID, pro
 	var err error
 	if productID != nil {
 		rows, err = r.pool.Query(ctx,
-			`SELECT id, company_id, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id
+			`SELECT id, company_id, number, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id
 			 FROM inventory.movements
 			 WHERE company_id=$1 AND product_id=$2 ORDER BY created_at DESC`,
 			companyID, *productID,
 		)
 	} else {
 		rows, err = r.pool.Query(ctx,
-			`SELECT id, company_id, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id
+			`SELECT id, company_id, number, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id
 			 FROM inventory.movements
 			 WHERE company_id=$1 ORDER BY created_at DESC`,
 			companyID,
@@ -119,7 +147,7 @@ func (r *Repository) ListMovements(ctx context.Context, companyID uuid.UUID, pro
 		var m domain.Movement
 		var mType string
 		if err := rows.Scan(
-			&m.ID, &m.CompanyID, &m.ProductID, &m.WarehouseID,
+			&m.ID, &m.CompanyID, &m.Number, &m.ProductID, &m.WarehouseID,
 			&mType, &m.Quantity, &m.Reference, &m.Description, &m.CreatedAt, &m.TransferGroupID,
 		); err != nil {
 			return nil, fmt.Errorf("leer movimiento: %w", err)
@@ -173,12 +201,17 @@ func (r *Repository) Transfer(ctx context.Context, companyID, productID, fromWar
 		TransferGroupID: &groupID, CreatedAt: now,
 	}
 
-	for _, m := range []domain.Movement{fromMovement, toMovement} {
+	for _, m := range []*domain.Movement{&fromMovement, &toMovement} {
+		number, err := nextMovementNumber(ctx, tx, companyID, domain.MovementTransfer, now.Year())
+		if err != nil {
+			return nil, nil, err
+		}
+		m.Number = number
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO inventory.movements
-			 (id, company_id, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-			m.ID, m.CompanyID, m.ProductID, m.WarehouseID, string(m.Type),
+			 (id, company_id, number, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+			m.ID, m.CompanyID, m.Number, m.ProductID, m.WarehouseID, string(m.Type),
 			m.Quantity, m.Reference, m.Description, m.CreatedAt, m.TransferGroupID,
 		); err != nil {
 			return nil, nil, fmt.Errorf("guardar movimiento de traslado: %w", err)

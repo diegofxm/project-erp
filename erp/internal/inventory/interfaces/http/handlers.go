@@ -44,6 +44,7 @@ func toStockEntryDTO(e domain.StockEntry) stockEntryDTO {
 type movementDTO struct {
 	ID              uuid.UUID  `json:"id"`
 	CompanyID       uuid.UUID  `json:"company_id"`
+	Number          string     `json:"number"`
 	ProductID       uuid.UUID  `json:"product_id"`
 	WarehouseID     uuid.UUID  `json:"warehouse_id"`
 	Type            string     `json:"type"`
@@ -56,7 +57,7 @@ type movementDTO struct {
 
 func toMovementDTO(m domain.Movement) movementDTO {
 	return movementDTO{
-		ID: m.ID, CompanyID: m.CompanyID, ProductID: m.ProductID, WarehouseID: m.WarehouseID,
+		ID: m.ID, CompanyID: m.CompanyID, Number: m.Number, ProductID: m.ProductID, WarehouseID: m.WarehouseID,
 		Type: string(m.Type), Quantity: m.Quantity, Reference: m.Reference, Description: m.Description,
 		TransferGroupID: m.TransferGroupID, CreatedAt: m.CreatedAt,
 	}

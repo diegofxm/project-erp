@@ -20,7 +20,7 @@ func NewPayslipRepository(pool *pgxpool.Pool) *PayslipRepository {
 	return &PayslipRepository{pool: pool}
 }
 
-const payslipCols = `id, company_id, employee_id, contract_id,
+const payslipCols = `id, company_id, number, employee_id, contract_id,
 	period_year, period_month, worked_days, status,
 	total_earned_cents, total_deducted_cents, net_pay_cents,
 	journal_id, paid_at, created_at, updated_at`
@@ -35,13 +35,19 @@ func (r *PayslipRepository) Create(ctx context.Context, in domain.CreatePayslipI
 	}
 	defer tx.Rollback(ctx)
 
+	seq, err := nextPayslipNumber(ctx, tx, in.CompanyID, in.PeriodYear)
+	if err != nil {
+		return nil, err
+	}
+	number := fmt.Sprintf("NOM-%d-%05d", in.PeriodYear, seq)
+
 	row := tx.QueryRow(ctx,
 		`INSERT INTO payroll.payslips
-		 (company_id, employee_id, contract_id, period_year, period_month, worked_days,
+		 (company_id, number, employee_id, contract_id, period_year, period_month, worked_days,
 		  total_earned_cents, total_deducted_cents, net_pay_cents)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		 RETURNING `+payslipCols,
-		in.CompanyID, in.EmployeeID, in.ContractID,
+		in.CompanyID, number, in.EmployeeID, in.ContractID,
 		in.PeriodYear, in.PeriodMonth, in.WorkedDays,
 		res.TotalEarnedCents, res.TotalDeductedCents, res.NetPayCents,
 	)
@@ -72,6 +78,32 @@ func (r *PayslipRepository) Create(ctx context.Context, in domain.CreatePayslipI
 		return nil, fmt.Errorf("payslips create: commit: %w", err)
 	}
 	return ps, nil
+}
+
+// querier abstrae *pgxpool.Pool/pgx.Tx — nextPayslipNumber corre dentro de la misma transacción
+// que Create.
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// nextPayslipNumber asigna el siguiente folio de desprendible para la empresa y el año dados —
+// arranca en 1 cada año. Mismo patrón que sales.Repository.NextSaleNumber.
+func nextPayslipNumber(ctx context.Context, q querier, companyID uuid.UUID, year int) (int, error) {
+	const query = `
+		INSERT INTO payroll.number_counters (company_id, year, last_seq)
+		VALUES ($1, $2, 1)
+		ON CONFLICT (company_id, year)
+		DO UPDATE SET last_seq = payroll.number_counters.last_seq + 1
+		RETURNING last_seq`
+	var seq int
+	if err := q.QueryRow(ctx, query, companyID, year).Scan(&seq); err != nil {
+		return 0, fmt.Errorf("asignar folio de desprendible: %w", err)
+	}
+	return seq, nil
+}
+
+func (r *PayslipRepository) NextPayslipNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error) {
+	return nextPayslipNumber(ctx, r.pool, companyID, year)
 }
 
 func (r *PayslipRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Payslip, error) {
@@ -169,7 +201,7 @@ func (r *PayslipRepository) GetARLRate(ctx context.Context, year int, riskClass 
 func scanPayslip(row pgx.Row) (*domain.Payslip, error) {
 	var ps domain.Payslip
 	err := row.Scan(
-		&ps.ID, &ps.CompanyID, &ps.EmployeeID, &ps.ContractID,
+		&ps.ID, &ps.CompanyID, &ps.Number, &ps.EmployeeID, &ps.ContractID,
 		&ps.PeriodYear, &ps.PeriodMonth, &ps.WorkedDays, &ps.Status,
 		&ps.TotalEarnedCents, &ps.TotalDeductedCents, &ps.NetPayCents,
 		&ps.JournalID, &ps.PaidAt, &ps.CreatedAt, &ps.UpdatedAt,

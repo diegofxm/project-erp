@@ -27,6 +27,7 @@ CREATE INDEX IF NOT EXISTS idx_stock_company ON inventory.stock(company_id);
 CREATE TABLE IF NOT EXISTS inventory.movements (
     id                UUID PRIMARY KEY,
     company_id        UUID NOT NULL,
+    number            VARCHAR(30) NOT NULL DEFAULT '',
     product_id        UUID NOT NULL,
     warehouse_id      UUID NOT NULL,
     type              VARCHAR(20) NOT NULL,  -- entry, exit, transfer, adjust
@@ -40,3 +41,13 @@ CREATE TABLE IF NOT EXISTS inventory.movements (
 CREATE INDEX IF NOT EXISTS idx_movements_company        ON inventory.movements(company_id);
 CREATE INDEX IF NOT EXISTS idx_movements_product        ON inventory.movements(company_id, product_id);
 CREATE INDEX IF NOT EXISTS idx_movements_transfer_group ON inventory.movements(transfer_group_id) WHERE transfer_group_id IS NOT NULL;
+
+-- Consecutivo de movimientos, uno por empresa/tipo/año (ENT-/SAL-/TRA-/AJU-) — mismo patrón que
+-- sales.number_counters.
+CREATE TABLE IF NOT EXISTS inventory.number_counters (
+    company_id UUID        NOT NULL,
+    doc_type   VARCHAR(10) NOT NULL,
+    year       INTEGER     NOT NULL,
+    last_seq   INTEGER     NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, doc_type, year)
+);

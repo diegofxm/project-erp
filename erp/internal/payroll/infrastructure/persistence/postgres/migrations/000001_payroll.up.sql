@@ -63,6 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_contracts_company  ON payroll.contracts(company_i
 CREATE TABLE IF NOT EXISTS payroll.payslips (
     id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id           UUID        NOT NULL,
+    number               VARCHAR(30) NOT NULL DEFAULT '',
     employee_id          UUID        NOT NULL REFERENCES payroll.employees(id),
     contract_id          UUID        NOT NULL REFERENCES payroll.contracts(id),
     period_year          SMALLINT    NOT NULL,
@@ -82,6 +83,15 @@ CREATE TABLE IF NOT EXISTS payroll.payslips (
 CREATE INDEX IF NOT EXISTS idx_payslips_company_period
     ON payroll.payslips(company_id, period_year, period_month);
 CREATE INDEX IF NOT EXISTS idx_payslips_employee ON payroll.payslips(employee_id);
+
+-- Consecutivo de desprendibles de pago — folio interno (no exige numeración legal DIAN), mismo
+-- patrón que sales.number_counters.
+CREATE TABLE IF NOT EXISTS payroll.number_counters (
+    company_id UUID    NOT NULL,
+    year       INTEGER NOT NULL,
+    last_seq   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, year)
+);
 
 CREATE TABLE IF NOT EXISTS payroll.payslip_lines (
     id           UUID          PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -42,12 +42,13 @@ func TestSchema_PayrollTables(t *testing.T) {
 			start_date, end_date, termination_date, termination_cause,
 			health_entity, pension_entity, arl_entity, caja_entity,
 			is_active, created_at, updated_at`},
-		{"payroll.payslips", `id, company_id, employee_id, contract_id,
+		{"payroll.payslips", `id, company_id, number, employee_id, contract_id,
 			period_year, period_month, worked_days, status,
 			total_earned_cents, total_deducted_cents, net_pay_cents,
 			journal_id, paid_at, created_at, updated_at`},
 		{"payroll.payslip_lines", `id, payslip_id, concept_code, concept_name, concept_type,
 			quantity, amount_cents, created_at`},
+		{"payroll.number_counters", "company_id, year, last_seq"},
 	}
 	for _, tt := range tables {
 		t.Run(tt.name, func(t *testing.T) {

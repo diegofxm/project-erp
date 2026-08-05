@@ -37,6 +37,7 @@ type WithholdingConceptRepository interface {
 type WithholdingCertificate struct {
 	ID            uuid.UUID
 	CompanyID     uuid.UUID
+	Number        string
 	FiscalYear    int
 	ThirdPartyNIT string
 	ConceptCode   string
@@ -44,7 +45,7 @@ type WithholdingCertificate struct {
 	WHType        string
 	GrossAmount   float64
 	TaxWithheld   float64
-	Status        string // "issued"
+	Status        string // "DRAFT" | "ISSUED" | "CORRECTED"
 	IssuedAt      *time.Time
 	CreatedAt     time.Time
 }
@@ -52,4 +53,7 @@ type WithholdingCertificate struct {
 type WithholdingCertificateRepository interface {
 	Create(ctx context.Context, c WithholdingCertificate) (*WithholdingCertificate, error)
 	List(ctx context.Context, companyID uuid.UUID, year int) ([]WithholdingCertificate, error)
+	// NextCertificateNumber asigna el siguiente folio de certificado para la empresa y el año
+	// dados (arranca en 1 cada año). Mismo patrón que JournalRepository.NextVoucherSeq.
+	NextCertificateNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error)
 }

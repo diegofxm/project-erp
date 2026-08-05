@@ -28,4 +28,7 @@ type PayslipRepository interface {
 	UpdateStatus(ctx context.Context, id uuid.UUID, status PayslipStatus) error
 	GetSMMLV(ctx context.Context, year int) (int64, error)
 	GetARLRate(ctx context.Context, year int, riskClass string) (int, error)
+	// NextPayslipNumber asigna el siguiente folio de desprendible para la empresa y el año dados
+	// (arranca en 1 cada año). Mismo patrón que accounting.JournalRepository.NextVoucherSeq.
+	NextPayslipNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error)
 }

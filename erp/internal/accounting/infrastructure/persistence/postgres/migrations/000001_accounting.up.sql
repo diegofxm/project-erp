@@ -379,6 +379,7 @@ CREATE TABLE IF NOT EXISTS accounting.iva_declarations (
 CREATE TABLE IF NOT EXISTS accounting.withholding_certificates (
     id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id      UUID         NOT NULL,
+    number          VARCHAR(30)  NOT NULL DEFAULT '',
     fiscal_year     INTEGER      NOT NULL,
     third_party_nit VARCHAR(20)  NOT NULL,
     concept_code    VARCHAR(10)  NOT NULL,
@@ -400,6 +401,14 @@ CREATE INDEX IF NOT EXISTS withholding_certificates_company_year_idx
     ON accounting.withholding_certificates (company_id, fiscal_year);
 CREATE INDEX IF NOT EXISTS withholding_certificates_nit_idx
     ON accounting.withholding_certificates (third_party_nit);
+
+-- Consecutivo de certificados de retención — mismo patrón que sales.number_counters.
+CREATE TABLE IF NOT EXISTS accounting.certificate_counters (
+    company_id UUID    NOT NULL,
+    year       INTEGER NOT NULL,
+    last_seq   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, year)
+);
 
 -- ── F490 ICA Municipal ────────────────────────────────────────────────────────────────────────
 

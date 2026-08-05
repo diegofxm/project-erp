@@ -90,6 +90,7 @@ func toWithholdingConceptDTOs(list []domain.WithholdingConcept) []withholdingCon
 
 type withholdingCertificateDTO struct {
 	ID            string  `json:"id"`
+	Number        string  `json:"number"`
 	FiscalYear    int     `json:"fiscal_year"`
 	ThirdPartyNIT string  `json:"third_party_nit"`
 	ConceptCode   string  `json:"concept_code"`
@@ -105,7 +106,7 @@ func toCertificateDTOs(list []domain.WithholdingCertificate) []withholdingCertif
 	out := make([]withholdingCertificateDTO, len(list))
 	for i, c := range list {
 		dto := withholdingCertificateDTO{
-			ID: c.ID.String(), FiscalYear: c.FiscalYear, ThirdPartyNIT: c.ThirdPartyNIT,
+			ID: c.ID.String(), Number: c.Number, FiscalYear: c.FiscalYear, ThirdPartyNIT: c.ThirdPartyNIT,
 			ConceptCode: c.ConceptCode, ConceptName: c.ConceptName, WHType: c.WHType,
 			GrossAmount: c.GrossAmount, TaxWithheld: c.TaxWithheld, Status: c.Status,
 		}

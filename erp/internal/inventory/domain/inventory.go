@@ -17,6 +17,23 @@ const (
 	MovementAdjust   MovementType = "adjust"   // ajuste manual
 )
 
+// NumberPrefix devuelve el prefijo de folio para el tipo de movimiento (ver
+// inventory.number_counters, un contador por company_id + doc_type + año).
+func (t MovementType) NumberPrefix() string {
+	switch t {
+	case MovementEntry:
+		return "ENT"
+	case MovementExit:
+		return "SAL"
+	case MovementTransfer:
+		return "TRA"
+	case MovementAdjust:
+		return "AJU"
+	default:
+		return "MOV"
+	}
+}
+
 // StockEntry representa el stock disponible de un producto en una bodega.
 // WarehouseID referencia company.warehouses.id — sin FK a nivel de base de datos porque cada
 // módulo es dueño de su propio schema (mismo criterio que sales.sales.invoice_document_id),
@@ -36,6 +53,7 @@ type StockEntry struct {
 type Movement struct {
 	ID              uuid.UUID
 	CompanyID       uuid.UUID
+	Number          string // folio interno, ej. "ENT-2026-00001" — asignado por el repositorio al guardar
 	ProductID       uuid.UUID
 	WarehouseID     uuid.UUID
 	Type            MovementType

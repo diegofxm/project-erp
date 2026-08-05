@@ -39,6 +39,7 @@ type PayslipLine struct {
 type Payslip struct {
 	ID                 uuid.UUID
 	CompanyID          uuid.UUID
+	Number             string // folio interno, ej. "NOM-2026-00001" — no exige numeración legal DIAN
 	EmployeeID         uuid.UUID
 	ContractID         uuid.UUID
 	PeriodYear         int

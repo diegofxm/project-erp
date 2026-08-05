@@ -42,8 +42,13 @@ func (uc *IssueWithholdingCertificatesUseCase) Execute(ctx context.Context, comp
 
 	out := make([]domain.WithholdingCertificate, 0, len(summary))
 	for _, s := range summary {
+		seq, err := uc.certificates.NextCertificateNumber(ctx, companyID, req.FiscalYear)
+		if err != nil {
+			return nil, fmt.Errorf("asignar folio de certificado: %w", err)
+		}
 		c, err := uc.certificates.Create(ctx, domain.WithholdingCertificate{
 			CompanyID:     companyID,
+			Number:        fmt.Sprintf("CERT-%d-%05d", req.FiscalYear, seq),
 			FiscalYear:    req.FiscalYear,
 			ThirdPartyNIT: req.ThirdPartyNIT,
 			ConceptCode:   s.ConceptCode,
@@ -51,7 +56,7 @@ func (uc *IssueWithholdingCertificatesUseCase) Execute(ctx context.Context, comp
 			WHType:        "RETEFUENTE",
 			GrossAmount:   s.Base,
 			TaxWithheld:   s.Amount,
-			Status:        "issued",
+			Status:        "ISSUED",
 		})
 		if err != nil {
 			return nil, err
