@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -51,4 +52,24 @@ func (uc *GetJournalUseCase) RegisterVoucherType(ctx context.Context, cfg domain
 
 func (uc *GetJournalUseCase) ListVoucherTypes(ctx context.Context, companyID uuid.UUID) ([]*domain.VoucherTypeConfig, error) {
 	return uc.journals.ListVoucherTypes(ctx, companyID)
+}
+
+// SetVoucherCounter fija el próximo consecutivo a emitir para un tipo de comprobante — pensado
+// para migrar una empresa que ya traía su propia numeración de otro sistema. Valida el código
+// igual que PostJournalUseCase.Execute: los tipos estándar del sistema siempre son válidos, los
+// personalizados deben estar registrados y activos.
+func (uc *GetJournalUseCase) SetVoucherCounter(ctx context.Context, companyID uuid.UUID, code string, year, nextNumber int) (int, error) {
+	if nextNumber < 1 {
+		return 0, domain.ErrNumberCounterInvalid
+	}
+	if !domain.IsStandardVoucherType(code) {
+		registered, err := uc.journals.IsRegisteredVoucherType(ctx, companyID, code)
+		if err != nil {
+			return 0, fmt.Errorf("validar tipo de comprobante: %w", err)
+		}
+		if !registered {
+			return 0, fmt.Errorf("%w: %q", domain.ErrVoucherTypeUnknown, code)
+		}
+	}
+	return uc.journals.SetVoucherCounter(ctx, companyID, code, year, nextNumber)
 }

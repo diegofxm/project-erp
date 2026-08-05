@@ -186,3 +186,25 @@ func (r *Repository) NextSaleNumber(ctx context.Context, companyID uuid.UUID, ye
 	}
 	return seq, nil
 }
+
+// SetSaleNumberCounter fija last_seq = nextNumber-1 para que el próximo NextSaleNumber devuelva
+// nextNumber — solo si es mayor al last_seq actual (la condición en el DO UPDATE hace que, si no
+// lo es, no se actualice ninguna fila y RETURNING no entregue nada).
+func (r *Repository) SetSaleNumberCounter(ctx context.Context, companyID uuid.UUID, year, nextNumber int) (int, error) {
+	const q = `
+		INSERT INTO sales.number_counters (company_id, doc_type, year, last_seq)
+		VALUES ($1, 'sale', $2, $3)
+		ON CONFLICT (company_id, doc_type, year)
+		DO UPDATE SET last_seq = EXCLUDED.last_seq
+		WHERE EXCLUDED.last_seq > sales.number_counters.last_seq
+		RETURNING last_seq`
+	var seq int
+	err := r.pool.QueryRow(ctx, q, companyID, year, nextNumber-1).Scan(&seq)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, domain.ErrNumberCounterBackwards
+	}
+	if err != nil {
+		return 0, fmt.Errorf("fijar consecutivo de venta: %w", err)
+	}
+	return seq, nil
+}

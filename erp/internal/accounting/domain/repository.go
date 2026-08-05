@@ -32,6 +32,11 @@ type JournalRepository interface {
 	ListByCompany(ctx context.Context, companyID uuid.UUID, limit, offset int) ([]*JournalEntry, error)
 	GetBySourceDocument(ctx context.Context, companyID, sourceDocID uuid.UUID, sourceDocType string) ([]*JournalEntry, error)
 	NextVoucherSeq(ctx context.Context, companyID uuid.UUID, code string, year int) (int, error)
+	// SetVoucherCounter fija el consecutivo para que el próximo comprobante emitido de ese código
+	// sea nextNumber — solo tiene efecto si nextNumber es mayor al último ya asignado (devuelve
+	// ErrNumberCounterBackwards si no). Pensado para migrar una empresa que ya traía su propia
+	// numeración de otro sistema.
+	SetVoucherCounter(ctx context.Context, companyID uuid.UUID, code string, year, nextNumber int) (int, error)
 	GetYearPLBalances(ctx context.Context, companyID uuid.UUID, year int) ([]PLBalance, error)
 	GetBSBalances(ctx context.Context, companyID uuid.UUID, asOf time.Time) ([]PLBalance, error)
 	GetTrialBalance(ctx context.Context, companyID uuid.UUID, from, to time.Time) ([]TrialBalanceRow, error)

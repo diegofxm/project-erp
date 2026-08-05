@@ -77,6 +77,9 @@ type QuoteRepository interface {
 	// dados (arranca en 1 cada año) — comparte la tabla de contadores con NextSaleNumber
 	// (sales.number_counters), distinguidas por doc_type.
 	NextQuoteNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error)
+	// SetQuoteNumberCounter — ver Repository.SetSaleNumberCounter, mismo comportamiento para
+	// cotizaciones.
+	SetQuoteNumberCounter(ctx context.Context, companyID uuid.UUID, year, nextNumber int) (int, error)
 }
 
 var (

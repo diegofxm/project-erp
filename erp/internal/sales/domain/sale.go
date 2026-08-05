@@ -96,4 +96,9 @@ var (
 	// crédito (ver application/confirm.go). Mismo criterio: mensaje detallado en el wrap.
 	ErrCreditLimitExceeded = errors.New("la venta supera el cupo de crédito disponible del cliente")
 	ErrOverdueBalance      = errors.New("el cliente tiene cartera vencida — no se puede confirmar una venta nueva")
+	// ErrNumberCounterInvalid / ErrNumberCounterBackwards — al fijar manualmente el consecutivo de
+	// venta o cotización (ver application/number_counter.go, para migrar empresas que ya traían
+	// numeración propia de otro sistema).
+	ErrNumberCounterInvalid   = errors.New("el próximo número debe ser mayor o igual a 1")
+	ErrNumberCounterBackwards = errors.New("el consecutivo indicado ya fue superado — no se puede retroceder")
 )

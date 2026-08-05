@@ -979,6 +979,38 @@ func (h *Handler) handleCreateVoucherType(w http.ResponseWriter, r *http.Request
 	respond(w, http.StatusCreated, toVoucherTypeDTOs([]*domain.VoucherTypeConfig{cfg})[0])
 }
 
+// handleSetVoucherCounter fija el próximo consecutivo a emitir para un tipo de comprobante —
+// pensado para migrar una empresa que ya traía su propia numeración de otro sistema. Solo
+// admin/owner.
+func (h *Handler) handleSetVoucherCounter(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireManage(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Code       string `json:"code"`
+		Year       int    `json:"year"`
+		NextNumber int    `json:"next_number"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	seq, err := h.get.SetVoucherCounter(r.Context(), cid, body.Code, body.Year, body.NextNumber)
+	if err != nil {
+		if errors.Is(err, domain.ErrNumberCounterInvalid) || errors.Is(err, domain.ErrNumberCounterBackwards) ||
+			errors.Is(err, domain.ErrVoucherTypeUnknown) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]any{
+		"code": body.Code, "year": body.Year, "last_seq": seq, "next_will_be": seq + 1,
+	})
+}
+
 func (h *Handler) handleListVoucherTypes(w http.ResponseWriter, r *http.Request) {
 	cid, ok := requireTenant(w, r)
 	if !ok {
@@ -1261,6 +1293,18 @@ func requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	cid := tenant.GetCompanyID(r.Context())
 	if cid == uuid.Nil {
 		respondError(w, http.StatusUnauthorized, "empresa activa requerida")
+		return uuid.Nil, false
+	}
+	return cid, true
+}
+
+func requireManage(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return uuid.Nil, false
+	}
+	if !tenant.CanManage(r.Context()) {
+		respondError(w, http.StatusForbidden, "requiere rol de administrador")
 		return uuid.Nil, false
 	}
 	return cid, true

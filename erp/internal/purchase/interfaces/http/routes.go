@@ -19,4 +19,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/purchase-payments", h.handleRecordPayment)
 	mux.HandleFunc("GET /api/v1/purchase-payments/purchases/{purchase_id}", h.handleListPayments)
 	mux.HandleFunc("GET /api/v1/payables", h.handleGetPayables)
+
+	// Consecutivos (migración de numeración previa)
+	mux.HandleFunc("POST /api/v1/purchase/number-counters", h.handleSetNumberCounter)
 }

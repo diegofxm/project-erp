@@ -215,3 +215,24 @@ func (r *Repository) NextPurchaseNumber(ctx context.Context, companyID uuid.UUID
 	}
 	return seq, nil
 }
+
+// SetPurchaseNumberCounter — ver sales.Repository.SetSaleNumberCounter, mismo comportamiento
+// para órdenes de compra.
+func (r *Repository) SetPurchaseNumberCounter(ctx context.Context, companyID uuid.UUID, year, nextNumber int) (int, error) {
+	const q = `
+		INSERT INTO purchase.number_counters (company_id, year, last_seq)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (company_id, year)
+		DO UPDATE SET last_seq = EXCLUDED.last_seq
+		WHERE EXCLUDED.last_seq > purchase.number_counters.last_seq
+		RETURNING last_seq`
+	var seq int
+	err := r.pool.QueryRow(ctx, q, companyID, year, nextNumber-1).Scan(&seq)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, domain.ErrNumberCounterBackwards
+	}
+	if err != nil {
+		return 0, fmt.Errorf("fijar consecutivo de orden de compra: %w", err)
+	}
+	return seq, nil
+}

@@ -179,6 +179,7 @@ type Handler struct {
 	payment        *application.PaymentUseCase
 	quotePDF       *application.GetQuotePDFUseCase
 	sendQuoteEmail *application.SendQuoteEmailUseCase
+	setCounter     *application.SetNumberCounterUseCase
 	audit          AuditLogger
 }
 
@@ -191,11 +192,12 @@ func NewHandler(
 	payment *application.PaymentUseCase,
 	quotePDF *application.GetQuotePDFUseCase,
 	sendQuoteEmail *application.SendQuoteEmailUseCase,
+	setCounter *application.SetNumberCounterUseCase,
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
 		create: create, get: get, confirm: confirm, cancel: cancel, quote: quote, payment: payment,
-		quotePDF: quotePDF, sendQuoteEmail: sendQuoteEmail, audit: audit,
+		quotePDF: quotePDF, sendQuoteEmail: sendQuoteEmail, setCounter: setCounter, audit: audit,
 	}
 }
 
@@ -611,6 +613,64 @@ func requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return cid, true
+}
+
+func requireManage(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return uuid.Nil, false
+	}
+	if !tenant.CanManage(r.Context()) {
+		respondError(w, http.StatusForbidden, "requiere rol de administrador")
+		return uuid.Nil, false
+	}
+	return cid, true
+}
+
+// ── Consecutivos ──────────────────────────────────────────────────────────────────────────────
+
+type setNumberCounterBody struct {
+	DocType    string `json:"doc_type"` // "sale" | "quote"
+	Year       int    `json:"year"`
+	NextNumber int    `json:"next_number"`
+}
+
+// handleSetNumberCounter fija el próximo consecutivo de venta o cotización — pensado para migrar
+// una empresa que ya traía su propia numeración de otro sistema. Solo admin/owner.
+func (h *Handler) handleSetNumberCounter(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireManage(w, r)
+	if !ok {
+		return
+	}
+	var body setNumberCounterBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	var (
+		seq int
+		err error
+	)
+	switch body.DocType {
+	case "sale":
+		seq, err = h.setCounter.SetSale(r.Context(), cid, body.Year, body.NextNumber)
+	case "quote":
+		seq, err = h.setCounter.SetQuote(r.Context(), cid, body.Year, body.NextNumber)
+	default:
+		respondError(w, http.StatusBadRequest, `doc_type debe ser "sale" o "quote"`)
+		return
+	}
+	if err != nil {
+		if errors.Is(err, domain.ErrNumberCounterInvalid) || errors.Is(err, domain.ErrNumberCounterBackwards) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]any{
+		"doc_type": body.DocType, "year": body.Year, "last_seq": seq, "next_will_be": seq + 1,
+	})
 }
 
 func respond(w http.ResponseWriter, status int, body any) {

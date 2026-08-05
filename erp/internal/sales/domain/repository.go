@@ -18,4 +18,9 @@ type Repository interface {
 	// NextSaleNumber devuelve el siguiente consecutivo de venta para la empresa y el año dados
 	// (arranca en 1 cada año). Mismo patrón que accounting.JournalRepository.NextVoucherSeq.
 	NextSaleNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error)
+	// SetSaleNumberCounter fija el consecutivo para que el próximo emitido sea nextNumber — solo
+	// tiene efecto si nextNumber es mayor al último ya asignado (devuelve ErrNumberCounterBackwards
+	// si no), para evitar duplicar números ya emitidos. Pensado para migrar una empresa que ya
+	// traía su propia numeración de otro sistema.
+	SetSaleNumberCounter(ctx context.Context, companyID uuid.UUID, year, nextNumber int) (int, error)
 }

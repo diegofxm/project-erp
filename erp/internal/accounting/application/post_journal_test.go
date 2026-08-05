@@ -73,6 +73,9 @@ func (f *fakeJournalRepo) GetBySourceDocument(context.Context, uuid.UUID, uuid.U
 func (f *fakeJournalRepo) NextVoucherSeq(context.Context, uuid.UUID, string, int) (int, error) {
 	return 1, nil
 }
+func (f *fakeJournalRepo) SetVoucherCounter(context.Context, uuid.UUID, string, int, int) (int, error) {
+	return 1, nil
+}
 func (f *fakeJournalRepo) GetYearPLBalances(context.Context, uuid.UUID, int) ([]domain.PLBalance, error) {
 	return nil, nil
 }

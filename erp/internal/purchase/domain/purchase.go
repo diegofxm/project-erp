@@ -120,4 +120,8 @@ var (
 	ErrPurchaseNotFound     = errors.New("orden de compra no encontrada")
 	ErrPurchaseNotDraft     = errors.New("la orden debe estar en borrador para esta operación")
 	ErrPurchaseNotConfirmed = errors.New("la orden debe estar confirmada para recibir mercancía")
+	// ErrNumberCounterInvalid / ErrNumberCounterBackwards — al fijar manualmente el consecutivo de
+	// orden de compra (ver application/number_counter.go).
+	ErrNumberCounterInvalid   = errors.New("el próximo número debe ser mayor o igual a 1")
+	ErrNumberCounterBackwards = errors.New("el consecutivo indicado ya fue superado — no se puede retroceder")
 )

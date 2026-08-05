@@ -173,3 +173,24 @@ func (r *QuoteRepository) NextQuoteNumber(ctx context.Context, companyID uuid.UU
 	}
 	return seq, nil
 }
+
+// SetQuoteNumberCounter — ver Repository.SetSaleNumberCounter, mismo comportamiento para
+// cotizaciones (doc_type='quote').
+func (r *QuoteRepository) SetQuoteNumberCounter(ctx context.Context, companyID uuid.UUID, year, nextNumber int) (int, error) {
+	const q = `
+		INSERT INTO sales.number_counters (company_id, doc_type, year, last_seq)
+		VALUES ($1, 'quote', $2, $3)
+		ON CONFLICT (company_id, doc_type, year)
+		DO UPDATE SET last_seq = EXCLUDED.last_seq
+		WHERE EXCLUDED.last_seq > sales.number_counters.last_seq
+		RETURNING last_seq`
+	var seq int
+	err := r.pool.QueryRow(ctx, q, companyID, year, nextNumber-1).Scan(&seq)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, domain.ErrNumberCounterBackwards
+	}
+	if err != nil {
+		return 0, fmt.Errorf("fijar consecutivo de cotización: %w", err)
+	}
+	return seq, nil
+}

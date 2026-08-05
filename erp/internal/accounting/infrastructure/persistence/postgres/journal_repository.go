@@ -226,6 +226,27 @@ func (r *JournalRepository) NextVoucherSeq(ctx context.Context, companyID uuid.U
 	return seq, nil
 }
 
+// SetVoucherCounter — ver sales.Repository.SetSaleNumberCounter, mismo comportamiento para
+// comprobantes contables (por código de tipo de comprobante).
+func (r *JournalRepository) SetVoucherCounter(ctx context.Context, companyID uuid.UUID, code string, year, nextNumber int) (int, error) {
+	const q = `
+		INSERT INTO accounting.voucher_counters (company_id, code, year, last_seq)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (company_id, code, year)
+		DO UPDATE SET last_seq = EXCLUDED.last_seq
+		WHERE EXCLUDED.last_seq > accounting.voucher_counters.last_seq
+		RETURNING last_seq`
+	var seq int
+	err := r.pool.QueryRow(ctx, q, companyID, code, year, nextNumber-1).Scan(&seq)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, domain.ErrNumberCounterBackwards
+	}
+	if err != nil {
+		return 0, fmt.Errorf("fijar consecutivo de comprobante: %w", err)
+	}
+	return seq, nil
+}
+
 func (r *JournalRepository) GetYearPLBalances(ctx context.Context, companyID uuid.UUID, year int) ([]domain.PLBalance, error) {
 	const q = `
 		SELECT a.id, a.code, a.name, a.category,

@@ -160,6 +160,7 @@ type Handler struct {
 	pdf         *application.GetPurchaseOrderPDFUseCase
 	sendEmail   *application.SendPurchaseOrderEmailUseCase
 	withholding *application.AddWithholdingUseCase
+	setCounter  *application.SetNumberCounterUseCase
 	audit       AuditLogger
 }
 
@@ -174,11 +175,12 @@ func NewHandler(
 	pdf *application.GetPurchaseOrderPDFUseCase,
 	sendEmail *application.SendPurchaseOrderEmailUseCase,
 	withholding *application.AddWithholdingUseCase,
+	setCounter *application.SetNumberCounterUseCase,
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
 		create: create, get: get, confirm: confirm, cancel: cancel, receive: receive, delete: del, payment: payment,
-		pdf: pdf, sendEmail: sendEmail, withholding: withholding, audit: audit,
+		pdf: pdf, sendEmail: sendEmail, withholding: withholding, setCounter: setCounter, audit: audit,
 	}
 }
 
@@ -537,6 +539,51 @@ func requireTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return cid, true
+}
+
+func requireManage(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return uuid.Nil, false
+	}
+	if !tenant.CanManage(r.Context()) {
+		respondError(w, http.StatusForbidden, "requiere rol de administrador")
+		return uuid.Nil, false
+	}
+	return cid, true
+}
+
+// ── Consecutivos ──────────────────────────────────────────────────────────────────────────────
+
+type setNumberCounterBody struct {
+	Year       int `json:"year"`
+	NextNumber int `json:"next_number"`
+}
+
+// handleSetNumberCounter fija el próximo consecutivo de orden de compra — pensado para migrar una
+// empresa que ya traía su propia numeración de otro sistema. Solo admin/owner.
+func (h *Handler) handleSetNumberCounter(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireManage(w, r)
+	if !ok {
+		return
+	}
+	var body setNumberCounterBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	seq, err := h.setCounter.Execute(r.Context(), cid, body.Year, body.NextNumber)
+	if err != nil {
+		if errors.Is(err, domain.ErrNumberCounterInvalid) || errors.Is(err, domain.ErrNumberCounterBackwards) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, map[string]any{
+		"year": body.Year, "last_seq": seq, "next_will_be": seq + 1,
+	})
 }
 
 func respond(w http.ResponseWriter, status int, body any) {

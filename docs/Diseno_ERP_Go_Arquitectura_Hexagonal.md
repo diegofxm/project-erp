@@ -184,6 +184,33 @@ Contexto: en `v2/db-architecture` se completó de punta a punta pagos→contabil
 
 ---
 
+#### Numeración consecutiva de documentos — pendientes (sesión 2026-08-04)
+
+Contexto: se implementó numeración consecutiva real (`sales.number_counters`, `purchase.number_counters`, patrón `PREFIJO-AÑO-00001`) para ventas (`VTA-`), cotizaciones (`COT-`) y órdenes de compra (`OC-`), más la corrección de los asientos automáticos de `accounting` (`on_sale_confirmed`, `on_purchase_received`, `on_sale_payment_recorded`, `on_purchase_payment_recorded`) que antes posteaban sin `VoucherNumber` y con el UUID crudo en la descripción — commit `6d9e47e`. De ahí salieron dos frentes pendientes:
+
+**1) Otros documentos que todavía solo se identifican por UUID y probablemente necesiten folio:**
+
+| Documento | Descripción | Prioridad |
+|---|---|---|
+| `accounting.WithholdingCertificate` | Certificado de retención entregado al tercero como soporte de su declaración de renta — no tiene `Number`. Necesita folio antes de (o al mismo tiempo que) construir su generación de PDF/email, que hoy tampoco existe | Alta |
+| `inventory.Movement` | Entradas, salidas, ajustes y traslados solo tienen UUID. El campo `Reference` es texto libre para anotar *otro* documento (ej. "factura tal"), no un consecutivo propio del movimiento. Útil para kardex/auditoría (ej. "Comprobante de ajuste #00042") | Media |
+| `payroll.Payslip` (desprendible de nómina) | No exige numeración legal DIAN, pero es práctica estándar tener folio interno — sobre todo el día que se construya el PDF del desprendible, que hoy tampoco existe | Media |
+| `payroll.Contract`, `hr.Absence` | Sin obligación legal ni PDF que lo requiera todavía | Baja |
+
+No hace falta tocar `electronic.Document` (factura, NC, ND, documento soporte, nota de ajuste) — ya tiene `Number`/`Prefix` resueltos vía `NumberingRange` (rango de resolución DIAN), sin gap ahí.
+
+**2) ✅ Resuelto — fijar un consecutivo inicial distinto de 1 (migración de empresas con numeración previa):**
+
+Antes, `sales.number_counters`, `purchase.number_counters` y `accounting.voucher_counters` siempre nacían en `last_seq = 1` la primera vez que se pedían, sin ningún endpoint para sembrar un valor inicial. Se agregó, replicando el mecanismo `next_number` que ya existía en `electronic.NumberingRange`:
+
+- `POST /api/v1/sales/number-counters` — body `{doc_type: "sale"|"quote", year, next_number}`.
+- `POST /api/v1/purchase/number-counters` — body `{year, next_number}`.
+- `POST /api/v1/accounting/voucher-counters` — body `{code, year, next_number}` (valida el código contra `IsStandardVoucherType`/`IsRegisteredVoucherType`, igual que `PostJournalUseCase`).
+
+Los tres requieren rol `owner`/`admin` (`tenant.CanManage`) y rechazan con 422 (`ErrNumberCounterBackwards`) si `next_number` es menor o igual al último ya asignado — evita duplicar números ya emitidos; el `UPDATE` usa una condición (`WHERE EXCLUDED.last_seq > ...`) en vez de comparar en Go, así queda atómico. Verificado en vivo: sembrar next_number=100/200/300/400 y luego crear venta/cotización/orden/asiento reales produjo `VTA-2026-00100`, `COT-2026-00200`, `OC-2026-00300`, `CI-2026-00400` — y los intentos de retroceder fueron rechazados.
+
+---
+
 #### Menú (sidebar) — jerarquía pendiente de aplicar + catálogos vs. sub-entidades
 
 Contexto: se diseñó y prototipó una jerarquía nueva para el sidebar (hoy es una lista plana de 11 ítems). El prototipo vive en `design/erp-ui-proposal/dashboard.html` + `shared.css` — **todavía no está aplicado al `frontend/src/components/Sidebar.tsx` real**, solo la parte de anclar Configuración al fondo (con `flex:1` en el nav de arriba + bloque separado abajo).

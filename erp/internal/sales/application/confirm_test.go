@@ -35,6 +35,9 @@ func (f *fakeSaleRepo) SetInvoiceDocumentID(context.Context, uuid.UUID, uuid.UUI
 	return nil
 }
 func (f *fakeSaleRepo) NextSaleNumber(context.Context, uuid.UUID, int) (int, error) { return 1, nil }
+func (f *fakeSaleRepo) SetSaleNumberCounter(context.Context, uuid.UUID, int, int) (int, error) {
+	return 1, nil
+}
 
 type fakeProductRepo struct {
 	products map[uuid.UUID]productdomain.Product

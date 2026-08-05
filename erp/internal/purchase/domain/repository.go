@@ -18,6 +18,11 @@ type Repository interface {
 	// NextPurchaseNumber devuelve el siguiente consecutivo de orden de compra para la empresa y
 	// el año dados (arranca en 1 cada año). Mismo patrón que sales.Repository.NextSaleNumber.
 	NextPurchaseNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error)
+	// SetPurchaseNumberCounter fija el consecutivo para que la próxima orden emitida sea
+	// nextNumber — solo tiene efecto si nextNumber es mayor al último ya asignado (devuelve
+	// ErrNumberCounterBackwards si no). Pensado para migrar una empresa que ya traía su propia
+	// numeración de otro sistema.
+	SetPurchaseNumberCounter(ctx context.Context, companyID uuid.UUID, year, nextNumber int) (int, error)
 }
 
 // WithholdingRepository gestiona las retenciones aplicadas a una orden de compra.

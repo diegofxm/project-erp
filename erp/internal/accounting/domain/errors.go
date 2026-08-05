@@ -14,4 +14,8 @@ var (
 	ErrInvalidLine        = errors.New("cada línea debe tener exactamente débito XOR crédito > 0")
 	ErrImbalancedEntry    = errors.New("partida no cuadrada: débitos ≠ créditos")
 	ErrVoucherTypeUnknown = errors.New("tipo de comprobante no registrado — regístralo primero en Configuración de comprobantes")
+	// ErrNumberCounterInvalid / ErrNumberCounterBackwards — al fijar manualmente el consecutivo de
+	// un tipo de comprobante (ver application.GetJournalUseCase.SetVoucherCounter).
+	ErrNumberCounterInvalid   = errors.New("el próximo número debe ser mayor o igual a 1")
+	ErrNumberCounterBackwards = errors.New("el consecutivo indicado ya fue superado — no se puede retroceder")
 )
