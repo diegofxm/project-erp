@@ -177,7 +177,7 @@ export function QuoteEditorPage() {
 
   return (
     <div className="p-4">
-      <Breadcrumbs items={[{ label: "Ventas", to: "/sales" }, { label: "Cotizaciones", to: "/sales/quotes" }, { label: title }]} />
+      <Breadcrumbs items={[{ label: "Ventas", to: "/sales" }, { label: "Cotizaciones", to: "/sales/quotes" }, quote ? { label: quote.number || "(borrador)", muted: true } : { label: title }]} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <ClipboardList className="h-4 w-4 shrink-0 text-(--accent-primary)" />

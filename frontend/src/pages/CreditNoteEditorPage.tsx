@@ -231,7 +231,11 @@ export function CreditNoteEditorPage() {
   return (
     <div className="p-4">
       <Breadcrumbs
-        items={[{ label: "Documentos" }, { label: "Nota Crédito", to: "/documents/credit-notes" }, { label: title }]}
+        items={[
+          { label: "Documentos" },
+          { label: "Nota Crédito", to: "/documents/credit-notes" },
+          doc?.prefix && doc?.number ? { label: `${doc.prefix}${doc.number}`, muted: true } : { label: title },
+        ]}
       />
       <div className="mb-3 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">

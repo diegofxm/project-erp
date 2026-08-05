@@ -961,6 +961,7 @@ export interface StockEntry {
 export interface Movement {
   id: string;
   company_id: string;
+  number: string;
   product_id: string;
   warehouse_id: string;
   type: MovementType;
@@ -1126,6 +1127,7 @@ export interface PurchaseWithholding {
 
 export interface WithholdingCertificate {
   id: string;
+  number: string;
   fiscal_year: number;
   third_party_nit: string;
   concept_code: string;

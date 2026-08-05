@@ -103,6 +103,7 @@ export function InventoryMovementsPage() {
           <table className="w-full text-left text-xs">
             <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
               <tr>
+                <th className="px-3 py-2 font-medium">Folio</th>
                 <th className="px-3 py-2 font-medium">Fecha</th>
                 <th className="px-3 py-2 font-medium">Producto</th>
                 <th className="px-3 py-2 font-medium">Bodega</th>
@@ -115,6 +116,7 @@ export function InventoryMovementsPage() {
             <tbody>
               {movements.map((m, i) => (
                 <tr key={m.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
+                  <td className="px-3 py-2 font-mono text-(--text-primary)">{m.number}</td>
                   <td className="px-3 py-2 text-(--text-secondary)">{new Date(m.created_at).toLocaleString("es-CO")}</td>
                   <td className="px-3 py-2 text-(--text-primary)">{productName(m.product_id)}</td>
                   <td className="px-3 py-2 text-(--text-secondary)">{warehouseName(m.warehouse_id)}</td>

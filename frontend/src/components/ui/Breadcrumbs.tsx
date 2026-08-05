@@ -8,6 +8,11 @@ export interface BreadcrumbItem {
   /** Para volver dentro de la MISMA ruta (ej. cerrar un formulario inline como "Nuevo cliente",
    * que no tiene URL propia) — usar esto en vez de `to` cuando no hay cambio de ruta real. */
   onClick?: () => void;
+  /** Solo aplica al último ítem: úsalo cuando `label` es el número de un documento (ej.
+   * "VTA-2026-00001") en vez de un nombre de página — el H1 de la página ya repite el número
+   * completo (ej. "Venta VTA-2026-00001"), así que aquí se muestra más discreto en vez de con el
+   * mismo peso que el resto del título. */
+  muted?: boolean;
 }
 
 // Subrayado siempre visible (no solo al hover) para que un ítem clicable se note
@@ -40,7 +45,7 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
                 {item.label}
               </button>
             ) : (
-              <span className={isLast ? "font-medium text-(--text-primary)" : "text-(--text-muted)"}>
+              <span className={isLast && !item.muted ? "font-medium text-(--text-primary)" : "text-(--text-muted)"}>
                 {item.label}
               </span>
             )}

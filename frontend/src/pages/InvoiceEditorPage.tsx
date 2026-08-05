@@ -193,7 +193,9 @@ export function InvoiceEditorPage() {
         items={[
           { label: "Documentos" },
           { label: "Factura Electrónica", to: "/documents/invoices" },
-          { label: isNew ? "Nueva factura" : doc ? `Factura ${doc.prefix ?? ""}${doc.number ?? "(borrador)"}` : "Factura" },
+          !isNew && doc
+            ? { label: `${doc.prefix ?? ""}${doc.number ?? "(borrador)"}`, muted: true }
+            : { label: isNew ? "Nueva factura" : "Factura" },
         ]}
       />
       <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">

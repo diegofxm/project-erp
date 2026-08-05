@@ -230,7 +230,7 @@ export function PurchaseOrderEditorPage() {
 
   return (
     <div className="p-4">
-      <Breadcrumbs items={[{ label: "Compras", to: "/purchases" }, { label: title }]} />
+      <Breadcrumbs items={[{ label: "Compras", to: "/purchases" }, purchase ? { label: purchase.number || "(borrador)", muted: true } : { label: title }]} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <ShoppingBag className="h-4 w-4 shrink-0 text-(--accent-primary)" />

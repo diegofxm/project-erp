@@ -92,6 +92,7 @@ export function AccountingCertificatesPage() {
           <table className="w-full text-left text-xs">
             <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
               <tr>
+                <th className="px-3 py-2 font-medium">Folio</th>
                 <th className="px-3 py-2 font-medium">NIT tercero</th>
                 <th className="px-3 py-2 font-medium">Concepto</th>
                 <th className="px-3 py-2 text-right font-medium">Base</th>
@@ -101,6 +102,7 @@ export function AccountingCertificatesPage() {
             <tbody>
               {certificates.map((c, i) => (
                 <tr key={c.id} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
+                  <td className="px-3 py-2 font-mono text-(--text-primary)">{c.number}</td>
                   <td className="px-3 py-2 font-mono text-(--text-primary)">{c.third_party_nit}</td>
                   <td className="px-3 py-2 text-(--text-primary)">{c.concept_name}</td>
                   <td className="px-3 py-2 text-right font-mono text-(--text-secondary)">{money(c.gross_amount)}</td>
