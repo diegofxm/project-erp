@@ -39,6 +39,7 @@ func (uc *ReceiveUseCase) Execute(ctx context.Context, companyID, id uuid.UUID) 
 		PurchaseID:   o.ID,
 		CompanyID:    o.CompanyID,
 		SupplierID:   o.SupplierID,
+		Number:       o.Number,
 		Total:        o.GrandTotal(),
 		TaxAmount:    taxAmount,
 		IssueDate:    o.IssueDate,

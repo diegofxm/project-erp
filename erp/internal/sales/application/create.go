@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,11 +28,10 @@ type LineRequest struct {
 }
 
 type CreateRequest struct {
-	CustomerID uuid.UUID    `json:"customer_id"`
-	Number     string       `json:"number"`
-	IssueDate  time.Time    `json:"issue_date"`
-	DueDate    *time.Time   `json:"due_date"`
-	Notes      string       `json:"notes"`
+	CustomerID uuid.UUID     `json:"customer_id"`
+	IssueDate  time.Time     `json:"issue_date"`
+	DueDate    *time.Time    `json:"due_date"`
+	Notes      string        `json:"notes"`
 	Lines      []LineRequest `json:"lines"`
 }
 
@@ -49,11 +49,20 @@ func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req C
 		}
 	}
 
+	year := req.IssueDate.Year()
+	if year == 0 {
+		year = time.Now().Year()
+	}
+	seq, err := uc.repo.NextSaleNumber(ctx, companyID, year)
+	if err != nil {
+		return nil, fmt.Errorf("asignar consecutivo: %w", err)
+	}
+
 	s := domain.Sale{
 		ID:         uuid.New(),
 		CompanyID:  companyID,
 		CustomerID: req.CustomerID,
-		Number:     req.Number,
+		Number:     fmt.Sprintf("VTA-%d-%05d", year, seq),
 		Status:     domain.StatusDraft,
 		IssueDate:  req.IssueDate,
 		DueDate:    req.DueDate,

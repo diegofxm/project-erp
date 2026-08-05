@@ -56,6 +56,7 @@ type SaleConfirmed struct {
 	SaleID     uuid.UUID
 	CompanyID  uuid.UUID
 	CustomerID uuid.UUID
+	Number     string
 	Total      float64
 	TaxAmount  float64
 	IssueDate  time.Time

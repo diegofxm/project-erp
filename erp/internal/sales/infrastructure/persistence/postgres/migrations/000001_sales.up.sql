@@ -88,3 +88,13 @@ CREATE TABLE IF NOT EXISTS sales.sale_payments (
 
 CREATE INDEX IF NOT EXISTS idx_sale_payments_sale    ON sales.sale_payments(sale_id);
 CREATE INDEX IF NOT EXISTS idx_sale_payments_company ON sales.sale_payments(company_id);
+
+-- Consecutivo interno de ventas y cotizaciones — se reinicia cada año, uno por empresa y por
+-- tipo de documento (doc_type: 'sale' | 'quote'). Mismo patrón que accounting.voucher_counters.
+CREATE TABLE IF NOT EXISTS sales.number_counters (
+    company_id UUID        NOT NULL,
+    doc_type   VARCHAR(10) NOT NULL,
+    year       INTEGER     NOT NULL,
+    last_seq   INTEGER     NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, doc_type, year)
+);

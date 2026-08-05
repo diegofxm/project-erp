@@ -73,6 +73,10 @@ type QuoteRepository interface {
 	List(ctx context.Context, companyID uuid.UUID) ([]Quote, error)
 	UpdateStatus(ctx context.Context, companyID, id uuid.UUID, status QuoteStatus) error
 	Delete(ctx context.Context, companyID, id uuid.UUID) error
+	// NextQuoteNumber devuelve el siguiente consecutivo de cotización para la empresa y el año
+	// dados (arranca en 1 cada año) — comparte la tabla de contadores con NextSaleNumber
+	// (sales.number_counters), distinguidas por doc_type.
+	NextQuoteNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error)
 }
 
 var (

@@ -106,6 +106,7 @@ type PurchaseReceived struct {
 	PurchaseID   uuid.UUID
 	CompanyID    uuid.UUID
 	SupplierID   uuid.UUID
+	Number       string
 	Total        float64
 	TaxAmount    float64
 	IssueDate    time.Time

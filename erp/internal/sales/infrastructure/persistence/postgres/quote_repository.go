@@ -157,3 +157,19 @@ func (r *QuoteRepository) loadQuoteLines(ctx context.Context, quoteID uuid.UUID)
 	}
 	return lines, rows.Err()
 }
+
+// NextQuoteNumber asigna el siguiente consecutivo de cotización para la empresa y el año dados —
+// arranca en 1 cada año, comparte la tabla con NextSaleNumber (doc_type='quote').
+func (r *QuoteRepository) NextQuoteNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error) {
+	const q = `
+		INSERT INTO sales.number_counters (company_id, doc_type, year, last_seq)
+		VALUES ($1, 'quote', $2, 1)
+		ON CONFLICT (company_id, doc_type, year)
+		DO UPDATE SET last_seq = sales.number_counters.last_seq + 1
+		RETURNING last_seq`
+	var seq int
+	if err := r.pool.QueryRow(ctx, q, companyID, year).Scan(&seq); err != nil {
+		return 0, fmt.Errorf("asignar consecutivo de cotización: %w", err)
+	}
+	return seq, nil
+}

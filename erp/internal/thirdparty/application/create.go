@@ -93,6 +93,9 @@ func applyShared(p *domain.Party, req SaveRequest, checkDigit string) {
 	p.TaxSchemeName = req.TaxSchemeName
 	p.TaxRegimeCode = req.TaxRegimeCode
 	p.LiabilityCodes = req.LiabilityCodes
+	if p.LiabilityCodes == nil {
+		p.LiabilityCodes = []string{}
+	}
 	p.DepartmentCode = req.DepartmentCode
 	p.MunicipalityCode = req.MunicipalityCode
 	p.AddressLine = req.AddressLine

@@ -15,6 +15,9 @@ type Repository interface {
 	// SetSupportDocumentID registra qué Documento Soporte se generó a partir de esta orden —
 	// evita generar dos veces desde la misma orden (ver electronic CreateFromPurchaseUseCase).
 	SetSupportDocumentID(ctx context.Context, companyID, id, documentID uuid.UUID) error
+	// NextPurchaseNumber devuelve el siguiente consecutivo de orden de compra para la empresa y
+	// el año dados (arranca en 1 cada año). Mismo patrón que sales.Repository.NextSaleNumber.
+	NextPurchaseNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error)
 }
 
 // WithholdingRepository gestiona las retenciones aplicadas a una orden de compra.

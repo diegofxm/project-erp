@@ -170,3 +170,19 @@ func (r *Repository) loadLines(ctx context.Context, saleID uuid.UUID) ([]domain.
 	}
 	return lines, rows.Err()
 }
+
+// NextSaleNumber asigna el siguiente consecutivo de venta para la empresa y el año dados —
+// arranca en 1 cada año, comparte la tabla con NextQuoteNumber (doc_type='sale').
+func (r *Repository) NextSaleNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error) {
+	const q = `
+		INSERT INTO sales.number_counters (company_id, doc_type, year, last_seq)
+		VALUES ($1, 'sale', $2, 1)
+		ON CONFLICT (company_id, doc_type, year)
+		DO UPDATE SET last_seq = sales.number_counters.last_seq + 1
+		RETURNING last_seq`
+	var seq int
+	if err := r.pool.QueryRow(ctx, q, companyID, year).Scan(&seq); err != nil {
+		return 0, fmt.Errorf("asignar consecutivo de venta: %w", err)
+	}
+	return seq, nil
+}

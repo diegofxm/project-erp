@@ -38,6 +38,7 @@ type SalePaymentRecorded struct {
 	PaymentID     uuid.UUID
 	CompanyID     uuid.UUID
 	SaleID        uuid.UUID
+	SaleNumber    string
 	Amount        float64
 	PaymentMethod PaymentMethod
 	PaymentDate   time.Time

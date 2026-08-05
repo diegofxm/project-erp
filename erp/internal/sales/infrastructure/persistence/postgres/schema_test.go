@@ -35,6 +35,7 @@ func TestSchema_SalesTables(t *testing.T) {
 		{"sales.quotes", "id, company_id, customer_id, number, status, issue_date, valid_until, notes, created_at, updated_at"},
 		{"sales.quote_lines", "id, quote_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount"},
 		{"sales.sale_payments", "id, company_id, sale_id, payment_date, amount, payment_method, reference, notes, created_at"},
+		{"sales.number_counters", "company_id, doc_type, year, last_seq"},
 	}
 	for _, tt := range tables {
 		t.Run(tt.name, func(t *testing.T) {

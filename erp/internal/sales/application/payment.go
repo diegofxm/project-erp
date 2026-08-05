@@ -74,6 +74,7 @@ func (uc *PaymentUseCase) Record(ctx context.Context, companyID uuid.UUID, req R
 		PaymentID:     saved.ID,
 		CompanyID:     companyID,
 		SaleID:        saved.SaleID,
+		SaleNumber:    sale.Number,
 		Amount:        saved.Amount,
 		PaymentMethod: saved.PaymentMethod,
 		PaymentDate:   saved.PaymentDate,

@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math"
 
@@ -103,7 +104,7 @@ func (h *OnSaleConfirmed) handle(ctx context.Context, ev salesdomain.SaleConfirm
 		CompanyID:          ev.CompanyID,
 		PeriodID:           period.ID,
 		Date:               ev.IssueDate,
-		Description:        "Venta " + ev.SaleID.String(),
+		Description:        "Venta " + ev.Number,
 		Status:             domain.StatusPosted,
 		Source:             "sales",
 		EntryType:          domain.EntryAutomatic,
@@ -113,6 +114,12 @@ func (h *OnSaleConfirmed) handle(ctx context.Context, ev salesdomain.SaleConfirm
 		Book:               domain.BookBoth,
 		Lines:              lines,
 	}
+
+	seq, err := h.journals.NextVoucherSeq(ctx, ev.CompanyID, domain.VoucherIncome, ev.IssueDate.Year())
+	if err != nil {
+		return fmt.Errorf("asignar comprobante: %w", err)
+	}
+	entry.VoucherNumber = fmt.Sprintf("%s-%d-%05d", domain.VoucherIncome, ev.IssueDate.Year(), seq)
 
 	if _, err := h.journals.Create(ctx, entry); err != nil {
 		return err

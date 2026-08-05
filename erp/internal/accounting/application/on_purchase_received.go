@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/diegofxm/erp/internal/accounting/domain"
@@ -114,15 +115,21 @@ func (h *OnPurchaseReceived) handle(ctx context.Context, ev purchasedomain.Purch
 		return nil
 	}
 
+	seq, err := h.journals.NextVoucherSeq(ctx, ev.CompanyID, domain.VoucherExpense, ev.IssueDate.Year())
+	if err != nil {
+		return fmt.Errorf("asignar comprobante: %w", err)
+	}
+
 	_, err = h.journals.Create(ctx, domain.JournalEntry{
 		CompanyID:          ev.CompanyID,
 		PeriodID:           period.ID,
 		Date:               ev.IssueDate,
-		Description:        "Compra " + ev.PurchaseID.String(),
+		Description:        "Compra " + ev.Number,
 		Status:             domain.StatusPosted,
 		Source:             "purchase",
 		EntryType:          domain.EntryAutomatic,
 		VoucherType:        domain.VoucherExpense,
+		VoucherNumber:      fmt.Sprintf("%s-%d-%05d", domain.VoucherExpense, ev.IssueDate.Year(), seq),
 		SourceDocumentID:   ev.PurchaseID,
 		SourceDocumentType: "COMPRA",
 		Book:               domain.BookBoth,

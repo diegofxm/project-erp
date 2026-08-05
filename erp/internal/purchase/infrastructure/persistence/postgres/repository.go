@@ -199,3 +199,19 @@ func (r *Repository) loadLines(ctx context.Context, orderID uuid.UUID) ([]domain
 	}
 	return lines, rows.Err()
 }
+
+// NextPurchaseNumber asigna el siguiente consecutivo de orden de compra para la empresa y el año
+// dados — arranca en 1 cada año. Mismo patrón que sales.Repository.NextSaleNumber.
+func (r *Repository) NextPurchaseNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error) {
+	const q = `
+		INSERT INTO purchase.number_counters (company_id, year, last_seq)
+		VALUES ($1, $2, 1)
+		ON CONFLICT (company_id, year)
+		DO UPDATE SET last_seq = purchase.number_counters.last_seq + 1
+		RETURNING last_seq`
+	var seq int
+	if err := r.pool.QueryRow(ctx, q, companyID, year).Scan(&seq); err != nil {
+		return 0, fmt.Errorf("asignar consecutivo de orden de compra: %w", err)
+	}
+	return seq, nil
+}

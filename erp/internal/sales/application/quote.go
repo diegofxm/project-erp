@@ -39,12 +39,18 @@ func (uc *QuoteUseCase) Create(ctx context.Context, companyID uuid.UUID, req Cre
 	if len(req.Lines) == 0 {
 		return nil, fmt.Errorf("la cotización debe tener al menos una línea")
 	}
+	issueDate := time.Now()
+	seq, err := uc.quoteRepo.NextQuoteNumber(ctx, companyID, issueDate.Year())
+	if err != nil {
+		return nil, fmt.Errorf("asignar consecutivo: %w", err)
+	}
 	q := domain.Quote{
 		ID:         uuid.New(),
 		CompanyID:  companyID,
 		CustomerID: req.CustomerID,
+		Number:     fmt.Sprintf("COT-%d-%05d", issueDate.Year(), seq),
 		Status:     domain.QuoteStatusDraft,
-		IssueDate:  time.Now(),
+		IssueDate:  issueDate,
 		Notes:      req.Notes,
 	}
 	if req.ValidUntil != "" {
@@ -126,12 +132,18 @@ func (uc *QuoteUseCase) ConvertToSale(ctx context.Context, companyID, id uuid.UU
 		return nil, domain.ErrQuoteNotAccepted
 	}
 
+	issueDate := time.Now()
+	seq, err := uc.saleRepo.NextSaleNumber(ctx, companyID, issueDate.Year())
+	if err != nil {
+		return nil, fmt.Errorf("asignar consecutivo: %w", err)
+	}
 	sale := domain.Sale{
 		ID:         uuid.New(),
 		CompanyID:  companyID,
 		CustomerID: q.CustomerID,
+		Number:     fmt.Sprintf("VTA-%d-%05d", issueDate.Year(), seq),
 		Status:     domain.StatusDraft,
-		IssueDate:  time.Now(),
+		IssueDate:  issueDate,
 		Notes:      q.Notes,
 	}
 	for _, ql := range q.Lines {

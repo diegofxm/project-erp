@@ -70,3 +70,12 @@ CREATE TABLE IF NOT EXISTS purchase.purchase_withholdings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_purchase_withholdings_order ON purchase.purchase_withholdings(purchase_order_id);
+
+-- Consecutivo interno de órdenes de compra — se reinicia cada año, uno por empresa. Mismo patrón
+-- que accounting.voucher_counters / sales.number_counters.
+CREATE TABLE IF NOT EXISTS purchase.number_counters (
+    company_id UUID    NOT NULL,
+    year       INTEGER NOT NULL,
+    last_seq   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, year)
+);

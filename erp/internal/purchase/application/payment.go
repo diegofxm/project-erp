@@ -70,10 +70,11 @@ func (uc *PaymentUseCase) Record(ctx context.Context, companyID uuid.UUID, req R
 	}
 
 	uc.bus.Publish(domain.PurchasePaymentRecorded{
-		PaymentID:     saved.ID,
-		CompanyID:     companyID,
-		PurchaseID:    saved.PurchaseID,
-		Amount:        saved.Amount,
+		PaymentID:      saved.ID,
+		CompanyID:      companyID,
+		PurchaseID:     saved.PurchaseID,
+		PurchaseNumber: purchase.Number,
+		Amount:         saved.Amount,
 		PaymentMethod: saved.PaymentMethod,
 		PaymentDate:   saved.PaymentDate,
 	})

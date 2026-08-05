@@ -70,6 +70,7 @@ func (uc *ConfirmUseCase) Execute(ctx context.Context, companyID, id uuid.UUID) 
 		SaleID:     s.ID,
 		CompanyID:  s.CompanyID,
 		CustomerID: s.CustomerID,
+		Number:     s.Number,
 		Total:      total,
 		TaxAmount:  tax,
 		IssueDate:  s.IssueDate,

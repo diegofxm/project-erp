@@ -15,4 +15,7 @@ type Repository interface {
 	// SetInvoiceDocumentID registra qué factura electrónica se generó a partir de esta venta —
 	// evita generar dos veces desde la misma venta (ver electronic CreateFromSaleUseCase).
 	SetInvoiceDocumentID(ctx context.Context, companyID, id, documentID uuid.UUID) error
+	// NextSaleNumber devuelve el siguiente consecutivo de venta para la empresa y el año dados
+	// (arranca en 1 cada año). Mismo patrón que accounting.JournalRepository.NextVoucherSeq.
+	NextSaleNumber(ctx context.Context, companyID uuid.UUID, year int) (int, error)
 }
