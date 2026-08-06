@@ -381,6 +381,20 @@ Verificado en vivo end-to-end: seed del superadmin desde variables de entorno + 
 
 **Pendiente, no resuelto en esta sesión**: `AcceptInviteUseCase` no auto-selecciona la empresa como sí hace `LoginUseCase` cuando el usuario tiene exactamente una — por eso el JWT que devuelve trae `company_id` nulo incluso cuando ya hay una empresa real vinculada, obligando a un paso extra de selección de empresa en el frontend. `InviteUserUseCase` (invitar compañeros a una empresa existente) sigue sin enviar el correo de invitación — el nuevo template/flujo solo se conectó para `InviteOwnerUseCase` (prospectos), no para ese caso.
 
+### Pendiente — registro público desde una landing (`cofacture.co/planes`), alcance sin definir todavía
+
+Contexto: lo que se construyó (`POST /public/prospects` + revisión en `/admin/prospects` + aprovisionamiento al aprobar) es la mitad "interna" del flujo de alta — recibir la solicitud y procesarla. Falta toda la mitad de cara al público para que un visitante real llegue desde una landing de planes y se registre solo. Diagnóstico completo (sesión donde se decidió dejarlo pendiente):
+
+| Falta | Detalle |
+|---|---|
+| Página pública de registro | No existe ninguna pantalla que llame a `POST /public/prospects` — hoy solo se probó por curl. Sin esto no hay dónde subir cédula/RUT ni llenar el formulario. |
+| Página pública de planes | El catálogo (`/admin/plans`) es privado para superadmin. No hay endpoint público que liste planes activos (excluyendo `is_internal`) para mostrar precios en una landing. |
+| El prospecto no puede elegir plan | `domain.Prospect` no tiene campo de plan deseado. Aunque exista la landing, hoy no hay dónde guardar esa elección — y `ProspectUseCase.Approve` crea la empresa pero **no asigna ninguna suscripción**; el superadmin tendría que asignarla aparte en `/admin/company` después de cada aprobación. |
+| Sin confirmación al prospecto | No se envía correo al recibir la solicitud ("la recibimos, te avisamos") ni al rechazarla — hoy el rechazo solo cambia un estado que ve el superadmin, el prospecto no se entera. |
+| Sin cobro en el registro | Coherente con la decisión ya tomada de no integrar pasarela de pago, pero si el modelo final es "elige plan → paga → queda activo" es un tramo entero sin construir; si es "elige plan → se revisa → se factura aparte", es más simple pero de todos modos falta guardar la elección del plan. |
+
+**Decisión explícita**: se deja así, sin desarrollar, hasta una próxima sesión donde se defina el alcance real (¿el pago va integrado al registro o queda para después de aprobar? ¿la landing es parte de este mismo frontend React o un sitio de marketing aparte que solo consume la API pública?) antes de construir nada.
+
 ---
 
 ## Filosofía
