@@ -33,10 +33,25 @@ type CompanyInfo struct {
 	NIT          string
 }
 
-// UserPort lista los usuarios de la plataforma (todas las empresas) — para GET /admin/users, la
-// vista de superadmin de "quién tiene cuenta". Puerto local sobre security/domain.Repository.
+// UserPort resuelve todo lo relacionado a cuentas de usuario para el panel de superadmin —
+// listado, promoción, y aprovisionamiento de dueños nuevos. Puerto local sobre
+// security/domain.Repository.
 type UserPort interface {
 	ListAll(ctx context.Context) ([]PlatformUser, error)
+	// SetSuperAdmin promueve/degrada el flag de plataforma — PATCH /admin/users/{id}.
+	SetSuperAdmin(ctx context.Context, userID uuid.UUID, value bool) error
+	// InviteOwner crea (o reutiliza, si la invitación anterior no se aceptó todavía) un usuario
+	// invitado sin empresa — el llamador debe crear la empresa después usando el userID devuelto
+	// como dueño (ver CompanyProvisioningPort.CreateCompanyForOwner). Devuelve el token de
+	// invitación en texto plano para incluirlo en el correo.
+	InviteOwner(ctx context.Context, email, name string) (userID uuid.UUID, inviteToken string, err error)
+}
+
+// CompanyProvisioningPort crea la primera empresa de un dueño nuevo — usado al aprobar un
+// prospecto (ver saas/application/prospect.go). Puerto local sobre company/application.CreateUseCase,
+// que ya resuelve defaults fiscales + vincula al creador como "owner" + crea la bodega por defecto.
+type CompanyProvisioningPort interface {
+	CreateCompanyForOwner(ctx context.Context, ownerID uuid.UUID, businessName, nit string, contactEmail string) (companyID uuid.UUID, err error)
 }
 
 type PlatformUser struct {

@@ -4,16 +4,21 @@ package security
 import (
 	"context"
 
-	"github.com/diegofxm/erp/internal/saas/domain"
+	"github.com/google/uuid"
+
+	securityapp "github.com/diegofxm/erp/internal/security/application"
 	securitydomain "github.com/diegofxm/erp/internal/security/domain"
+
+	"github.com/diegofxm/erp/internal/saas/domain"
 )
 
 type Adapter struct {
-	repo securitydomain.Repository
+	repo        securitydomain.Repository
+	inviteOwner *securityapp.InviteOwnerUseCase
 }
 
-func New(repo securitydomain.Repository) *Adapter {
-	return &Adapter{repo: repo}
+func New(repo securitydomain.Repository, inviteOwner *securityapp.InviteOwnerUseCase) *Adapter {
+	return &Adapter{repo: repo, inviteOwner: inviteOwner}
 }
 
 var _ domain.UserPort = (*Adapter)(nil)
@@ -32,4 +37,16 @@ func (a *Adapter) ListAll(ctx context.Context) ([]domain.PlatformUser, error) {
 		}
 	}
 	return out, nil
+}
+
+func (a *Adapter) SetSuperAdmin(ctx context.Context, userID uuid.UUID, value bool) error {
+	return a.repo.SetSuperAdmin(ctx, userID, value)
+}
+
+func (a *Adapter) InviteOwner(ctx context.Context, email, name string) (uuid.UUID, string, error) {
+	u, token, err := a.inviteOwner.Execute(ctx, email, name)
+	if err != nil {
+		return uuid.Nil, "", err
+	}
+	return u.ID, token, nil
 }

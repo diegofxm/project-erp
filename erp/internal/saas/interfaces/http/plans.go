@@ -167,3 +167,30 @@ func (h *Handler) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	dtos := toPlatformUserDTOs(list)
 	respond(w, http.StatusOK, map[string]any{"users": dtos, "count": len(dtos)})
 }
+
+// handleSetUserSuperAdmin promueve/degrada el flag de superadmin de un usuario — nunca se otorga
+// por ningún flujo de alta de cliente (registro, invitación, aprobación de prospecto), solo un
+// superadmin existente puede otorgarlo a otro usuario.
+func (h *Handler) handleSetUserSuperAdmin(w http.ResponseWriter, r *http.Request) {
+	if !requireSuperAdmin(w, r) {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var body struct {
+		IsSuperAdmin bool `json:"is_superadmin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	if err := h.users.SetSuperAdmin(r.Context(), id, body.IsSuperAdmin); err != nil {
+		writeErr(w, err)
+		return
+	}
+	h.logAudit(r.Context(), "saas.user_superadmin_set", "user", id, map[string]any{"is_superadmin": body.IsSuperAdmin})
+	respond(w, http.StatusOK, map[string]any{"id": id, "is_superadmin": body.IsSuperAdmin})
+}

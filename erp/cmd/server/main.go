@@ -67,6 +67,7 @@ import (
 	securityapp "github.com/diegofxm/erp/internal/security/application"
 	securityjwt "github.com/diegofxm/erp/internal/security/infrastructure/jwt"
 	securitypostgres "github.com/diegofxm/erp/internal/security/infrastructure/persistence/postgres"
+	securityseed "github.com/diegofxm/erp/internal/security/infrastructure/persistence/postgres/seed"
 	securityhttp "github.com/diegofxm/erp/internal/security/interfaces/http"
 	"github.com/diegofxm/erp/internal/shared/cors"
 	"github.com/diegofxm/erp/internal/shared/events"
@@ -142,6 +143,11 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("saas OK")
+	if err := securityseed.All(context.Background(), pool); err != nil {
+		slog.Error("seed security fallido", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("security OK")
 	if err := payrollseed.All(context.Background(), pool); err != nil {
 		slog.Error("seed payroll fallido", "error", err)
 		os.Exit(1)
@@ -164,6 +170,12 @@ func main() {
 	warehouseRepo := companypostgres.NewWarehouseRepository(pool)
 	quoteRepo := salespostgres.NewQuoteRepository(pool)
 
+	// createCompanyUC se declara aquí (antes de lo que sería su lugar natural más abajo, junto al
+	// resto de casos de uso de company) porque saasCompanyPort ya lo necesita para aprovisionar la
+	// empresa de un dueño nuevo al aprobar un prospecto (ver saas/application/prospect.go).
+	createCompanyUC := companyapp.NewCreateUseCase(companyRepo, securityRepo, warehouseRepo)
+	inviteOwnerUC := securityapp.NewInviteOwnerUseCase(securityRepo)
+
 	// ── Repositorios — saas ──────────────────────────────────────────────────────
 	saasModuleRepo := saaspostgres.NewModuleRepository(pool)
 	saasPlanRepo := saaspostgres.NewPlanRepository(pool)
@@ -172,8 +184,8 @@ func main() {
 	saasSettingsRepo := saaspostgres.NewSettingsRepository(pool)
 	saasProspectRepo := saaspostgres.NewProspectRepository(pool)
 	saasDocumentCounter := saaselectronic.New(pool)
-	saasCompanyPort := saascompany.New(companyRepo)
-	saasUserPort := saassecurity.New(securityRepo)
+	saasCompanyPort := saascompany.New(companyRepo, createCompanyUC)
+	saasUserPort := saassecurity.New(securityRepo, inviteOwnerUC)
 	paymentRepo := salespostgres.NewPaymentRepository(pool)
 
 	// ── Repositorios — accounting ───────────────────────────────────────────────
@@ -270,8 +282,8 @@ func main() {
 	saasSubscriptionUC := saasapp.NewSubscriptionUseCase(saasSubscriptionRepo, saasPlanRepo)
 	saasBillingUC := saasapp.NewBillingUseCase(saasSubscriptionRepo, saasPlanRepo, saasSettingsRepo, saasDocumentCounter, saasCompanyPort)
 	saasPaymentUC := saasapp.NewPaymentUseCase(saasPaymentRepo)
-	saasProspectUC := saasapp.NewProspectUseCase(saasProspectRepo)
 	saasMyPlanUC := saasapp.NewMyPlanUseCase(saasSubscriptionRepo, saasPlanRepo, saasDocumentCounter)
+	// saasProspectUC se construye más abajo (necesita `notifier`/`appURL`, que todavía no existen aquí).
 
 	// ── Audit ───────────────────────────────────────────────────────────────────
 	auditUC := auditapp.NewUseCase(auditpostgres.NewRepository(pool), logger.New("audit"))
@@ -332,6 +344,7 @@ func main() {
 	}
 	appURL := os.Getenv("APP_URL")
 	electronicSendEmailUC := electronicapp.NewSendDocumentEmailUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer, notifier, electronicAdapter, appURL)
+	saasProspectUC := saasapp.NewProspectUseCase(saasProspectRepo, saasUserPort, saasCompanyPort, notifier, appURL)
 
 	// ── Casos de uso — PDF/email de cotizaciones ────────────────────────────────
 	salesCompanyPort := salescompany.New(companyRepo)
@@ -369,7 +382,6 @@ func main() {
 	updatePartyUC := thirdpartyapp.NewUpdateUseCase(thirdpartyRepo)
 	deletePartyUC := thirdpartyapp.NewDeleteUseCase(thirdpartyRepo)
 
-	createCompanyUC := companyapp.NewCreateUseCase(companyRepo, securityRepo, warehouseRepo)
 	getCompanyUC := companyapp.NewGetUseCase(companyRepo)
 	updateCompanyProfile := companyapp.NewUpdateProfileUseCase(companyRepo)
 	updateCompanyCreds := companyapp.NewUpdateCredentialsUseCase(companyRepo)

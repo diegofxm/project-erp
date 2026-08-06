@@ -20,6 +20,7 @@ import {
   adminGetBillingSummary,
   adminGetRenewalsSummary,
   adminListUsers,
+  adminSetUserSuperAdmin,
   adminListCompanyPayments,
   adminRecordPayment,
   adminListProspects,
@@ -762,12 +763,35 @@ function SettingsContent() {
 
 // ── Usuarios ─────────────────────────────────────────────────────────────────
 function UsersContent() {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const { user: me } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  function load() {
+    setLoading(true);
     adminListUsers().then(setUsers).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(load, []);
+
+  async function toggleSuperAdmin(u: AdminUser) {
+    const makeSuper = !u.is_superadmin;
+    const label = makeSuper ? "convertir en superadmin" : "quitarle el acceso de superadmin";
+    if (!(await confirm(`¿Seguro que quieres ${label} a ${u.name || u.email}?`, { tone: makeSuper ? undefined : "danger", confirmLabel: "Confirmar" }))) return;
+    setTogglingId(u.id);
+    try {
+      await adminSetUserSuperAdmin(u.id, makeSuper);
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_superadmin: makeSuper } : x)));
+      toast.success(makeSuper ? "Ahora es superadmin." : "Ya no es superadmin.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo actualizar el usuario");
+    } finally {
+      setTogglingId(null);
+    }
+  }
 
   return (
     <>
@@ -778,7 +802,7 @@ function UsersContent() {
           Usuarios
         </h1>
       </div>
-      <p className="mb-3 text-xs text-(--text-secondary)">Usuarios de toda la plataforma. Para invitar uno nuevo a una empresa, usa Configuración → Empresa dentro de esa empresa.</p>
+      <p className="mb-3 text-xs text-(--text-secondary)">Usuarios de toda la plataforma. Para invitar uno nuevo a una empresa, usa Configuración → Empresa dentro de esa empresa. El acceso de superadmin nunca se otorga solo — un superadmin existente tiene que dárselo a otro aquí.</p>
 
       {loading ? (
         <p className="text-xs text-(--text-secondary)">Cargando usuarios…</p>
@@ -791,6 +815,7 @@ function UsersContent() {
                 <th className="px-3 py-2 text-left font-medium">Correo</th>
                 <th className="px-3 py-2 text-left font-medium">Estado</th>
                 <th className="px-3 py-2 text-left font-medium">Creado</th>
+                <th className="px-3 py-2 text-left font-medium">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -809,10 +834,20 @@ function UsersContent() {
                     )}
                   </td>
                   <td className="px-3 py-2 text-(--text-secondary)">{formatDate(u.created_at)}</td>
+                  <td className="px-3 py-2">
+                    <Button
+                      variant="secondary"
+                      loading={togglingId === u.id}
+                      disabled={u.id === me?.id}
+                      onClick={() => toggleSuperAdmin(u)}
+                    >
+                      {u.is_superadmin ? "Quitar superadmin" : "Hacer superadmin"}
+                    </Button>
+                  </td>
                 </tr>
               ))}
               {users.length === 0 && (
-                <tr><td colSpan={4} className="px-3 py-4 text-center text-(--text-secondary)">No hay usuarios.</td></tr>
+                <tr><td colSpan={5} className="px-3 py-4 text-center text-(--text-secondary)">No hay usuarios.</td></tr>
               )}
             </tbody>
           </table>

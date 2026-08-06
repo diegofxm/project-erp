@@ -78,6 +78,30 @@ func (r *Repository) SetPassword(ctx context.Context, id uuid.UUID, hash string)
 	return nil
 }
 
+func (r *Repository) SetInviteToken(ctx context.Context, userID uuid.UUID, token uuid.UUID, expiresAt time.Time) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE security.users
+		 SET invite_token=$1, invite_token_expires_at=$2, updated_at=NOW()
+		 WHERE id=$3`,
+		token, expiresAt, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("regenerar token de invitación: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) SetSuperAdmin(ctx context.Context, userID uuid.UUID, value bool) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE security.users SET is_superadmin=$1, updated_at=NOW() WHERE id=$2`,
+		value, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("actualizar is_superadmin: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) List(ctx context.Context) ([]domain.User, error) {
 	rows, err := r.pool.Query(ctx, userSelect+" ORDER BY created_at DESC")
 	if err != nil {

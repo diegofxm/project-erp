@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -15,6 +16,14 @@ type Repository interface {
 	UpdateProfile(ctx context.Context, id uuid.UUID, name, email string) (*User, error)
 	SetPassword(ctx context.Context, id uuid.UUID, hash string) error
 	List(ctx context.Context) ([]User, error)
+	// SetSuperAdmin promueve/degrada el flag transversal de plataforma — separado de cualquier rol
+	// por empresa (ver shared/tenant.IsSuperAdmin). Solo debe llamarse desde un endpoint ya
+	// protegido con requireSuperAdmin (ver saas/interfaces/http) o desde el seed del primer
+	// superadmin al arrancar el servidor.
+	SetSuperAdmin(ctx context.Context, userID uuid.UUID, value bool) error
+	// SetInviteToken regenera el token de invitación de un usuario que aún no acepta (ver
+	// InviteOwnerUseCase, reintento de una aprobación de prospecto que falló a mitad de camino).
+	SetInviteToken(ctx context.Context, userID uuid.UUID, token uuid.UUID, expiresAt time.Time) error
 
 	// Vínculos usuario↔empresa (company_id es UUID puro; FK a company schema se añade cuando exista)
 	AddCompany(ctx context.Context, userID, companyID uuid.UUID, role string) error

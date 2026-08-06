@@ -9,6 +9,7 @@ import { DashboardLayout } from "./components/DashboardLayout";
 import { ConnectionBanner } from "./components/ConnectionBanner";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { AcceptInvitePage } from "./pages/AcceptInvitePage";
 import { SetupPasswordPage } from "./pages/SetupPasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsGeneralPage } from "./pages/SettingsGeneralPage";
@@ -72,6 +73,7 @@ function App() {
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/accept-invite" element={<AcceptInvitePage />} />
                 <Route path="/setup-password" element={<SetupPasswordPage />} />
                 <Route path="/r/:companyId" element={<PublicCustomerRegisterPage />} />
                 <Route element={<ProtectedRoute />}>

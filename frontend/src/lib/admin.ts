@@ -67,6 +67,10 @@ export async function adminListUsers(): Promise<AdminUser[]> {
   return res.users;
 }
 
+export async function adminSetUserSuperAdmin(id: string, isSuperAdmin: boolean): Promise<void> {
+  await apiClient.patch(`/admin/users/${id}/superadmin`, { is_superadmin: isSuperAdmin });
+}
+
 export async function adminListCompanyPayments(companyId: string): Promise<Payment[]> {
   const res = await apiClient.get<{ payments: Payment[]; count: number }>(`/admin/companies/${companyId}/payments`);
   return res.payments;

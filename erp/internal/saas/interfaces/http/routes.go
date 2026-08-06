@@ -27,6 +27,7 @@ func (h *Handler) RegisterAdminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/admin/companies/{id}/payments", h.handleRecordPayment)
 
 	mux.HandleFunc("GET /api/v1/admin/users", h.handleListUsers)
+	mux.HandleFunc("PATCH /api/v1/admin/users/{id}/superadmin", h.handleSetUserSuperAdmin)
 
 	mux.HandleFunc("GET /api/v1/admin/prospects", h.handleListProspects)
 	mux.HandleFunc("POST /api/v1/admin/prospects/{id}/approve", h.handleApproveProspect)
