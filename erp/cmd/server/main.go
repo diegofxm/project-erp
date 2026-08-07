@@ -226,6 +226,7 @@ func main() {
 	acceptInviteUC := securityapp.NewAcceptInviteUseCase(securityRepo, jwtSvc)
 	updateProfileUC := securityapp.NewUpdateProfileUseCase(securityRepo)
 	getProfileUC := securityapp.NewGetProfileUseCase(securityRepo)
+	changePasswordUC := securityapp.NewChangePasswordUseCase(securityRepo)
 
 	// ── Casos de uso — purchase ─────────────────────────────────────────────────
 	createPurchaseUC := purchaseapp.NewCreateUseCase(purchaseRepo)
@@ -396,7 +397,7 @@ func main() {
 	securityhttp.NewHandler(
 		registerUC, loginUC, selectCompanyUC,
 		inviteUserUC, acceptInviteUC,
-		updateProfileUC, getProfileUC, auditUC,
+		updateProfileUC, getProfileUC, changePasswordUC, auditUC,
 	).RegisterRoutes(mux)
 	companyhttp.NewHandler(
 		createCompanyUC, getCompanyUC,

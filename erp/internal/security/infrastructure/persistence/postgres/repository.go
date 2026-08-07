@@ -78,6 +78,17 @@ func (r *Repository) SetPassword(ctx context.Context, id uuid.UUID, hash string)
 	return nil
 }
 
+func (r *Repository) UpdatePassword(ctx context.Context, id uuid.UUID, hash string) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE security.users SET password_hash=$1, updated_at=NOW() WHERE id=$2`,
+		hash, id,
+	)
+	if err != nil {
+		return fmt.Errorf("actualizar contraseña: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) SetInviteToken(ctx context.Context, userID uuid.UUID, token uuid.UUID, expiresAt time.Time) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE security.users

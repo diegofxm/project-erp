@@ -14,7 +14,13 @@ type Repository interface {
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByInviteToken(ctx context.Context, token uuid.UUID) (*User, error)
 	UpdateProfile(ctx context.Context, id uuid.UUID, name, email string) (*User, error)
+	// SetPassword la usa AcceptInviteUseCase — además de guardar el hash, marca la invitación como
+	// aceptada (limpia el token, sella invite_accepted_at). Para un usuario ya activo que cambia su
+	// propia contraseña usa UpdatePassword, que no toca nada de eso.
 	SetPassword(ctx context.Context, id uuid.UUID, hash string) error
+	// UpdatePassword cambia la contraseña de un usuario ya activo (ver ChangePasswordUseCase) —
+	// solo actualiza el hash, sin tocar el estado de invitación.
+	UpdatePassword(ctx context.Context, id uuid.UUID, hash string) error
 	List(ctx context.Context) ([]User, error)
 	// SetSuperAdmin promueve/degrada el flag transversal de plataforma — separado de cualquier rol
 	// por empresa (ver shared/tenant.IsSuperAdmin). Solo debe llamarse desde un endpoint ya

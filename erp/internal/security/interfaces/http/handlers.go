@@ -20,14 +20,15 @@ type AuditLogger interface {
 }
 
 type Handler struct {
-	register      *application.RegisterUseCase
-	login         *application.LoginUseCase
-	selectCompany *application.SelectCompanyUseCase
-	inviteUser    *application.InviteUserUseCase
-	acceptInvite  *application.AcceptInviteUseCase
-	updateProfile *application.UpdateProfileUseCase
-	getProfile    *application.GetProfileUseCase
-	audit         AuditLogger
+	register       *application.RegisterUseCase
+	login          *application.LoginUseCase
+	selectCompany  *application.SelectCompanyUseCase
+	inviteUser     *application.InviteUserUseCase
+	acceptInvite   *application.AcceptInviteUseCase
+	updateProfile  *application.UpdateProfileUseCase
+	getProfile     *application.GetProfileUseCase
+	changePassword *application.ChangePasswordUseCase
+	audit          AuditLogger
 }
 
 func NewHandler(
@@ -38,17 +39,19 @@ func NewHandler(
 	acceptInvite *application.AcceptInviteUseCase,
 	updateProfile *application.UpdateProfileUseCase,
 	getProfile *application.GetProfileUseCase,
+	changePassword *application.ChangePasswordUseCase,
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
-		register:      register,
-		login:         login,
-		selectCompany: selectCompany,
-		inviteUser:    inviteUser,
-		acceptInvite:  acceptInvite,
-		updateProfile: updateProfile,
-		getProfile:    getProfile,
-		audit:         audit,
+		register:       register,
+		login:          login,
+		selectCompany:  selectCompany,
+		inviteUser:     inviteUser,
+		acceptInvite:   acceptInvite,
+		updateProfile:  updateProfile,
+		getProfile:     getProfile,
+		changePassword: changePassword,
+		audit:          audit,
 	}
 }
 
@@ -139,6 +142,25 @@ func (h *Handler) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, safeUser(u), nil)
+}
+
+func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	userID, ok := requireAuth(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	if err := h.changePassword.Execute(r.Context(), userID, body.CurrentPassword, body.NewPassword); err != nil {
+		respondError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) handleSelectCompany(w http.ResponseWriter, r *http.Request) {
@@ -297,7 +319,8 @@ func respondError(w http.ResponseWriter, err error) {
 	code := http.StatusInternalServerError
 	if errors.Is(err, domain.ErrInvalidPassword) ||
 		errors.Is(err, domain.ErrInvalidToken) ||
-		errors.Is(err, domain.ErrUserInactive) {
+		errors.Is(err, domain.ErrUserInactive) ||
+		errors.Is(err, domain.ErrCurrentPasswordIncorrect) {
 		code = http.StatusUnauthorized
 	} else if errors.Is(err, domain.ErrEmailTaken) {
 		code = http.StatusConflict

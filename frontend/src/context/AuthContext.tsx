@@ -34,6 +34,7 @@ interface AuthContextValue {
   createCompany: (payload: CreateCompanyPayload) => Promise<void>;
   selectCompany: (id: string) => Promise<void>;
   updateProfile: (name: string, email: string) => Promise<User>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   updateCompany: (payload: UpdateCompanyPayload) => Promise<Company>;
   updateCompanyProfile: (payload: UpdateCompanyProfilePayload) => Promise<Company>;
   deleteCompanyLogo: () => Promise<Company>;
@@ -200,6 +201,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return updated;
   }, []);
 
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    await apiClient.put<void>("/auth/password", { current_password: currentPassword, new_password: newPassword });
+  }, []);
+
   const updateCompany = useCallback(async (payload: UpdateCompanyPayload) => {
     let updated: Company;
     if (payload.logo_base64) {
@@ -272,6 +277,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       createCompany,
       selectCompany,
       updateProfile,
+      changePassword,
       updateCompany,
       updateCompanyProfile,
       deleteCompanyLogo,
@@ -293,6 +299,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       createCompany,
       selectCompany,
       updateProfile,
+      changePassword,
       updateCompany,
       updateCompanyProfile,
       deleteCompanyLogo,
