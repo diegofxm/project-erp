@@ -1,14 +1,17 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Palette } from "lucide-react";
 import { useToast } from "../../context/ToastContext";
+import { useCanManage } from "../../hooks/useCanManage";
 import { ApiError } from "../../lib/apiClient";
 import { getMySettings, updateMySettings } from "../../lib/settings";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
+import { ManageOnlyHint } from "../ui/ManageOnlyHint";
 
 const DEFAULT_COLOR = "#14345C";
 
 export function BrandColorForm() {
+  const canManage = useCanManage();
   const toast = useToast();
   const [color, setColor] = useState(DEFAULT_COLOR);
   const [loading, setLoading] = useState(false);
@@ -41,53 +44,56 @@ export function BrandColorForm() {
       <p className="text-xs text-(--text-secondary)">
         Color principal que aparece en la cabecera de tus facturas PDF. El valor por defecto es el azul de cofacture.
       </p>
-      <form className="flex items-end gap-3" onSubmit={handleSubmit}>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-(--text-secondary)">Color (#RRGGBB)</span>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={color}
-              disabled={fetching}
-              onChange={(e) => setColor(e.target.value)}
-              className="h-9 w-12 cursor-pointer rounded border border-(--border-color) bg-(--bg-primary) p-0.5"
-            />
-            <input
-              type="text"
-              value={color}
-              disabled={fetching}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (/^#[0-9A-Fa-f]{0,6}$/.test(v)) setColor(v);
-              }}
-              maxLength={7}
-              className="w-24 rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1.5 text-xs font-mono text-(--text-primary) focus:outline-none focus:ring-1 focus:ring-(--accent-primary)"
-            />
-            <span
-              className="h-7 w-7 rounded border border-(--border-color)"
-              style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(color) ? color : undefined }}
-            />
-          </div>
-        </label>
-        <Button
-          type="submit"
-          loading={loading}
-          disabled={fetching || !/^#[0-9A-Fa-f]{6}$/.test(color)}
-          icon={<Palette className="h-3.5 w-3.5" />}
-        >
-          Guardar
-        </Button>
-        {color !== DEFAULT_COLOR && (
+      {!canManage && <ManageOnlyHint />}
+      <fieldset disabled={!canManage} className="contents">
+        <form className="flex items-end gap-3" onSubmit={handleSubmit}>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-(--text-secondary)">Color (#RRGGBB)</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={color}
+                disabled={fetching}
+                onChange={(e) => setColor(e.target.value)}
+                className="h-9 w-12 cursor-pointer rounded border border-(--border-color) bg-(--bg-primary) p-0.5"
+              />
+              <input
+                type="text"
+                value={color}
+                disabled={fetching}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (/^#[0-9A-Fa-f]{0,6}$/.test(v)) setColor(v);
+                }}
+                maxLength={7}
+                className="w-24 rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1.5 text-xs font-mono text-(--text-primary) focus:outline-none focus:ring-1 focus:ring-(--accent-primary)"
+              />
+              <span
+                className="h-7 w-7 rounded border border-(--border-color)"
+                style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(color) ? color : undefined }}
+              />
+            </div>
+          </label>
           <Button
-            type="button"
-            variant="secondary"
-            disabled={fetching || loading}
-            onClick={() => setColor(DEFAULT_COLOR)}
+            type="submit"
+            loading={loading}
+            disabled={fetching || !/^#[0-9A-Fa-f]{6}$/.test(color)}
+            icon={<Palette className="h-3.5 w-3.5" />}
           >
-            Restablecer
+            Guardar
           </Button>
-        )}
-      </form>
+          {color !== DEFAULT_COLOR && (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={fetching || loading}
+              onClick={() => setColor(DEFAULT_COLOR)}
+            >
+              Restablecer
+            </Button>
+          )}
+        </form>
+      </fieldset>
     </Card>
   );
 }

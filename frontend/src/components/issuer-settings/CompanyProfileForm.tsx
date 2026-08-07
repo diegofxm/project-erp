@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Pencil, X } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
+import { useCanManage } from "../../hooks/useCanManage";
 import { ApiError } from "../../lib/apiClient";
 import {
   listDepartments,
@@ -18,6 +19,7 @@ import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Button } from "../ui/Button";
 import { Combobox } from "../ui/Combobox";
+import { ManageOnlyHint } from "../ui/ManageOnlyHint";
 
 const ENTITY_TYPE_OPTIONS = [
   { code: "1", name: "Persona jurídica y asimilada" },
@@ -39,6 +41,7 @@ const ID_TYPE_LABEL: Record<string, string> = {
 
 export function CompanyProfileForm() {
   const { activeCompany, updateCompanyProfile } = useAuth();
+  const canManage = useCanManage();
   const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -170,9 +173,13 @@ export function CompanyProfileForm() {
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-semibold text-(--text-primary)">Datos de la empresa</h2>
         {!editing ? (
-          <Button type="button" variant="secondary" icon={<Pencil className="h-3.5 w-3.5" />} onClick={openForm}>
-            Editar
-          </Button>
+          canManage ? (
+            <Button type="button" variant="secondary" icon={<Pencil className="h-3.5 w-3.5" />} onClick={openForm}>
+              Editar
+            </Button>
+          ) : (
+            <ManageOnlyHint />
+          )
         ) : (
           <div className="flex gap-2">
             <Button type="button" variant="secondary" onClick={() => setEditing(false)} disabled={saving}>

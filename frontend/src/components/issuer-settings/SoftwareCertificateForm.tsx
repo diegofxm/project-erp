@@ -3,12 +3,14 @@ import { ShieldCheck, Trash2, KeyRound, BadgeCheck, ClipboardList } from "lucide
 import { useAuth } from "../../context/AuthContext";
 import { useConfirm } from "../../context/ConfirmContext";
 import { useToast } from "../../context/ToastContext";
+import { useCanManage } from "../../hooks/useCanManage";
 import { ApiError } from "../../lib/apiClient";
 import { fileToBase64 } from "../../lib/fileToBase64";
 import type { UpdateCompanyPayload } from "../../lib/types";
 import { Card } from "../ui/Card";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
+import { ManageOnlyHint } from "../ui/ManageOnlyHint";
 
 // Exportado: LogoForm.tsx reusa el mismo indicador "✓/—" para has_logo.
 export function StatusBadge({ label, ok }: { label: string; ok: boolean }) {
@@ -325,14 +327,18 @@ function NeSoftwareSection() {
 // Completa software/PIN/certificado DESPUÉS de creada la empresa (PUT /companies/me).
 // FE y DS comparten el mismo software; NE tiene credenciales propias.
 export function SoftwareCertificateForm() {
+  const canManage = useCanManage();
   return (
     <Card className="flex flex-col gap-5 p-4">
       <h2 className="text-xs font-semibold text-(--text-primary)">Software y certificado</h2>
-      <SoftwareSection />
-      <div className="border-t border-(--border-light)" />
-      <NeSoftwareSection />
-      <div className="border-t border-(--border-light)" />
-      <CertificateSection />
+      {!canManage && <ManageOnlyHint />}
+      <fieldset disabled={!canManage} className="contents">
+        <SoftwareSection />
+        <div className="border-t border-(--border-light)" />
+        <NeSoftwareSection />
+        <div className="border-t border-(--border-light)" />
+        <CertificateSection />
+      </fieldset>
     </Card>
   );
 }

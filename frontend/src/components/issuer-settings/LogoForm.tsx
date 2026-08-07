@@ -3,12 +3,14 @@ import { Image as ImageIcon, Trash2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useConfirm } from "../../context/ConfirmContext";
 import { useToast } from "../../context/ToastContext";
+import { useCanManage } from "../../hooks/useCanManage";
 import { apiClient, ApiError } from "../../lib/apiClient";
 import { fileToBase64 } from "../../lib/fileToBase64";
 import type { UpdateCompanyPayload } from "../../lib/types";
 import { AsyncImage } from "../ui/AsyncImage";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
+import { ManageOnlyHint } from "../ui/ManageOnlyHint";
 import { StatusBadge } from "./SoftwareCertificateForm";
 
 const CONTENT_TYPE_BY_MIME: Record<string, string> = {
@@ -22,6 +24,7 @@ const CONTENT_TYPE_BY_MIME: Record<string, string> = {
 // la respuesta de empresa con bytes de imagen en cada GET/PUT.
 export function LogoForm() {
   const { activeCompany, updateCompany, deleteCompanyLogo } = useAuth();
+  const canManage = useCanManage();
   const confirm = useConfirm();
   const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -100,28 +103,31 @@ export function LogoForm() {
         <StatusBadge label="Logo" ok={activeCompany?.has_logo ?? false} />
       </div>
       <p className="text-xs text-(--text-secondary)">Aparece en la esquina superior izquierda de la representación gráfica (PDF) de tus facturas.</p>
-      <form className="flex items-end gap-3" onSubmit={handleSubmit}>
-        {(loadingPreview || previewUrl) && (
-          <AsyncImage src={previewUrl} loading={loadingPreview} alt="Logo actual" className="h-12 w-12" />
-        )}
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-(--text-secondary)">Imagen (PNG, JPG o WebP)</span>
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="rounded border border-(--border-color) bg-(--bg-primary) px-3 py-1.5 text-xs text-(--text-primary)"
-          />
-        </label>
-        <Button type="submit" loading={loading} icon={<ImageIcon className="h-3.5 w-3.5" />}>
-          Guardar
-        </Button>
-        {activeCompany?.has_logo && (
-          <Button type="button" variant="danger" loading={deleting} icon={<Trash2 className="h-3.5 w-3.5" />} onClick={handleDelete}>
-            Eliminar logo
+      {!canManage && <ManageOnlyHint />}
+      <fieldset disabled={!canManage} className="contents">
+        <form className="flex items-end gap-3" onSubmit={handleSubmit}>
+          {(loadingPreview || previewUrl) && (
+            <AsyncImage src={previewUrl} loading={loadingPreview} alt="Logo actual" className="h-12 w-12" />
+          )}
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-(--text-secondary)">Imagen (PNG, JPG o WebP)</span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="rounded border border-(--border-color) bg-(--bg-primary) px-3 py-1.5 text-xs text-(--text-primary)"
+            />
+          </label>
+          <Button type="submit" loading={loading} icon={<ImageIcon className="h-3.5 w-3.5" />}>
+            Guardar
           </Button>
-        )}
-      </form>
+          {activeCompany?.has_logo && (
+            <Button type="button" variant="danger" loading={deleting} icon={<Trash2 className="h-3.5 w-3.5" />} onClick={handleDelete}>
+              Eliminar logo
+            </Button>
+          )}
+        </form>
+      </fieldset>
     </Card>
   );
 }
