@@ -44,8 +44,7 @@ export function BrandColorForm() {
       <p className="text-xs text-(--text-secondary)">
         Color principal que aparece en la cabecera de tus facturas PDF. El valor por defecto es el azul de cofacture.
       </p>
-      {!canManage && <ManageOnlyHint />}
-      <fieldset disabled={!canManage} className="contents">
+      {canManage ? (
         <form className="flex items-end gap-3" onSubmit={handleSubmit}>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-(--text-secondary)">Color (#RRGGBB)</span>
@@ -93,7 +92,16 @@ export function BrandColorForm() {
             </Button>
           )}
         </form>
-      </fieldset>
+      ) : (
+        <div className="flex items-center gap-2">
+          <span
+            className="h-7 w-7 shrink-0 rounded border border-(--border-color)"
+            style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(color) ? color : undefined }}
+          />
+          <span className="font-mono text-xs text-(--text-secondary)">{color}</span>
+          <ManageOnlyHint />
+        </div>
+      )}
     </Card>
   );
 }

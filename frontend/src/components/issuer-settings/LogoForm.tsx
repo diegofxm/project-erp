@@ -103,8 +103,7 @@ export function LogoForm() {
         <StatusBadge label="Logo" ok={activeCompany?.has_logo ?? false} />
       </div>
       <p className="text-xs text-(--text-secondary)">Aparece en la esquina superior izquierda de la representación gráfica (PDF) de tus facturas.</p>
-      {!canManage && <ManageOnlyHint />}
-      <fieldset disabled={!canManage} className="contents">
+      {canManage ? (
         <form className="flex items-end gap-3" onSubmit={handleSubmit}>
           {(loadingPreview || previewUrl) && (
             <AsyncImage src={previewUrl} loading={loadingPreview} alt="Logo actual" className="h-12 w-12" />
@@ -127,7 +126,14 @@ export function LogoForm() {
             </Button>
           )}
         </form>
-      </fieldset>
+      ) : (
+        <div className="flex items-center gap-3">
+          {(loadingPreview || previewUrl) && (
+            <AsyncImage src={previewUrl} loading={loadingPreview} alt="Logo actual" className="h-12 w-12" />
+          )}
+          <ManageOnlyHint>{activeCompany?.has_logo ? "Solo un administrador o dueño puede cambiar el logo." : "Sin logo — solo un administrador o dueño puede subir uno."}</ManageOnlyHint>
+        </div>
+      )}
     </Card>
   );
 }

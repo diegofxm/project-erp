@@ -50,6 +50,7 @@ function CertStatusBadge({ expiresAt }: { expiresAt: string }) {
 
 function SoftwareSection() {
   const { activeCompany, updateCompany, deleteCompanySoftware } = useAuth();
+  const canManage = useCanManage();
   const confirm = useConfirm();
   const toast = useToast();
   const [softwareId, setSoftwareId] = useState("");
@@ -99,7 +100,7 @@ function SoftwareSection() {
           <KeyRound className="h-3.5 w-3.5 text-(--text-muted)" />
           <h3 className="text-xs font-semibold text-(--text-primary)">Software DIAN</h3>
         </div>
-        {configured && (
+        {configured && canManage && (
           <Button type="button" variant="danger" loading={deleting} icon={<Trash2 className="h-3 w-3" />} onClick={handleDelete}>
             Eliminar
           </Button>
@@ -117,7 +118,7 @@ function SoftwareSection() {
             <span className="text-(--text-secondary)">configurado</span>
           </div>
         </div>
-      ) : (
+      ) : canManage ? (
         <form className="flex flex-col gap-3" onSubmit={handleSave}>
           <div className="grid grid-cols-2 gap-3">
             <Input label="Software ID" value={softwareId} onChange={(e) => setSoftwareId(e.target.value)} />
@@ -127,6 +128,8 @@ function SoftwareSection() {
             Guardar software
           </Button>
         </form>
+      ) : (
+        <ManageOnlyHint>Sin configurar — solo un administrador o dueño puede configurarlo.</ManageOnlyHint>
       )}
     </div>
   );
@@ -134,6 +137,7 @@ function SoftwareSection() {
 
 function CertificateSection() {
   const { activeCompany, updateCompany, deleteCompanyCertificate } = useAuth();
+  const canManage = useCanManage();
   const confirm = useConfirm();
   const toast = useToast();
   const [certFile, setCertFile] = useState<File | null>(null);
@@ -186,7 +190,7 @@ function CertificateSection() {
           <BadgeCheck className="h-3.5 w-3.5 text-(--text-muted)" />
           <h3 className="text-xs font-semibold text-(--text-primary)">Certificado digital</h3>
         </div>
-        {configured && (
+        {configured && canManage && (
           <Button type="button" variant="danger" loading={deleting} icon={<Trash2 className="h-3 w-3" />} onClick={handleDelete}>
             Eliminar
           </Button>
@@ -217,7 +221,7 @@ function CertificateSection() {
             </div>
           )}
         </div>
-      ) : (
+      ) : canManage ? (
         <form className="flex flex-col gap-3" onSubmit={handleSave}>
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1">
@@ -235,6 +239,8 @@ function CertificateSection() {
             Guardar certificado
           </Button>
         </form>
+      ) : (
+        <ManageOnlyHint>Sin configurar — solo un administrador o dueño puede configurarlo.</ManageOnlyHint>
       )}
     </div>
   );
@@ -242,6 +248,7 @@ function CertificateSection() {
 
 function NeSoftwareSection() {
   const { activeCompany, updateCompany, deleteCompanyNeSoftware } = useAuth();
+  const canManage = useCanManage();
   const confirm = useConfirm();
   const toast = useToast();
   const [softwareId, setSoftwareId] = useState("");
@@ -291,7 +298,7 @@ function NeSoftwareSection() {
           <ClipboardList className="h-3.5 w-3.5 text-(--text-muted)" />
           <h3 className="text-xs font-semibold text-(--text-primary)">Software NE (Nómina Electrónica)</h3>
         </div>
-        {configured && (
+        {configured && canManage && (
           <Button type="button" variant="danger" loading={deleting} icon={<Trash2 className="h-3 w-3" />} onClick={handleDelete}>
             Eliminar
           </Button>
@@ -309,7 +316,7 @@ function NeSoftwareSection() {
             <span className="text-(--text-secondary)">configurado</span>
           </div>
         </div>
-      ) : (
+      ) : canManage ? (
         <form className="flex flex-col gap-3" onSubmit={handleSave}>
           <div className="grid grid-cols-2 gap-3">
             <Input label="Software ID NE" value={softwareId} onChange={(e) => setSoftwareId(e.target.value)} />
@@ -319,6 +326,8 @@ function NeSoftwareSection() {
             Guardar software NE
           </Button>
         </form>
+      ) : (
+        <ManageOnlyHint>Sin configurar — solo un administrador o dueño puede configurarlo.</ManageOnlyHint>
       )}
     </div>
   );
@@ -327,18 +336,14 @@ function NeSoftwareSection() {
 // Completa software/PIN/certificado DESPUÉS de creada la empresa (PUT /companies/me).
 // FE y DS comparten el mismo software; NE tiene credenciales propias.
 export function SoftwareCertificateForm() {
-  const canManage = useCanManage();
   return (
     <Card className="flex flex-col gap-5 p-4">
       <h2 className="text-xs font-semibold text-(--text-primary)">Software y certificado</h2>
-      {!canManage && <ManageOnlyHint />}
-      <fieldset disabled={!canManage} className="contents">
-        <SoftwareSection />
-        <div className="border-t border-(--border-light)" />
-        <NeSoftwareSection />
-        <div className="border-t border-(--border-light)" />
-        <CertificateSection />
-      </fieldset>
+      <SoftwareSection />
+      <div className="border-t border-(--border-light)" />
+      <NeSoftwareSection />
+      <div className="border-t border-(--border-light)" />
+      <CertificateSection />
     </Card>
   );
 }
