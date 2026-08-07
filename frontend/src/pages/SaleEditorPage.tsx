@@ -9,7 +9,7 @@ import { ApiError } from "../lib/apiClient";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
-import { formatDateOnly } from "../lib/dateFormat";
+import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
 import type { Customer, NumberingRange, Sale, SaleStatus, SalesLineInput } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
@@ -24,7 +24,7 @@ import { SalesLineItemsEditor, salesLinesTotal } from "../components/sales/Sales
 const STATUS_LABEL: Record<SaleStatus, string> = { draft: "Borrador", confirmed: "Confirmada", cancelled: "Cancelada" };
 const STATUS_TONE: Record<SaleStatus, StatusTone> = { draft: "neutral", confirmed: "success", cancelled: "danger" };
 const INVOICE_DIAN_DOCUMENT_TYPE = "01";
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayColombiaISO();
 
 // Igual que QuoteEditorPage: sales/ no tiene endpoint de actualización (solo Create/Confirm/
 // Cancel), así que una venta ya creada es de solo lectura salvo sus transiciones de estado.

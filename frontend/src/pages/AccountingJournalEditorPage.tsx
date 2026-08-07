@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router";
 import { getJournal, listAccounts, postJournal, voidJournal } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { amountToCents, formatCOP } from "../lib/currency";
-import { formatDateOnly } from "../lib/dateFormat";
+import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import type { Account, JournalEntry, JournalStatus } from "../lib/types";
@@ -30,7 +30,7 @@ interface LineForm {
 const EMPTY_LINE: LineForm = { account_code: "", debit: "", credit: "", description: "" };
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayColombiaISO();
 }
 
 export function AccountingJournalEditorPage() {

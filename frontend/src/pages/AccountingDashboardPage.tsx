@@ -8,7 +8,7 @@ import { getReceivables } from "../lib/payments";
 import { getPayables } from "../lib/purchasePayments";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
-import { formatDateOnly } from "../lib/dateFormat";
+import { addDaysColombiaISO, formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
 import { useAuth } from "../context/AuthContext";
 import type { AccountingPeriod, JournalEntry, JournalStatus, PayableBalance, ReceivableBalance } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -29,7 +29,7 @@ function money(cents: number): string {
 }
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayColombiaISO();
 }
 
 function monthKey(d: Date): string {
@@ -106,7 +106,7 @@ export function AccountingDashboardPage() {
   const payablesTotals = useMemo(() => {
     if (!payables) return null;
     const today = todayISO();
-    const in7 = new Date(now.getTime() + 7 * 86_400_000).toISOString().slice(0, 10);
+    const in7 = addDaysColombiaISO(7);
     const total = payables.reduce((s, p) => s + p.balance, 0);
     const dueSoon = payables.filter((p) => p.due_date && p.due_date >= today && p.due_date <= in7);
     return { total, dueSoonCount: dueSoon.length };

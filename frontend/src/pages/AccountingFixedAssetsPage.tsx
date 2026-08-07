@@ -3,6 +3,7 @@ import { Boxes, Plus, PlayCircle } from "lucide-react";
 import { createFixedAsset, listAccounts, listFixedAssets, runDepreciation } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { todayColombiaISO } from "../lib/dateFormat";
 import { useToast } from "../context/ToastContext";
 import type { Account, FixedAsset } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -20,7 +21,7 @@ function money(v: number): string {
 }
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayColombiaISO();
 }
 
 const STATUS_LABEL: Record<string, string> = { ACTIVE: "Activo", FULLY_DEPRECIATED: "Depreciado totalmente", DISPOSED: "Dado de baja" };

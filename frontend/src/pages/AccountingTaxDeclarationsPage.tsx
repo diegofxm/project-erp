@@ -6,7 +6,7 @@ import {
 } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
-import { formatDateOnly } from "../lib/dateFormat";
+import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
 import { useToast } from "../context/ToastContext";
 import type { ICADeclaration, ICATariff, IncomeTaxDeclaration, IVADeclaration } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -25,7 +25,7 @@ function money(v: number): string {
 }
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayColombiaISO();
 }
 
 function firstOfYearISO(): string {

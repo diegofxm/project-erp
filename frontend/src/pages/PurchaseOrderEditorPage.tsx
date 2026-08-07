@@ -11,7 +11,7 @@ import { openInNewTab } from "../lib/openInNewTab";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
-import { formatDateOnly } from "../lib/dateFormat";
+import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
 import type { Purchase, PurchaseStatus, PurchaseLineInput, NumberingRange, Supplier, WithholdingConcept } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
@@ -31,7 +31,7 @@ const STATUS_TONE: Record<PurchaseStatus, StatusTone> = {
   draft: "neutral", confirmed: "info", received: "success", cancelled: "danger",
 };
 const SUPPORT_DOC_DIAN_TYPE = "05";
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayColombiaISO();
 
 // Igual que SaleEditorPage: purchase/ no tiene endpoint de actualización (solo Create/Confirm/
 // Receive/Cancel/Delete), así que una orden ya creada es de solo lectura salvo transiciones de

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { DollarSign, Plus, RefreshCw, Search } from "lucide-react";
+import { DollarSign, Plus, RefreshCw, Search, X } from "lucide-react";
 import { listExchangeRates, lookupExchangeRate, setExchangeRate, syncExchangeRate } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
-import { formatDateOnly } from "../lib/dateFormat";
+import { addDaysColombiaISO, formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
 import { useToast } from "../context/ToastContext";
 import type { ExchangeRate } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -13,13 +13,83 @@ import { Spinner } from "../components/ui/Spinner";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayColombiaISO();
 }
 
 function daysAgoISO(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  return addDaysColombiaISO(-days);
+}
+
+// LookupTrmModal es solo informativo: consulta la TRM de una fecha puntual y la muestra en
+// pantalla — el backend ya se encarga de mirar primero la base de datos y solo tocar la fuente
+// oficial si esa fecha nunca se había pedido (ver ExchangeRateUseCase.GetOrFetch), así que este
+// modal nunca "abusa" del servicio externo por sí mismo, sin importar cuántas veces se abra.
+function LookupTrmModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [date, setDate] = useState(todayISO());
+  const [looking, setLooking] = useState(false);
+  const [result, setResult] = useState<ExchangeRate | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSearch() {
+    if (!date) return;
+    setLooking(true);
+    setError(null);
+    setResult(null);
+    try {
+      const r = await lookupExchangeRate(date);
+      setResult(r);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo obtener la TRM de esa fecha");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo obtener la TRM de esa fecha");
+    } finally {
+      setLooking(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-lg border border-(--border-color) bg-(--bg-primary) p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Search className="h-4 w-4 text-(--accent-primary)" />
+            <h2 className="text-sm font-semibold text-(--text-primary)">Buscar TRM de una fecha</h2>
+          </div>
+          <button type="button" onClick={onClose} className="text-(--text-muted) hover:text-(--text-primary) transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {error && <Banner tone="danger">{error}</Banner>}
+
+        <div className="flex items-end gap-2">
+          <Input label="Fecha" type="date" max={todayISO()} value={date} onChange={(e) => setDate(e.target.value)} />
+          <Button type="button" loading={looking} disabled={!date} onClick={handleSearch}>
+            Buscar
+          </Button>
+        </div>
+
+        {result && (
+          <div className="mt-4 rounded border border-(--border-color) bg-(--bg-secondary) p-3">
+            <p className="text-xs text-(--text-secondary)">TRM del {formatDateOnly(result.rate_date)}</p>
+            <p className="text-lg font-semibold tabular-nums text-(--text-primary)">
+              {result.rate.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+            </p>
+            <p className="mt-1 text-xs text-(--text-secondary)">{result.description || "—"}</p>
+          </div>
+        )}
+
+        <p className="mt-4 text-xs text-(--text-secondary)">
+          Solo informativo — si esa fecha ya está en la base de datos se trae de ahí; si no, se busca una sola vez en la fuente oficial y se guarda para consultas futuras.
+        </p>
+
+        <div className="mt-4 flex justify-end">
+          <Button type="button" variant="secondary" onClick={onClose}>Cerrar</Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function AccountingExchangeRatesPage() {
@@ -28,15 +98,13 @@ export function AccountingExchangeRatesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [showNew, setShowNew] = useState(false);
+  const [showLookup, setShowLookup] = useState(false);
   const [date, setDate] = useState(todayISO());
   const [from, setFrom] = useState("USD");
   const [rate, setRate] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
-
-  const [lookupDate, setLookupDate] = useState(todayISO());
-  const [looking, setLooking] = useState(false);
 
   const hasTodayRate = (rates ?? []).some((r) => r.rate_date === todayISO() && r.from_currency === "USD" && r.to_currency === "COP");
 
@@ -58,20 +126,6 @@ export function AccountingExchangeRatesPage() {
       toast.error(err instanceof ApiError ? err.message : "No se pudo sincronizar la TRM — puedes registrarla manualmente mientras tanto");
     } finally {
       setSyncing(false);
-    }
-  }
-
-  async function handleLookup() {
-    if (!lookupDate) return;
-    setLooking(true);
-    try {
-      const r = await lookupExchangeRate(lookupDate);
-      toast.success(`TRM del ${formatDateOnly(r.rate_date)}: ${r.rate.toLocaleString("es-CO")}`);
-      refresh();
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo obtener la TRM de esa fecha");
-    } finally {
-      setLooking(false);
     }
   }
 
@@ -112,6 +166,9 @@ export function AccountingExchangeRatesPage() {
           >
             {hasTodayRate ? "TRM de hoy ya sincronizada" : "Sincronizar TRM de hoy"}
           </Button>
+          <Button type="button" variant="secondary" icon={<Search className="h-3.5 w-3.5" />} onClick={() => setShowLookup(true)}>
+            Buscar fecha específica
+          </Button>
           <Button type="button" variant="secondary" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setShowNew(true)}>
             Registrar tasa
           </Button>
@@ -124,17 +181,7 @@ export function AccountingExchangeRatesPage() {
 
       {error && <Banner tone="danger">{error}</Banner>}
 
-      <Card className="mb-3 p-4">
-        <div className="flex items-end gap-3">
-          <Input label="Buscar TRM de una fecha específica" type="date" max={todayISO()} value={lookupDate} onChange={(e) => setLookupDate(e.target.value)} />
-          <Button type="button" variant="secondary" loading={looking} icon={<Search className="h-3.5 w-3.5" />} onClick={handleLookup}>
-            Buscar
-          </Button>
-        </div>
-        <p className="mt-2 text-xs text-(--text-secondary)">
-          Si ya está en la base de datos la trae de ahí; si no, la busca una sola vez en la fuente oficial y la deja guardada para consultas futuras.
-        </p>
-      </Card>
+      {showLookup && <LookupTrmModal onClose={() => setShowLookup(false)} onSaved={refresh} />}
 
       {showNew && (
         <Card className="mb-3 p-4">

@@ -7,7 +7,7 @@ import { getReceivables } from "../lib/payments";
 import { listCustomers } from "../lib/customers";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
-import { formatDateOnly } from "../lib/dateFormat";
+import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
 import { useAuth } from "../context/AuthContext";
 import type { Customer, Quote, ReceivableBalance, Sale, SaleStatus } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -24,7 +24,7 @@ function money(v: number): string {
 }
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayColombiaISO();
 }
 
 function monthKey(d: Date): string {

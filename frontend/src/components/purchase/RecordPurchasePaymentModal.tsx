@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, DollarSign } from "lucide-react";
 import { formatCOP } from "../../lib/currency";
+import { todayColombiaISO } from "../../lib/dateFormat";
 import type { PayableBalance, PaymentMethod } from "../../lib/types";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
@@ -17,7 +18,7 @@ interface Props {
   onClose: () => void;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayColombiaISO();
 
 export function RecordPurchasePaymentModal({ payable, onSubmit, onClose }: Props) {
   const [amount, setAmount] = useState(payable.balance.toString());

@@ -4,7 +4,7 @@ import { FileBarChart } from "lucide-react";
 import { getAccountLedger, getBSReport, getPLReport, getTrialBalance, listAccounts } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
-import { formatDateOnly } from "../lib/dateFormat";
+import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
 import type { Account, AccountBalance, LedgerLine, TrialBalanceRow } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Combobox } from "../components/ui/Combobox";
@@ -23,7 +23,7 @@ function money(cents: number): string {
 }
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayColombiaISO();
 }
 
 function firstOfYearISO(): string {

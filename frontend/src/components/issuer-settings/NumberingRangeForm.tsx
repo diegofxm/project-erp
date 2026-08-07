@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { listDianDocumentTypes } from "../../lib/catalogs";
+import { todayColombiaISO } from "../../lib/dateFormat";
 import { useCatalog } from "../../lib/useCatalog";
 import type { CreateNumberingRangePayload, CompanyEnvironment } from "../../lib/types";
 import { Input } from "../ui/Input";
@@ -14,7 +15,7 @@ interface NumberingRangeFormProps {
   loading: boolean;
 }
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = todayColombiaISO();
 
 // Registrar una resolución de numeración (POST /numbering-ranges) — technical_key solo aplica
 // a Factura (CUFE); test_set_id solo aplica en habilitación, es el "set de pruebas" que la
