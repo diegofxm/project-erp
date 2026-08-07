@@ -42,4 +42,11 @@ type AuthResult struct {
 	User      User
 	Token     string
 	CompanyID uuid.UUID // uuid.Nil si el usuario aún no tiene empresa activa
+	// Role es el rol RESUELTO por empresa (owner/admin/member, ver user_companies.role) — el mismo
+	// valor que ya se incrusta en el JWT al emitirlo. Deliberadamente separado de User.Role: ese
+	// campo del usuario es solo un default de alta (siempre "admin" al registrarse o ser invitado,
+	// ver RegisterUseCase/InviteUserUseCase) y NUNCA representa el rol real dentro de una empresa
+	// — usarlo para eso fue el bug que dejaba a cualquier member viendo botones de gestión.
+	// Vacío si el usuario aún no tiene empresa activa (igual que CompanyID = uuid.Nil).
+	Role string
 }

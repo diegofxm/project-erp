@@ -121,7 +121,7 @@ func (h *Handler) handleMe(w http.ResponseWriter, r *http.Request) {
 		respondError(w, err)
 		return
 	}
-	respond(w, safeUser(u), nil)
+	respond(w, safeUser(u, tenant.GetRole(r.Context())), nil)
 }
 
 func (h *Handler) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
@@ -141,7 +141,7 @@ func (h *Handler) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		respondError(w, err)
 		return
 	}
-	respond(w, safeUser(u), nil)
+	respond(w, safeUser(u, tenant.GetRole(r.Context())), nil)
 }
 
 func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
@@ -278,13 +278,16 @@ func respond(w http.ResponseWriter, data any, err error) {
 	json.NewEncoder(w).Encode(data)
 }
 
-// safeUser convierte un User del dominio en un mapa seguro para la respuesta HTTP (sin campos sensibles).
-func safeUser(u *domain.User) map[string]any {
+// safeUser convierte un User del dominio en un mapa seguro para la respuesta HTTP (sin campos
+// sensibles). role es el de la SESIÓN actual (tenant.GetRole(ctx), ya resuelto por empresa al
+// emitir el JWT) — nunca u.Role, que es solo un default de alta en el usuario (siempre "admin" al
+// registrarse o ser invitado) y no refleja el rol real dentro de la empresa activa.
+func safeUser(u *domain.User, role string) map[string]any {
 	return map[string]any{
 		"id":            u.ID,
 		"email":         u.Email,
 		"name":          u.Name,
-		"role":          u.Role,
+		"role":          role,
 		"is_active":     u.IsActive,
 		"is_superadmin": u.IsSuperAdmin,
 		"created_at":    u.CreatedAt,
@@ -309,7 +312,7 @@ func respondAuth(w http.ResponseWriter, result *domain.AuthResult, err error) {
 			"id":            result.User.ID,
 			"email":         result.User.Email,
 			"name":          result.User.Name,
-			"role":          result.User.Role,
+			"role":          result.Role, // rol resuelto por empresa (owner/admin/member) — NUNCA result.User.Role, ver domain.AuthResult.Role
 			"is_superadmin": result.User.IsSuperAdmin,
 		},
 	})

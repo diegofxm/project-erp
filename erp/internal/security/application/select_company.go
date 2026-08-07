@@ -41,5 +41,5 @@ func (uc *SelectCompanyUseCase) Execute(ctx context.Context, userID, companyID u
 		return nil, err
 	}
 
-	return &domain.AuthResult{User: *u, Token: tok, CompanyID: companyID}, nil
+	return &domain.AuthResult{User: *u, Token: tok, CompanyID: companyID, Role: role}, nil
 }

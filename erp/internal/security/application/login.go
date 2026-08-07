@@ -47,5 +47,5 @@ func (uc *LoginUseCase) Execute(ctx context.Context, email, password string) (*d
 		return nil, err
 	}
 
-	return &domain.AuthResult{User: *u, Token: tok, CompanyID: companyID}, nil
+	return &domain.AuthResult{User: *u, Token: tok, CompanyID: companyID, Role: role}, nil
 }
