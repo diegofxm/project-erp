@@ -423,6 +423,19 @@ Contexto: lo que se construyó (`POST /public/prospects` + revisión en `/admin/
 
 **Decisión explícita**: se deja así, sin desarrollar, hasta una próxima sesión donde se defina el alcance real (¿el pago va integrado al registro o queda para después de aprobar? ¿la landing es parte de este mismo frontend React o un sitio de marketing aparte que solo consume la API pública?) antes de construir nada.
 
+**Actualización — boceto del flujo básico discutido, tampoco construido todavía**: en una sesión posterior se conversó (solo diseño, sin tocar código) cómo se vería una "simulación básica" de precios → registro → verificación, para tenerla lista quirúrgica cuando se decida construirla:
+
+1. Página pública de planes (`/planes`): lista los planes activos y no internos con precio/cupo/módulos, botón "Empezar" por plan que precarga la elección en el registro.
+2. Formulario público de registro (`/registro` o `/planes/:code/registro`): los mismos campos que ya acepta `POST /public/prospects` (nombre, correo, NIT, cédula, RUT) más el plan elegido.
+3. Pantalla de confirmación ("tu solicitud quedó en revisión") — no requiere backend nuevo, es solo el estado final del formulario.
+4. Revisión en `/admin/prospects` — sin cambios, ya existe.
+5. Al aprobar, además de lo que ya hace `ProspectUseCase.Approve` hoy (usuario + empresa + correo de invitación), asignar automáticamente la suscripción usando el plan que quedó guardado en el prospecto — hoy la empresa queda sin ningún plan tras aprobar (ver fila "no puede elegir plan" arriba).
+6. `/accept-invite` + primer login sin cambios — con el plan ya asignado en el paso 5, el sidebar-por-módulo y "Mi plan" funcionan desde el primer login sin intervención manual del superadmin.
+
+Piezas nuevas que ese flujo básico necesitaría (ninguna construida): endpoint público `GET /api/v1/public/plans` (hoy el catálogo solo es visible vía `/admin/plans`, superadmin); campo de plan elegido (y posiblemente `has_own_certificate`) en `domain.Prospect`; las dos páginas públicas (planes y registro); y que `Approve` use ese campo para llamar a `SubscriptionUseCase.Assign`. Deliberadamente fuera incluso de esta versión básica: cobro integrado al registro, y correo de confirmación al enviar/rechazar la solicitud.
+
+Punto abierto adicional que salió en esa conversación: si un plan exige certificado propio (`requires_certificate`), ¿el formulario público le pregunta al prospecto si ya tiene uno, o lo decide el superadmin a mano al aprobar? Sin resolver — recomendado dejarlo en manos del superadmin al aprobar para no complicar el formulario público con una pregunta que el prospecto puede no entender.
+
 ---
 
 ## Filosofía
