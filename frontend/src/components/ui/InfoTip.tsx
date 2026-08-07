@@ -3,16 +3,23 @@ import { useEffect, useRef, useState } from "react";
 
 interface Props {
   children: React.ReactNode;
-  className?: string;
 }
 
 /**
- * Ícono ⓘ con popover explicativo al hacer clic.
+ * Ícono ⓘ con popover explicativo al hacer clic. Único componente de infotip del proyecto — todo
+ * el estilo visual (tamaño de letra, color, ancho, padding, borde) vive aquí, a propósito, sin
+ * prop `className` para el popover: lo único que debe cambiar de una página a otra es el texto
+ * (`children`), nunca la apariencia — así los ~11 usos en el proyecto quedan siempre idénticos
+ * entre sí, sin que una página se desincronice del resto. Para resaltar una palabra dentro del
+ * texto usa <strong>, que ya trae su propio estilo (ver abajo) — no metas spans con clases sueltas.
+ *
  * Abre debajo del ícono por defecto (recuadro horizontal, más ancho que alto);
  * si no hay espacio abajo se voltea arriba. Alineación izquierda o derecha
- * según el espacio disponible.
+ * según el espacio disponible. Sin flecha/triángulo apuntando al ícono — con eso el borde del
+ * recuadro queda continuo en los cuatro lados (antes el triángulo, dibujado con bordes de
+ * colores, dejaba un pequeño corte justo donde se unía con el borde del recuadro).
  */
-export function InfoTip({ children, className }: Props) {
+export function InfoTip({ children }: Props) {
   const [open, setOpen] = useState(false);
   const [flipUp, setFlipUp] = useState(false);
   const [flipLeft, setFlipLeft] = useState(false);
@@ -47,14 +54,8 @@ export function InfoTip({ children, className }: Props) {
   // Alineación horizontal: desde la izquierda del ícono o anclado a la derecha.
   const horizPos = flipLeft ? "right-0" : "left-0";
 
-  // Flecha
-  const arrowV = flipUp
-    ? "top-full border-t-(--bg-primary) border-x-transparent border-b-transparent"
-    : "bottom-full border-b-(--bg-primary) border-x-transparent border-t-transparent";
-  const arrowH = flipLeft ? "right-1.5" : "left-1.5";
-
   return (
-    <div ref={containerRef} className={`relative inline-flex items-center ${className ?? ""}`}>
+    <div ref={containerRef} className="relative inline-flex items-center">
       <button
         ref={btnRef}
         type="button"
@@ -70,8 +71,9 @@ export function InfoTip({ children, className }: Props) {
           className={`absolute ${vertPos} ${horizPos} z-50 w-80 rounded border border-(--border-color) bg-(--bg-primary) p-3 shadow-lg`}
           role="tooltip"
         >
-          <p className="text-[11px] leading-relaxed text-(--text-secondary)">{children}</p>
-          <span className={`absolute ${arrowV} ${arrowH} border-4`} />
+          <p className="text-[11px] leading-relaxed text-(--text-secondary) [&_strong]:font-semibold [&_strong]:text-(--text-primary)">
+            {children}
+          </p>
         </div>
       )}
     </div>
