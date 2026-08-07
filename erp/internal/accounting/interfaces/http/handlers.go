@@ -1131,12 +1131,13 @@ type exchangeRateDTO struct {
 	ToCurrency   string  `json:"to_currency"`
 	Rate         float64 `json:"rate"`
 	Source       string  `json:"source"`
+	Description  string  `json:"description"`
 }
 
 func toExchangeRateDTO(e domain.ExchangeRate) exchangeRateDTO {
 	return exchangeRateDTO{
 		RateDate: e.RateDate.Format("2006-01-02"), FromCurrency: e.FromCurrency,
-		ToCurrency: e.ToCurrency, Rate: e.Rate(), Source: e.Source,
+		ToCurrency: e.ToCurrency, Rate: e.Rate(), Source: e.Source, Description: e.Description,
 	}
 }
 
@@ -1150,6 +1151,7 @@ func (h *Handler) handleSetExchangeRate(w http.ResponseWriter, r *http.Request) 
 		ToCurrency   string  `json:"to_currency"`
 		Rate         float64 `json:"rate"`
 		Source       string  `json:"source"`
+		Description  string  `json:"description"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		respondError(w, http.StatusBadRequest, "cuerpo inválido")
@@ -1162,7 +1164,7 @@ func (h *Handler) handleSetExchangeRate(w http.ResponseWriter, r *http.Request) 
 	}
 	rate, err := h.exchangeRate.Set(r.Context(), application.SetExchangeRateRequest{
 		RateDate: date, FromCurrency: body.FromCurrency, ToCurrency: body.ToCurrency,
-		Rate: body.Rate, Source: body.Source,
+		Rate: body.Rate, Source: body.Source, Description: body.Description,
 	})
 	if err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
@@ -1181,6 +1183,33 @@ func (h *Handler) handleSyncExchangeRate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	respond(w, http.StatusCreated, toExchangeRateDTO(*rate))
+}
+
+// handleLookupExchangeRate resuelve la TRM de una fecha puntual — primero contra la base local
+// (?date=YYYY-MM-DD, ?from=USD opcional); si no existe todavía, la consulta una sola vez al
+// servicio TRM propio y la guarda (ver ExchangeRateUseCase.GetOrFetch). Pensada para que el
+// contador busque cualquier fecha pasada sin esperar al disparador diario.
+func (h *Handler) handleLookupExchangeRate(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireTenant(w, r); !ok {
+		return
+	}
+	dateStr := r.URL.Query().Get("date")
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "date debe ser YYYY-MM-DD")
+		return
+	}
+	from := r.URL.Query().Get("from")
+	rate, err := h.exchangeRate.GetOrFetch(r.Context(), date, from, "")
+	if err != nil {
+		if errors.Is(err, domain.ErrExchangeRateNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toExchangeRateDTO(*rate))
 }
 
 func (h *Handler) handleListExchangeRates(w http.ResponseWriter, r *http.Request) {

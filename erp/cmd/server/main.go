@@ -14,9 +14,10 @@ import (
 	"github.com/joho/godotenv"
 
 	accountingapp "github.com/diegofxm/erp/internal/accounting/application"
-	accountingdolarapi "github.com/diegofxm/erp/internal/accounting/infrastructure/dolarapi"
+	accountingdomain "github.com/diegofxm/erp/internal/accounting/domain"
 	accountingpostgres "github.com/diegofxm/erp/internal/accounting/infrastructure/persistence/postgres"
 	accountingseed "github.com/diegofxm/erp/internal/accounting/infrastructure/persistence/postgres/seed"
+	accountingtrmapi "github.com/diegofxm/erp/internal/accounting/infrastructure/trmapi"
 	accountinghttp "github.com/diegofxm/erp/internal/accounting/interfaces/http"
 	auditapp "github.com/diegofxm/erp/internal/audit/application"
 	auditpostgres "github.com/diegofxm/erp/internal/audit/infrastructure/persistence/postgres"
@@ -244,7 +245,7 @@ func main() {
 	ivaUC := accountingapp.NewIVAUseCase(accountingIVARepo, accountingJournalRepo, accountingAccountRepo)
 	incomeTaxUC := accountingapp.NewIncomeTaxUseCase(accountingIncomeTaxRepo, accountingJournalRepo)
 	icaUC := accountingapp.NewICAUseCase(accountingICARepo, accountingICATariffRepo, accountingJournalRepo)
-	exchangeRateUC := accountingapp.NewExchangeRateUseCase(accountingExchangeRateRepo, accountingdolarapi.New())
+	exchangeRateUC := accountingapp.NewExchangeRateUseCase(accountingExchangeRateRepo, accountingtrmapi.New(os.Getenv("TRM_API_URL")))
 	reconciliationUC := accountingapp.NewReconciliationUseCase(accountingReconciliationRepo)
 
 	// ── Casos de uso — sales ────────────────────────────────────────────────────
@@ -429,6 +430,18 @@ func main() {
 
 	// ── Middleware (orden: logger → tenant/JWT) ──────────────────────────────────
 	handler := cors.Middleware(logger.Middleware(logger.New("http"))(tenant.Middleware(jwtSvc)(mux)))
+
+	// ── Disparador diario de TRM (1:00 a.m. hora Colombia) ──────────────────────
+	if os.Getenv("TRM_API_URL") != "" {
+		trmLog := logger.New("trm")
+		go accountingapp.RunTRMDailySync(context.Background(), exchangeRateUC, func(rate *accountingdomain.ExchangeRate, err error) {
+			if err != nil {
+				trmLog.Error("sincronización diaria de TRM falló", "error", err)
+				return
+			}
+			trmLog.Info("TRM sincronizada automáticamente", "rate", rate.Rate(), "date", rate.RateDate.Format("2006-01-02"))
+		})
+	}
 
 	log.Info("ERP iniciado", "addr", addr)
 	if err := http.ListenAndServe(addr, handler); err != nil {

@@ -2,16 +2,27 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/diegofxm/erp/internal/accounting/domain"
 )
 
+// bogota es el huso horario que decide "qué día es hoy" para la TRM — la Superfinanciera fija un
+// solo valor oficial por día calendario colombiano, sin importar en qué huso corra el servidor.
+var bogota = func() *time.Location {
+	loc, err := time.LoadLocation("America/Bogota")
+	if err != nil {
+		return time.FixedZone("America/Bogota", -5*60*60)
+	}
+	return loc
+}()
+
 // ExchangeRateUseCase administra la TRM (Tasa Representativa del Mercado) diaria — no es un dato
 // por empresa, es un dato de mercado que todas comparten. fetcher puede ser nil si no hay
-// integración externa configurada — Sync devuelve error en ese caso, pero Set (captura manual)
-// sigue funcionando igual, sin depender de él.
+// integración externa configurada — Sync/GetOrFetch devuelven error en ese caso, pero Set (captura
+// manual) sigue funcionando igual, sin depender de él.
 type ExchangeRateUseCase struct {
 	rates   domain.ExchangeRateRepository
 	fetcher domain.TRMFetcher
@@ -27,6 +38,7 @@ type SetExchangeRateRequest struct {
 	ToCurrency   string
 	Rate         float64 // ej. 4123.4567 pesos por 1 USD
 	Source       string
+	Description  string
 }
 
 func (uc *ExchangeRateUseCase) Set(ctx context.Context, req SetExchangeRateRequest) (*domain.ExchangeRate, error) {
@@ -43,9 +55,13 @@ func (uc *ExchangeRateUseCase) Set(ctx context.Context, req SetExchangeRateReque
 	if source == "" {
 		source = "MANUAL"
 	}
+	description := req.Description
+	if description == "" && source == "MANUAL" {
+		description = "Editado manualmente"
+	}
 	return uc.rates.Set(ctx, domain.ExchangeRate{
 		RateDate: req.RateDate, FromCurrency: req.FromCurrency, ToCurrency: req.ToCurrency,
-		RateX10000: int64(req.Rate * 10000), Source: source,
+		RateX10000: int64(req.Rate * 10000), Source: source, Description: description,
 	})
 }
 
@@ -60,19 +76,48 @@ func (uc *ExchangeRateUseCase) List(ctx context.Context, from, to time.Time) ([]
 	return uc.rates.List(ctx, from, to)
 }
 
-// Sync consulta la TRM oficial vigente (Superfinanciera, vía dolarapi.com) y la guarda como tasa
-// del día para USD→COP. Si la fuente externa falla (sin red, API caída), el error se propaga tal
-// cual y la captura manual (Set) sigue disponible como respaldo — no hay estado a limpiar.
+// Sync consulta la TRM oficial vigente de HOY (hora Colombia) en el servicio propio (ver
+// infrastructure/trmapi) y la guarda como tasa del día para USD→COP. Si la fuente externa falla
+// (sin red, servicio caído), el error se propaga tal cual y la captura manual (Set) sigue
+// disponible como respaldo — no hay estado a limpiar.
 func (uc *ExchangeRateUseCase) Sync(ctx context.Context) (*domain.ExchangeRate, error) {
+	today := time.Now().In(bogota)
+	date := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+	return uc.syncDate(ctx, date)
+}
+
+// GetOrFetch busca la TRM de una fecha específica en la base local primero — si ya está, no toca
+// el servicio externo. Si no está, la consulta una única vez al servicio TRM propio y la guarda
+// (la TRM histórica no cambia, así que nunca vuelve a pedirse esa misma fecha). Pensada para que
+// el contador busque cualquier fecha pasada sin depender de que el disparador diario ya haya
+// pasado por ahí.
+func (uc *ExchangeRateUseCase) GetOrFetch(ctx context.Context, date time.Time, from, to string) (*domain.ExchangeRate, error) {
+	if from == "" {
+		from = "USD"
+	}
+	if to == "" {
+		to = "COP"
+	}
+	existing, err := uc.rates.Get(ctx, date, from, to)
+	if err == nil {
+		return existing, nil
+	}
+	if !errors.Is(err, domain.ErrExchangeRateNotFound) {
+		return nil, err
+	}
+	return uc.syncDate(ctx, date)
+}
+
+func (uc *ExchangeRateUseCase) syncDate(ctx context.Context, date time.Time) (*domain.ExchangeRate, error) {
 	if uc.fetcher == nil {
 		return nil, fmt.Errorf("sincronización de TRM no configurada")
 	}
-	rate, date, err := uc.fetcher.FetchTRM(ctx)
+	rate, description, err := uc.fetcher.FetchTRM(ctx, date)
 	if err != nil {
 		return nil, fmt.Errorf("consultar TRM: %w", err)
 	}
 	return uc.rates.Set(ctx, domain.ExchangeRate{
 		RateDate: date, FromCurrency: "USD", ToCurrency: "COP",
-		RateX10000: int64(rate * 10000), Source: "DOLARAPI",
+		RateX10000: int64(rate * 10000), Source: "SUPERFINANCIERA", Description: description,
 	})
 }

@@ -276,6 +276,7 @@ CREATE TABLE IF NOT EXISTS accounting.exchange_rates (
     to_currency   CHAR(3)     NOT NULL DEFAULT 'COP',
     rate_x10000   BIGINT      NOT NULL CHECK (rate_x10000 > 0),
     source        VARCHAR(20) NOT NULL DEFAULT 'MANUAL',
+    description   TEXT        NOT NULL DEFAULT '',
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT exchange_rates_unique UNIQUE (rate_date, from_currency, to_currency)
 );

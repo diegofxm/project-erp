@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { DollarSign, Plus, RefreshCw } from "lucide-react";
-import { listExchangeRates, setExchangeRate, syncExchangeRate } from "../lib/accounting";
+import { DollarSign, Plus, RefreshCw, Search } from "lucide-react";
+import { listExchangeRates, lookupExchangeRate, setExchangeRate, syncExchangeRate } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { formatDateOnly } from "../lib/dateFormat";
 import { useToast } from "../context/ToastContext";
@@ -14,19 +14,6 @@ import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-// sourceDescription explica de dónde salió la tasa — el texto de "dolarapi" es el mismo que esa
-// fuente usa para describir la TRM en su propia página (Superintendencia Financiera).
-function sourceDescription(source: string): string {
-  switch (source) {
-    case "DOLARAPI":
-      return "TRM oficial de Colombia publicada por la Superintendencia Financiera";
-    case "MANUAL":
-      return "Editado manualmente";
-    default:
-      return "—";
-  }
 }
 
 function daysAgoISO(days: number): string {
@@ -44,8 +31,14 @@ export function AccountingExchangeRatesPage() {
   const [date, setDate] = useState(todayISO());
   const [from, setFrom] = useState("USD");
   const [rate, setRate] = useState("");
+  const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+
+  const [lookupDate, setLookupDate] = useState(todayISO());
+  const [looking, setLooking] = useState(false);
+
+  const hasTodayRate = (rates ?? []).some((r) => r.rate_date === todayISO() && r.from_currency === "USD" && r.to_currency === "COP");
 
   function refresh() {
     listExchangeRates(daysAgoISO(90), todayISO())
@@ -68,14 +61,29 @@ export function AccountingExchangeRatesPage() {
     }
   }
 
+  async function handleLookup() {
+    if (!lookupDate) return;
+    setLooking(true);
+    try {
+      const r = await lookupExchangeRate(lookupDate);
+      toast.success(`TRM del ${formatDateOnly(r.rate_date)}: ${r.rate.toLocaleString("es-CO")}`);
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo obtener la TRM de esa fecha");
+    } finally {
+      setLooking(false);
+    }
+  }
+
   async function handleSave() {
     if (!from || !rate) return;
     setSaving(true);
     try {
-      await setExchangeRate({ rate_date: date, from_currency: from.toUpperCase(), rate: Number(rate) });
+      await setExchangeRate({ rate_date: date, from_currency: from.toUpperCase(), rate: Number(rate), description: description || undefined });
       toast.success("Tasa de cambio guardada.");
       setShowNew(false);
       setRate("");
+      setDescription("");
       refresh();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo guardar la tasa de cambio");
@@ -93,8 +101,16 @@ export function AccountingExchangeRatesPage() {
           Tasas de cambio (TRM)
         </h1>
         <div className="flex gap-2">
-          <Button type="button" variant="secondary" loading={syncing} icon={<RefreshCw className="h-3.5 w-3.5" />} onClick={handleSync}>
-            Sincronizar TRM de hoy
+          <Button
+            type="button"
+            variant="secondary"
+            loading={syncing}
+            disabled={hasTodayRate}
+            title={hasTodayRate ? "Ya se registró la TRM de hoy — se sincroniza sola todos los días a la 1:00 a.m." : undefined}
+            icon={<RefreshCw className="h-3.5 w-3.5" />}
+            onClick={handleSync}
+          >
+            {hasTodayRate ? "TRM de hoy ya sincronizada" : "Sincronizar TRM de hoy"}
           </Button>
           <Button type="button" variant="secondary" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setShowNew(true)}>
             Registrar tasa
@@ -102,7 +118,23 @@ export function AccountingExchangeRatesPage() {
         </div>
       </div>
 
+      <p className="mb-3 text-xs text-(--text-secondary)">
+        La TRM se sincroniza sola todos los días a la 1:00 a.m. (hora Colombia) — este botón es solo un respaldo manual por si ese disparador llegara a fallar un día.
+      </p>
+
       {error && <Banner tone="danger">{error}</Banner>}
+
+      <Card className="mb-3 p-4">
+        <div className="flex items-end gap-3">
+          <Input label="Buscar TRM de una fecha específica" type="date" max={todayISO()} value={lookupDate} onChange={(e) => setLookupDate(e.target.value)} />
+          <Button type="button" variant="secondary" loading={looking} icon={<Search className="h-3.5 w-3.5" />} onClick={handleLookup}>
+            Buscar
+          </Button>
+        </div>
+        <p className="mt-2 text-xs text-(--text-secondary)">
+          Si ya está en la base de datos la trae de ahí; si no, la busca una sola vez en la fuente oficial y la deja guardada para consultas futuras.
+        </p>
+      </Card>
 
       {showNew && (
         <Card className="mb-3 p-4">
@@ -112,6 +144,7 @@ export function AccountingExchangeRatesPage() {
             <Input label="Destino" value="COP" disabled />
             <Input label="Tasa (pesos por unidad)" type="number" min="0" step="0.0001" required value={rate} onChange={(e) => setRate(e.target.value)} placeholder="4123.4567" />
           </div>
+          <Input className="mt-3" label="Descripción (opcional)" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Editado manualmente" />
           <div className="mt-3 flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setShowNew(false)}>Cancelar</Button>
             <Button type="button" loading={saving} disabled={!from || !rate} onClick={handleSave}>Guardar</Button>
@@ -142,7 +175,7 @@ export function AccountingExchangeRatesPage() {
                   <td className="px-3 py-2 font-mono text-(--text-primary)">{r.from_currency} → {r.to_currency}</td>
                   <td className="px-3 py-2 font-mono text-(--text-primary)">{r.rate.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
                   <td className="px-3 py-2 text-(--text-secondary)">{r.source}</td>
-                  <td className="px-3 py-2 text-(--text-secondary)">{sourceDescription(r.source)}</td>
+                  <td className="px-3 py-2 text-(--text-secondary)">{r.description || "—"}</td>
                 </tr>
               ))}
             </tbody>

@@ -16,6 +16,7 @@ type ExchangeRate struct {
 	ToCurrency   string
 	RateX10000   int64
 	Source       string
+	Description  string
 	CreatedAt    time.Time
 }
 
@@ -39,5 +40,8 @@ type ExchangeRateRepository interface {
 // "compra/venta" comercial (esa es otra tasa, con spread, que cambia todo el día y no es la que
 // exige la norma colombiana para contabilizar transacciones en moneda extranjera).
 type TRMFetcher interface {
-	FetchTRM(ctx context.Context) (rate float64, date time.Time, err error)
+	// FetchTRM consulta la TRM oficial para la fecha exacta dada (siempre se pasa una fecha
+	// concreta — nunca se le deja "adivinar hoy" a la fuente externa, así el día que aplica
+	// nunca depende de en qué huso horario corra el servicio remoto).
+	FetchTRM(ctx context.Context, date time.Time) (rate float64, description string, err error)
 }

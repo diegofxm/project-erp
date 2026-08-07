@@ -1324,6 +1324,7 @@ export interface ExchangeRate {
   to_currency: string;
   rate: number;
   source: string;
+  description: string;
 }
 
 // OpenLine — línea de asiento sin conciliar de una cuenta, candidata a cruzarse contra otra

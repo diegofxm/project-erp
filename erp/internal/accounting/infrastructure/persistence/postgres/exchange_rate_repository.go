@@ -22,14 +22,14 @@ func NewExchangeRateRepository(pool *pgxpool.Pool) *ExchangeRateRepository {
 
 func (r *ExchangeRateRepository) Set(ctx context.Context, rate domain.ExchangeRate) (*domain.ExchangeRate, error) {
 	const q = `
-		INSERT INTO accounting.exchange_rates (rate_date, from_currency, to_currency, rate_x10000, source)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO accounting.exchange_rates (rate_date, from_currency, to_currency, rate_x10000, source, description)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (rate_date, from_currency, to_currency) DO UPDATE
-		SET rate_x10000 = EXCLUDED.rate_x10000, source = EXCLUDED.source
-		RETURNING rate_date, from_currency, to_currency, rate_x10000, source, created_at`
+		SET rate_x10000 = EXCLUDED.rate_x10000, source = EXCLUDED.source, description = EXCLUDED.description
+		RETURNING rate_date, from_currency, to_currency, rate_x10000, source, description, created_at`
 	var out domain.ExchangeRate
-	err := r.pool.QueryRow(ctx, q, rate.RateDate, rate.FromCurrency, rate.ToCurrency, rate.RateX10000, rate.Source).
-		Scan(&out.RateDate, &out.FromCurrency, &out.ToCurrency, &out.RateX10000, &out.Source, &out.CreatedAt)
+	err := r.pool.QueryRow(ctx, q, rate.RateDate, rate.FromCurrency, rate.ToCurrency, rate.RateX10000, rate.Source, rate.Description).
+		Scan(&out.RateDate, &out.FromCurrency, &out.ToCurrency, &out.RateX10000, &out.Source, &out.Description, &out.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("guardar tasa de cambio: %w", err)
 	}
@@ -38,12 +38,12 @@ func (r *ExchangeRateRepository) Set(ctx context.Context, rate domain.ExchangeRa
 
 func (r *ExchangeRateRepository) Get(ctx context.Context, date time.Time, from, to string) (*domain.ExchangeRate, error) {
 	const q = `
-		SELECT rate_date, from_currency, to_currency, rate_x10000, source, created_at
+		SELECT rate_date, from_currency, to_currency, rate_x10000, source, description, created_at
 		FROM accounting.exchange_rates
 		WHERE rate_date = $1 AND from_currency = $2 AND to_currency = $3`
 	var out domain.ExchangeRate
 	err := r.pool.QueryRow(ctx, q, date, from, to).
-		Scan(&out.RateDate, &out.FromCurrency, &out.ToCurrency, &out.RateX10000, &out.Source, &out.CreatedAt)
+		Scan(&out.RateDate, &out.FromCurrency, &out.ToCurrency, &out.RateX10000, &out.Source, &out.Description, &out.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrExchangeRateNotFound
 	}
@@ -55,7 +55,7 @@ func (r *ExchangeRateRepository) Get(ctx context.Context, date time.Time, from, 
 
 func (r *ExchangeRateRepository) List(ctx context.Context, from, to time.Time) ([]domain.ExchangeRate, error) {
 	const q = `
-		SELECT rate_date, from_currency, to_currency, rate_x10000, source, created_at
+		SELECT rate_date, from_currency, to_currency, rate_x10000, source, description, created_at
 		FROM accounting.exchange_rates
 		WHERE rate_date BETWEEN $1 AND $2
 		ORDER BY rate_date DESC, from_currency`
@@ -67,7 +67,7 @@ func (r *ExchangeRateRepository) List(ctx context.Context, from, to time.Time) (
 	var out []domain.ExchangeRate
 	for rows.Next() {
 		var e domain.ExchangeRate
-		if err := rows.Scan(&e.RateDate, &e.FromCurrency, &e.ToCurrency, &e.RateX10000, &e.Source, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.RateDate, &e.FromCurrency, &e.ToCurrency, &e.RateX10000, &e.Source, &e.Description, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, e)

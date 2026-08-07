@@ -171,7 +171,7 @@ El middleware de autorización por rol debe ir en `shared/tenant/` como una segu
 
 #### Módulo `accounting/` — pendientes de la fase de cierre contable
 
-Contexto: en `v2/db-architecture` se completó de punta a punta pagos→contabilidad, retenciones en compras + certificados, conciliación bancaria, activos fijos + depreciación, presupuestos, y declaraciones de IVA/Renta/ICA (backend + frontend, commit `58c2cf1`). De esa fase quedaron pendientes identificados; `voucher_types` (ya valida contra el catálogo al postear) y las tablas `reconciliation_marks`/`exchange_rates` (ya tienen dominio/caso de uso/frontend — TRM real vía dolarapi.com + conciliación de cuentas) se resolvieron después y se sacaron de esta lista. Lo que sigue sin resolver:
+Contexto: en `v2/db-architecture` se completó de punta a punta pagos→contabilidad, retenciones en compras + certificados, conciliación bancaria, activos fijos + depreciación, presupuestos, y declaraciones de IVA/Renta/ICA (backend + frontend, commit `58c2cf1`). De esa fase quedaron pendientes identificados; `voucher_types` (ya valida contra el catálogo al postear) y las tablas `reconciliation_marks`/`exchange_rates` (ya tienen dominio/caso de uso/frontend — TRM real + conciliación de cuentas) se resolvieron después y se sacaron de esta lista. Lo que sigue sin resolver:
 
 | Pendiente | Descripción | Prioridad |
 |---|---|---|
@@ -222,6 +222,21 @@ Los tres requieren rol `owner`/`admin` (`tenant.CanManage`) y rechazan con 422 (
 **2) Pendiente — el Panel de Control (dashboard de Inicio) no tiene ningún dato de `sales`/`purchase`.** `DashboardPage.tsx` + el módulo `stats` (`internal/stats`) están construidos enteramente sobre `electronic.documents` (factura/NC/ND/documento soporte DIAN) — cero consultas a `sales.quotes`, `sales.sales` o `purchase.orders`. Confirmar una venta o aceptar una cotización no cambia ninguna card del Inicio porque esas cards nunca leyeron esas tablas. No es un bug — nunca se conectó. Falta decidir qué widgets agregar (ej. "Cotizaciones pendientes/aceptadas", "Ventas del mes") y si van al mismo `stats` module o a uno nuevo.
 
 **3) Pendiente — no existe respuesta de cotización por email (aceptar/rechazar sin login).** El correo que manda `SendQuoteEmailUseCase` (plantilla `quote_issued.html`) es de una sola vía: adjunta el PDF y termina con "Mensaje automático — por favor no respondas a este correo". No hay link de "Aceptar"/"Rechazar" para que el cliente responda directamente — hoy `handleAcceptQuote`/`handleRejectQuote` solo los puede ejecutar el vendedor autenticado desde el ERP, asumiendo que el cliente avisó por otro canal (llamada, WhatsApp, etc.). Si se quiere self-service real, hace falta: token público de un solo uso por cotización, endpoint público (sin auth) en `sales/interfaces/http` o `public/`, y botones en la plantilla de correo.
+
+---
+
+#### TRM: servicio SOAP propio, disparador diario y búsqueda por fecha (sesión 2026-08-06)
+
+Contexto: se reemplazó el espejo público `co.dolarapi.com` por un servicio propio (`https://co-trm.vercel.app`, ver `TRM_API_URL`) que consulta directamente el Web Service SOAP oficial de la Superintendencia Financiera — expone `/trm` y `/trm?date=YYYY-MM-DD`, así que ahora se puede pedir la TRM de cualquier fecha, no solo la de hoy.
+
+- **`internal/accounting/infrastructure/trmapi`** (nuevo, reemplaza `infrastructure/dolarapi`, eliminado): implementa `domain.TRMFetcher`, que ahora recibe la fecha explícita a consultar (`FetchTRM(ctx, date)`) en vez de dejar que la fuente externa decida qué es "hoy" — evita ambigüedad de husos horarios. El `Source` guardado pasó de `"DOLARAPI"` a `"SUPERFINANCIERA"`.
+- **Columna `description`** agregada a `accounting.exchange_rates` (migración editada in-place, sin datos reales que migrar) — antes el texto de la columna "Descripción" del frontend salía de un `switch` hardcodeado por `source`; ahora se guarda la descripción real que devuelve el servicio (`"TRM oficial publicada por la Superintendencia Financiera de Colombia"`) o la que escriba el usuario al capturar manualmente (default `"Editado manualmente"` si la deja vacía).
+- **Disparador diario** (`accountingapp.RunTRMDailySync`, lanzado como goroutine en `main.go` si `TRM_API_URL` está configurada): sincroniza la TRM de hoy todos los días a la 1:00 a.m. hora Colombia (`America/Bogota`); si falla, reintenta una sola vez una hora después y si vuelve a fallar espera al día siguiente — sin insistir indefinidamente contra el servicio externo.
+- **`ExchangeRateUseCase.GetOrFetch`** (nuevo) — herramienta para que el contador busque la TRM de cualquier fecha pasada: primero contra la base local (`GET /accounting/exchange-rates/lookup?date=...`), y solo si no está ahí consulta el servicio externo una única vez y la deja guardada (la TRM histórica no cambia, nunca se vuelve a pedir esa fecha).
+- **Control de abuso del botón "Sincronizar"** (frontend, `AccountingExchangeRatesPage.tsx`): queda deshabilitado en cuanto ya exista un registro de hoy en la base de datos — sin importar si lo puso el disparador automático o el propio botón — y se reactiva solo, o si por alguna razón el disparador de la 1 a.m. no corrió. Decisión explícita: se mantuvo como respaldo manual en vez de quitarlo del todo, para no depender 100% de que el disparador nunca falle.
+- Los únicos tres caminos que llegan a tocar el servicio SOAP: el disparador diario, el botón "Sincronizar" (autolimitado por lo anterior), y la búsqueda por fecha específica (autolimitada porque cachea para siempre). El listado del panel (`GET /accounting/exchange-rates`) siempre lee de la base de datos, nunca del servicio externo.
+
+Verificado en vivo contra el servicio real: sincronizar hoy, buscar una fecha histórica (`2026-01-15`) trayéndola del servicio la primera vez y de la base la segunda, y registrar tasas manuales con y sin descripción personalizada.
 
 ---
 

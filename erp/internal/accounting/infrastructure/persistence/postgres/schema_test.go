@@ -53,7 +53,7 @@ func TestSchema_AccountingTables(t *testing.T) {
 			previous_balance, amount_to_pay, carry_forward,
 			status, journal_id, filed_at, created_at, updated_at`},
 		{"accounting.reconciliation_marks", "id, company_id, journal_line_id, reconciled_with, note, reconciled_at"},
-		{"accounting.exchange_rates", "id, rate_date, from_currency, to_currency, rate_x10000, source, created_at"},
+		{"accounting.exchange_rates", "id, rate_date, from_currency, to_currency, rate_x10000, source, description, created_at"},
 		{"accounting.budgets", "id, company_id, year, name, status, created_at, updated_at"},
 		{"accounting.budget_lines", "id, budget_id, account_id, jan, feb, mar, apr, may, jun, jul, aug, sep, oct, nov, dec, created_at, updated_at"},
 		{"accounting.income_tax_rates", "year, rate_bp, created_at"},

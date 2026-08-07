@@ -253,6 +253,7 @@ export interface SetExchangeRatePayload {
   to_currency?: string;
   rate: number;
   source?: string;
+  description?: string;
 }
 
 export function setExchangeRate(payload: SetExchangeRatePayload): Promise<ExchangeRate> {
@@ -263,10 +264,20 @@ export function listExchangeRates(from: string, to: string): Promise<ExchangeRat
   return apiClient.get<ExchangeRate[]>(`/accounting/exchange-rates?from=${from}&to=${to}`);
 }
 
-// Consulta la TRM oficial vigente (Superfinanciera, vía dolarapi.com) y la guarda como tasa del
-// día — si falla (sin red, API caída), la captura manual de arriba sigue siendo el respaldo.
+// Consulta la TRM oficial vigente (Superfinanciera, vía el servicio propio de TRM) y la guarda
+// como tasa del día — si falla (sin red, servicio caído), la captura manual de arriba sigue
+// siendo el respaldo. También corre sola todos los días a la 1 a.m. hora Colombia (ver
+// accounting.RunTRMDailySync en el backend) — este botón es solo el respaldo manual.
 export function syncExchangeRate(): Promise<ExchangeRate> {
   return apiClient.post<ExchangeRate>("/accounting/exchange-rates/sync");
+}
+
+// Busca la TRM de una fecha puntual — primero en la base local; si no está, el backend la trae
+// una sola vez del servicio TRM propio y la guarda (la TRM histórica no cambia). Pensada para que
+// el contador consulte cualquier fecha pasada sin esperar a que el disparador diario haya pasado
+// por ahí.
+export function lookupExchangeRate(date: string, from = "USD"): Promise<ExchangeRate> {
+  return apiClient.get<ExchangeRate>(`/accounting/exchange-rates/lookup?date=${date}&from=${from}`);
 }
 
 // ── Conciliación de cuentas (cruce de partidas) ─────────────────────────────────
