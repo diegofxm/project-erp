@@ -260,8 +260,21 @@ export function setExchangeRate(payload: SetExchangeRatePayload): Promise<Exchan
   return apiClient.post<ExchangeRate>("/accounting/exchange-rates", payload);
 }
 
-export function listExchangeRates(from: string, to: string): Promise<ExchangeRate[]> {
-  return apiClient.get<ExchangeRate[]>(`/accounting/exchange-rates?from=${from}&to=${to}`);
+export interface ExchangeRatePage {
+  rates: ExchangeRate[];
+  total: number;
+}
+
+// Pagina el historial (más reciente primero) — nunca trae toda la tabla de una sola vez.
+export function listExchangeRates(limit: number, offset: number): Promise<ExchangeRatePage> {
+  return apiClient.get<ExchangeRatePage>(`/accounting/exchange-rates?limit=${limit}&offset=${offset}`);
+}
+
+// Solo lectura contra la base de datos (nunca toca el servicio externo) — para mostrar la TRM de
+// hoy junto al título sin importar la página en la que esté la lista de abajo. Lanza ApiError con
+// status 404 si hoy todavía no se ha sincronizado.
+export function getTodayExchangeRate(): Promise<ExchangeRate> {
+  return apiClient.get<ExchangeRate>("/accounting/exchange-rates/today");
 }
 
 // Consulta la TRM oficial vigente (Superfinanciera, vía el servicio propio de TRM) y la guarda

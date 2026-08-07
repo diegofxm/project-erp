@@ -53,24 +53,26 @@ func (r *ExchangeRateRepository) Get(ctx context.Context, date time.Time, from, 
 	return &out, nil
 }
 
-func (r *ExchangeRateRepository) List(ctx context.Context, from, to time.Time) ([]domain.ExchangeRate, error) {
+func (r *ExchangeRateRepository) List(ctx context.Context, limit, offset int) ([]domain.ExchangeRate, int, error) {
 	const q = `
-		SELECT rate_date, from_currency, to_currency, rate_x10000, source, description, created_at
+		SELECT rate_date, from_currency, to_currency, rate_x10000, source, description, created_at,
+		       COUNT(*) OVER() AS total_count
 		FROM accounting.exchange_rates
-		WHERE rate_date BETWEEN $1 AND $2
-		ORDER BY rate_date DESC, from_currency`
-	rows, err := r.pool.Query(ctx, q, from, to)
+		ORDER BY rate_date DESC, from_currency
+		LIMIT $1 OFFSET $2`
+	rows, err := r.pool.Query(ctx, q, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("listar tasas de cambio: %w", err)
+		return nil, 0, fmt.Errorf("listar tasas de cambio: %w", err)
 	}
 	defer rows.Close()
 	var out []domain.ExchangeRate
+	total := 0
 	for rows.Next() {
 		var e domain.ExchangeRate
-		if err := rows.Scan(&e.RateDate, &e.FromCurrency, &e.ToCurrency, &e.RateX10000, &e.Source, &e.Description, &e.CreatedAt); err != nil {
-			return nil, err
+		if err := rows.Scan(&e.RateDate, &e.FromCurrency, &e.ToCurrency, &e.RateX10000, &e.Source, &e.Description, &e.CreatedAt, &total); err != nil {
+			return nil, 0, err
 		}
 		out = append(out, e)
 	}
-	return out, rows.Err()
+	return out, total, rows.Err()
 }

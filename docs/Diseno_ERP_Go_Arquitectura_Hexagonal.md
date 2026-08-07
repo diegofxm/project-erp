@@ -238,6 +238,13 @@ Contexto: se reemplazó el espejo público `co.dolarapi.com` por un servicio pro
 
 Verificado en vivo contra el servicio real: sincronizar hoy, buscar una fecha histórica (`2026-01-15`) trayéndola del servicio la primera vez y de la base la segunda, y registrar tasas manuales con y sin descripción personalizada.
 
+**Correcciones de la misma sesión, después de probarlo en vivo:**
+
+- **Paginación real en vez de ventana fija de 90 días.** La primera versión de la lista pedía `listExchangeRates(hace 90 días, hoy)` — un usuario con filas más viejas que 90 días (ej. TRM de marzo) las veía desaparecer de la tabla sin ningún aviso, ni forma de traerlas de vuelta salvo la búsqueda puntual. Se descartó además la idea de un filtro de rango editable (el buscador por fecha con el SOAP ya cubre el caso "quiero ver una fecha vieja puntual"; un filtro habría sido redundante). Se cambió `ExchangeRateRepository.List` para paginar de verdad: `List(ctx, limit, offset) ([]ExchangeRate, total int, error)`, con `COUNT(*) OVER()` en la misma consulta — `GET /accounting/exchange-rates?limit=7&offset=0`, con controles "Anteriores"/"Siguientes" en el frontend. Página por defecto: 7 filas.
+- **Indicador "Hoy: `$valor`"** junto al título (mismo tamaño de fuente que el `<h1>`) — nuevo endpoint de solo lectura `GET /accounting/exchange-rates/today` (`ExchangeRateUseCase.GetToday`, calcula el día en `America/Bogota` y hace un `Get` puro contra la base, nunca toca el servicio externo) para que el valor de hoy se vea sin importar en qué página de la lista esté parado el usuario, y sin disparar ninguna sincronización solo por abrir la página. También reemplazó el cálculo de `hasTodayRate` que antes dependía de que la fila de hoy estuviera en la página visible (con paginación real eso ya no se puede garantizar).
+
+Verificado en vivo con datos reales del usuario (7 filas ya generadas usando el panel): página 1 trae las 7, página 2 viene vacía con `total: 7`.
+
 ---
 
 #### Menú (sidebar) — jerarquía pendiente de aplicar + catálogos vs. sub-entidades

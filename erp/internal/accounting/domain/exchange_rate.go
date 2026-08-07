@@ -31,7 +31,9 @@ type ExchangeRateRepository interface {
 	// Set crea o actualiza la tasa del día para ese par de monedas (upsert por rate_date+from+to).
 	Set(ctx context.Context, r ExchangeRate) (*ExchangeRate, error)
 	Get(ctx context.Context, date time.Time, from, to string) (*ExchangeRate, error)
-	List(ctx context.Context, from, to time.Time) ([]ExchangeRate, error)
+	// List devuelve una página de tasas (más reciente primero) y el total de filas que hay en toda
+	// la tabla — para paginar en vez de traer todo el historial de una vez.
+	List(ctx context.Context, limit, offset int) (rates []ExchangeRate, total int, err error)
 }
 
 // TRMFetcher consulta la TRM oficial vigente (la que fija la Superintendencia Financiera, un

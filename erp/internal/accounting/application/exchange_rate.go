@@ -72,8 +72,19 @@ func (uc *ExchangeRateUseCase) Get(ctx context.Context, date time.Time, from, to
 	return uc.rates.Get(ctx, date, from, to)
 }
 
-func (uc *ExchangeRateUseCase) List(ctx context.Context, from, to time.Time) ([]domain.ExchangeRate, error) {
-	return uc.rates.List(ctx, from, to)
+// List devuelve una página de tasas (más reciente primero) y el total de filas — para paginar en
+// vez de traer todo el historial de una sola vez.
+func (uc *ExchangeRateUseCase) List(ctx context.Context, limit, offset int) ([]domain.ExchangeRate, int, error) {
+	return uc.rates.List(ctx, limit, offset)
+}
+
+// GetToday es un atajo de solo-lectura contra la base de datos (nunca toca el servicio externo)
+// para mostrar la TRM de hoy junto al título del panel, sin importar en qué página de la lista
+// esté parado el usuario ni si hoy ya se sincronizó.
+func (uc *ExchangeRateUseCase) GetToday(ctx context.Context) (*domain.ExchangeRate, error) {
+	today := time.Now().In(bogota)
+	date := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+	return uc.Get(ctx, date, "USD", "COP")
 }
 
 // Sync consulta la TRM oficial vigente de HOY (hora Colombia) en el servicio propio (ver

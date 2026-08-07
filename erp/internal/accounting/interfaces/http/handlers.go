@@ -1212,15 +1212,25 @@ func (h *Handler) handleLookupExchangeRate(w http.ResponseWriter, r *http.Reques
 	respond(w, http.StatusOK, toExchangeRateDTO(*rate))
 }
 
+// handleListExchangeRates pagina el historial (más reciente primero) — nunca trae toda la tabla
+// de una vez. ?limit=7&offset=0 por defecto.
 func (h *Handler) handleListExchangeRates(w http.ResponseWriter, r *http.Request) {
 	if _, ok := requireTenant(w, r); !ok {
 		return
 	}
-	from, to, ok := parseDateRange(w, r)
-	if !ok {
-		return
+	limit := 7
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
 	}
-	list, err := h.exchangeRate.List(r.Context(), from, to)
+	offset := 0
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	list, total, err := h.exchangeRate.List(r.Context(), limit, offset)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -1229,7 +1239,26 @@ func (h *Handler) handleListExchangeRates(w http.ResponseWriter, r *http.Request
 	for i, e := range list {
 		dtos[i] = toExchangeRateDTO(e)
 	}
-	respond(w, http.StatusOK, dtos)
+	respond(w, http.StatusOK, map[string]any{"rates": dtos, "total": total})
+}
+
+// handleGetTodayExchangeRate es solo lectura contra la base de datos (nunca toca el servicio
+// externo) — para mostrar la TRM de hoy junto al título del panel sin importar la paginación de
+// la lista de abajo ni disparar ninguna sincronización solo por abrir la página.
+func (h *Handler) handleGetTodayExchangeRate(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireTenant(w, r); !ok {
+		return
+	}
+	rate, err := h.exchangeRate.GetToday(r.Context())
+	if err != nil {
+		if errors.Is(err, domain.ErrExchangeRateNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toExchangeRateDTO(*rate))
 }
 
 // ── Conciliación de cuentas (cruce de partidas) ─────────────────────────────
