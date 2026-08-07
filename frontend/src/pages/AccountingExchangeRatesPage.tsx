@@ -11,6 +11,7 @@ import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { Spinner } from "../components/ui/Spinner";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
+import { InfoTip } from "../components/ui/InfoTip";
 
 const PAGE_SIZE = 7;
 
@@ -188,6 +189,9 @@ export function AccountingExchangeRatesPage() {
                 ? "Hoy: sin sincronizar"
                 : `Hoy: ${todayRate.rate.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
           </span>
+          <InfoTip>
+            La TRM se sincroniza sola todos los días a la 1:00 a.m. (hora Colombia) — este botón es solo un respaldo manual por si ese disparador llegara a fallar un día.
+          </InfoTip>
         </div>
         <div className="flex gap-2">
           <Button
@@ -209,10 +213,6 @@ export function AccountingExchangeRatesPage() {
           </Button>
         </div>
       </div>
-
-      <p className="mb-3 text-xs text-(--text-secondary)">
-        La TRM se sincroniza sola todos los días a la 1:00 a.m. (hora Colombia) — este botón es solo un respaldo manual por si ese disparador llegara a fallar un día.
-      </p>
 
       {error && <Banner tone="danger">{error}</Banner>}
 
