@@ -30,6 +30,7 @@ import {
   adminProspectRutUrl,
 } from "../lib/admin";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
+import { InfoTip } from "../components/ui/InfoTip";
 import type {
   AdminUser, BillingEntry, BillingCycle, CompanyInfo, Payment, Plan, Prospect, RenewalEntry,
   SaasModule, SaasSettings, Subscription,
@@ -103,10 +104,10 @@ function BillingContent() {
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <BarChart2 className="h-4 w-4 shrink-0 text-(--accent-primary)" />
           Facturación
+          <InfoTip>Empresas con suscripción activa — cargos del período vigente de cada una.</InfoTip>
         </h1>
         <Button variant="secondary" onClick={load} icon={<RefreshCw className="h-3.5 w-3.5" />}>Actualizar</Button>
       </div>
-      <p className="mb-3 text-xs text-(--text-secondary)">Empresas con suscripción activa — cargos del período vigente de cada una.</p>
 
       {loading ? (
         <p className="text-xs text-(--text-secondary)">Cargando…</p>
@@ -189,10 +190,10 @@ function RenewalsContent() {
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <CalendarClock className="h-4 w-4 shrink-0 text-(--accent-primary)" />
           Renovaciones
+          <InfoTip>Suscripciones cuyo período vence en los próximos 90 días (o ya venció).</InfoTip>
         </h1>
         <Button variant="secondary" onClick={load} icon={<RefreshCw className="h-3.5 w-3.5" />}>Actualizar</Button>
       </div>
-      <p className="mb-3 text-xs text-(--text-secondary)">Suscripciones cuyo período vence en los próximos 90 días (o ya venció).</p>
 
       {loading ? (
         <p className="text-xs text-(--text-secondary)">Cargando…</p>
@@ -339,9 +340,9 @@ function CompanyContent() {
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <Building2 className="h-4 w-4 shrink-0 text-(--accent-primary)" />
           Por empresa
+          <InfoTip>Busca una empresa por su UUID para gestionar su plan y pagos.</InfoTip>
         </h1>
       </div>
-      <p className="mb-3 text-xs text-(--text-secondary)">Busca una empresa por su UUID para gestionar su plan y pagos.</p>
 
       <div className="flex items-end gap-2 mb-4">
         <Input
@@ -748,8 +749,8 @@ function SettingsContent() {
       <h1 className="mb-3 flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
         <Settings2 className="h-4 w-4 shrink-0 text-(--accent-primary)" />
         Configuración de la plataforma
+        <InfoTip>Tasa de IVA aplicada a todos los cobros (planes, certificados, excedente de documentos).</InfoTip>
       </h1>
-      <p className="mb-3 text-xs text-(--text-secondary)">Tasa de IVA aplicada a todos los cobros (planes, certificados, excedente de documentos).</p>
 
       {settings && (
         <div className="flex items-end gap-2">
@@ -800,9 +801,13 @@ function UsersContent() {
         <h1 className="flex items-center gap-2 text-sm font-semibold text-(--text-primary)">
           <Users className="h-4 w-4 shrink-0 text-(--accent-primary)" />
           Usuarios
+          <InfoTip>
+            Usuarios de toda la plataforma. Para invitar uno nuevo a una empresa, usa Configuración → Empresa dentro
+            de esa empresa. El acceso de superadmin <strong>nunca se otorga solo</strong> — un superadmin existente
+            tiene que dárselo a otro aquí.
+          </InfoTip>
         </h1>
       </div>
-      <p className="mb-3 text-xs text-(--text-secondary)">Usuarios de toda la plataforma. Para invitar uno nuevo a una empresa, usa Configuración → Empresa dentro de esa empresa. El acceso de superadmin nunca se otorga solo — un superadmin existente tiene que dárselo a otro aquí.</p>
 
       {loading ? (
         <p className="text-xs text-(--text-secondary)">Cargando usuarios…</p>
