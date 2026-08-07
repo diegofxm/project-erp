@@ -113,7 +113,19 @@ export function AccountingExchangeRatesPage() {
 
   function refresh() {
     listExchangeRates(PAGE_SIZE, (page - 1) * PAGE_SIZE)
-      .then((p) => { setRates(p.rates); setTotal(p.total); })
+      .then((p) => {
+        // Defensa contra una respuesta con forma inesperada (ej. backend/frontend desincronizados
+        // en un despliegue a medias) — antes un `p.rates` que no fuera arreglo tumbaba toda la
+        // página en un TypeError sin capturar ("t.map is not a function").
+        if (!Array.isArray(p?.rates)) {
+          setError("La respuesta del servidor no tiene el formato esperado — puede haber una versión desactualizada del backend o del frontend.");
+          setRates([]);
+          setTotal(0);
+          return;
+        }
+        setRates(p.rates);
+        setTotal(p.total ?? 0);
+      })
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar las tasas de cambio"));
   }
 
