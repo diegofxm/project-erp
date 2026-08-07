@@ -102,6 +102,18 @@ func (r *Repository) SetInviteToken(ctx context.Context, userID uuid.UUID, token
 	return nil
 }
 
+// IsSuperAdmin es una consulta puntual (sin traer el resto del usuario) — la usa
+// company.CreateUseCase para decidir si la empresa recién creada debe quedar con el plan Interno
+// de una vez (ver company/infrastructure/saas.Adapter).
+func (r *Repository) IsSuperAdmin(ctx context.Context, userID uuid.UUID) (bool, error) {
+	var isSuperAdmin bool
+	err := r.pool.QueryRow(ctx, `SELECT is_superadmin FROM security.users WHERE id=$1`, userID).Scan(&isSuperAdmin)
+	if err != nil {
+		return false, fmt.Errorf("verificar superadmin: %w", err)
+	}
+	return isSuperAdmin, nil
+}
+
 func (r *Repository) SetSuperAdmin(ctx context.Context, userID uuid.UUID, value bool) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE security.users SET is_superadmin=$1, updated_at=NOW() WHERE id=$2`,

@@ -27,6 +27,7 @@ import (
 	cataloghttp "github.com/diegofxm/erp/internal/catalog/interfaces/http"
 	companyapp "github.com/diegofxm/erp/internal/company/application"
 	companypostgres "github.com/diegofxm/erp/internal/company/infrastructure/persistence/postgres"
+	companysaas "github.com/diegofxm/erp/internal/company/infrastructure/saas"
 	companyhttp "github.com/diegofxm/erp/internal/company/interfaces/http"
 	electronicapp "github.com/diegofxm/erp/internal/electronic/application"
 	electroniccofacture "github.com/diegofxm/erp/internal/electronic/infrastructure/cofacture"
@@ -171,16 +172,22 @@ func main() {
 	warehouseRepo := companypostgres.NewWarehouseRepository(pool)
 	quoteRepo := salespostgres.NewQuoteRepository(pool)
 
-	// createCompanyUC se declara aquí (antes de lo que sería su lugar natural más abajo, junto al
-	// resto de casos de uso de company) porque saasCompanyPort ya lo necesita para aprovisionar la
-	// empresa de un dueño nuevo al aprobar un prospecto (ver saas/application/prospect.go).
-	createCompanyUC := companyapp.NewCreateUseCase(companyRepo, securityRepo, warehouseRepo)
-	inviteOwnerUC := securityapp.NewInviteOwnerUseCase(securityRepo)
-
-	// ── Repositorios — saas ──────────────────────────────────────────────────────
+	// ── Repositorios — saas (la parte que createCompanyUC necesita) ─────────────
 	saasModuleRepo := saaspostgres.NewModuleRepository(pool)
 	saasPlanRepo := saaspostgres.NewPlanRepository(pool)
 	saasSubscriptionRepo := saaspostgres.NewSubscriptionRepository(pool)
+	saasSubscriptionUC := saasapp.NewSubscriptionUseCase(saasSubscriptionRepo, saasPlanRepo)
+	companyPlanAssigner := companysaas.New(saasSubscriptionUC, saasPlanRepo)
+
+	// createCompanyUC se declara aquí (antes de lo que sería su lugar natural más abajo, junto al
+	// resto de casos de uso de company) porque saasCompanyPort ya lo necesita para aprovisionar la
+	// empresa de un dueño nuevo al aprobar un prospecto (ver saas/application/prospect.go), y
+	// porque companyPlanAssigner le asigna el plan Interno a la empresa de un superadmin apenas
+	// se crea (ver company/application/create.go).
+	createCompanyUC := companyapp.NewCreateUseCase(companyRepo, securityRepo, warehouseRepo, companyPlanAssigner)
+	inviteOwnerUC := securityapp.NewInviteOwnerUseCase(securityRepo)
+
+	// ── Repositorios — saas (el resto) ───────────────────────────────────────────
 	saasPaymentRepo := saaspostgres.NewPaymentRepository(pool)
 	saasSettingsRepo := saaspostgres.NewSettingsRepository(pool)
 	saasProspectRepo := saaspostgres.NewProspectRepository(pool)
@@ -279,9 +286,9 @@ func main() {
 	onPurchasePaymentRecorded.Register(bus)
 
 	// ── Casos de uso — saas ──────────────────────────────────────────────────────
+	// saasSubscriptionUC ya se construyó más arriba (companyPlanAssigner lo necesita).
 	saasPlanUC := saasapp.NewPlanUseCase(saasPlanRepo, saasModuleRepo)
 	saasSettingsUC := saasapp.NewSettingsUseCase(saasSettingsRepo)
-	saasSubscriptionUC := saasapp.NewSubscriptionUseCase(saasSubscriptionRepo, saasPlanRepo)
 	saasBillingUC := saasapp.NewBillingUseCase(saasSubscriptionRepo, saasPlanRepo, saasSettingsRepo, saasDocumentCounter, saasCompanyPort)
 	saasPaymentUC := saasapp.NewPaymentUseCase(saasPaymentRepo)
 	saasMyPlanUC := saasapp.NewMyPlanUseCase(saasSubscriptionRepo, saasPlanRepo, saasDocumentCounter)

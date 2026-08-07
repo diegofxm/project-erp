@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 
@@ -9,20 +10,32 @@ import (
 	"github.com/diegofxm/erp/internal/shared/nit"
 )
 
-// MembershipLinker vincula el usuario creador a la empresa recién creada.
-// Implementado por security/infrastructure/persistence/postgres.Repository.
+// MembershipLinker vincula el usuario creador a la empresa recién creada, y expone si ese
+// usuario es superadmin de la plataforma. Implementado por
+// security/infrastructure/persistence/postgres.Repository.
 type MembershipLinker interface {
 	AddCompany(ctx context.Context, userID, companyID uuid.UUID, role string) error
+	IsSuperAdmin(ctx context.Context, userID uuid.UUID) (bool, error)
+}
+
+// PlanAssigner asigna el plan Interno (ilimitado, sin costo, no aparece en el catálogo público) a
+// la empresa que acaba de crear un superadmin — la empresa operadora de la plataforma no debe
+// depender de que alguien entre luego a /admin/company a asignárselo a mano. Empresas creadas por
+// un dueño normal (no superadmin) no disparan esto — a esas se les asigna un plan real después,
+// manualmente, desde el panel. Implementado por company/infrastructure/saas.Adapter.
+type PlanAssigner interface {
+	AssignInternalPlan(ctx context.Context, companyID uuid.UUID) error
 }
 
 type CreateUseCase struct {
 	repo       domain.Repository
 	members    MembershipLinker
 	warehouses domain.WarehouseRepository
+	plans      PlanAssigner
 }
 
-func NewCreateUseCase(repo domain.Repository, members MembershipLinker, warehouses domain.WarehouseRepository) *CreateUseCase {
-	return &CreateUseCase{repo: repo, members: members, warehouses: warehouses}
+func NewCreateUseCase(repo domain.Repository, members MembershipLinker, warehouses domain.WarehouseRepository, plans PlanAssigner) *CreateUseCase {
+	return &CreateUseCase{repo: repo, members: members, warehouses: warehouses, plans: plans}
 }
 
 type CreateRequest struct {
@@ -108,6 +121,15 @@ func (uc *CreateUseCase) Execute(ctx context.Context, creatorID uuid.UUID, req C
 	// solo se llama de forma perezosa al confirmar la primera venta/compra, ver sales.ConfirmUseCase).
 	if _, err := uc.warehouses.GetOrCreateDefault(ctx, saved.ID); err != nil {
 		return nil, err
+	}
+
+	// La empresa de un superadmin (la que opera la plataforma) queda con el plan Interno de una
+	// vez — el resto de empresas (clientes reales) se quedan sin plan hasta que el superadmin se
+	// los asigne a mano desde /admin/company.
+	if isSuperAdmin, err := uc.members.IsSuperAdmin(ctx, creatorID); err == nil && isSuperAdmin && uc.plans != nil {
+		if err := uc.plans.AssignInternalPlan(ctx, saved.ID); err != nil {
+			return nil, fmt.Errorf("asignar plan interno: %w", err)
+		}
 	}
 
 	return saved, nil
