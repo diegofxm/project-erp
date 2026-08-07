@@ -284,10 +284,11 @@ func respondAuth(w http.ResponseWriter, result *domain.AuthResult, err error) {
 		"token":      result.Token,
 		"company_id": companyID,
 		"user": map[string]any{
-			"id":    result.User.ID,
-			"email": result.User.Email,
-			"name":  result.User.Name,
-			"role":  result.User.Role,
+			"id":            result.User.ID,
+			"email":         result.User.Email,
+			"name":          result.User.Name,
+			"role":          result.User.Role,
+			"is_superadmin": result.User.IsSuperAdmin,
 		},
 	})
 }

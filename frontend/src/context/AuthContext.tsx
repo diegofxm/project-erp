@@ -126,7 +126,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifySession = useCallback(async () => {
     const stored = readStoredSession();
     try {
-      await apiClient.get<User>("/auth/me");
+      // Refresca el usuario contra /auth/me (no solo lo usa como ping) — así campos que cambian
+      // fuera de un login normal (ej. is_superadmin, otorgado desde /admin/users) se reflejan al
+      // recargar la página, sin necesitar cerrar e iniciar sesión de nuevo.
+      const freshUser = await apiClient.get<User>("/auth/me");
+      setUser(freshUser);
+      if (stored) writeStoredSession({ ...stored, user: freshUser });
 
       if (stored?.company?.id) {
         const company = await fetchCompany();
