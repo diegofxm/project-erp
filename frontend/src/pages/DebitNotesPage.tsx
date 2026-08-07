@@ -84,6 +84,7 @@ export function DebitNotesPage() {
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-(--text-muted)" />
           <input
             type="search"
+            aria-label="Buscar por cliente, NIT o número"
             placeholder="Cliente, NIT o número..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -92,15 +93,16 @@ export function DebitNotesPage() {
         </div>
         <div className="flex w-full items-center gap-2 lg:contents">
           <select
+            aria-label="Filtrar por estado"
             value={status}
             onChange={(e) => { setStatus(e.target.value as DocumentStatus | ""); setOffset(0); }}
             className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
           >
             {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <input type="date" value={from} title="Desde" onChange={(e) => { setFrom(e.target.value); setOffset(0); }}
+          <input type="date" value={from} title="Desde" aria-label="Desde" onChange={(e) => { setFrom(e.target.value); setOffset(0); }}
             className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors" />
-          <input type="date" value={to} title="Hasta" onChange={(e) => { setTo(e.target.value); setOffset(0); }}
+          <input type="date" value={to} title="Hasta" aria-label="Hasta" onChange={(e) => { setTo(e.target.value); setOffset(0); }}
             className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors" />
           {hasFilters && (
             <button type="button" onClick={resetFilters} className="flex items-center gap-1 text-xs text-(--text-muted) hover:text-(--text-primary) transition-colors">

@@ -89,6 +89,7 @@ export function InvoicesPage() {
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-(--text-muted)" />
           <input
             type="search"
+            aria-label="Buscar por cliente, NIT o número"
             placeholder="Cliente, NIT o número..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -97,6 +98,7 @@ export function InvoicesPage() {
         </div>
         <div className="flex w-full items-center gap-2 lg:contents">
           <select
+            aria-label="Filtrar por estado"
             value={status}
             onChange={(e) => { setStatus(e.target.value as DocumentStatus | ""); setOffset(0); }}
             className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
@@ -108,6 +110,7 @@ export function InvoicesPage() {
             value={from}
             onChange={(e) => { setFrom(e.target.value); setOffset(0); }}
             title="Desde"
+            aria-label="Desde"
             className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
           />
           <input
@@ -115,6 +118,7 @@ export function InvoicesPage() {
             value={to}
             onChange={(e) => { setTo(e.target.value); setOffset(0); }}
             title="Hasta"
+            aria-label="Hasta"
             className="rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1 text-xs text-(--text-primary) transition-colors"
           />
           {hasFilters && (

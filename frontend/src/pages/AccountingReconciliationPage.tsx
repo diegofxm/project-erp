@@ -120,7 +120,13 @@ export function AccountingReconciliationPage() {
                     className={`cursor-pointer ${selected.includes(l.line_id) ? "bg-(--bg-selected)" : i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"} hover:bg-(--bg-hover)`}
                   >
                     <td className="px-3 py-2">
-                      <input type="checkbox" checked={selected.includes(l.line_id)} onChange={() => toggle(l.line_id)} onClick={(e) => e.stopPropagation()} />
+                      <input
+                        type="checkbox"
+                        aria-label={`Seleccionar línea ${l.voucher_number || l.description}`}
+                        checked={selected.includes(l.line_id)}
+                        onChange={() => toggle(l.line_id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </td>
                     <td className="px-3 py-2 text-(--text-secondary)">{formatDateOnly(l.date)}</td>
                     <td className="px-3 py-2 font-mono text-(--text-primary)">{l.voucher_number || "—"}</td>
