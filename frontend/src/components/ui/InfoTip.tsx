@@ -18,6 +18,14 @@ interface Props {
  * según el espacio disponible. Sin flecha/triángulo apuntando al ícono — con eso el borde del
  * recuadro queda continuo en los cuatro lados (antes el triángulo, dibujado con bordes de
  * colores, dejaba un pequeño corte justo donde se unía con el borde del recuadro).
+ *
+ * El texto fija `font-normal` a propósito: `font-weight` se hereda en CSS, y como este popover
+ * vive en el mismo árbol DOM que el ícono que lo abre (aunque se dibuje aparte con position:
+ * absolute), si no se resetea aquí hereda el peso de letra de quien lo contenga — ej. semibold si
+ * el `<InfoTip>` queda anidado dentro de un `<h1 className="... font-semibold">`, normal si queda
+ * como hermano del título. Sin este reset, dos InfoTip con el mismo texto se ven distinto solo
+ * por dónde los haya puesto cada página — con el reset, el peso queda fijo sin importar dónde se
+ * use, que es justamente el punto de centralizar el estilo acá.
  */
 export function InfoTip({ children }: Props) {
   const [open, setOpen] = useState(false);
@@ -71,7 +79,7 @@ export function InfoTip({ children }: Props) {
           className={`absolute ${vertPos} ${horizPos} z-50 w-80 rounded border border-(--border-color) bg-(--bg-primary) p-3 shadow-lg`}
           role="tooltip"
         >
-          <p className="text-[11px] leading-relaxed text-(--text-secondary) [&_strong]:font-semibold [&_strong]:text-(--text-primary)">
+          <p className="text-[11px] font-normal leading-relaxed text-(--text-secondary) [&_strong]:font-semibold [&_strong]:text-(--text-primary)">
             {children}
           </p>
         </div>
