@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -86,6 +87,7 @@ import (
 	htmlreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/html"
 	multireports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/multi"
 	pdfreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/pdf"
+	"github.com/diegofxm/erp/internal/shared/secheaders"
 	"github.com/diegofxm/erp/internal/shared/tenant"
 	statsapp "github.com/diegofxm/erp/internal/stats/application"
 	statspostgres "github.com/diegofxm/erp/internal/stats/infrastructure/persistence/postgres"
@@ -443,13 +445,29 @@ func main() {
 		_, _ = w.Write([]byte(`{"status":"ok","service":"cofacture erp"}`))
 	})
 
-	// ── Middleware (orden: recover → request-id → cors → logger → tenant/JWT) ───
+	// ── CORS: CORS_ALLOWED_ORIGINS es obligatoria salvo que se opte explícitamente por
+	// CORS_DEV_MODE=true (refleja cualquier origen) -- antes, si la variable faltaba, el
+	// servidor caía en modo permisivo por defecto en vez de fallar al arrancar (ver plan de
+	// acción 2026-08-09 Fase 2 punto 13).
+	corsDevMode := envOr("CORS_DEV_MODE", "") == "true"
+	var corsAllowedOrigins []string
+	if corsDevMode {
+		log.Warn("CORS_DEV_MODE=true -- se refleja cualquier origen, NO usar en producción")
+	} else {
+		for _, o := range strings.Split(mustEnv(log, "CORS_ALLOWED_ORIGINS"), ",") {
+			if o = strings.TrimSpace(o); o != "" {
+				corsAllowedOrigins = append(corsAllowedOrigins, o)
+			}
+		}
+	}
+
+	// ── Middleware (orden: recover → request-id → secheaders → cors → logger → tenant/JWT) ──
 	// recover va lo más afuera para cubrir un panic en cualquiera de los middleware
 	// siguientes, no solo en los handlers de negocio (ver plan de acción 2026-08-09
 	// Fase 2 punto 12 -- antes un panic tumbaba la conexión sin dejar rastro ni responder
 	// nada coherente al cliente).
 	httpLog := logger.New("http")
-	handler := logger.Recover(httpLog)(logger.WithRequestID(cors.Middleware(logger.Middleware(httpLog)(tenant.Middleware(jwtSvc)(mux)))))
+	handler := logger.Recover(httpLog)(logger.WithRequestID(secheaders.Middleware(cors.Middleware(corsAllowedOrigins, corsDevMode)(logger.Middleware(httpLog)(tenant.Middleware(jwtSvc)(mux))))))
 
 	// ── Disparador diario de TRM (1:00 a.m. hora Colombia) ──────────────────────
 	if os.Getenv("TRM_API_URL") != "" {
