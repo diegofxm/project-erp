@@ -7,11 +7,15 @@ const LABELS: Record<DocumentStatus, string> = {
   accepted: "Aceptado",
   rejected: "Rechazado",
   send_error: "Error de envío",
+  send_unknown: "Sin confirmar (revisar)",
 };
 
 // Mismos tokens pastel que Banner.tsx (sección 2.3 del design system) — draft/built son
 // neutros (todavía no se decide nada ante la DIAN), sent es informativo, accepted es éxito,
-// rejected/send_error son error.
+// rejected/send_error son error. send_unknown usa el tono warning (no error): significa que
+// no se pudo confirmar si la DIAN procesó el documento (timeout/conexión), no que
+// definitivamente falló — por eso el consecutivo tampoco se libera automáticamente, requiere
+// verificación manual antes de reintentar (ver domain.StatusSendUnknown en el backend).
 const TONE_CLASSES: Record<DocumentStatus, string> = {
   draft: "bg-(--bg-tertiary) text-(--text-secondary)",
   built: "bg-(--bg-tertiary) text-(--text-secondary)",
@@ -19,6 +23,7 @@ const TONE_CLASSES: Record<DocumentStatus, string> = {
   accepted: "bg-(--color-success-bg) text-(--color-success-text)",
   rejected: "bg-(--color-danger-bg) text-(--color-danger-text)",
   send_error: "bg-(--color-danger-bg) text-(--color-danger-text)",
+  send_unknown: "bg-(--color-warning-bg) text-(--color-warning-text)",
 };
 
 const DOT_CLASSES: Record<DocumentStatus, string> = {
@@ -28,6 +33,7 @@ const DOT_CLASSES: Record<DocumentStatus, string> = {
   accepted: "bg-(--color-success)",
   rejected: "bg-(--color-danger)",
   send_error: "bg-(--color-danger)",
+  send_unknown: "bg-(--color-warning)",
 };
 
 // Píldora completa (rounded-full) con punto de color — patrón de estado tipo Odoo,

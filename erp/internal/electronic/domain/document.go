@@ -20,6 +20,15 @@ const (
 	StatusAccepted  Status = "accepted"
 	StatusRejected  Status = "rejected"
 	StatusSendError Status = "send_error"
+	// StatusSendUnknown: el envío síncrono falló por un error de transporte (timeout, conexión,
+	// respuesta ilegible) — no un soap:Fault explícito de la DIAN. No hay forma de saber si la
+	// DIAN sí recibió y procesó el documento antes de que la conexión fallara, así que, a
+	// diferencia de StatusSendError, el consecutivo NO se libera automáticamente (ver
+	// ConfirmUseCase.markError/finish): liberarlo sin confirmar arriesga que un reintento
+	// (CloneDraft) reutilice el mismo número para un documento distinto con CUFE distinto —
+	// doble facturación ante la DIAN. Requiere verificación manual (portal DIAN) antes de decidir
+	// si el número se puede liberar.
+	StatusSendUnknown Status = "send_unknown"
 )
 
 // BillingReferenceInput es la referencia obligatoria de NC/ND/NA al documento que corrigen.

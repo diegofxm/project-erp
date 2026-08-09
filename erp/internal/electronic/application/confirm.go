@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -365,7 +366,10 @@ func (uc *ConfirmUseCase) finalizeAndSend(ctx context.Context, xmlBytes []byte, 
 
 	zipName, zipBytes, err := uc.zipper.Zip(string(kind), p.company.NIT, p.now.Year(), p.number, xmlBytes)
 	if err != nil {
-		return uc.markError(ctx, confirmed, err)
+		// Falla local (empaquetado), antes de cualquier comunicación con la DIAN -- sin
+		// ambigüedad posible, nunca llegó a enviarse. Va directo a StatusSendError (libera el
+		// consecutivo), NO a través de markError (que asume un intento de envío real).
+		return uc.finish(ctx, confirmed, domain.StatusSendError, "", "", "", fmt.Sprintf("empaquetar ZIP: %v", err), "")
 	}
 
 	// Producción o habilitación sin TestSetID → SendBillSync (síncrono).
@@ -428,8 +432,20 @@ func (uc *ConfirmUseCase) sendTestSet(ctx context.Context, d *domain.Document, z
 	return uc.finish(ctx, d, status, zipKey, last.StatusCode, last.StatusDescription, last.StatusMessage, last.ApplicationResponseXML)
 }
 
+// markError decide el estado final ante un fallo de envío. Distingue dos casos, porque no son
+// igual de seguros para liberar el consecutivo:
+//   - domain.ErrDianRejectedSync (la DIAN respondió con un soap:Fault explícito): sin ambigüedad,
+//     la solicitud sí llegó y fue procesada/rechazada a nivel de protocolo -> StatusSendError,
+//     seguro liberar el número.
+//   - cualquier otro error (timeout, conexión, respuesta ilegible): no hay forma de saber si la
+//     DIAN recibió y procesó el documento antes de que fallara la conexión -> StatusSendUnknown,
+//     el número NO se libera (ver finish) para no arriesgar que un reintento (CloneDraft) lo
+//     reutilice en un documento distinto -- doble facturación ante la DIAN.
 func (uc *ConfirmUseCase) markError(ctx context.Context, d *domain.Document, sendErr error) (*domain.Document, error) {
-	return uc.finish(ctx, d, domain.StatusSendError, "", "", "", sendErr.Error(), "")
+	if errors.Is(sendErr, domain.ErrDianRejectedSync) {
+		return uc.finish(ctx, d, domain.StatusSendError, "", "", "", sendErr.Error(), "")
+	}
+	return uc.finish(ctx, d, domain.StatusSendUnknown, "", "", "", sendErr.Error(), "")
 }
 
 func (uc *ConfirmUseCase) finish(ctx context.Context, d *domain.Document, status domain.Status, trackID, statusCode, statusDescription, statusMessage, applicationResponseXML string) (*domain.Document, error) {
@@ -442,6 +458,8 @@ func (uc *ConfirmUseCase) finish(ctx context.Context, d *domain.Document, status
 	d.DianStatusDescription = statusDescription
 	d.DianStatusMessage = statusMessage
 	d.ApplicationResponseXML = applicationResponseXML
+	// StatusSendUnknown queda deliberadamente fuera: liberar el consecutivo ahí es justo el
+	// riesgo que este cambio corrige (ver domain.StatusSendUnknown).
 	if status == domain.StatusRejected || status == domain.StatusSendError {
 		_ = uc.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, d.Number)
 	}

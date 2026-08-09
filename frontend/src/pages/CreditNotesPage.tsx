@@ -21,6 +21,7 @@ const STATUS_OPTIONS: { value: DocumentStatus | ""; label: string }[] = [
   { value: "sent", label: "Enviado" },
   { value: "rejected", label: "Rechazado" },
   { value: "send_error", label: "Error de envío" },
+  { value: "send_unknown", label: "Sin confirmar (revisar)" },
 ];
 
 export function CreditNotesPage() {

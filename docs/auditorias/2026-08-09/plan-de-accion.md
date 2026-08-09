@@ -16,22 +16,32 @@ Cada ítem indica: archivos/módulo, de qué otro ítem depende (si depende de a
 
 ## Fase 0 — Emergencia inmediata (sin dependencias, hoy mismo)
 
-| # | Tarea | Depende de | Esfuerzo | Informe |
-|---|---|---|---|---|
-| **01** | Rotar la contraseña de Postgres en alwaysdata.net, las credenciales del proyecto Neon, `AUTH_JWT_SECRET`, `ISSUER_SECRETS_KEY` y las credenciales SMTP de Mailtrap expuestas en `_legacy/apidian/.env`/`.env.old`. Borrar ambos archivos del working tree, purgar el historial completo de git con `git filter-repo`/BFG (un `git rm` normal no basta), y corregir `.gitignore` para que `_legacy/apidian/.env*` quede cubierto. | — | Bajo | 06 |
+| # | Tarea | Estado | Depende de | Esfuerzo | Informe |
+|---|---|---|---|---|---|
+| **01** | Rotar la contraseña de Postgres en alwaysdata.net, las credenciales del proyecto Neon, `AUTH_JWT_SECRET`, `ISSUER_SECRETS_KEY` y las credenciales SMTP de Mailtrap expuestas en `_legacy/apidian/.env`/`.env.old`. Borrar ambos archivos del working tree, purgar el historial completo de git con `git filter-repo`/BFG (un `git rm` normal no basta), y corregir `.gitignore` para que `_legacy/apidian/.env*` quede cubierto. | ⚠️ **Riesgo aceptado, NO resuelto** (ver nota) | — | Bajo | 06 |
+
+**Nota sobre el estado del punto 01 (2026-08-09):** `_legacy/` se eliminó del árbol de trabajo (commit `b29cf77`) pero, por decisión explícita del usuario, **sin purgar el historial de git** — los archivos `.env`/`.env.old` con las credenciales reales siguen recuperables desde commits anteriores (`git show e646a51:_legacy/apidian/.env`). Se confirmó además, preguntando directamente, que **esas credenciales (Postgres alwaysdata.net, Postgres Neon, `AUTH_JWT_SECRET`, `ISSUER_SECRETS_KEY`, SMTP Mailtrap) siguen en uso en producción hoy**. Ante esto, el usuario decidió explícitamente **aceptar el riesgo residual sin rotarlas por ahora**, en vez de proceder con la rotación guiada que se le ofreció. Este punto queda cerrado como "riesgo aceptado", no como "resuelto" — sigue siendo una credencial de producción real, expuesta y sin rotar, recuperable por cualquiera con acceso de lectura al repositorio o a un clon/fork existente.
 
 ---
 
 ## Fase 1 — Cofacture: la base de la que depende todo lo financiero/legal
 
-| # | Tarea | Depende de | Esfuerzo | Informe |
-|---|---|---|---|---|
-| **02** | Reconciliar con `GetStatus`/`GetStatusZip` antes de liberar el consecutivo cuando `sendSync` falla por timeout/error de transporte (`confirm.go`, función `markError`/`finish`) — hoy se libera el número sin confirmar si la DIAN sí procesó el documento. | — | Medio | 04 |
-| **03** | Mecanismo de reintento/contingencia real para el envío síncrono: mover a la ruta asíncrona (`SendBillAsync` + `GetStatusZip`, que ya tiene un identificador para consultar después) o agregar un job de reintento con backoff. | 02 (comparten la lógica de reconciliación) | Medio-Alto | 04 |
-| **04** | Cifrar el blob del certificado `.p12` en BD con la misma capa AES-256-GCM (`cryptutil`) ya usada para `certificate_password`/PINes. | — | Bajo | 04, 06 |
-| **05** | Registrar un estado dedicado (`StatusEnvironmentMismatch` o similar) cuando el ambiente del rango de numeración no coincide con el de la empresa, en vez de dejar el documento atascado en `built` sin ningún error visible. | — | Bajo | 04 |
-| **06** | Reemplazar el `PostalZone` fijo (`"000000"`) por captura/validación del dato postal real en `thirdparty`. | — | Medio (toca el formulario de terceros) | 04 |
-| **07** | Tests de aplicación para `electronic/application/confirm.go`: decisión síncrona/asíncrona, manejo de `TestSetID`, y el nuevo comportamiento de reconciliación de 02/03/05. | 02, 03, 05 (para testear el comportamiento correcto, no el que se está reemplazando) | Medio | 07 |
+| # | Tarea | Estado | Depende de | Esfuerzo | Informe |
+|---|---|---|---|---|---|
+| **02** | Reconciliar con `GetStatus`/`GetStatusZip` antes de liberar el consecutivo cuando `sendSync` falla por timeout/error de transporte (`confirm.go`, función `markError`/`finish`) — hoy se libera el número sin confirmar si la DIAN sí procesó el documento. | ✅ **Resuelto** (ver nota) | — | Medio | 04 |
+| **03** | Mecanismo de reintento/contingencia real para el envío síncrono: mover a la ruta asíncrona (`SendBillAsync` + `GetStatusZip`, que ya tiene un identificador para consultar después) o agregar un job de reintento con backoff. | ⏳ Pendiente | 02 (comparten la lógica de reconciliación) | Medio-Alto | 04 |
+| **04** | Cifrar el blob del certificado `.p12` en BD con la misma capa AES-256-GCM (`cryptutil`) ya usada para `certificate_password`/PINes. | ⏳ Pendiente | — | Bajo | 04, 06 |
+| **05** | Registrar un estado dedicado (`StatusEnvironmentMismatch` o similar) cuando el ambiente del rango de numeración no coincide con el de la empresa, en vez de dejar el documento atascado en `built` sin ningún error visible. | ⏳ Pendiente | — | Bajo | 04 |
+| **06** | Reemplazar el `PostalZone` fijo (`"000000"`) por captura/validación del dato postal real en `thirdparty`. | ⏳ Pendiente | — | Medio (toca el formulario de terceros) | 04 |
+| **07** | Tests de aplicación para `electronic/application/confirm.go`: decisión síncrona/asíncrona, manejo de `TestSetID`, y el nuevo comportamiento de reconciliación de 02/03/05. | ⏳ Pendiente | 02, 03, 05 (para testear el comportamiento correcto, no el que se está reemplazando) | Medio | 07 |
+
+**Nota sobre el punto 02 (2026-08-09):** el título original decía "reconciliar con `GetStatus`/`GetStatusZip`", pero al implementarlo se confirmó que eso **no es mecánicamente posible para `SendBillSync`**: el endpoint síncrono de la DIAN no devuelve ningún identificador (trackID/ZipKey) hasta que responde completo, así que si el `http.Client` agota el timeout esperando esa respuesta, no queda nada que consultar después — `GetStatus`/`GetStatusZip` solo sirven para las rutas asíncronas (`SendBillAsync`/`SendTestSetAsync`), que sí entregan un ZipKey de entrada. Dado eso, la corrección real implementada fue:
+- El adaptador (`erp/internal/electronic/infrastructure/cofacture/adapter.go`, funciones `SendBillSync`/`SendTestSetAsync`) ahora distingue si el error es un `soap.Fault` explícito (la DIAN sí respondió y rechazó a nivel de protocolo — sin ambigüedad) usando `errors.As`, y en ese caso lo envuelve con el nuevo sentinel `domain.ErrDianRejectedSync`.
+- `ConfirmUseCase.markError` (`erp/internal/electronic/application/confirm.go`) usa `errors.Is(sendErr, domain.ErrDianRejectedSync)`: si es un fault explícito → `StatusSendError` (comportamiento de siempre, libera el consecutivo). Si es cualquier otro error (timeout, conexión, respuesta ilegible) → nuevo estado `domain.StatusSendUnknown`, que **no libera el consecutivo** en `finish()`.
+- El error de empaquetado ZIP (`uc.zipper.Zip(...)`, que ocurre *antes* de cualquier llamada a la DIAN) se separó para ir directo a `StatusSendError` sin pasar por esta ambigüedad — ahí sí hay certeza absoluta de que nunca se envió nada.
+- Se agregó el estado nuevo en el frontend (`types.ts`, `StatusBadge.tsx` con tono *warning*, filtros de las 5 páginas de documentos) y en las métricas de `stats` (se cuenta junto a `rejected`/`send_error` para no desaparecer del dashboard).
+- Verificado con `go build ./... && go vet ./... && go test ./...` (limpio, sin `FAIL`) y `npm run build` en frontend (sin errores de tipos).
+- **Limitación conocida, que queda para el punto 03**: un documento en `StatusSendUnknown` no tiene hoy ningún camino automático de resolución — el consecutivo queda bloqueado indefinidamente hasta una revisión manual (verificar en el portal de la DIAN) o una intervención directa en BD. No se construyó un endpoint de resolución manual en este punto para no exceder el alcance — es candidato natural para cuando se aborde el punto 03 (mecanismo de reintento/contingencia real).
 
 ---
 

@@ -25,4 +25,12 @@ var (
 	ErrInvalidOperationTypeCode = errors.New("operation_type_code debe ser '10' o '11'")
 	ErrInvalidTaxTypeCode       = errors.New("tipo de impuesto inválido")
 	ErrInvalidItemStandardCode  = errors.New("código de estándar de producto inválido")
+
+	// ErrDianRejectedSync marca un error de SendBillSync donde la DIAN respondió explícitamente
+	// (soap:Fault) — a diferencia de un error de transporte (timeout, conexión), aquí no hay
+	// ambigüedad: la solicitud sí llegó y la DIAN la procesó/rechazó a nivel de protocolo, así
+	// que es seguro liberar el consecutivo. El adaptador de cofacture envuelve el soap.Fault
+	// original con este sentinel (fmt.Errorf("%w: ...", ErrDianRejectedSync)) para que
+	// application/confirm.go pueda distinguir el caso sin importar el paquete soap directamente.
+	ErrDianRejectedSync = errors.New("la DIAN rechazó explícitamente la solicitud (fault de protocolo)")
 )

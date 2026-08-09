@@ -82,6 +82,33 @@ Auditoría de `cofacture/` (motor UBL 2.1 / firma XAdES / SOAP DIAN) y de su con
   a "Aceptado", un rechazo DIAN por consecutivo duplicado. No existe ningún paso de
   reconciliación (`GetStatus` con el número de radicado) antes de liberar el consecutivo o antes
   de permitir el reintento.
+
+  **✅ Resuelto (2026-08-09) — parcialmente, ver limitación anotada.** Se confirmó que una
+  reconciliación literal vía `GetStatus`/`GetStatusZip` no es mecánicamente posible para
+  `SendBillSync`: la DIAN no entrega ningún identificador hasta responder completo, así que un
+  timeout no deja nada que consultar después (`GetStatus`/`GetStatusZip` solo aplican a las
+  rutas asíncronas, que sí devuelven un ZipKey de entrada). La corrección real implementada:
+  `erp/internal/electronic/infrastructure/cofacture/adapter.go` (`SendBillSync`,
+  `SendTestSetAsync`) ahora distingue con `errors.As` si el error es un `*soap.Fault` explícito
+  (la DIAN respondió y rechazó a nivel de protocolo, sin ambigüedad) — lo envuelve con el nuevo
+  `domain.ErrDianRejectedSync`. `ConfirmUseCase.markError` (`confirm.go`) usa
+  `errors.Is(sendErr, domain.ErrDianRejectedSync)`: si es un fault explícito, comportamiento de
+  siempre (`StatusSendError`, libera el consecutivo); para cualquier otro error (timeout,
+  conexión, respuesta ilegible) pasa al nuevo estado `domain.StatusSendUnknown`, que **no libera
+  el consecutivo** en `finish()` — cierra el escenario concreto de doble facturación descrito
+  arriba. El error de empaquetado ZIP (antes de cualquier llamada a la DIAN) se separó para ir
+  directo a `StatusSendError`, ya que ahí sí hay certeza de que nunca se envió nada. Nuevo
+  estado propagado a frontend (`StatusBadge` con tono *warning*, filtros de las 5 páginas de
+  documentos) y a `stats` (cuenta junto a `rejected`/`send_error`). Verificado con
+  `go build/vet/test` (limpio) y `npm run build` (sin errores de tipos).
+
+  **Limitación conocida, que queda para el punto 03 del plan de acción**: hoy no existe ningún
+  camino automático (ni manual vía endpoint) para resolver un documento en `StatusSendUnknown` —
+  el consecutivo queda bloqueado indefinidamente hasta una verificación manual en el portal de
+  la DIAN o una intervención directa en base de datos. Tampoco se implementó todavía el
+  mecanismo de reintento/contingencia en sí (mover a la ruta asíncrona o agregar backoff) — eso
+  sigue siendo el punto 03, que ahora sí puede apoyarse en la distinción de estados que quedó
+  lista aquí.
 - **[RIESGO ALTO] No hay reintentos automáticos ni cola de contingencia para el envío
   síncrono.** `cofacture/soap/client.go` hace una única petición HTTP con `Timeout: 60 *
   time.Second` (línea 39) y no reintenta. El único mecanismo de "reintento" en todo el pipeline
@@ -132,9 +159,12 @@ Auditoría de `cofacture/` (motor UBL 2.1 / firma XAdES / SOAP DIAN) y de su con
   cola de mensajes, ni tabla de "envíos pendientes de reintento" para cuando el servicio DIAN
   no responde. El estado `send_error` es un callejón sin salida operativo (solo `CloneDraft`
   manual, que no reutiliza el intento fallido).
-- **❌ Sin reconciliación de estado ante error de red.** No hay ninguna llamada a
-  `GetStatus`/`GetStatusZip` en el camino de error de `sendSync` para confirmar si el documento
-  fue o no procesado por la DIAN antes de liberar el consecutivo.
+- **✅ Resuelto (2026-08-09), con matiz.** Ya no se libera el consecutivo automáticamente ante un
+  error ambiguo de `sendSync` — pasa a `StatusSendUnknown` en vez de `StatusSendError` (ver
+  detalle en el hallazgo de arriba). Sigue siendo cierto que no hay ninguna llamada real a
+  `GetStatus`/`GetStatusZip` porque, para `SendBillSync`, la DIAN no entrega ningún identificador
+  que permitiera esa consulta — la reconciliación automática de verdad solo es viable si se migra
+  a la ruta asíncrona (punto 03 del plan de acción).
 - **❌ Nómina electrónica no integrada al flujo del ERP** (ver riesgo arriba) — no es solo una
   carpeta vacía, pero el 100% del trabajo de conexión (dominio `payroll` del ERP → cofacture →
   SOAP) está sin hacer.
@@ -144,8 +174,8 @@ Auditoría de `cofacture/` (motor UBL 2.1 / firma XAdES / SOAP DIAN) y de su con
 
 ### 🔧 Recomendaciones concretas y accionables
 
-1. **Antes de liberar el consecutivo en `markError`/`finish` (`confirm.go:431-447`), reconciliar
-   con la DIAN.** Si el error fue de transporte (timeout, conexión rechazada) en vez de un
+1. **✅ Implementado (2026-08-09).** Antes de liberar el consecutivo en `markError`/`finish` (`confirm.go:431-447`), reconciliar
+   con la DIAN. Si el error fue de transporte (timeout, conexión rechazada) en vez de un
    `soap.Fault` explícito, intentar `GetStatus`/`GetStatusZip` con el mismo ZipKey/trackID antes
    de decidir `StatusSendError` + liberar el número. Si no hay forma de obtener un trackID (el
    envío nunca llegó a generarse), documentar explícitamente esa distinción en el estado

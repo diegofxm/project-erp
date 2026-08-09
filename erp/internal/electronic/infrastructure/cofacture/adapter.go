@@ -3,6 +3,7 @@
 package cofacture
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -119,6 +120,14 @@ func (a *Adapter) SendBillSync(zipFileName string, zipBytes []byte, cert []byte,
 	client := soap.New(soapURL, x509cert, key)
 	resp, err := client.SendBillSync(zipFileName, zipBytes)
 	if err != nil {
+		var fault *soap.Fault
+		if errors.As(err, &fault) {
+			// La DIAN respondió explícitamente con un soap:Fault -- sin ambigüedad de si
+			// procesó o no la solicitud. Se envuelve con el sentinel del dominio para que
+			// application/confirm.go pueda distinguir este caso de un error de transporte
+			// sin importar el paquete soap directamente (mantiene el puerto/adaptador limpio).
+			return nil, fmt.Errorf("%w: %s", domain.ErrDianRejectedSync, fault.Error())
+		}
 		return nil, fmt.Errorf("SendBillSync: %w", err)
 	}
 	interpreted, err := dian.Interpret(*resp)
@@ -146,6 +155,10 @@ func (a *Adapter) SendTestSetAsync(zipFileName string, zipBytes []byte, testSetI
 	client := soap.New(soapURL(environmentCode), x509cert, key)
 	resp, err := client.SendTestSetAsync(zipFileName, zipBytes, testSetID)
 	if err != nil {
+		var fault *soap.Fault
+		if errors.As(err, &fault) {
+			return "", fmt.Errorf("%w: %s", domain.ErrDianRejectedSync, fault.Error())
+		}
 		return "", fmt.Errorf("SendTestSetAsync: %w", err)
 	}
 	return resp.ZipKey, nil
