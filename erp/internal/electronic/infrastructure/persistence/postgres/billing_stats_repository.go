@@ -7,20 +7,25 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/diegofxm/erp/internal/stats/domain"
+	"github.com/diegofxm/erp/internal/electronic/domain"
 )
 
-type Repository struct {
+// BillingStatsRepository implementa domain.BillingStatsRepository -- movido acá desde
+// stats/infrastructure/persistence/postgres, que antes ejecutaba estas mismas queries
+// directamente contra electronic.documents desde otro módulo (ver auditoría 2026-08-09, Fase 2
+// punto 15). electronic es el dueño real de este schema, así que las queries viven acá ahora;
+// stats/ solo ve el resultado ya armado a través de un puerto (stats/infrastructure/electronic).
+type BillingStatsRepository struct {
 	pool *pgxpool.Pool
 }
 
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool}
+func NewBillingStatsRepository(pool *pgxpool.Pool) *BillingStatsRepository {
+	return &BillingStatsRepository{pool: pool}
 }
 
 // GetBillingStats ejecuta tres queries SQL sobre electronic.documents para construir
 // las métricas del dashboard. Filtra por company_id y usa la zona horaria de Bogotá.
-func (r *Repository) GetBillingStats(ctx context.Context, companyID uuid.UUID) (*domain.BillingStats, error) {
+func (r *BillingStatsRepository) GetBillingStats(ctx context.Context, companyID uuid.UUID) (*domain.BillingStats, error) {
 	stats := &domain.BillingStats{}
 
 	// ── 1. Stats por período: mes actual, mes anterior, acumulado anual ──────────────────

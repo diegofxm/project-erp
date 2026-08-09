@@ -22,6 +22,7 @@ import (
 	accountinghttp "github.com/diegofxm/erp/internal/accounting/interfaces/http"
 	auditapp "github.com/diegofxm/erp/internal/audit/application"
 	auditpostgres "github.com/diegofxm/erp/internal/audit/infrastructure/persistence/postgres"
+	auditsecurity "github.com/diegofxm/erp/internal/audit/infrastructure/security"
 	audithttp "github.com/diegofxm/erp/internal/audit/interfaces/http"
 	catalogpostgres "github.com/diegofxm/erp/internal/catalog/infrastructure/persistence/postgres"
 	"github.com/diegofxm/erp/internal/catalog/infrastructure/persistence/postgres/seed"
@@ -90,7 +91,7 @@ import (
 	"github.com/diegofxm/erp/internal/shared/secheaders"
 	"github.com/diegofxm/erp/internal/shared/tenant"
 	statsapp "github.com/diegofxm/erp/internal/stats/application"
-	statspostgres "github.com/diegofxm/erp/internal/stats/infrastructure/persistence/postgres"
+	statselectronic "github.com/diegofxm/erp/internal/stats/infrastructure/electronic"
 	statshttp "github.com/diegofxm/erp/internal/stats/interfaces/http"
 	thirdpartyapp "github.com/diegofxm/erp/internal/thirdparty/application"
 	thirdpartypostgres "github.com/diegofxm/erp/internal/thirdparty/infrastructure/persistence/postgres"
@@ -247,7 +248,10 @@ func main() {
 	// Se construye acá (antes que purchase/sales/payroll) porque sus casos de uso de
 	// confirmar/recibir/pagar ahora reciben auditUC para registrar si falla algún suscriptor
 	// del bus de eventos (ver events.PublishAndAudit, plan de acción 2026-08-09 Fase 2 punto 10).
-	auditUC := auditapp.NewUseCase(auditpostgres.NewRepository(pool), logger.New("audit"))
+	// auditSecurityAdapter resuelve email/nombre de usuario para la vista de auditoría sin que
+	// audit/ consulte security.users directamente (ver plan de acción 2026-08-09 Fase 2 punto 15).
+	auditSecurityAdapter := auditsecurity.New(securityRepo)
+	auditUC := auditapp.NewUseCase(auditpostgres.NewRepository(pool), logger.New("audit"), auditSecurityAdapter)
 
 	// ── Casos de uso — purchase ─────────────────────────────────────────────────
 	createPurchaseUC := purchaseapp.NewCreateUseCase(purchaseRepo)
@@ -406,7 +410,7 @@ func main() {
 	updatePartyUC := thirdpartyapp.NewUpdateUseCase(thirdpartyRepo)
 	deletePartyUC := thirdpartyapp.NewDeleteUseCase(thirdpartyRepo)
 
-	getCompanyUC := companyapp.NewGetUseCase(companyRepo)
+	getCompanyUC := companyapp.NewGetUseCase(companyRepo, securityRepo)
 	updateCompanyProfile := companyapp.NewUpdateProfileUseCase(companyRepo)
 	updateCompanyCreds := companyapp.NewUpdateCredentialsUseCase(companyRepo)
 	clearCompanyCreds := companyapp.NewClearCredentialUseCase(companyRepo)
@@ -434,7 +438,11 @@ func main() {
 	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC, quotePDFUC, sendQuoteEmailUC, setSalesCounterUC, auditUC).RegisterRoutes(mux)
 	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo, accountingWithholdingRepo, issueCertificatesUC, manageBankUC, fixedAssetUC, runDepreciationUC, budgetUC, ivaUC, incomeTaxUC, icaUC, exchangeRateUC, reconciliationUC, auditUC).RegisterRoutes(mux)
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, fromPurchaseUC, electronicDianRangesUC, electronicSendEmailUC, auditUC).RegisterRoutes(mux)
-	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statspostgres.NewRepository(pool))).RegisterRoutes(mux)
+	// statsElectronicAdapter reemplaza el SQL directo que stats/ hacía contra electronic.documents
+	// (ver plan de acción 2026-08-09 Fase 2 punto 15) -- las queries ahora viven en electronic,
+	// dueño real de ese schema.
+	statsElectronicAdapter := statselectronic.New(electronicpostgres.NewBillingStatsRepository(pool))
+	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statsElectronicAdapter)).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)
 	notificationhttp.NewHandler(notificationAlertsUC).RegisterRoutes(mux)
 	publichttp.NewHandler(getCompanyUC, createPartyUC).RegisterRoutes(mux)

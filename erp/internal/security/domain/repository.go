@@ -22,6 +22,10 @@ type Repository interface {
 	// solo actualiza el hash, sin tocar el estado de invitación.
 	UpdatePassword(ctx context.Context, id uuid.UUID, hash string) error
 	List(ctx context.Context) ([]User, error)
+	// GetByIDs trae varios usuarios de una sola vez (ej. para enriquecer una lista de auditoría
+	// con email/nombre sin hacer N+1 queries ni un JOIN cross-schema -- ver
+	// audit/infrastructure/security.Adapter).
+	GetByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	// SetSuperAdmin promueve/degrada el flag transversal de plataforma — separado de cualquier rol
 	// por empresa (ver shared/tenant.IsSuperAdmin). Solo debe llamarse desde un endpoint ya
 	// protegido con requireSuperAdmin (ver saas/interfaces/http) o desde el seed del primer

@@ -46,27 +46,26 @@ func (r *Repository) List(ctx context.Context, companyID uuid.UUID, filter domai
 		limit = 200
 	}
 
+	// Solo audit.events -- email/nombre del usuario se resuelven en la capa de aplicación
+	// (ver application.UseCase.List / UserLookupPort), no con un JOIN cross-schema contra
+	// security.users (ver auditoría 2026-08-09, Fase 2 punto 15).
 	var rows pgx.Rows
 	var err error
 	if filter.ResourceID != nil {
 		rows, err = r.pool.Query(ctx, `
-			SELECT ae.id, ae.company_id, ae.user_id, ae.action, ae.resource_type, ae.resource_id, ae.metadata, ae.created_at,
-			       COALESCE(u.email, '') AS user_email, COALESCE(u.name, '') AS user_name
-			FROM audit.events ae
-			LEFT JOIN security.users u ON u.id = ae.user_id
-			WHERE ae.company_id = $1 AND ae.resource_id = $2
-			ORDER BY ae.created_at DESC
+			SELECT id, company_id, user_id, action, resource_type, resource_id, metadata, created_at
+			FROM audit.events
+			WHERE company_id = $1 AND resource_id = $2
+			ORDER BY created_at DESC
 			LIMIT $3 OFFSET $4`,
 			companyID, filter.ResourceID, limit, filter.Offset,
 		)
 	} else {
 		rows, err = r.pool.Query(ctx, `
-			SELECT ae.id, ae.company_id, ae.user_id, ae.action, ae.resource_type, ae.resource_id, ae.metadata, ae.created_at,
-			       COALESCE(u.email, '') AS user_email, COALESCE(u.name, '') AS user_name
-			FROM audit.events ae
-			LEFT JOIN security.users u ON u.id = ae.user_id
-			WHERE ae.company_id = $1
-			ORDER BY ae.created_at DESC
+			SELECT id, company_id, user_id, action, resource_type, resource_id, metadata, created_at
+			FROM audit.events
+			WHERE company_id = $1
+			ORDER BY created_at DESC
 			LIMIT $2 OFFSET $3`,
 			companyID, limit, filter.Offset,
 		)
@@ -82,7 +81,6 @@ func (r *Repository) List(ctx context.Context, companyID uuid.UUID, filter domai
 		var metaBytes []byte
 		if err := rows.Scan(
 			&e.ID, &e.CompanyID, &e.UserID, &e.Action, &e.ResourceType, &e.ResourceID, &metaBytes, &e.CreatedAt,
-			&e.UserEmail, &e.UserName,
 		); err != nil {
 			return nil, fmt.Errorf("leer audit event: %w", err)
 		}

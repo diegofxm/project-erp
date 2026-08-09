@@ -153,6 +153,26 @@ func (r *Repository) List(ctx context.Context) ([]domain.User, error) {
 	return out, rows.Err()
 }
 
+func (r *Repository) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.User, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := r.pool.Query(ctx, userSelect+" WHERE id = ANY($1)", ids)
+	if err != nil {
+		return nil, fmt.Errorf("listar usuarios por id: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.User
+	for rows.Next() {
+		u, err := scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *u)
+	}
+	return out, rows.Err()
+}
+
 // --- user_companies ---
 
 func (r *Repository) AddCompany(ctx context.Context, userID, companyID uuid.UUID, role string) error {

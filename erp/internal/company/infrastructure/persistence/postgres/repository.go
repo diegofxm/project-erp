@@ -112,29 +112,6 @@ func (r *Repository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.C
 	return out, rows.Err()
 }
 
-func (r *Repository) ListByUserID(ctx context.Context, userID uuid.UUID) ([]domain.Company, error) {
-	rows, err := r.pool.Query(ctx,
-		companySelect+` WHERE id IN (
-			SELECT company_id FROM security.user_companies WHERE user_id = $1
-		) ORDER BY created_at`,
-		userID,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("listar empresas del usuario: %w", err)
-	}
-	defer rows.Close()
-
-	var out []domain.Company
-	for rows.Next() {
-		c, err := r.scanCompany(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, *c)
-	}
-	return out, rows.Err()
-}
-
 func (r *Repository) UpdateProfile(ctx context.Context, c domain.Company) (*domain.Company, error) {
 	_, err := r.pool.Exec(ctx, `
 		UPDATE company.companies SET
