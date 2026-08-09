@@ -141,6 +141,11 @@ func (h *Handler) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		respondError(w, err)
 		return
 	}
+	if h.audit != nil {
+		if cid := tenant.GetCompanyID(r.Context()); cid != uuid.Nil {
+			h.audit.Log(r.Context(), cid, &userID, "auth.profile_updated", "user", &userID, map[string]any{"email": u.Email})
+		}
+	}
 	respond(w, safeUser(u, tenant.GetRole(r.Context())), nil)
 }
 
@@ -159,6 +164,13 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	if err := h.changePassword.Execute(r.Context(), userID, body.CurrentPassword, body.NewPassword); err != nil {
 		respondError(w, err)
 		return
+	}
+	// Mismo criterio que logAuth: audit.events es por empresa, así que solo se registra si ya
+	// hay una empresa activa en la sesión.
+	if h.audit != nil {
+		if cid := tenant.GetCompanyID(r.Context()); cid != uuid.Nil {
+			h.audit.Log(r.Context(), cid, &userID, "auth.password_changed", "user", &userID, nil)
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

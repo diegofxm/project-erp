@@ -418,6 +418,14 @@ func (h *Handler) handleSendDocumentEmail(w http.ResponseWriter, r *http.Request
 		writeErr(w, err)
 		return
 	}
+	if h.audit != nil {
+		uid := tenant.GetUserID(r.Context())
+		var userID *uuid.UUID
+		if uid != uuid.Nil {
+			userID = &uid
+		}
+		h.audit.Log(r.Context(), companyID, userID, "document.email_sent", "document", &id, nil)
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
 }
 
@@ -747,6 +755,7 @@ func (h *Handler) handleCreateCreditNoteDraft(w http.ResponseWriter, r *http.Req
 		writeErr(w, err)
 		return
 	}
+	h.logDoc(r.Context(), companyID, "document.created", doc)
 	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
@@ -787,6 +796,7 @@ func (h *Handler) handleUpdateCreditNoteDraft(w http.ResponseWriter, r *http.Req
 		writeErr(w, err)
 		return
 	}
+	h.logDoc(r.Context(), companyID, "document.updated", doc)
 	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
 }
 
@@ -821,6 +831,7 @@ func (h *Handler) handleCreateDebitNoteDraft(w http.ResponseWriter, r *http.Requ
 		writeErr(w, err)
 		return
 	}
+	h.logDoc(r.Context(), companyID, "document.created", doc)
 	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
@@ -860,6 +871,7 @@ func (h *Handler) handleUpdateDebitNoteDraft(w http.ResponseWriter, r *http.Requ
 		writeErr(w, err)
 		return
 	}
+	h.logDoc(r.Context(), companyID, "document.updated", doc)
 	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
 }
 
@@ -906,6 +918,7 @@ func (h *Handler) handleCreateSupportDocDraft(w http.ResponseWriter, r *http.Req
 		writeErr(w, err)
 		return
 	}
+	h.logDoc(r.Context(), companyID, "document.created", doc)
 	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
@@ -945,6 +958,7 @@ func (h *Handler) handleUpdateSupportDocDraft(w http.ResponseWriter, r *http.Req
 		writeErr(w, err)
 		return
 	}
+	h.logDoc(r.Context(), companyID, "document.updated", doc)
 	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
 }
 
@@ -995,6 +1009,7 @@ func (h *Handler) handleCreateAdjustmentNoteDraft(w http.ResponseWriter, r *http
 		writeErr(w, err)
 		return
 	}
+	h.logDoc(r.Context(), companyID, "document.created", doc)
 	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
@@ -1036,6 +1051,7 @@ func (h *Handler) handleUpdateAdjustmentNoteDraft(w http.ResponseWriter, r *http
 		writeErr(w, err)
 		return
 	}
+	h.logDoc(r.Context(), companyID, "document.updated", doc)
 	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
 }
 
@@ -1088,6 +1104,7 @@ func (h *Handler) handleCreateInvoiceFromSale(w http.ResponseWriter, r *http.Req
 		writeErr(w, err)
 		return
 	}
+	h.logDoc(r.Context(), companyID, "document.created", doc)
 	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
@@ -1121,6 +1138,7 @@ func (h *Handler) handleCreateSupportDocFromPurchase(w http.ResponseWriter, r *h
 		writeErr(w, err)
 		return
 	}
+	h.logDoc(r.Context(), companyID, "document.created", doc)
 	writeJSON(w, http.StatusCreated, toDocumentResponseDTO(doc))
 }
 
@@ -1238,6 +1256,18 @@ func (h *Handler) handleCreateNumberingRange(w http.ResponseWriter, r *http.Requ
 		writeErr(w, err)
 		return
 	}
+	if h.audit != nil {
+		uid := tenant.GetUserID(r.Context())
+		var userID *uuid.UUID
+		if uid != uuid.Nil {
+			userID = &uid
+		}
+		h.audit.Log(r.Context(), companyID, userID, "numbering_range.created", "numbering_range", &created.ID, map[string]any{
+			"dian_document_type_code": created.DianDocumentTypeCode,
+			"prefix":                  created.Prefix,
+			"resolution_number":       created.ResolutionNumber,
+		})
+	}
 	writeJSON(w, http.StatusCreated, toNumberingRangeDTO(created))
 }
 
@@ -1276,6 +1306,14 @@ func (h *Handler) handleDeactivateRange(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, err)
 		return
 	}
+	if h.audit != nil {
+		uid := tenant.GetUserID(r.Context())
+		var userID *uuid.UUID
+		if uid != uuid.Nil {
+			userID = &uid
+		}
+		h.audit.Log(r.Context(), companyID, userID, "numbering_range.deactivated", "numbering_range", &id, nil)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1293,6 +1331,14 @@ func (h *Handler) handleActivateRange(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, err)
 		return
+	}
+	if h.audit != nil {
+		uid := tenant.GetUserID(r.Context())
+		var userID *uuid.UUID
+		if uid != uuid.Nil {
+			userID = &uid
+		}
+		h.audit.Log(r.Context(), companyID, userID, "numbering_range.activated", "numbering_range", &id, nil)
 	}
 	writeJSON(w, http.StatusOK, toNumberingRangeDTO(nr))
 }
