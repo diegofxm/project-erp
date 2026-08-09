@@ -47,7 +47,7 @@ Auditoría de producto sobre `erp/internal/` comparado contra un ERP de referenc
    - `audit` se conecta igual que en los demás módulos (inyectar `AuditLogger`, llamar `logAudit` en cambios de etapa/ganada/perdida).
    - `security`/`tenant` se reutiliza sin cambios: mismo `CompanyID` de tenant y mismo esquema de roles (aunque convendría, de una vez, resolver el punto 1 para que el nuevo módulo nazca con el gating correcto en vez de heredar el problema).
    - Esfuerzo estimado: comparable a construir `payroll` desde cero (dominio + aplicación + Postgres + HTTP + páginas frontend) — no es trivial, pero no requiere tocar nada existente, solo añadir.
-4. **Ampliar `stats` con reportes operativos, no solo de facturación.** Añadir a `stats.Repository` métodos para top clientes/productos, rotación de inventario y comparativo ventas-compras, y exponerlos como nuevos widgets del `DashboardPage.tsx` ya existente (la infraestructura de grid configurable ya está construida, solo falta la fuente de datos).
+4. **Reportes operativos cruzando módulos (top clientes/productos, rotación de inventario, comparativo ventas-compras)**, exponibles como nuevos widgets del `DashboardPage.tsx` ya existente (la infraestructura de grid configurable ya está construida, solo falta la fuente de datos). El módulo `stats` que originalmente se pensó para esto (ver línea 35 de `docs/Diseno_ERP_Go_Arquitectura_Hexagonal.md`) se eliminó el 2026-08-09 por quedar huérfano sin esa extensión — cuando se aborde este punto, decidir de nuevo entre un módulo transversal de solo lectura o extender los dashboards client-side por módulo que ya existen (`SalesDashboardPage`, `InventoryDashboardPage`, etc.).
 5. **Decidir explícitamente el alcance de nómina electrónica DIAN** antes de destrabar el frontend de RRHH — si se va a vender el módulo de nómina, la ausencia de este documento electrónico es un bloqueador legal en Colombia, no solo una mejora.
 6. **Añadir costeo a `inventory`** (al menos promedio ponderado) antes de prometer reportes de rentabilidad — sin esto, cualquier reporte de margen que se construya en el punto 4 será incorrecto.
 
@@ -64,7 +64,7 @@ Auditoría de producto sobre `erp/internal/` comparado contra un ERP de referenc
 | Inventario (`inventory`) | 55% | Movimientos y stock reales, pero sin costeo/valoración (bloquea COGS) | Media |
 | Seguridad/RBAC (`security`+`tenant`) | 40% | Autenticación funciona bien; autorización por rol casi no se aplica en el backend | Alta |
 | Auditoría (`audit`) | 45% | Mecanismo bien diseñado pero cobertura muy despareja; 0% en electronic/security | Alta |
-| Reportes/BI (`stats`) | 30% | Solo cubre facturación electrónica; sin reportes operativos cruzados | Media |
+| Reportes/BI | 30% | Facturación electrónica cubierta (dashboard general vía `electronic`) y dashboards client-side por módulo; sin reportes operativos cruzados entre módulos. Módulo `stats` dedicado a esto se eliminó el 2026-08-09 (huérfano, ver punto 15 del plan de acción) | Media |
 | Nómina backend (`payroll`) | 55% | Cálculo real de conceptos legales colombianos, pero sin nómina electrónica DIAN | Media |
 | RRHH (`hr`) | 20% | Solo ausencias; sin vacaciones/incapacidades formales | Baja |
 | Nómina/RRHH frontend | 0% | No existe ninguna página; pospuesto explícitamente y confirmado por ausencia total | Baja (según roadmap) |

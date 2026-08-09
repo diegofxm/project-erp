@@ -32,7 +32,7 @@
 | `shared/email/` | Puerto `Sender` + implementación SMTP con TLS/STARTTLS |
 | `shared/notification/` | Motor multicanal implementado: noop, SMTP, Resend |
 | `shared/reports/` | Motor de documentos: HTML (html/template), PDF (chromedp), Excel (excelize), CSV — con templates para factura, nómina, cotización, etc. |
-| `stats/` | Módulo transversal de lectura — `GET /api/v1/stats/billing`; queries directas sobre `electronic.documents`; diseñado para extenderse a ventas, compras, nómina sin importar módulos Go |
+| ~~`stats/`~~ | **Eliminado (2026-08-09).** Sus métricas se calculan ahora en el cliente (`frontend/src/lib/electronicStats.ts`) a partir de `GET /electronic/documents` — sin endpoint de backend dedicado, igual que `sales`/`purchase`/`inventory`/`accounting`. Ver nota debajo de la tabla de extensión. |
 | `audit/` | Módulo transversal de escritura/lectura — `GET /api/v1/audit-events`; tabla `audit.events`; otros módulos lo consumen vía interfaz `AuditLogger` local (sin importar el paquete audit); `electronic` loguea create/confirm/delete |
 
 ### ✅ Eventos inter-módulo cableados
@@ -66,18 +66,17 @@ Patrón a seguir: ver `electronic/interfaces/http/handlers.go` — interfaz `Aud
 
 ---
 
-#### Módulo `stats/` — extensión a otros dominios
+#### Módulo `stats/` — eliminado (2026-08-09)
 
-`stats/` hoy solo cubre `electronic.documents`. Cuando se requieran KPIs de otros módulos, agregar métodos al repositorio de stats con queries directas sobre los schemas correspondientes (sin importar módulos Go).
+Esta sección describía la idea original: `stats/` como módulo transversal de solo lectura, con permiso explícito de hacer queries directas sobre schemas de otros módulos (sin importar módulos Go), para extenderse eventualmente a `sales`, `inventory`, `payroll`, `purchase`.
 
-Dominios sugeridos:
+Esa extensión nunca ocurrió. En su lugar, cada módulo (`sales`, `purchase`, `inventory`, `accounting`) resolvió sus propias métricas con un dashboard client-side propio (`SalesDashboardPage.tsx`, `PurchaseDashboardPage.tsx`, `InventoryDashboardPage.tsx`, `AccountingDashboardPage.tsx`) que reusa los endpoints de listado/reportes que cada módulo ya tenía, sin pasar por `stats` para nada. `stats/` quedó congelado como un passthrough de una sola tabla (`electronic.documents`) con un solo consumidor (`GET /stats/billing`, el dashboard general de bienvenida) desde julio de 2026.
 
-| Endpoint futuro | Fuente de datos |
-|---|---|
-| `GET /api/v1/stats/sales` | `sales.sales`, `sales.payments` |
-| `GET /api/v1/stats/inventory` | `inventory.movements` |
-| `GET /api/v1/stats/payroll` | `payroll.payslips` |
-| `GET /api/v1/stats/purchases` | `purchase.purchases` |
+Durante la auditoría de 2026-08-09 esto generó una falsa alarma: se marcó como "violación de encapsulamiento de schema" (porque `stats` sí hacía SQL directo contra `electronic.documents`) y se corrigió inicialmente creando un puerto/adaptador — sobreingeniería sobre un diseño que en realidad permitía esa lectura directa a propósito. Al revisar el porqué original (esta misma sección), se decidió eliminar el módulo `stats/` por completo.
+
+Un primer intento de reversión dejó las 3 queries agregadas viviendo como endpoint de backend en `electronic` (`GET /api/v1/stats/billing`). Eso tampoco era correcto: reproducía la misma asimetría un nivel más abajo, porque `sales`/`purchase`/`inventory`/`accounting` nunca tuvieron un endpoint de agregación propio — sus dashboards siempre calcularon todo client-side desde sus endpoints CRUD normales. Se eliminó también esa maquinaria de `electronic` y se reemplazó por `frontend/src/lib/electronicStats.ts` (`computeBillingStats`), que agrega en el cliente a partir de `GET /electronic/documents` (el mismo endpoint CRUD que ya existía). `electronic` ganó de paso su propia página de aterrizaje de módulo (`ElectronicDashboardPage.tsx`, ruta `/documents`), al mismo nivel que `/sales`, `/purchases`, `/inventory`, `/accounting` — hueco que quedó expuesto por esta revisión. El dashboard general (`/`) sigue mostrando solo datos de `electronic`, ahora vía el mismo cálculo client-side; extenderlo a otros módulos queda como trabajo futuro. Ver detalle en `docs/auditorias/2026-08-09/01-arquitectura.md` y `plan-de-accion.md` (punto 15).
+
+Si en el futuro se necesita un reporte real que cruce datos de 2+ módulos (top clientes, rotación de inventario, comparativo ventas-compras — ver punto 30 del plan de acción), evaluar en ese momento entre revivir un módulo transversal de solo lectura (el patrón "SQL directo sin importar módulos Go" sigue siendo válido para eso) o extender los dashboards client-side existentes.
 
 ---
 

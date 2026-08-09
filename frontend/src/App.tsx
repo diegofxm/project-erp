@@ -21,6 +21,7 @@ import { CompaniesPage } from "./pages/CompaniesPage";
 import { CustomersPage } from "./pages/CustomersPage";
 import { SuppliersPage } from "./pages/SuppliersPage";
 import { ProductsPage } from "./pages/ProductsPage";
+import { ElectronicDashboardPage } from "./pages/ElectronicDashboardPage";
 import { InvoicesPage } from "./pages/InvoicesPage";
 import { InvoiceEditorPage } from "./pages/InvoiceEditorPage";
 import { CreditNotesPage } from "./pages/CreditNotesPage";
@@ -89,6 +90,7 @@ function App() {
                     <Route path="/customers" element={<CustomersPage />} />
                     <Route path="/suppliers" element={<SuppliersPage />} />
                     <Route path="/products" element={<ProductsPage />} />
+                    <Route path="/documents" element={<ElectronicDashboardPage />} />
                     <Route path="/documents/invoices" element={<InvoicesPage />} />
                     <Route path="/documents/invoices/:id" element={<InvoiceEditorPage />} />
                     <Route path="/documents/credit-notes" element={<CreditNotesPage />} />

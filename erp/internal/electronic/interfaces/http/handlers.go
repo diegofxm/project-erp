@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	cofdom "github.com/diegofxm/cofacture/domain"
@@ -276,10 +277,38 @@ func (h *Handler) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	docs, err := h.list.List(r.Context(), companyID, domain.ListFilter{
-		DianDocumentTypeCode: r.URL.Query().Get("dian_document_type_code"),
-		Limit:                50,
-	})
+	q := r.URL.Query()
+	filter := domain.ListFilter{
+		DianDocumentTypeCode: q.Get("dian_document_type_code"),
+		Status:               domain.Status(q.Get("status")),
+		Search:               q.Get("q"),
+	}
+	if s := q.Get("source_document_id"); s != "" {
+		if id, err := uuid.Parse(s); err == nil {
+			filter.SourceDocumentID = &id
+		}
+	}
+	if s := q.Get("from"); s != "" {
+		if t, err := time.Parse("2006-01-02", s); err == nil {
+			filter.From = t
+		}
+	}
+	if s := q.Get("to"); s != "" {
+		if t, err := time.Parse("2006-01-02", s); err == nil {
+			filter.To = t
+		}
+	}
+	if s := q.Get("limit"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil {
+			filter.Limit = n
+		}
+	}
+	if s := q.Get("offset"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil {
+			filter.Offset = n
+		}
+	}
+	docs, err := h.list.List(r.Context(), companyID, filter)
 	if err != nil {
 		writeErr(w, err)
 		return

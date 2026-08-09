@@ -90,9 +90,6 @@ import (
 	pdfreports "github.com/diegofxm/erp/internal/shared/reports/infrastructure/pdf"
 	"github.com/diegofxm/erp/internal/shared/secheaders"
 	"github.com/diegofxm/erp/internal/shared/tenant"
-	statsapp "github.com/diegofxm/erp/internal/stats/application"
-	statselectronic "github.com/diegofxm/erp/internal/stats/infrastructure/electronic"
-	statshttp "github.com/diegofxm/erp/internal/stats/interfaces/http"
 	thirdpartyapp "github.com/diegofxm/erp/internal/thirdparty/application"
 	thirdpartypostgres "github.com/diegofxm/erp/internal/thirdparty/infrastructure/persistence/postgres"
 	thirdpartyhttp "github.com/diegofxm/erp/internal/thirdparty/interfaces/http"
@@ -438,11 +435,6 @@ func main() {
 	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC, quotePDFUC, sendQuoteEmailUC, setSalesCounterUC, auditUC).RegisterRoutes(mux)
 	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo, accountingWithholdingRepo, issueCertificatesUC, manageBankUC, fixedAssetUC, runDepreciationUC, budgetUC, ivaUC, incomeTaxUC, icaUC, exchangeRateUC, reconciliationUC, auditUC).RegisterRoutes(mux)
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, fromPurchaseUC, electronicDianRangesUC, electronicSendEmailUC, auditUC).RegisterRoutes(mux)
-	// statsElectronicAdapter reemplaza el SQL directo que stats/ hacía contra electronic.documents
-	// (ver plan de acción 2026-08-09 Fase 2 punto 15) -- las queries ahora viven en electronic,
-	// dueño real de ese schema.
-	statsElectronicAdapter := statselectronic.New(electronicpostgres.NewBillingStatsRepository(pool))
-	statshttp.NewHandler(statsapp.NewGetBillingStatsUseCase(statsElectronicAdapter)).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)
 	notificationhttp.NewHandler(notificationAlertsUC).RegisterRoutes(mux)
 	publichttp.NewHandler(getCompanyUC, createPartyUC).RegisterRoutes(mux)

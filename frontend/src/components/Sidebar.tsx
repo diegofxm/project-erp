@@ -44,7 +44,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Operación",
     items: [
-      { to: "/documents/invoices", label: "Documentos", icon: <Files className="h-3.5 w-3.5" />, activePrefix: "/documents", moduleCode: "electronic_invoicing" },
+      { to: "/documents", label: "Documentos", icon: <Files className="h-3.5 w-3.5" />, activePrefix: "/documents", moduleCode: "electronic_invoicing" },
       { to: "/sales", label: "Ventas", icon: <ShoppingCart className="h-3.5 w-3.5" />, activePrefix: "/sales", moduleCode: "erp_core" },
       { to: "/purchases", label: "Compras", icon: <ShoppingBag className="h-3.5 w-3.5" />, activePrefix: "/purchases", moduleCode: "erp_core" },
       { to: "/inventory", label: "Inventario", icon: <ClipboardCheck className="h-3.5 w-3.5" />, activePrefix: "/inventory", moduleCode: "erp_core" },

@@ -13,10 +13,11 @@ import { Card } from "../components/ui/Card";
 import { Spinner } from "../components/ui/Spinner";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { StatusBadge } from "../components/invoice-form/StatusBadge";
-import { getBillingStats, type BillingStats } from "../lib/stats";
+import { computeBillingStats, type BillingStats } from "../lib/electronicStats";
 import { listDocuments } from "../lib/documents";
 import type { Document, DocumentStatus } from "../lib/types";
 import { formatCOP } from "../lib/currency";
+import { addDaysColombiaISO } from "../lib/dateFormat";
 import { Link } from "react-router";
 import {
   useDashboardLayout,
@@ -179,8 +180,12 @@ export function DashboardPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([getBillingStats(), listDocuments({ limit: 6 })])
-      .then(([s, d]) => { if (!cancelled) { setStats(s); setRecentDocs(d); } })
+    listDocuments({ from: addDaysColombiaISO(-395), limit: 200 })
+      .then((docs) => {
+        if (cancelled) return;
+        setStats(computeBillingStats(docs));
+        setRecentDocs([...docs].sort((a, b) => (b.issue_date ?? "").localeCompare(a.issue_date ?? "")).slice(0, 6));
+      })
       .catch((err: Error) => { if (!cancelled) setError(err.message ?? "No se pudieron cargar las métricas"); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
