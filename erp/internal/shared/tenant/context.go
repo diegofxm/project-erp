@@ -15,9 +15,11 @@ type superAdminKey struct{}
 
 // Verifier verifica un JWT y devuelve userID, companyID, el rol del usuario en esa empresa, y si
 // es superadmin de la plataforma (transversal a todas las empresas, ver saas/interfaces/http).
-// Implementado por security/infrastructure/jwt.TokenService.
+// Recibe ctx porque una implementación real (security/application.SessionVerifier) consulta BD
+// para confirmar que la sesión no fue revocada (logout, cambio de contraseña) -- el JWT dejó de
+// ser 100% autocontenido a propósito, ver plan de acción 2026-08-09 Fase 2 punto 14.
 type Verifier interface {
-	Verify(raw string) (userID, companyID uuid.UUID, role string, isSuperAdmin bool, err error)
+	Verify(ctx context.Context, raw string) (userID, companyID uuid.UUID, role string, isSuperAdmin bool, err error)
 }
 
 func WithCompanyID(ctx context.Context, id uuid.UUID) context.Context {
@@ -81,7 +83,7 @@ func Middleware(v Verifier) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 			if raw != "" {
-				if userID, companyID, role, isSuperAdmin, err := v.Verify(raw); err == nil {
+				if userID, companyID, role, isSuperAdmin, err := v.Verify(r.Context(), raw); err == nil {
 					r = r.WithContext(WithUserID(r.Context(), userID))
 					r = r.WithContext(WithCompanyID(r.Context(), companyID))
 					r = r.WithContext(WithRole(r.Context(), role))

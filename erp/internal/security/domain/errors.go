@@ -13,4 +13,7 @@ var (
 	// contraseña", pensada para el login; aquí no hay correo de por medio, solo la contraseña
 	// actual que el usuario ya autenticado escribió mal al querer cambiarla).
 	ErrCurrentPasswordIncorrect = errors.New("la contraseña actual no es correcta")
+	// ErrTooManyAttempts: el LoginRateLimiter bloqueó el correo por demasiados intentos fallidos
+	// recientes -- ver LoginUseCase.
+	ErrTooManyAttempts = errors.New("demasiados intentos fallidos, intenta de nuevo más tarde")
 )

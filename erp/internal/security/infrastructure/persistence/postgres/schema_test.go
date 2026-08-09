@@ -31,7 +31,7 @@ func TestSchema_SecurityTables(t *testing.T) {
 		cols string
 	}{
 		{"security.users", `id, email, password_hash, name, role,
-			is_active, is_superadmin,
+			is_active, is_superadmin, token_version,
 			invite_token, invite_token_expires_at, invite_accepted_at,
 			created_at, updated_at`},
 		{"security.user_companies", "user_id, company_id, role, created_at"},

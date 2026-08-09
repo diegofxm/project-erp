@@ -13,6 +13,7 @@ type claims struct {
 	CompanyID    uuid.UUID `json:"cid"`
 	Role         string    `json:"rol"`
 	IsSuperAdmin bool      `json:"isa"`
+	TokenVersion int       `json:"tv"`
 	gojwt.RegisteredClaims
 }
 
@@ -25,12 +26,13 @@ func NewTokenService(secret []byte) *TokenService {
 	return &TokenService{secret: secret}
 }
 
-func (s *TokenService) Issue(userID, companyID uuid.UUID, role string, isSuperAdmin bool) (string, error) {
+func (s *TokenService) Issue(userID, companyID uuid.UUID, role string, isSuperAdmin bool, tokenVersion int) (string, error) {
 	c := claims{
 		UserID:       userID,
 		CompanyID:    companyID,
 		Role:         role,
 		IsSuperAdmin: isSuperAdmin,
+		TokenVersion: tokenVersion,
 		RegisteredClaims: gojwt.RegisteredClaims{
 			ExpiresAt: gojwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  gojwt.NewNumericDate(time.Now()),
@@ -39,7 +41,7 @@ func (s *TokenService) Issue(userID, companyID uuid.UUID, role string, isSuperAd
 	return gojwt.NewWithClaims(gojwt.SigningMethodHS256, c).SignedString(s.secret)
 }
 
-func (s *TokenService) Verify(raw string) (uuid.UUID, uuid.UUID, string, bool, error) {
+func (s *TokenService) Verify(raw string) (uuid.UUID, uuid.UUID, string, bool, int, error) {
 	tok, err := gojwt.ParseWithClaims(raw, &claims{}, func(t *gojwt.Token) (any, error) {
 		if _, ok := t.Method.(*gojwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("método de firma inesperado: %v", t.Header["alg"])
@@ -47,11 +49,11 @@ func (s *TokenService) Verify(raw string) (uuid.UUID, uuid.UUID, string, bool, e
 		return s.secret, nil
 	})
 	if err != nil || !tok.Valid {
-		return uuid.Nil, uuid.Nil, "", false, fmt.Errorf("token inválido")
+		return uuid.Nil, uuid.Nil, "", false, 0, fmt.Errorf("token inválido")
 	}
 	c, ok := tok.Claims.(*claims)
 	if !ok {
-		return uuid.Nil, uuid.Nil, "", false, fmt.Errorf("claims inválidos")
+		return uuid.Nil, uuid.Nil, "", false, 0, fmt.Errorf("claims inválidos")
 	}
-	return c.UserID, c.CompanyID, c.Role, c.IsSuperAdmin, nil
+	return c.UserID, c.CompanyID, c.Role, c.IsSuperAdmin, c.TokenVersion, nil
 }

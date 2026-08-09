@@ -117,6 +117,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
+    // Revoca la sesión del lado del servidor (ver LogoutUseCase) -- best-effort: no bloquea el
+    // logout local si falla o si no hay red, el usuario siempre debe poder salir localmente.
+    apiClient.post("/auth/logout").catch(() => {});
     localStorage.removeItem(STORAGE_KEY);
     setAuthToken(null);
     setUser(null);
@@ -202,7 +205,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
-    await apiClient.put<void>("/auth/password", { current_password: currentPassword, new_password: newPassword });
+    // El backend revoca todas las sesiones activas al cambiar la contraseña (ver
+    // ChangePasswordUseCase) y devuelve un token fresco ya válido para no dejar a este mismo
+    // dispositivo deslogueado -- hay que guardarlo, si no la sesión actual empieza a fallar en
+    // el siguiente request.
+    const { token } = await apiClient.put<{ token: string }>("/auth/password", {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    setAuthToken(token);
+    const stored = readStoredSession();
+    if (stored) writeStoredSession({ ...stored, token });
   }, []);
 
   const updateCompany = useCallback(async (payload: UpdateCompanyPayload) => {

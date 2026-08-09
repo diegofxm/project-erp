@@ -22,6 +22,11 @@ type User struct {
 	Role                 Role
 	IsSuperAdmin         bool
 	IsActive             bool
+	// TokenVersion se incrusta en cada JWT emitido (claim "tv") y se compara contra este valor
+	// en cada request autenticado (ver SessionVerifier) -- así se puede revocar una sesión del
+	// lado del servidor (logout, cambio de contraseña) aunque el JWT en sí siga siendo válido
+	// criptográficamente. Se incrementa, nunca se decrementa.
+	TokenVersion         int
 	InviteToken          *uuid.UUID
 	InviteTokenExpiresAt *time.Time
 	InviteAcceptedAt     *time.Time

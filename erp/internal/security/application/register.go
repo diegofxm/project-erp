@@ -49,7 +49,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req RegisterRequest) (*d
 		return nil, err
 	}
 
-	tok, err := uc.token.Issue(saved.ID, uuid.Nil, "", saved.IsSuperAdmin)
+	tok, err := uc.token.Issue(saved.ID, uuid.Nil, "", saved.IsSuperAdmin, saved.TokenVersion)
 	if err != nil {
 		return nil, err
 	}

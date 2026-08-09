@@ -12,6 +12,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/auth/me", h.handleMe)
 	mux.HandleFunc("PUT /api/v1/auth/profile", h.handleUpdateProfile)
 	mux.HandleFunc("PUT /api/v1/auth/password", h.handleChangePassword)
+	mux.HandleFunc("POST /api/v1/auth/logout", h.handleLogout)
 	mux.HandleFunc("POST /api/v1/auth/select-company", h.handleSelectCompany)
 	mux.HandleFunc("POST /api/v1/auth/invite", h.handleInvite)
 	mux.HandleFunc("GET /api/v1/auth/companies", h.handleListCompanies)

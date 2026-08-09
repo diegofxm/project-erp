@@ -228,14 +228,20 @@ func main() {
 	electronicThirdpartyPort := electronicthirdparty.New(thirdpartyRepo)
 
 	// ── Casos de uso — security ─────────────────────────────────────────────────
+	loginRateLimiter := securityapp.NewLoginRateLimiter()
 	registerUC := securityapp.NewRegisterUseCase(securityRepo, jwtSvc)
-	loginUC := securityapp.NewLoginUseCase(securityRepo, jwtSvc)
+	loginUC := securityapp.NewLoginUseCase(securityRepo, jwtSvc, loginRateLimiter)
 	selectCompanyUC := securityapp.NewSelectCompanyUseCase(securityRepo, jwtSvc)
 	inviteUserUC := securityapp.NewInviteUserUseCase(securityRepo)
 	acceptInviteUC := securityapp.NewAcceptInviteUseCase(securityRepo, jwtSvc)
 	updateProfileUC := securityapp.NewUpdateProfileUseCase(securityRepo)
 	getProfileUC := securityapp.NewGetProfileUseCase(securityRepo)
-	changePasswordUC := securityapp.NewChangePasswordUseCase(securityRepo)
+	changePasswordUC := securityapp.NewChangePasswordUseCase(securityRepo, jwtSvc)
+	logoutUC := securityapp.NewLogoutUseCase(securityRepo)
+	// sessionVerifier reemplaza a jwtSvc como tenant.Verifier -- además de la firma/expiración
+	// del JWT, confirma contra BD que la sesión no fue revocada (logout, cambio de contraseña).
+	// Ver plan de acción 2026-08-09 Fase 2 punto 14.
+	sessionVerifier := securityapp.NewSessionVerifier(jwtSvc, securityRepo)
 
 	// ── Audit ───────────────────────────────────────────────────────────────────
 	// Se construye acá (antes que purchase/sales/payroll) porque sus casos de uso de
@@ -413,7 +419,7 @@ func main() {
 	securityhttp.NewHandler(
 		registerUC, loginUC, selectCompanyUC,
 		inviteUserUC, acceptInviteUC,
-		updateProfileUC, getProfileUC, changePasswordUC, auditUC,
+		updateProfileUC, getProfileUC, changePasswordUC, logoutUC, auditUC,
 	).RegisterRoutes(mux)
 	companyhttp.NewHandler(
 		createCompanyUC, getCompanyUC,
@@ -467,7 +473,7 @@ func main() {
 	// Fase 2 punto 12 -- antes un panic tumbaba la conexión sin dejar rastro ni responder
 	// nada coherente al cliente).
 	httpLog := logger.New("http")
-	handler := logger.Recover(httpLog)(logger.WithRequestID(secheaders.Middleware(cors.Middleware(corsAllowedOrigins, corsDevMode)(logger.Middleware(httpLog)(tenant.Middleware(jwtSvc)(mux))))))
+	handler := logger.Recover(httpLog)(logger.WithRequestID(secheaders.Middleware(cors.Middleware(corsAllowedOrigins, corsDevMode)(logger.Middleware(httpLog)(tenant.Middleware(sessionVerifier)(mux))))))
 
 	// ── Disparador diario de TRM (1:00 a.m. hora Colombia) ──────────────────────
 	if os.Getenv("TRM_API_URL") != "" {

@@ -28,6 +28,7 @@ type Handler struct {
 	updateProfile  *application.UpdateProfileUseCase
 	getProfile     *application.GetProfileUseCase
 	changePassword *application.ChangePasswordUseCase
+	logout         *application.LogoutUseCase
 	audit          AuditLogger
 }
 
@@ -40,6 +41,7 @@ func NewHandler(
 	updateProfile *application.UpdateProfileUseCase,
 	getProfile *application.GetProfileUseCase,
 	changePassword *application.ChangePasswordUseCase,
+	logout *application.LogoutUseCase,
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
@@ -51,6 +53,7 @@ func NewHandler(
 		updateProfile:  updateProfile,
 		getProfile:     getProfile,
 		changePassword: changePassword,
+		logout:         logout,
 		audit:          audit,
 	}
 }
@@ -161,15 +164,39 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	if err := h.changePassword.Execute(r.Context(), userID, body.CurrentPassword, body.NewPassword); err != nil {
+	cid := tenant.GetCompanyID(r.Context())
+	newToken, err := h.changePassword.Execute(r.Context(), userID, cid, tenant.GetRole(r.Context()), body.CurrentPassword, body.NewPassword)
+	if err != nil {
 		respondError(w, err)
 		return
 	}
 	// Mismo criterio que logAuth: audit.events es por empresa, así que solo se registra si ya
 	// hay una empresa activa en la sesión.
+	if h.audit != nil && cid != uuid.Nil {
+		h.audit.Log(r.Context(), cid, &userID, "auth.password_changed", "user", &userID, nil)
+	}
+	// Se cambia la contraseña y se revocan todas las sesiones (ver ChangePasswordUseCase), pero
+	// se devuelve un token fresco ya válido para que quien acaba de cambiar su propia contraseña
+	// no quede deslogueado de su propia sesión actual -- solo las demás (otros dispositivos)
+	// quedan invalidadas en su siguiente request.
+	respond(w, map[string]string{"token": newToken}, nil)
+}
+
+// handleLogout revoca la sesión del usuario del lado del servidor (ver LogoutUseCase) -- sin
+// esto, "cerrar sesión" solo borraba el token del lado del cliente, y el token en sí seguía
+// siendo válido hasta su expiración si alguien más llegaba a tenerlo.
+func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
+	userID, ok := requireAuth(w, r)
+	if !ok {
+		return
+	}
+	if err := h.logout.Execute(r.Context(), userID); err != nil {
+		respondError(w, err)
+		return
+	}
 	if h.audit != nil {
 		if cid := tenant.GetCompanyID(r.Context()); cid != uuid.Nil {
-			h.audit.Log(r.Context(), cid, &userID, "auth.password_changed", "user", &userID, nil)
+			h.audit.Log(r.Context(), cid, &userID, "auth.logout", "user", &userID, nil)
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -342,6 +369,8 @@ func respondError(w http.ResponseWriter, err error) {
 	} else if errors.Is(err, domain.ErrUserNotFound) ||
 		errors.Is(err, domain.ErrNotAMember) {
 		code = http.StatusNotFound
+	} else if errors.Is(err, domain.ErrTooManyAttempts) {
+		code = http.StatusTooManyRequests
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)

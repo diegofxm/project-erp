@@ -30,6 +30,10 @@ type Repository interface {
 	// SetInviteToken regenera el token de invitación de un usuario que aún no acepta (ver
 	// InviteOwnerUseCase, reintento de una aprobación de prospecto que falló a mitad de camino).
 	SetInviteToken(ctx context.Context, userID uuid.UUID, token uuid.UUID, expiresAt time.Time) error
+	// IncrementTokenVersion revoca todas las sesiones activas del usuario -- cualquier JWT ya
+	// emitido deja de pasar la verificación en el próximo request (ver SessionVerifier). Se usa en
+	// logout y al cambiar contraseña.
+	IncrementTokenVersion(ctx context.Context, userID uuid.UUID) error
 
 	// Vínculos usuario↔empresa (company_id es UUID puro; FK a company schema se añade cuando exista)
 	AddCompany(ctx context.Context, userID, companyID uuid.UUID, role string) error
@@ -41,8 +45,11 @@ type Repository interface {
 	GetRole(ctx context.Context, userID, companyID uuid.UUID) (string, error)
 }
 
-// TokenService es el puerto de firma y verificación de JWT.
+// TokenService es el puerto de firma y verificación de JWT. tokenVersion (ver User.TokenVersion)
+// viaja como claim propio -- Verify lo devuelve crudo, sin comparar contra nada; la comparación
+// contra el valor actual en BD la hace SessionVerifier, no este servicio (que es pura
+// criptografía, sin acceso a repositorio).
 type TokenService interface {
-	Issue(userID, companyID uuid.UUID, role string, isSuperAdmin bool) (string, error)
-	Verify(raw string) (userID, companyID uuid.UUID, role string, isSuperAdmin bool, err error)
+	Issue(userID, companyID uuid.UUID, role string, isSuperAdmin bool, tokenVersion int) (string, error)
+	Verify(raw string) (userID, companyID uuid.UUID, role string, isSuperAdmin bool, tokenVersion int, err error)
 }

@@ -114,6 +114,17 @@ func (r *Repository) IsSuperAdmin(ctx context.Context, userID uuid.UUID) (bool, 
 	return isSuperAdmin, nil
 }
 
+func (r *Repository) IncrementTokenVersion(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE security.users SET token_version = token_version + 1, updated_at=NOW() WHERE id=$1`,
+		userID,
+	)
+	if err != nil {
+		return fmt.Errorf("revocar sesiones: %w", err)
+	}
+	return nil
+}
+
 func (r *Repository) SetSuperAdmin(ctx context.Context, userID uuid.UUID, value bool) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE security.users SET is_superadmin=$1, updated_at=NOW() WHERE id=$2`,
@@ -204,7 +215,7 @@ func (r *Repository) HasCompany(ctx context.Context, userID, companyID uuid.UUID
 // --- helpers ---
 
 const userSelect = `
-	SELECT id, email, password_hash, name, role, is_active, is_superadmin,
+	SELECT id, email, password_hash, name, role, is_active, is_superadmin, token_version,
 	       invite_token, invite_token_expires_at, invite_accepted_at, created_at, updated_at
 	FROM security.users`
 
@@ -225,7 +236,7 @@ func scanUser(s scanner) (*domain.User, error) {
 	var u domain.User
 	err := s.Scan(
 		&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Role,
-		&u.IsActive, &u.IsSuperAdmin,
+		&u.IsActive, &u.IsSuperAdmin, &u.TokenVersion,
 		&u.InviteToken, &u.InviteTokenExpiresAt, &u.InviteAcceptedAt,
 		&u.CreatedAt, &u.UpdatedAt,
 	)
