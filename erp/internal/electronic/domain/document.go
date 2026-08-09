@@ -29,6 +29,12 @@ const (
 	// doble facturación ante la DIAN. Requiere verificación manual (portal DIAN) antes de decidir
 	// si el número se puede liberar.
 	StatusSendUnknown Status = "send_unknown"
+	// StatusEnvironmentMismatch: el rango de numeración usado (NumberingRange.Environment) no
+	// coincide con el ambiente configurado en la empresa (CompanyInfo.Environment) -- error de
+	// configuración, no de comunicación con la DIAN. El documento se firma (ya tiene CUFE) pero
+	// nunca se transmite, así que a diferencia de StatusSendUnknown SÍ es seguro liberar el
+	// consecutivo (nunca llegó a la DIAN, no hay riesgo de doble facturación).
+	StatusEnvironmentMismatch Status = "environment_mismatch"
 )
 
 // BillingReferenceInput es la referencia obligatoria de NC/ND/NA al documento que corrigen.

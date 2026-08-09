@@ -578,7 +578,7 @@ export interface Totals {
   payable_cents: number;
 }
 
-export type DocumentStatus = "draft" | "built" | "sent" | "accepted" | "rejected" | "send_error" | "send_unknown";
+export type DocumentStatus = "draft" | "built" | "sent" | "accepted" | "rejected" | "send_error" | "send_unknown" | "environment_mismatch";
 
 // Espejo de issueInvoiceRequest (apidian/internal/api/handler_documents.go). customer reusa
 // CustomerPayload — partyDTO tiene exactamente esa forma, así que copiar un Customer guardado

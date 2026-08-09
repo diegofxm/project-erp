@@ -359,9 +359,14 @@ func (uc *ConfirmUseCase) finalizeAndSend(ctx context.Context, xmlBytes []byte, 
 		return nil, err
 	}
 
-	// No enviar si el ambiente del rango no coincide con el de la empresa.
+	// No enviar si el ambiente del rango no coincide con el de la empresa -- error de
+	// configuración, no de comunicación con la DIAN. Antes quedaba en StatusBuilt para siempre
+	// sin ningún error visible; ahora queda en un estado dedicado y libera el consecutivo (nunca
+	// se transmitió, no hay riesgo de doble facturación al liberarlo).
 	if string(p.company.Environment) != string(p.nr.Environment) {
-		return confirmed, nil
+		return uc.finish(ctx, confirmed, domain.StatusEnvironmentMismatch, "", "", "",
+			fmt.Sprintf("el ambiente del rango de numeración (%s) no coincide con el de la empresa (%s) — corrija la configuración del rango o de la empresa antes de reintentar", p.nr.Environment, p.company.Environment),
+			"")
 	}
 
 	zipName, zipBytes, err := uc.zipper.Zip(string(kind), p.company.NIT, p.now.Year(), p.number, xmlBytes)
@@ -526,8 +531,9 @@ func (uc *ConfirmUseCase) finish(ctx context.Context, d *domain.Document, status
 	d.DianStatusMessage = statusMessage
 	d.ApplicationResponseXML = applicationResponseXML
 	// StatusSendUnknown queda deliberadamente fuera: liberar el consecutivo ahí es justo el
-	// riesgo que este cambio corrige (ver domain.StatusSendUnknown).
-	if status == domain.StatusRejected || status == domain.StatusSendError {
+	// riesgo que este cambio corrige (ver domain.StatusSendUnknown). StatusEnvironmentMismatch
+	// SÍ libera -- el documento nunca se transmitió, no hay ambigüedad ni riesgo de duplicado.
+	if status == domain.StatusRejected || status == domain.StatusSendError || status == domain.StatusEnvironmentMismatch {
 		_ = uc.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, d.Number)
 	}
 	return d, nil

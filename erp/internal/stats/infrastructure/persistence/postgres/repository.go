@@ -38,7 +38,7 @@ func (r *Repository) GetBillingStats(ctx context.Context, companyID uuid.UUID) (
 				  AND status = 'accepted'),
 			COUNT(*) FILTER (
 				WHERE issue_date >= date_trunc('month', now() AT TIME ZONE 'America/Bogota')::date
-				  AND status IN ('rejected', 'send_error', 'send_unknown')),
+				  AND status IN ('rejected', 'send_error', 'send_unknown', 'environment_mismatch')),
 			-- Borradores: sin filtro de fecha (pendientes ahora)
 			COUNT(*) FILTER (WHERE status = 'draft'),
 			-- Mes anterior
@@ -57,7 +57,7 @@ func (r *Repository) GetBillingStats(ctx context.Context, companyID uuid.UUID) (
 			COUNT(*) FILTER (
 				WHERE issue_date >= (date_trunc('month', now() AT TIME ZONE 'America/Bogota') - INTERVAL '1 month')::date
 				  AND issue_date <  date_trunc('month', now() AT TIME ZONE 'America/Bogota')::date
-				  AND status IN ('rejected', 'send_error', 'send_unknown')),
+				  AND status IN ('rejected', 'send_error', 'send_unknown', 'environment_mismatch')),
 			-- Acumulado año
 			COALESCE(SUM(totals_payable_cents) FILTER (
 				WHERE issue_date >= date_trunc('year', now() AT TIME ZONE 'America/Bogota')::date

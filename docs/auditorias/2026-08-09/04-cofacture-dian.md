@@ -162,6 +162,13 @@ Auditoría de `cofacture/` (motor UBL 2.1 / firma XAdES / SOAP DIAN) y de su con
   indefinidamente en `built` sin transicionar nunca a `sent`/`accepted`/`rejected`/`send_error`.
   No hay ningún estado de error visible para el usuario ni alerta; solo se detecta mirando que
   nunca cambia de estado.
+
+  **✅ Resuelto (2026-08-09).** Nuevo estado `domain.StatusEnvironmentMismatch`. `finalizeAndSend`
+  ahora pasa por `finish(...)` con un mensaje explícito indicando ambos ambientes en conflicto, y
+  libera el consecutivo (a diferencia de `StatusSendUnknown`, aquí no hay ambigüedad: el
+  documento nunca se transmitió a la DIAN). Propagado a `StatusBadge` (tono de error, no
+  warning — es un fallo cierto) y a los filtros de las 5 páginas de documentos. Verificado con
+  `go build/vet/test` y `npm run build`.
 - **[RIESGO MEDIO] `PostalZone` por defecto es un valor ficticio fijo (`"000000"`), no un dato
   real.** `confirm.go:516` y `confirm.go:529` insertan `"000000"` cuando el tercero no tiene
   dirección postal capturada, en vez de exigir o inferir un valor real. Esto satisface el
@@ -218,9 +225,9 @@ Auditoría de `cofacture/` (motor UBL 2.1 / firma XAdES / SOAP DIAN) y de su con
 3. **✅ Implementado (2026-08-09).** Cifrado el blob del certificado `.p12` en la columna
    `certificate` con `cryptutil.Encrypt`/`Decrypt`, igual que `certificate_password`,
    `software_pin` y `technical_key`.
-4. **Dar visibilidad explícita a los documentos "atascados" en `StatusBuilt`** por descoordinación
-   de ambiente rango/empresa (`confirm.go:361-364`): registrar un estado de error dedicado (p.
-   ej. `StatusEnvironmentMismatch`) en vez de retornar silenciosamente sin cambiar el estado.
+4. **✅ Implementado (2026-08-09).** Nuevo `domain.StatusEnvironmentMismatch` para documentos
+   "atascados" por descoordinación de ambiente rango/empresa (`confirm.go`), con liberación del
+   consecutivo (nunca se transmitieron) y mensaje explícito en vez de retorno silencioso.
 5. **Conectar `erp/internal/payroll` con `cofacture/payroll` + `cofacture/soap`** siguiendo el
    mismo patrón de puertos (`BuilderSignerPort`/`SenderPort`) ya usado en
    `erp/internal/electronic`, si la nómina electrónica DIAN es un requisito de negocio vigente.

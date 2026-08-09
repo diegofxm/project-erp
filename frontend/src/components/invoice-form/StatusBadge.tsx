@@ -8,6 +8,7 @@ const LABELS: Record<DocumentStatus, string> = {
   rejected: "Rechazado",
   send_error: "Error de envío",
   send_unknown: "Sin confirmar (revisar)",
+  environment_mismatch: "Ambiente no coincide",
 };
 
 // Mismos tokens pastel que Banner.tsx (sección 2.3 del design system) — draft/built son
@@ -24,6 +25,7 @@ const TONE_CLASSES: Record<DocumentStatus, string> = {
   rejected: "bg-(--color-danger-bg) text-(--color-danger-text)",
   send_error: "bg-(--color-danger-bg) text-(--color-danger-text)",
   send_unknown: "bg-(--color-warning-bg) text-(--color-warning-text)",
+  environment_mismatch: "bg-(--color-danger-bg) text-(--color-danger-text)",
 };
 
 const DOT_CLASSES: Record<DocumentStatus, string> = {
@@ -34,6 +36,7 @@ const DOT_CLASSES: Record<DocumentStatus, string> = {
   rejected: "bg-(--color-danger)",
   send_error: "bg-(--color-danger)",
   send_unknown: "bg-(--color-warning)",
+  environment_mismatch: "bg-(--color-danger)",
 };
 
 // Píldora completa (rounded-full) con punto de color — patrón de estado tipo Odoo,
