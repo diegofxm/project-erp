@@ -1,0 +1,88 @@
+# Plan de Acción — orden de ejecución recomendado
+
+Este plan reordena los hallazgos de los 9 informes (no por severidad aislada, sino por **dependencia real entre componentes**), para que cada fase se construya sobre una base ya corregida en vez de tener que rehacerse después.
+
+## Lógica de secuenciación
+
+La relación de dependencia del sistema es `frontend → erp → cofacture`: el frontend consume la API de `erp`, y `erp` consume `cofacture` como motor de facturación. Eso significa que **`cofacture` es la base de todo lo financiero/legal** — si tiene un bug de reconciliación o un dato sin cifrar, cualquier trabajo que se haga en `erp` (auditoría, RBAC, reportes) hereda ese riesgo sin saberlo, y si `cofacture` cambia de comportamiento más adelante para corregirlo, ese trabajo en capas superiores puede tener que revisarse. Por eso el orden general es **de abajo hacia arriba: Cofacture → erp → frontend → expansión de producto**, con una única excepción:
+
+- **La fuga de secretos en git (Fase 0) no respeta esta jerarquía** — es un problema de higiene de repositorio, no de arquitectura de capas, y una credencial de base de datos real expuesta hoy es explotable independientemente de en qué capa se esté trabajando. Se resuelve primero y en paralelo a todo lo demás, no como parte de la secuencia de capas.
+
+Dentro de cada fase, el orden interno también importa: por ejemplo, en la Fase 2 la autorización (RBAC) va antes que la auditoría porque ambas tocan los mismos handlers — conviene modificarlos una sola vez — y el CI de tests va después de escribir los tests de `electronic` (Fase 1), porque un CI que no corre nada de valor todavía no aporta.
+
+Cada ítem indica: archivos/módulo, de qué otro ítem depende (si depende de alguno), esfuerzo cualitativo, e informe de origen.
+
+---
+
+## Fase 0 — Emergencia inmediata (sin dependencias, hoy mismo)
+
+| # | Tarea | Depende de | Esfuerzo | Informe |
+|---|---|---|---|---|
+| **01** | Rotar la contraseña de Postgres en alwaysdata.net, las credenciales del proyecto Neon, `AUTH_JWT_SECRET`, `ISSUER_SECRETS_KEY` y las credenciales SMTP de Mailtrap expuestas en `_legacy/apidian/.env`/`.env.old`. Borrar ambos archivos del working tree, purgar el historial completo de git con `git filter-repo`/BFG (un `git rm` normal no basta), y corregir `.gitignore` para que `_legacy/apidian/.env*` quede cubierto. | — | Bajo | 06 |
+
+---
+
+## Fase 1 — Cofacture: la base de la que depende todo lo financiero/legal
+
+| # | Tarea | Depende de | Esfuerzo | Informe |
+|---|---|---|---|---|
+| **02** | Reconciliar con `GetStatus`/`GetStatusZip` antes de liberar el consecutivo cuando `sendSync` falla por timeout/error de transporte (`confirm.go`, función `markError`/`finish`) — hoy se libera el número sin confirmar si la DIAN sí procesó el documento. | — | Medio | 04 |
+| **03** | Mecanismo de reintento/contingencia real para el envío síncrono: mover a la ruta asíncrona (`SendBillAsync` + `GetStatusZip`, que ya tiene un identificador para consultar después) o agregar un job de reintento con backoff. | 02 (comparten la lógica de reconciliación) | Medio-Alto | 04 |
+| **04** | Cifrar el blob del certificado `.p12` en BD con la misma capa AES-256-GCM (`cryptutil`) ya usada para `certificate_password`/PINes. | — | Bajo | 04, 06 |
+| **05** | Registrar un estado dedicado (`StatusEnvironmentMismatch` o similar) cuando el ambiente del rango de numeración no coincide con el de la empresa, en vez de dejar el documento atascado en `built` sin ningún error visible. | — | Bajo | 04 |
+| **06** | Reemplazar el `PostalZone` fijo (`"000000"`) por captura/validación del dato postal real en `thirdparty`. | — | Medio (toca el formulario de terceros) | 04 |
+| **07** | Tests de aplicación para `electronic/application/confirm.go`: decisión síncrona/asíncrona, manejo de `TestSetID`, y el nuevo comportamiento de reconciliación de 02/03/05. | 02, 03, 05 (para testear el comportamiento correcto, no el que se está reemplazando) | Medio | 07 |
+
+---
+
+## Fase 2 — erp (backend): autorización, trazabilidad y confiabilidad de la plataforma
+
+Una vez el motor de facturación es confiable, lo que bloquea producción es que **cualquier usuario autenticado puede saltarse permisos por API** y que **los fallos de negocio no dejan rastro** — esto es transversal a todos los módulos de `erp`, así que se resuelve antes de seguir puliendo módulos individuales.
+
+| # | Tarea | Depende de | Esfuerzo | Informe |
+|---|---|---|---|---|
+| **08** | Aplicar autorización real (RBAC) de forma sistemática: definir qué acciones son "administrativas" por módulo y envolverlas con `requireManage`/`CanManage` — empezando por `sales.handleCancel`, recepción/pago en `purchase`, anulación en `electronic` (hoy solo se oculta en el frontend, el backend no valida nada en estos casos). | — | Alto (transversal) | 09, 03 |
+| **09** | Cerrar el hueco de auditoría en `electronic` (emisión/anulación DIAN, 0 de 26 handlers) y `security` (login/cambio de contraseña/invitación, 0 de 10 handlers). | 08 (mismos handlers, conviene tocarlos una sola vez) | Medio | 09 |
+| **10** | Propagar los errores del bus de eventos (`on_sale_confirmed`, `on_purchase_received`, etc.) al caso de uso que publica en vez de solo `log.Printf`; decidir por evento si debe abortar la operación o solo advertir; registrar la falla en `audit.events`. | 09 (usa la infraestructura de auditoría ya reforzada) | Medio | 03 |
+| **11** | Reemplazar los 14 `log.Printf` de esos mismos handlers por el logger estructurado del proyecto, y pasar el `context.Context` real de la request en vez de `context.Background()`. | 10 (se tocan los mismos archivos) | Bajo | 03 |
+| **12** | Middleware de `recover()` centralizado con request-ID en la cadena HTTP; envolver `RunTRMDailySync` con `defer recover()` (única goroutine de larga vida sin protección hoy). | — | Bajo-Medio | 03 |
+| **13** | Corregir el CORS "fail-open" (no activar wildcard automáticamente si falta la variable de entorno) y agregar cabeceras de seguridad HTTP básicas (`X-Content-Type-Options`, `X-Frame-Options`, CSP). | — | Bajo-Medio | 03, 06 |
+| **14** | Rate limiting/bloqueo progresivo en login; endpoint de logout con invalidación server-side; invalidar sesiones activas al cambiar contraseña. | — | Medio | 06 |
+| **15** | Resolver las 3 violaciones de encapsulamiento de schema (`company`→`security.user_companies`, `audit`→`security.users`, `stats`→`electronic.documents`) creando puertos locales, siguiendo el mismo patrón que ya usan `sales`/`purchase`/`electronic`. | — | Medio | 01, 02 |
+| **16** | Ajustes de base de datos: `.down.sql` faltantes (`electronic`, `hr`, `payroll`, `saas`), `UNIQUE(company_id, number)` en `sales.sales`/`purchase.orders`, índices en FKs de `electronic.documents`, `MaxConns`/`MinConns` explícitos en el pool. | — | Bajo-Medio | 02, 08 |
+| **17** | CI mínimo: `go test ./... -tags=integration` con Postgres de servicio + `go vet` + `govulncheck` + `npm audit`, en cada push. | 07 (para que ya exista algo de valor que el CI corra en `electronic`) | Medio | 07, 08 |
+| **18** | Healthcheck real (`pool.Ping` en `/health`); resolver la discrepancia de infraestructura documentada (Railway vs. Neon/systemd) y documentar/verificar la estrategia de backup real; versionar el script de deploy y el unit file de systemd. | 17 (mismo esfuerzo de "hacer reproducible el despliegue") | Medio-Alto | 08 |
+| **19** | Flujo mínimo de Habeas Data (Ley 1581) en `thirdparty`: consentimiento, exportación de datos del titular, procedimiento de derechos ARCO. | — | Medio | 06 |
+| **20** | Actualizar `react-router` a `>=7.18.2` (CVE alto real) y correr `npm audit fix` para `postcss`/`nanoid` en `frontend`. | — | Bajo | 06 |
+
+---
+
+## Fase 3 — Frontend: confiabilidad de sesión y accesibilidad
+
+Con el backend ya autorizando y auditando correctamente, el frontend deja de tener que compensar ocultando botones como única defensa, y puede enfocarse en su propia deuda.
+
+| # | Tarea | Depende de | Esfuerzo | Informe |
+|---|---|---|---|---|
+| **21** | Interceptor global de 401 en `apiClient.ts` con logout + redirección automática (hoy cada página muestra un error genérico). | 14 (necesita que exista logout server-side) | Medio | 05 |
+| **22** | Timeout de red (`AbortController`) en `fetch()` dentro de `request()`/`getBlob()`. | — | Bajo | 05 |
+| **23** | Hook compartido `useApiResource` (loading/error/cancelado) para reemplazar el patrón duplicado y con variaciones entre páginas. | 21, 22 (se construye sobre el cliente ya corregido) | Medio | 05 |
+| **24** | Accesibilidad: `aria-label` en botones icon-only e inputs de búsqueda crudos, semántica ARIA (`role="combobox"`, etc.) en `Combobox.tsx`. | — | Bajo-Medio | 05 |
+| **25** | Smoke tests de frontend (Vitest + Testing Library) sobre los flujos críticos: login, confirmación de venta/factura. | 21-24 (para testear el comportamiento ya corregido) | Medio | 07 |
+
+---
+
+## Fase 4 — Expansión de producto (alcance nuevo, no bugs — solo después de cerrar 0-3)
+
+Estos ítems no son correcciones de algo roto, son capacidades nuevas. Tiene sentido dejarlos al final: construirlos sobre una base sin RBAC/auditoría/reconciliación real solo multiplicaría el riesgo ya identificado.
+
+| # | Tarea | Depende de | Esfuerzo | Informe |
+|---|---|---|---|---|
+| **26** | Decidir si la nómina electrónica DIAN es requisito de negocio vigente; si lo es, conectar `erp/internal/payroll` con `cofacture/payroll` + `cofacture/soap` (el builder y el CUNE ya existen, están huérfanos) antes de destrabar el frontend de RRHH/Nómina. | Fases 1-3 cerradas | Alto | 04, 09 |
+| **27** | Planificar eventos RADIAN (acuse de recibo, recibo del bien, aceptación/rechazo) si el negocio necesita que las facturas operen como título valor — hoy no hay ningún punto de partida en el código. | Fase 1 cerrada | Alto | 04 |
+| **28** | Costeo de inventario (mínimo promedio ponderado) — requisito previo para cualquier reporte de rentabilidad real. | — | Alto | 09 |
+| **29** | CRM comercial como módulo nuevo (`erp/internal/crm`), reutilizando `thirdparty` como base de contacto y el mismo patrón de puertos que ya usan `sales`/`purchase`/`inventory`. | Fase 2 cerrada (para que nazca ya con el RBAC/auditoría correctos, no heredando el problema) | Alto | 09 |
+| **30** | Ampliar `stats` con reportes operativos (top clientes/productos, rotación de inventario, comparativo ventas-compras) sobre la infraestructura de dashboard ya existente. | 28 (para que los reportes de rentabilidad sean correctos desde el día uno) | Alto | 09 |
+
+---
+
+Informes de origen: [01-arquitectura](01-arquitectura.md) · [02-base-de-datos](02-base-de-datos.md) · [03-backend-go](03-backend-go.md) · [04-cofacture-dian](04-cofacture-dian.md) · [05-frontend](05-frontend.md) · [06-seguridad](06-seguridad.md) · [07-testing-calidad](07-testing-calidad.md) · [08-devops-produccion](08-devops-produccion.md) · [09-roadmap-erp](09-roadmap-erp.md) · [00-resumen-ejecutivo](00-resumen-ejecutivo.md)
