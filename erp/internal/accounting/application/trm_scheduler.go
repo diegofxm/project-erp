@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/diegofxm/erp/internal/accounting/domain"
@@ -24,24 +25,39 @@ func RunTRMDailySync(ctx context.Context, uc *ExchangeRateUseCase, onResult func
 			return
 		case <-time.After(wait):
 		}
+		runOnceSafely(ctx, uc, onResult)
+	}
+}
 
-		rate, err := uc.Sync(ctx)
-		if onResult != nil {
-			onResult(rate, err)
+// runOnceSafely ejecuta un intento de sincronización (con su reintento a la hora) protegido con
+// recover(). Es la única goroutine de larga vida del servidor -- sin este recover, un panic acá
+// (ej. nil pointer en el cliente TRM) tumbaría TODO el proceso del servidor, no solo esta tarea,
+// porque un panic sin recuperar en cualquier goroutine termina el programa completo. Al envolver
+// solo el intento (no todo RunTRMDailySync), un panic aislado no mata tampoco el scheduler para
+// los días siguientes -- el for de arriba sigue esperando al próximo 1:00 a.m. con normalidad.
+func runOnceSafely(ctx context.Context, uc *ExchangeRateUseCase, onResult func(rate *domain.ExchangeRate, err error)) {
+	defer func() {
+		if rec := recover(); rec != nil && onResult != nil {
+			onResult(nil, fmt.Errorf("panic recuperado en sincronización TRM: %v", rec))
 		}
-		if err == nil {
-			continue
-		}
+	}()
 
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Hour):
-		}
-		rate, err = uc.Sync(ctx)
-		if onResult != nil {
-			onResult(rate, err)
-		}
+	rate, err := uc.Sync(ctx)
+	if onResult != nil {
+		onResult(rate, err)
+	}
+	if err == nil {
+		return
+	}
+
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(time.Hour):
+	}
+	rate, err = uc.Sync(ctx)
+	if onResult != nil {
+		onResult(rate, err)
 	}
 }
 

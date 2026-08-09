@@ -45,13 +45,14 @@ func Middleware(log *slog.Logger) func(http.Handler) http.Handler {
 			dur := time.Since(start)
 			msg := fmt.Sprintf("%-4s %s", r.Method, r.URL.Path)
 
+			reqID := RequestID(r.Context())
 			switch {
 			case status >= 500:
-				log.Error(msg, slog.Int("status", status), slog.Duration("dur", dur))
+				log.Error(msg, slog.Int("status", status), slog.Duration("dur", dur), slog.String("request_id", reqID))
 			case status >= 400:
-				log.Warn(msg, slog.Int("status", status), slog.Duration("dur", dur))
+				log.Warn(msg, slog.Int("status", status), slog.Duration("dur", dur), slog.String("request_id", reqID))
 			default:
-				log.Info(msg, slog.Int("status", status), slog.Duration("dur", dur))
+				log.Info(msg, slog.Int("status", status), slog.Duration("dur", dur), slog.String("request_id", reqID))
 			}
 		})
 	}

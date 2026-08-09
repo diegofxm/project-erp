@@ -443,8 +443,13 @@ func main() {
 		_, _ = w.Write([]byte(`{"status":"ok","service":"cofacture erp"}`))
 	})
 
-	// ── Middleware (orden: logger → tenant/JWT) ──────────────────────────────────
-	handler := cors.Middleware(logger.Middleware(logger.New("http"))(tenant.Middleware(jwtSvc)(mux)))
+	// ── Middleware (orden: recover → request-id → cors → logger → tenant/JWT) ───
+	// recover va lo más afuera para cubrir un panic en cualquiera de los middleware
+	// siguientes, no solo en los handlers de negocio (ver plan de acción 2026-08-09
+	// Fase 2 punto 12 -- antes un panic tumbaba la conexión sin dejar rastro ni responder
+	// nada coherente al cliente).
+	httpLog := logger.New("http")
+	handler := logger.Recover(httpLog)(logger.WithRequestID(cors.Middleware(logger.Middleware(httpLog)(tenant.Middleware(jwtSvc)(mux)))))
 
 	// ── Disparador diario de TRM (1:00 a.m. hora Colombia) ──────────────────────
 	if os.Getenv("TRM_API_URL") != "" {
