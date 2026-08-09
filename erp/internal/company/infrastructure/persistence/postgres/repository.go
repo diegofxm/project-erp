@@ -40,6 +40,13 @@ func (r *Repository) Save(ctx context.Context, c domain.Company) (*domain.Compan
 	if err != nil {
 		return nil, fmt.Errorf("cifrar ne_software_pin: %w", err)
 	}
+	// El contenedor PKCS12 completo (incluye la llave privada del emisor) se cifra igual que
+	// las demás credenciales -- antes se guardaba en texto plano (BYTEA crudo), ver auditoría
+	// 2026-08-09 punto 04 del plan de acción.
+	certEnc, err := cryptutil.Encrypt(r.key, c.Certificate)
+	if err != nil {
+		return nil, fmt.Errorf("cifrar certificate: %w", err)
+	}
 
 	_, err = r.pool.Exec(ctx, `
 		INSERT INTO company.companies (
@@ -63,7 +70,7 @@ func (r *Repository) Save(ctx context.Context, c domain.Company) (*domain.Compan
 		c.IdentificationTypeCode, c.DepartmentCode, c.MunicipalityCode, c.AddressLine, c.Email, c.Phone,
 		string(c.Environment), c.EntityTypeCode, c.TaxSchemeCode, c.TaxSchemeName,
 		nilToEmpty(c.LiabilityCodes), c.TaxRegimeCode, nilToEmpty(c.IndustryClassificationCodes), c.MerchantRegistrationNumber,
-		c.SoftwareID, pinEnc, c.Certificate, certPwdEnc,
+		c.SoftwareID, pinEnc, certEnc, certPwdEnc,
 		c.NeSoftwareID, nePinEnc,
 		c.Logo, c.LogoContentType, c.IsActive, c.CreatedAt, c.UpdatedAt,
 	)
@@ -184,15 +191,18 @@ func (r *Repository) UpdateCredentials(ctx context.Context, id uuid.UUID, p doma
 		}
 	}
 
-	// cert es nil cuando no hay certificado nuevo; CASE WHEN $3 IS NOT NULL cubre eso.
-	var cert interface{} = p.Certificate
-	if len(p.Certificate) == 0 {
-		cert = nil
+	// El contenedor PKCS12 completo se cifra igual que las demás credenciales (ver Save).
+	// cryptutil.Encrypt ya devuelve (nil, nil) si p.Certificate está vacío, así que cert queda
+	// nil cuando no hay certificado nuevo -- el CASE WHEN $3 IS NOT NULL cubre eso igual que antes.
+	certEnc, err := cryptutil.Encrypt(r.key, p.Certificate)
+	if err != nil {
+		return fmt.Errorf("cifrar certificate: %w", err)
 	}
+	var cert interface{} = certEnc
 
 	// $3::BYTEA fuerza el tipo explícito: pgx pasa nil sin OID y PostgreSQL
 	// no puede resolver el tipo en el CASE WHEN sin el cast.
-	_, err := r.pool.Exec(ctx, `
+	_, err = r.pool.Exec(ctx, `
 		UPDATE company.companies SET
 			software_id              = CASE WHEN $1 != '' THEN $1 ELSE software_id END,
 			software_pin_enc         = CASE WHEN $1 != '' THEN $2 ELSE software_pin_enc END,
@@ -314,14 +324,14 @@ type scanner interface {
 func (r *Repository) scanCompany(s scanner) (*domain.Company, error) {
 	var c domain.Company
 	var env string
-	var pinEnc, certPwdEnc, nePinEnc []byte
+	var pinEnc, certEnc, certPwdEnc, nePinEnc []byte
 
 	err := s.Scan(
 		&c.ID, &c.NIT, &c.CheckDigit, &c.BusinessName, &c.TradeName,
 		&c.IdentificationTypeCode, &c.DepartmentCode, &c.MunicipalityCode, &c.AddressLine, &c.Email, &c.Phone,
 		&env, &c.EntityTypeCode, &c.TaxSchemeCode, &c.TaxSchemeName,
 		&c.LiabilityCodes, &c.TaxRegimeCode, &c.IndustryClassificationCodes, &c.MerchantRegistrationNumber,
-		&c.SoftwareID, &pinEnc, &c.Certificate, &certPwdEnc,
+		&c.SoftwareID, &pinEnc, &certEnc, &certPwdEnc,
 		&c.CertificateSubject, &c.CertificateIssuerCN, &c.CertificateExpiresAt,
 		&c.NeSoftwareID, &nePinEnc,
 		&c.Logo, &c.LogoContentType, &c.BrandColor, &c.IsActive, &c.CreatedAt, &c.UpdatedAt,
@@ -337,6 +347,11 @@ func (r *Repository) scanCompany(s scanner) (*domain.Company, error) {
 		return nil, fmt.Errorf("descifrar software_pin: %w", err)
 	}
 	c.SoftwarePIN = string(pin)
+
+	c.Certificate, err = cryptutil.Decrypt(r.key, certEnc)
+	if err != nil {
+		return nil, fmt.Errorf("descifrar certificate: %w", err)
+	}
 
 	certPwd, err := cryptutil.Decrypt(r.key, certPwdEnc)
 	if err != nil {

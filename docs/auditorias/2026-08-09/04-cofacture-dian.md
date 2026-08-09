@@ -149,6 +149,12 @@ Auditoría de `cofacture/` (motor UBL 2.1 / firma XAdES / SOAP DIAN) y de su con
   cualquier acceso de lectura a la base de datos (dump, backup, réplica, acceso de un DBA), sin
   necesitar la clave de aplicación (`ENCRYPTION_KEY`). Es más consistente cifrar también el blob
   del certificado con la misma clave AES-256-GCM ya usada para los demás secretos.
+
+  **✅ Resuelto (2026-08-09).** `Save`/`UpdateCredentials`/`scanCompany` ahora cifran/descifran la
+  columna `certificate` con `cryptutil.Encrypt`/`Decrypt` igual que las demás credenciales.
+  Cambio no retrocompatible con certificados guardados bajo el esquema anterior (fallarían al
+  descifrarse) — se confirmó que hoy no existe ninguna empresa real con certificado ya subido,
+  así que no hizo falta backfill. Verificado con `go build/vet/test`.
 - **[RIESGO MEDIO] Envío silenciosamente omitido cuando el ambiente del rango no coincide con
   el de la empresa.** En `confirm.go:361-364`, si `p.company.Environment != p.nr.Environment`
   el documento se persiste en estado `StatusBuilt` (ya "gastó" el consecutivo y generó XML
@@ -209,9 +215,9 @@ Auditoría de `cofacture/` (motor UBL 2.1 / firma XAdES / SOAP DIAN) y de su con
    `CheckPendingStatus` permite volver a consultar manualmente un documento en `StatusSent`.
    Pendiente si se quiere contingencia sin intervención humana: un job periódico en background
    que recorra `StatusSent` de todas las empresas (infraestructura nueva, no incluida aquí).
-3. **Cifrar el blob del certificado `.p12` en la columna `certificate`** con
-   `cryptutil.Encrypt`/`Decrypt`, igual que ya se hace con `certificate_password`, `software_pin`
-   y `technical_key`.
+3. **✅ Implementado (2026-08-09).** Cifrado el blob del certificado `.p12` en la columna
+   `certificate` con `cryptutil.Encrypt`/`Decrypt`, igual que `certificate_password`,
+   `software_pin` y `technical_key`.
 4. **Dar visibilidad explícita a los documentos "atascados" en `StatusBuilt`** por descoordinación
    de ambiente rango/empresa (`confirm.go:361-364`): registrar un estado de error dedicado (p.
    ej. `StatusEnvironmentMismatch`) en vez de retornar silenciosamente sin cambiar el estado.
