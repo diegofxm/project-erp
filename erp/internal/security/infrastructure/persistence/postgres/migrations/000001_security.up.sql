@@ -8,6 +8,10 @@ CREATE TABLE IF NOT EXISTS security.users (
     role                    VARCHAR(20) NOT NULL DEFAULT 'admin',
     is_active               BOOLEAN     NOT NULL DEFAULT TRUE,
     is_superadmin           BOOLEAN     NOT NULL DEFAULT FALSE,
+    -- token_version se incrusta en cada JWT emitido (claim "tv") y se compara contra este valor
+    -- en cada request autenticado (ver security/application.SessionVerifier) -- permite revocar
+    -- sesiones del lado del servidor (logout, cambio de contraseña) sin tabla de sesiones aparte.
+    token_version           INT         NOT NULL DEFAULT 0,
     invite_token            UUID        UNIQUE,
     invite_token_expires_at TIMESTAMPTZ,
     invite_accepted_at      TIMESTAMPTZ,
