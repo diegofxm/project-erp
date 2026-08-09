@@ -174,6 +174,14 @@ Auditoría de `cofacture/` (motor UBL 2.1 / firma XAdES / SOAP DIAN) y de su con
   dirección postal capturada, en vez de exigir o inferir un valor real. Esto satisface el
   esquema (campo presente) pero no necesariamente la intención de la regla (código postal real
   del tercero); es una solución de conveniencia, no una corrección de datos.
+
+  **✅ Resuelto (2026-08-09), con alcance más chico de lo previsto.** Se encontró que
+  `from_sale.go:111`/`from_purchase.go:119` YA usan `MunicipalityCode` (código DANE real) como
+  `PostalZone` — patrón ya en producción, no inventado para esta corrección. El problema real
+  era que `partyFromCompanyAsNIT`/`supplierAsNIT` no seguían ese mismo patrón. Se alinearon
+  ambas funciones (`MunicipalityCode`/`CityCode` como fuente real, `"000000"` solo como último
+  recurso si ni el municipio está registrado) — no hizo falta ninguna migración ni cambio de
+  formulario en `thirdparty`, el dato ya se capturaba, solo no se usaba donde hacía falta.
 - **[RIESGO BAJO-MEDIO] Nómina electrónica: el builder DIAN existe pero no está conectado al
   ERP.** `cofacture/payroll/builder.go` y `cofacture/payroll/cune.go` construyen XML de
   `NominaIndividual` con CUNE real, y `cofacture/soap/operations.go:126-155` expone
@@ -234,5 +242,7 @@ Auditoría de `cofacture/` (motor UBL 2.1 / firma XAdES / SOAP DIAN) y de su con
 6. **Planificar la implementación de eventos RADIAN** (acuse de recibo, recibo del bien,
    aceptación/rechazo) si el negocio requiere que las facturas de venta operen como título
    valor — actualmente no hay ningún punto de partida en el código.
-7. **Reemplazar el `PostalZone` fijo `"000000"`** por una validación/captura obligatoria del
-   dato real en el módulo `thirdparty`, en vez de un valor de relleno en `confirm.go`.
+7. **✅ Implementado (2026-08-09), alcance distinto al descrito.** En vez de agregar captura
+   nueva en `thirdparty`, se alineó `confirm.go` al patrón que ya usan `from_sale.go`/
+   `from_purchase.go` (municipio DANE real como `PostalZone`), que resultó ser más simple y
+   consistente con el resto del código.

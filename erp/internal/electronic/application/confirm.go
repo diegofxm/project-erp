@@ -604,7 +604,10 @@ func partyFromCompanyAsNIT(c *domain.CompanyInfo) cofdom.Party {
 	p.Identification.TypeCode = "31"
 	p.Identification.VerificationCode = c.CheckDigit
 	if p.Address.PostalZone == "" {
-		p.Address.PostalZone = "000000"
+		// El código de municipio (DANE) es un dato real de la empresa, no un relleno -- mismo
+		// criterio que ya usan from_sale.go/from_purchase.go para poblar PostalZone en FE
+		// normal. "000000" queda solo como último recurso si ni el municipio está registrado.
+		p.Address.PostalZone = firstNonEmpty(c.MunicipalityCode, "000000")
 	}
 	return p
 }
@@ -617,9 +620,24 @@ func supplierAsNIT(p cofdom.Party) cofdom.Party {
 	}
 	p.Identification.TypeCode = "31"
 	if p.Address.PostalZone == "" {
-		p.Address.PostalZone = "000000"
+		// p.Address.CityCode es el código de municipio (DANE) real del tercero -- mismo criterio
+		// que partyFromCompanyAsNIT. "000000" queda solo como último recurso.
+		p.Address.PostalZone = firstNonEmpty(p.Address.CityCode, "000000")
 	}
 	return p
+}
+
+// firstNonEmpty devuelve el primer valor no vacío, o el último si todos están vacíos.
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	if len(values) == 0 {
+		return ""
+	}
+	return values[len(values)-1]
 }
 
 func numberingRangeFrom(nr *domain.NumberingRange) cofdom.NumberingRange {
