@@ -1,5 +1,0 @@
-code,name,agency_id,description
-001,UNSPSC,10,Código Estándar de Productos y Servicios de Naciones Unidas
-010,GTIN,9,Números Globales de Identificación de Productos
-020,Partida Arancelaria,195,Partida arancelaria según estatuto tributario
-999,Estándar de adopción del contribuyente,,"Código propio del contribuyente, sin estándar externo"
