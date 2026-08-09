@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/diegofxm/erp/internal/accounting/domain"
 	salesdomain "github.com/diegofxm/erp/internal/sales/domain"
@@ -19,25 +19,26 @@ type OnSalePaymentRecorded struct {
 	accounts domain.AccountRepository
 	periods  domain.PeriodRepository
 	journals domain.JournalRepository
+	log      *slog.Logger
 }
 
 func NewOnSalePaymentRecorded(
 	accounts domain.AccountRepository,
 	periods domain.PeriodRepository,
 	journals domain.JournalRepository,
+	log *slog.Logger,
 ) *OnSalePaymentRecorded {
-	return &OnSalePaymentRecorded{accounts: accounts, periods: periods, journals: journals}
+	return &OnSalePaymentRecorded{accounts: accounts, periods: periods, journals: journals, log: log}
 }
 
 func (h *OnSalePaymentRecorded) Register(bus *events.Bus) {
-	bus.Subscribe(salesdomain.SalePaymentRecorded{}.EventName(), func(evt events.Event) error {
+	bus.Subscribe(salesdomain.SalePaymentRecorded{}.EventName(), func(ctx context.Context, evt events.Event) error {
 		ev, ok := evt.(salesdomain.SalePaymentRecorded)
 		if !ok {
 			return nil
 		}
-		ctx := context.Background()
 		if err := h.handle(ctx, ev); err != nil {
-			log.Printf("accounting: asiento pago venta %s: %v", ev.PaymentID, err)
+			h.log.Error("asiento pago venta", "payment_id", ev.PaymentID, "error", err)
 			return fmt.Errorf("accounting: asiento pago venta %s: %w", ev.PaymentID, err)
 		}
 		return nil
@@ -76,7 +77,7 @@ func (h *OnSalePaymentRecorded) handle(ctx context.Context, ev salesdomain.SaleP
 		return err
 	}
 	if period.Status == domain.PeriodClosed {
-		log.Printf("accounting: período cerrado para pago %s — asiento omitido", ev.PaymentID)
+		h.log.Warn("período cerrado, asiento omitido", "payment_id", ev.PaymentID)
 		return nil
 	}
 

@@ -25,7 +25,7 @@ type AuditLogger interface {
 // Fase 2 punto 10. Si audit es nil, equivale al comportamiento de antes (el subscriber ya
 // hizo su propio log.Printf).
 func PublishAndAudit(ctx context.Context, bus *Bus, e Event, audit AuditLogger, companyID uuid.UUID, action, resourceType string, resourceID uuid.UUID) {
-	errs := bus.Publish(e)
+	errs := bus.Publish(ctx, e)
 	if len(errs) == 0 || audit == nil {
 		return
 	}

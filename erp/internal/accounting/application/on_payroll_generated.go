@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/diegofxm/erp/internal/accounting/domain"
@@ -21,25 +21,26 @@ type OnPayrollGenerated struct {
 	accounts domain.AccountRepository
 	periods  domain.PeriodRepository
 	journals domain.JournalRepository
+	log      *slog.Logger
 }
 
 func NewOnPayrollGenerated(
 	accounts domain.AccountRepository,
 	periods domain.PeriodRepository,
 	journals domain.JournalRepository,
+	log *slog.Logger,
 ) *OnPayrollGenerated {
-	return &OnPayrollGenerated{accounts: accounts, periods: periods, journals: journals}
+	return &OnPayrollGenerated{accounts: accounts, periods: periods, journals: journals, log: log}
 }
 
 func (h *OnPayrollGenerated) Register(bus *events.Bus) {
-	bus.Subscribe(payrolldomain.PayrollGenerated{}.EventName(), func(evt events.Event) error {
+	bus.Subscribe(payrolldomain.PayrollGenerated{}.EventName(), func(ctx context.Context, evt events.Event) error {
 		ev, ok := evt.(payrolldomain.PayrollGenerated)
 		if !ok {
 			return nil
 		}
-		ctx := context.Background()
 		if err := h.handle(ctx, ev); err != nil {
-			log.Printf("accounting: asiento nómina %s: %v", ev.PayslipID, err)
+			h.log.Error("asiento nómina", "payslip_id", ev.PayslipID, "error", err)
 			return fmt.Errorf("accounting: asiento nómina %s: %w", ev.PayslipID, err)
 		}
 		return nil
@@ -91,7 +92,7 @@ func (h *OnPayrollGenerated) handle(ctx context.Context, ev payrolldomain.Payrol
 		return err
 	}
 	if period.Status == domain.PeriodClosed {
-		log.Printf("accounting: período cerrado para nómina %s — asiento omitido", ev.PayslipID)
+		h.log.Warn("período cerrado, asiento omitido", "payslip_id", ev.PayslipID)
 		return nil
 	}
 

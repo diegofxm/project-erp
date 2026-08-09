@@ -2,8 +2,9 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 
 	companydomain "github.com/diegofxm/erp/internal/company/domain"
 	"github.com/diegofxm/erp/internal/inventory/domain"
@@ -20,21 +21,21 @@ type OnPurchaseReceived struct {
 	repo       domain.Repository
 	products   productdomain.Repository
 	warehouses companydomain.WarehouseRepository
+	log        *slog.Logger
 }
 
-func NewOnPurchaseReceived(repo domain.Repository, products productdomain.Repository, warehouses companydomain.WarehouseRepository) *OnPurchaseReceived {
-	return &OnPurchaseReceived{repo: repo, products: products, warehouses: warehouses}
+func NewOnPurchaseReceived(repo domain.Repository, products productdomain.Repository, warehouses companydomain.WarehouseRepository, log *slog.Logger) *OnPurchaseReceived {
+	return &OnPurchaseReceived{repo: repo, products: products, warehouses: warehouses, log: log}
 }
 
 func (h *OnPurchaseReceived) Register(bus *events.Bus) {
-	bus.Subscribe(purchasedomain.PurchaseReceived{}.EventName(), func(evt events.Event) error {
+	bus.Subscribe(purchasedomain.PurchaseReceived{}.EventName(), func(ctx context.Context, evt events.Event) error {
 		ev, ok := evt.(purchasedomain.PurchaseReceived)
 		if !ok {
 			return nil
 		}
-		ctx := context.Background()
 		if err := h.handle(ctx, ev); err != nil {
-			log.Printf("inventory: entrada stock compra %s: %v", ev.PurchaseID, err)
+			h.log.Error("entrada stock compra", "purchase_id", ev.PurchaseID, "error", err)
 			return fmt.Errorf("inventory: entrada stock compra %s: %w", ev.PurchaseID, err)
 		}
 		return nil
@@ -46,6 +47,10 @@ func (h *OnPurchaseReceived) handle(ctx context.Context, ev purchasedomain.Purch
 	if err != nil {
 		return err
 	}
+	// Se acumulan los errores por línea en vez de tragarlos -- antes de este cambio un fallo acá
+	// nunca llegaba al Register de arriba (handle siempre devolvía nil), así que aunque el punto
+	// 10 ya propaga errores del bus, esta función en particular nunca tenía ninguno que propagar.
+	var errs []error
 	for _, line := range ev.Lines {
 		if p, err := h.products.GetByID(ctx, ev.CompanyID, line.ProductID); err == nil && p.IsService {
 			continue
@@ -60,8 +65,8 @@ func (h *OnPurchaseReceived) handle(ctx context.Context, ev purchasedomain.Purch
 			Description: "Entrada por compra",
 		}
 		if err := applyMovement(ctx, h.repo, m); err != nil {
-			log.Printf("inventory: producto %s compra %s: %v", line.ProductID, ev.PurchaseID, err)
+			errs = append(errs, fmt.Errorf("producto %s: %w", line.ProductID, err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }

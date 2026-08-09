@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 
 	"github.com/diegofxm/erp/internal/accounting/domain"
@@ -24,25 +24,26 @@ type OnSaleConfirmed struct {
 	accounts domain.AccountRepository
 	periods  domain.PeriodRepository
 	journals domain.JournalRepository
+	log      *slog.Logger
 }
 
 func NewOnSaleConfirmed(
 	accounts domain.AccountRepository,
 	periods domain.PeriodRepository,
 	journals domain.JournalRepository,
+	log *slog.Logger,
 ) *OnSaleConfirmed {
-	return &OnSaleConfirmed{accounts: accounts, periods: periods, journals: journals}
+	return &OnSaleConfirmed{accounts: accounts, periods: periods, journals: journals, log: log}
 }
 
 func (h *OnSaleConfirmed) Register(bus *events.Bus) {
-	bus.Subscribe(salesdomain.SaleConfirmed{}.EventName(), func(evt events.Event) error {
+	bus.Subscribe(salesdomain.SaleConfirmed{}.EventName(), func(ctx context.Context, evt events.Event) error {
 		ev, ok := evt.(salesdomain.SaleConfirmed)
 		if !ok {
 			return nil
 		}
-		ctx := context.Background()
 		if err := h.handle(ctx, ev); err != nil {
-			log.Printf("accounting: asiento venta %s: %v", ev.SaleID, err)
+			h.log.Error("asiento venta", "sale_id", ev.SaleID, "error", err)
 			return fmt.Errorf("accounting: asiento venta %s: %w", ev.SaleID, err)
 		}
 		return nil
@@ -98,7 +99,7 @@ func (h *OnSaleConfirmed) handle(ctx context.Context, ev salesdomain.SaleConfirm
 		return err
 	}
 	if period.Status == domain.PeriodClosed {
-		log.Printf("accounting: período cerrado para venta %s — asiento omitido", ev.SaleID)
+		h.log.Warn("período cerrado, asiento omitido", "sale_id", ev.SaleID)
 		return nil
 	}
 

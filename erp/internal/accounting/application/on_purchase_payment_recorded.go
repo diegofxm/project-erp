@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/diegofxm/erp/internal/accounting/domain"
 	purchasedomain "github.com/diegofxm/erp/internal/purchase/domain"
@@ -19,25 +19,26 @@ type OnPurchasePaymentRecorded struct {
 	accounts domain.AccountRepository
 	periods  domain.PeriodRepository
 	journals domain.JournalRepository
+	log      *slog.Logger
 }
 
 func NewOnPurchasePaymentRecorded(
 	accounts domain.AccountRepository,
 	periods domain.PeriodRepository,
 	journals domain.JournalRepository,
+	log *slog.Logger,
 ) *OnPurchasePaymentRecorded {
-	return &OnPurchasePaymentRecorded{accounts: accounts, periods: periods, journals: journals}
+	return &OnPurchasePaymentRecorded{accounts: accounts, periods: periods, journals: journals, log: log}
 }
 
 func (h *OnPurchasePaymentRecorded) Register(bus *events.Bus) {
-	bus.Subscribe(purchasedomain.PurchasePaymentRecorded{}.EventName(), func(evt events.Event) error {
+	bus.Subscribe(purchasedomain.PurchasePaymentRecorded{}.EventName(), func(ctx context.Context, evt events.Event) error {
 		ev, ok := evt.(purchasedomain.PurchasePaymentRecorded)
 		if !ok {
 			return nil
 		}
-		ctx := context.Background()
 		if err := h.handle(ctx, ev); err != nil {
-			log.Printf("accounting: asiento pago compra %s: %v", ev.PaymentID, err)
+			h.log.Error("asiento pago compra", "payment_id", ev.PaymentID, "error", err)
 			return fmt.Errorf("accounting: asiento pago compra %s: %w", ev.PaymentID, err)
 		}
 		return nil
@@ -76,7 +77,7 @@ func (h *OnPurchasePaymentRecorded) handle(ctx context.Context, ev purchasedomai
 		return err
 	}
 	if period.Status == domain.PeriodClosed {
-		log.Printf("accounting: período cerrado para pago %s — asiento omitido", ev.PaymentID)
+		h.log.Warn("período cerrado, asiento omitido", "payment_id", ev.PaymentID)
 		return nil
 	}
 

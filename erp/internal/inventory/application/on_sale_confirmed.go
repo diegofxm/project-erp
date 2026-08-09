@@ -2,8 +2,9 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 
 	companydomain "github.com/diegofxm/erp/internal/company/domain"
 	"github.com/diegofxm/erp/internal/inventory/domain"
@@ -19,21 +20,21 @@ type OnSaleConfirmed struct {
 	repo       domain.Repository
 	products   productdomain.Repository
 	warehouses companydomain.WarehouseRepository
+	log        *slog.Logger
 }
 
-func NewOnSaleConfirmed(repo domain.Repository, products productdomain.Repository, warehouses companydomain.WarehouseRepository) *OnSaleConfirmed {
-	return &OnSaleConfirmed{repo: repo, products: products, warehouses: warehouses}
+func NewOnSaleConfirmed(repo domain.Repository, products productdomain.Repository, warehouses companydomain.WarehouseRepository, log *slog.Logger) *OnSaleConfirmed {
+	return &OnSaleConfirmed{repo: repo, products: products, warehouses: warehouses, log: log}
 }
 
 func (h *OnSaleConfirmed) Register(bus *events.Bus) {
-	bus.Subscribe(salesdomain.SaleConfirmed{}.EventName(), func(evt events.Event) error {
+	bus.Subscribe(salesdomain.SaleConfirmed{}.EventName(), func(ctx context.Context, evt events.Event) error {
 		ev, ok := evt.(salesdomain.SaleConfirmed)
 		if !ok {
 			return nil
 		}
-		ctx := context.Background()
 		if err := h.handle(ctx, ev); err != nil {
-			log.Printf("inventory: descontar stock venta %s: %v", ev.SaleID, err)
+			h.log.Error("descontar stock venta", "sale_id", ev.SaleID, "error", err)
 			return fmt.Errorf("inventory: descontar stock venta %s: %w", ev.SaleID, err)
 		}
 		return nil
@@ -45,6 +46,10 @@ func (h *OnSaleConfirmed) handle(ctx context.Context, ev salesdomain.SaleConfirm
 	if err != nil {
 		return err
 	}
+	// Se acumulan los errores por línea en vez de tragarlos -- antes de este cambio un fallo acá
+	// nunca llegaba al Register de arriba (handle siempre devolvía nil), así que aunque el punto
+	// 10 ya propaga errores del bus, esta función en particular nunca tenía ninguno que propagar.
+	var errs []error
 	for _, line := range ev.Lines {
 		if p, err := h.products.GetByID(ctx, ev.CompanyID, line.ProductID); err == nil && p.IsService {
 			continue // los servicios no llevan inventario — nunca deben generar un movimiento
@@ -59,8 +64,8 @@ func (h *OnSaleConfirmed) handle(ctx context.Context, ev salesdomain.SaleConfirm
 			Description: "Salida por venta",
 		}
 		if err := applyMovement(ctx, h.repo, m); err != nil {
-			log.Printf("inventory: producto %s venta %s: %v", line.ProductID, ev.SaleID, err)
+			errs = append(errs, fmt.Errorf("producto %s: %w", line.ProductID, err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
