@@ -103,6 +103,11 @@ type SendResult struct {
 // SenderPort envía el ZIP a la DIAN y consulta el estado.
 type SenderPort interface {
 	SendBillSync(zipFileName string, zipBytes []byte, cert []byte, password string, environmentCode string) (*SendResult, error)
+	// SendBillAsync es la ruta de contingencia de SendBillSync: mismo ZIP ya firmado (mismo
+	// CUFE), pero registra el envío y devuelve un zipKey consultable después vía PollStatusZip
+	// -- a diferencia de SendBillSync, un timeout aquí es recuperable porque no hace falta que
+	// la respuesta completa llegue en la misma conexión.
+	SendBillAsync(zipFileName string, zipBytes []byte, cert []byte, password string, environmentCode string) (zipKey string, err error)
 	SendTestSetAsync(zipFileName string, zipBytes []byte, testSetID string, cert []byte, password string, environmentCode string) (zipKey string, err error)
 	PollStatusZip(zipKey string, cert []byte, password string, environmentCode string) (*SendResult, error)
 }

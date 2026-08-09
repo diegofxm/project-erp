@@ -147,6 +147,23 @@ func (a *Adapter) SendBillSync(zipFileName string, zipBytes []byte, cert []byte,
 	}, nil
 }
 
+func (a *Adapter) SendBillAsync(zipFileName string, zipBytes []byte, cert []byte, password string, environmentCode string) (string, error) {
+	x509cert, key, err := signer.LoadPKCS12(cert, password)
+	if err != nil {
+		return "", fmt.Errorf("cargar certificado para SOAP: %w", err)
+	}
+	client := soap.New(soapURL(environmentCode), x509cert, key)
+	resp, err := client.SendBillAsync(zipFileName, zipBytes)
+	if err != nil {
+		var fault *soap.Fault
+		if errors.As(err, &fault) {
+			return "", fmt.Errorf("%w: %s", domain.ErrDianRejectedSync, fault.Error())
+		}
+		return "", fmt.Errorf("SendBillAsync: %w", err)
+	}
+	return resp.ZipKey, nil
+}
+
 func (a *Adapter) SendTestSetAsync(zipFileName string, zipBytes []byte, testSetID string, cert []byte, password string, environmentCode string) (string, error) {
 	x509cert, key, err := signer.LoadPKCS12(cert, password)
 	if err != nil {

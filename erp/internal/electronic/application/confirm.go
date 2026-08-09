@@ -382,13 +382,43 @@ func (uc *ConfirmUseCase) finalizeAndSend(ctx context.Context, xmlBytes []byte, 
 func (uc *ConfirmUseCase) sendSync(ctx context.Context, d *domain.Document, zipName string, zipBytes []byte, p *prepared) (*domain.Document, error) {
 	result, err := uc.sender.SendBillSync(zipName, zipBytes, p.company.Certificate, p.company.CertificatePassword, string(p.company.Environment))
 	if err != nil {
-		return uc.markError(ctx, d, err)
+		if errors.Is(err, domain.ErrDianRejectedSync) {
+			return uc.markError(ctx, d, err)
+		}
+		// Error de transporte (timeout/conexión): en vez de rendirse, reintentar el MISMO
+		// documento ya firmado (mismo CUFE, no un documento nuevo) por la vía asíncrona antes
+		// de marcarlo como ambiguo. A diferencia de SendBillSync, SendBillAsync deja un zipKey
+		// consultable después, así que si este reintento también resulta ambiguo, el documento
+		// queda recuperable (StatusSent) en vez de perdido (StatusSendUnknown).
+		return uc.retryAsyncAfterSyncFailure(ctx, d, zipName, zipBytes, p, err)
 	}
 	status := domain.StatusAccepted
 	if result.HasRejections || !result.IsValid {
 		status = domain.StatusRejected
 	}
 	return uc.finish(ctx, d, status, "", result.StatusCode, result.StatusDescription, result.StatusMessage, result.ApplicationResponseXML)
+}
+
+// retryAsyncAfterSyncFailure reenvía el mismo ZIP ya firmado por la ruta asíncrona
+// (SendBillAsync + sondeo de GetStatusZip) tras un error ambiguo de SendBillSync. Es un
+// reintento de ENTREGA del mismo documento (mismo CUFE), no la creación de uno nuevo -- por
+// eso es seguro repetirlo: si la DIAN ya había recibido el primer intento, este segundo
+// registro no cambia el CUFE ni duplica el consecutivo.
+func (uc *ConfirmUseCase) retryAsyncAfterSyncFailure(ctx context.Context, d *domain.Document, zipName string, zipBytes []byte, p *prepared, originalErr error) (*domain.Document, error) {
+	zipKey, err := uc.sender.SendBillAsync(zipName, zipBytes, p.company.Certificate, p.company.CertificatePassword, string(p.company.Environment))
+	if err != nil {
+		if errors.Is(err, domain.ErrDianRejectedSync) {
+			return uc.markError(ctx, d, err)
+		}
+		// Ambos intentos (síncrono y asíncrono de contingencia) fallaron de forma ambigua --
+		// se conservan los dos mensajes para que la revisión manual tenga todo el contexto.
+		return uc.markError(ctx, d, fmt.Errorf("envío síncrono y reintento asíncrono ambos ambiguos -- síncrono: %v, asíncrono: %w", originalErr, err))
+	}
+	if zipKey == "" {
+		return uc.finish(ctx, d, domain.StatusSendError, "", "", "", fmt.Sprintf("envío síncrono ambiguo (%v); reintento asíncrono de contingencia rechazado por la DIAN sin ZipKey", originalErr), "")
+	}
+	last := uc.pollZipKey(zipKey, p)
+	return uc.finishFromPoll(ctx, d, zipKey, last, fmt.Sprintf("reintento de contingencia tras envío síncrono ambiguo (%v): respuesta de la DIAN no disponible todavía (sondeo agotado)", originalErr))
 }
 
 func (uc *ConfirmUseCase) sendTestSet(ctx context.Context, d *domain.Document, zipName string, zipBytes []byte, p *prepared) (*domain.Document, error) {
@@ -400,7 +430,18 @@ func (uc *ConfirmUseCase) sendTestSet(ctx context.Context, d *domain.Document, z
 		return uc.finish(ctx, d, domain.StatusSendError, "", "", "", "la DIAN rechazó el envío sin ZipKey", "")
 	}
 
-	// Sondeo acotado (6 intentos, 5 s entre cada uno — mismo patrón que el legacy).
+	last := uc.pollZipKey(zipKey, p)
+	if last != nil && last.IsTestSetClosed {
+		_ = uc.numbering.ClearTestSetID(ctx, d.NumberingRangeID)
+		return uc.sendSync(ctx, d, zipName, zipBytes, p)
+	}
+	return uc.finishFromPoll(ctx, d, zipKey, last, "respuesta de la DIAN no disponible todavía (sondeo agotado)")
+}
+
+// pollZipKey sondea el estado de un envío asíncrono (6 intentos, 5 s entre cada uno — mismo
+// patrón que el legacy) y devuelve el último resultado disponible, o nil si se agota el sondeo
+// sin respuesta útil.
+func (uc *ConfirmUseCase) pollZipKey(zipKey string, p *prepared) *domain.SendResult {
 	var last *domain.SendResult
 	for attempt := 0; attempt < 6; attempt++ {
 		if attempt > 0 {
@@ -415,21 +456,47 @@ func (uc *ConfirmUseCase) sendTestSet(ctx context.Context, d *domain.Document, z
 			break
 		}
 	}
+	return last
+}
 
+// finishFromPoll traduce el último SendResult de un sondeo en el estado final del documento.
+// last == nil (sondeo agotado sin respuesta) deja el documento en StatusSent con el zipKey
+// guardado -- recuperable después vía CheckPendingStatus, a diferencia de StatusSendUnknown que
+// no tiene ningún identificador para volver a consultar.
+func (uc *ConfirmUseCase) finishFromPoll(ctx context.Context, d *domain.Document, zipKey string, last *domain.SendResult, pendingMessage string) (*domain.Document, error) {
 	if last == nil {
-		return uc.finish(ctx, d, domain.StatusSent, zipKey, "", "", "respuesta de la DIAN no disponible todavía (sondeo agotado)", "")
+		return uc.finish(ctx, d, domain.StatusSent, zipKey, "", "", pendingMessage, "")
 	}
-
-	if last.IsTestSetClosed {
-		_ = uc.numbering.ClearTestSetID(ctx, d.NumberingRangeID)
-		return uc.sendSync(ctx, d, zipName, zipBytes, p)
-	}
-
 	status := domain.StatusAccepted
 	if last.HasRejections || !last.IsValid {
 		status = domain.StatusRejected
 	}
 	return uc.finish(ctx, d, status, zipKey, last.StatusCode, last.StatusDescription, last.StatusMessage, last.ApplicationResponseXML)
+}
+
+// CheckPendingStatus reintenta consultar el estado de un documento en StatusSent (un envío
+// asíncrono cuyo sondeo se agotó sin respuesta) usando el zipKey ya guardado en DianTrackID. No
+// genera ningún envío nuevo -- es una consulta pura contra la DIAN sobre un envío que ya se
+// hizo, pensada para que un usuario resuelva manualmente un documento que quedó pendiente
+// (ver limitación conocida del punto 02 del plan de acción: sin esto, StatusSent era un
+// callejón sin salida permanente).
+func (uc *ConfirmUseCase) CheckPendingStatus(ctx context.Context, companyID, id uuid.UUID) (*domain.Document, error) {
+	d, err := uc.documents.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if d.CompanyID != companyID {
+		return nil, domain.ErrDocumentNotFound
+	}
+	if d.Status != domain.StatusSent || d.DianTrackID == "" {
+		return nil, domain.ErrDocumentNotPending
+	}
+	company, err := uc.companies.GetCompany(ctx, d.CompanyID)
+	if err != nil {
+		return nil, err
+	}
+	last := uc.pollZipKey(d.DianTrackID, &prepared{company: company})
+	return uc.finishFromPoll(ctx, d, d.DianTrackID, last, "respuesta de la DIAN todavía no disponible (nuevo sondeo agotado)")
 }
 
 // markError decide el estado final ante un fallo de envío. Distingue dos casos, porque no son

@@ -10,6 +10,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/electronic/documents/{id}/pdf", h.handleGetDocumentPDF)
 	mux.HandleFunc("GET /api/v1/electronic/documents/{id}/xml", h.handleGetDocumentXML)
 	mux.HandleFunc("POST /api/v1/electronic/documents/{id}/confirm", h.handleConfirmDocument)
+	mux.HandleFunc("POST /api/v1/electronic/documents/{id}/check-status", h.handleCheckPendingStatus)
 	mux.HandleFunc("POST /api/v1/electronic/documents/{id}/send-email", h.handleSendDocumentEmail)
 	mux.HandleFunc("POST /api/v1/electronic/documents/{id}/clone", h.handleCloneDocument)
 	mux.HandleFunc("DELETE /api/v1/electronic/documents/{id}", h.handleDeleteDraft)

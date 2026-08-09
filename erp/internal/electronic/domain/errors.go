@@ -5,6 +5,10 @@ import "errors"
 var (
 	ErrDocumentNotFound         = errors.New("documento no encontrado")
 	ErrDocumentNotDraft         = errors.New("el documento ya no está en borrador")
+	// ErrDocumentNotPending: CheckPendingStatus solo aplica a documentos en StatusSent con un
+	// zipKey guardado (envío asíncrono cuyo sondeo se agotó) -- cualquier otro estado no tiene
+	// nada que consultar (StatusSendUnknown no tiene zipKey; los demás ya son finales).
+	ErrDocumentNotPending = errors.New("el documento no tiene un envío pendiente de confirmación por consultar")
 	ErrRangeNotFound            = errors.New("rango de numeración no encontrado")
 	ErrRangeExhausted           = errors.New("rango de numeración agotado")
 	ErrRangeInactive            = errors.New("rango de numeración inactivo")

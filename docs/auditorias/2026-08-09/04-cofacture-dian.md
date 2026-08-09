@@ -118,6 +118,28 @@ Auditoría de `cofacture/` (motor UBL 2.1 / firma XAdES / SOAP DIAN) y de su con
   `StatusSendError` y una acción manual del usuario (`CloneDraft`) — no hay cola de reintento, ni
   backoff, ni job en segundo plano. No se encontró ningún mecanismo de "contingencia" (búsqueda
   de `contingenc` en todo el repo solo aparece en documentación, no en código).
+
+  **✅ Resuelto (2026-08-09), parcialmente — ver limitación anotada.** Se agregó `SendBillAsync`
+  al `SenderPort`/adaptador (mismo patrón que `SendTestSetAsync`, con la misma distinción
+  `soap.Fault`/error de transporte del punto 02). `ConfirmUseCase.sendSync` ahora, ante un error
+  ambiguo de `SendBillSync`, reintenta automáticamente reenviando el **mismo ZIP ya firmado**
+  (mismo CUFE, no un documento nuevo) por `SendBillAsync` + el mismo sondeo acotado de
+  `GetStatusZip` que ya usaba la ruta de habilitación (extraído a un helper compartido
+  `pollZipKey`/`finishFromPoll`). Se optó por "reintentar en el momento del fallo" en vez de
+  "mover toda la producción a async por defecto" para no añadir latencia al caso feliz (una
+  confirmación exitosa sigue siendo tan rápida como siempre). Además se cerró un dead-end que ya
+  existía también en la ruta de habilitación: si el sondeo de `GetStatusZip` se agotaba sin
+  respuesta, el documento quedaba en `StatusSent` para siempre sin ningún código que lo
+  volviera a consultar. Nuevo caso de uso `CheckPendingStatus` + endpoint
+  `POST /api/v1/electronic/documents/{id}/check-status` + botón "Consultar estado" (visible solo
+  con `status == "sent"`) en las 5 páginas de edición de documentos.
+
+  **Limitación que queda abierta**: todo esto es a demanda — el reintento automático solo ocurre
+  en el instante del fallo original; `CheckPendingStatus` requiere que un usuario haga clic. No
+  hay ningún job en segundo plano que revise periódicamente, sin intervención humana, los
+  documentos que quedaron en `StatusSent`. Sería la evolución natural para contingencia 100%
+  automática, pero implica infraestructura nueva (un scheduler que recorra todas las empresas,
+  no solo la actual) y se dejó fuera de este cambio para no mezclarla con el fix puntual.
 - **[RIESGO MEDIO] Certificado `.p12`/`.pfx` se almacena SIN cifrar en la base de datos.** En
   `erp/internal/company/infrastructure/persistence/postgres/repository.go:66` (`Save`) y
   `:199-200` (`UpdateCredentials`), la columna `certificate` guarda `c.Certificate`/`p.Certificate`
@@ -155,10 +177,12 @@ Auditoría de `cofacture/` (motor UBL 2.1 / firma XAdES / SOAP DIAN) y de su con
   aparece en documentación (`docs/apidian-architecture.md`, `docs/auditorias/`), nunca en `.go`.
   Si el negocio necesita soportar el ciclo RADIAN (obligatorio para que la factura sea título
   valor), esto es una laguna total, no una implementación parcial.
-- **❌ Sin cola/mecanismo de contingencia formal.** Confirmado arriba: no hay job en background,
-  cola de mensajes, ni tabla de "envíos pendientes de reintento" para cuando el servicio DIAN
-  no responde. El estado `send_error` es un callejón sin salida operativo (solo `CloneDraft`
-  manual, que no reutiliza el intento fallido).
+- **✅ Resuelto (2026-08-09), con matiz — antes: sin cola/mecanismo de contingencia formal.**
+  Ahora hay un reintento automático (reenvío del mismo ZIP firmado por `SendBillAsync`) ante un
+  fallo ambiguo de `SendBillSync`, más `CheckPendingStatus` para resolver manualmente un
+  documento que quedó en `StatusSent`. Sigue sin existir job en background/cola de mensajes que
+  haga esto sin intervención humana — la revisión de `StatusSent` sigue siendo a demanda (un
+  clic en "Consultar estado"), no periódica y automática.
 - **✅ Resuelto (2026-08-09), con matiz.** Ya no se libera el consecutivo automáticamente ante un
   error ambiguo de `sendSync` — pasa a `StatusSendUnknown` en vez de `StatusSendError` (ver
   detalle en el hallazgo de arriba). Sigue siendo cierto que no hay ninguna llamada real a
@@ -180,9 +204,11 @@ Auditoría de `cofacture/` (motor UBL 2.1 / firma XAdES / SOAP DIAN) y de su con
    de decidir `StatusSendError` + liberar el número. Si no hay forma de obtener un trackID (el
    envío nunca llegó a generarse), documentar explícitamente esa distinción en el estado
    guardado.
-2. **Agregar un job de reintento con backoff para `SendBillSync`** (o mover todo a la ruta
-   asíncrona con `SendBillAsync` + `GetStatusZip`, que sí tiene un ZipKey para consultar
-   después), en vez de depender de que el usuario note el error y clone manualmente.
+2. **✅ Implementado (2026-08-09), a demanda — no en background.** `SendBillSync` ahora reintenta
+   automáticamente vía `SendBillAsync` + `GetStatusZip` en el momento del fallo, y
+   `CheckPendingStatus` permite volver a consultar manualmente un documento en `StatusSent`.
+   Pendiente si se quiere contingencia sin intervención humana: un job periódico en background
+   que recorra `StatusSent` de todas las empresas (infraestructura nueva, no incluida aquí).
 3. **Cifrar el blob del certificado `.p12` en la columna `certificate`** con
    `cryptutil.Encrypt`/`Decrypt`, igual que ya se hace con `certificate_password`, `software_pin`
    y `technical_key`.

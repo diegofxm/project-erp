@@ -358,6 +358,27 @@ func (h *Handler) handleConfirmDocument(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
 }
 
+// handleCheckPendingStatus reintenta consultar la DIAN por un documento en StatusSent (envío
+// asíncrono cuyo sondeo se agotó sin respuesta la primera vez) usando el zipKey ya guardado.
+func (h *Handler) handleCheckPendingStatus(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	doc, err := h.confirm.CheckPendingStatus(r.Context(), companyID, id)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	h.logDoc(r.Context(), companyID, "document.status_checked", doc)
+	writeJSON(w, http.StatusOK, toDocumentResponseDTO(doc))
+}
+
 func (h *Handler) handleGetDocumentPDF(w http.ResponseWriter, r *http.Request) {
 	companyID, ok := mustTenant(w, r)
 	if !ok {
@@ -1344,6 +1365,7 @@ func writeErr(w http.ResponseWriter, err error) {
 		errors.Is(err, domain.ErrRangeNotFound):
 		status = http.StatusNotFound
 	case errors.Is(err, domain.ErrDocumentNotDraft),
+		errors.Is(err, domain.ErrDocumentNotPending),
 		errors.Is(err, domain.ErrEmptyLines),
 		errors.Is(err, domain.ErrMissingCustomer),
 		errors.Is(err, domain.ErrMissingPaymentMeans),

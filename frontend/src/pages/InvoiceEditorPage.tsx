@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Copy, ExternalLink, FileCode, FileMinus, FilePlus, FileText, Mail, Send, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, FileCode, FileMinus, FilePlus, FileText, Mail, RefreshCw, Send, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import {
+  checkPendingStatus,
   cloneDocument,
   confirmDocument,
   createInvoiceDraft,
@@ -57,6 +58,7 @@ export function InvoiceEditorPage() {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingXml, setLoadingXml] = useState(false);
   const [cloningDoc, setCloningDoc] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [pdfFormat] = usePdfFormat();
 
@@ -151,6 +153,22 @@ export function InvoiceEditorPage() {
     }
   }
 
+  // check-status es una consulta pura (no reenvía nada) para un documento que quedó "sent"
+  // porque el sondeo original a la DIAN se agotó sin respuesta — ver domain.StatusSent /
+  // CheckPendingStatus en el backend.
+  async function handleCheckStatus() {
+    if (!id || isNew) return;
+    setCheckingStatus(true);
+    try {
+      setDoc(await checkPendingStatus(id));
+      toast.success("Estado actualizado.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo consultar el estado");
+    } finally {
+      setCheckingStatus(false);
+    }
+  }
+
   async function handleClone() {
     if (!id || isNew) return;
     setCloningDoc(true);
@@ -205,6 +223,11 @@ export function InvoiceEditorPage() {
         </h1>
         <div className="flex flex-wrap items-center gap-1.5">
           {doc && <StatusBadge status={doc.status} />}
+          {!isNew && doc?.status === "sent" && (
+            <Button type="button" variant="secondary" icon={<RefreshCw className="h-3.5 w-3.5" />} loading={checkingStatus} onClick={handleCheckStatus}>
+              Consultar estado
+            </Button>
+          )}
           {!isNew && doc && (
             <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
               Ver PDF

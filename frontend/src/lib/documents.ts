@@ -103,6 +103,12 @@ export function cloneDocument(id: string): Promise<Document> {
   return apiClient.post<Document>(`/electronic/documents/${id}/clone`);
 }
 
+// checkPendingStatus reintenta consultar la DIAN por un documento en estado "sent" (envío
+// asíncrono cuyo sondeo se agotó sin respuesta) — no crea ni reenvía nada, solo consulta.
+export function checkPendingStatus(id: string): Promise<Document> {
+  return apiClient.post<Document>(`/electronic/documents/${id}/check-status`);
+}
+
 export function sendDocumentEmail(id: string, format: PDFFormat = "full_a4", to?: string, cc?: string[]): Promise<void> {
   const body: Record<string, unknown> = {};
   if (format !== "full_a4") body.pdf_format = format;

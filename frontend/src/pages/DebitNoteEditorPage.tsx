@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { FileCode, FilePlus, FileText, Mail, Send, Trash2 } from "lucide-react";
+import { FileCode, FilePlus, FileText, Mail, RefreshCw, Send, Trash2 } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
+  checkPendingStatus,
   confirmDocument,
   createDebitNoteDraft,
   deleteDraft,
@@ -69,6 +70,7 @@ export function DebitNoteEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingXml, setLoadingXml] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -141,6 +143,21 @@ export function DebitNoteEditorPage() {
       navigate("/documents/debit-notes");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el borrador");
+    }
+  }
+
+  // check-status es una consulta pura (no reenvía nada) para un documento que quedó "sent"
+  // porque el sondeo original a la DIAN se agotó sin respuesta.
+  async function handleCheckStatus() {
+    if (!id || isNew) return;
+    setCheckingStatus(true);
+    try {
+      setDoc(await checkPendingStatus(id));
+      toast.success("Estado actualizado.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo consultar el estado");
+    } finally {
+      setCheckingStatus(false);
     }
   }
 
@@ -241,6 +258,11 @@ export function DebitNoteEditorPage() {
           </h1>
         <div className="flex flex-wrap items-center gap-1.5">
           {doc && <StatusBadge status={doc.status} />}
+          {!isNew && doc?.status === "sent" && (
+            <Button type="button" variant="secondary" icon={<RefreshCw className="h-3.5 w-3.5" />} loading={checkingStatus} onClick={handleCheckStatus}>
+              Consultar estado
+            </Button>
+          )}
           {!isNew && doc && (
             <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
               Ver PDF
