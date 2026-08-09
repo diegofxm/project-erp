@@ -9,6 +9,7 @@ import { createSupportDocFromPurchase } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
 import { openInNewTab } from "../lib/openInNewTab";
 import { useConfirm } from "../context/ConfirmContext";
+import { useCanManage } from "../hooks/useCanManage";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
 import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
@@ -42,6 +43,7 @@ export function PurchaseOrderEditorPage() {
   const navigate = useNavigate();
   const confirmDialog = useConfirm();
   const toast = useToast();
+  const canManage = useCanManage();
   const isNew = id === "new";
 
   const [purchase, setPurchase] = useState<Purchase | null>(null);
@@ -258,7 +260,7 @@ export function PurchaseOrderEditorPage() {
               Eliminar
             </Button>
           )}
-          {(purchase?.status === "draft" || purchase?.status === "confirmed") && (
+          {canManage && (purchase?.status === "draft" || purchase?.status === "confirmed") && (
             <Button type="button" variant="danger" icon={<Ban className="h-3.5 w-3.5" />} loading={saving} onClick={handleCancel}>
               Cancelar
             </Button>

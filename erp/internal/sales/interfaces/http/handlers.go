@@ -300,8 +300,12 @@ func (h *Handler) handleConfirm(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusOK, toSaleDTO(s))
 }
 
+// handleCancel cancela una venta ya confirmada -- reversa efectos contables/inventario reales,
+// por eso requiere rol de administración (ver plan de acción 2026-08-09, Fase 2 punto 08:
+// decisión explícita del responsable del proyecto, distinta de recepción/pago en purchase que
+// sí queda abierta a cualquier member).
 func (h *Handler) handleCancel(w http.ResponseWriter, r *http.Request) {
-	cid, ok := requireTenant(w, r)
+	cid, ok := requireManage(w, r)
 	if !ok {
 		return
 	}

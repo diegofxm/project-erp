@@ -7,6 +7,7 @@ import { listNumberingRanges } from "../lib/numberingRanges";
 import { createInvoiceFromSale } from "../lib/documents";
 import { ApiError } from "../lib/apiClient";
 import { useConfirm } from "../context/ConfirmContext";
+import { useCanManage } from "../hooks/useCanManage";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
 import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
@@ -33,6 +34,7 @@ export function SaleEditorPage() {
   const navigate = useNavigate();
   const confirmDialog = useConfirm();
   const toast = useToast();
+  const canManage = useCanManage();
   const isNew = id === "new";
 
   const [sale, setSale] = useState<Sale | null>(null);
@@ -158,7 +160,7 @@ export function SaleEditorPage() {
               Guardar venta
             </Button>
           )}
-          {(sale?.status === "draft" || sale?.status === "confirmed") && (
+          {canManage && (sale?.status === "draft" || sale?.status === "confirmed") && (
             <Button type="button" variant="danger" icon={<Ban className="h-3.5 w-3.5" />} loading={saving} onClick={handleCancel}>
               Cancelar
             </Button>

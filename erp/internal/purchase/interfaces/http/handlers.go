@@ -486,8 +486,14 @@ func (h *Handler) handleReceive(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusOK, toPurchaseDTO(o))
 }
 
+// handleCancel cancela una orden de compra ya confirmada -- reversa efectos contables/inventario
+// reales, por eso requiere rol de administración (mismo criterio que sales.handleCancel, ver
+// plan de acción 2026-08-09 Fase 2 punto 08). A diferencia de recepción/pago (handleReceive,
+// handleRecordPayment), que el responsable del proyecto confirmó explícitamente que deben quedar
+// abiertos a cualquier member -- cancelar no se preguntó explícitamente, se infiere por analogía
+// con sales.handleCancel; revertir si no es la intención real.
 func (h *Handler) handleCancel(w http.ResponseWriter, r *http.Request) {
-	cid, ok := requireTenant(w, r)
+	cid, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
