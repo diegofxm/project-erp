@@ -23,6 +23,7 @@ type ConfirmUseCase struct {
 	customers  domain.CustomerPort
 	payments   domain.PaymentRepository
 	warehouses companydomain.WarehouseRepository
+	audit      events.AuditLogger
 }
 
 func NewConfirmUseCase(
@@ -33,10 +34,11 @@ func NewConfirmUseCase(
 	customers domain.CustomerPort,
 	payments domain.PaymentRepository,
 	warehouses companydomain.WarehouseRepository,
+	audit events.AuditLogger,
 ) *ConfirmUseCase {
 	return &ConfirmUseCase{
 		repo: repo, bus: bus, products: products, inventory: inventory,
-		customers: customers, payments: payments, warehouses: warehouses,
+		customers: customers, payments: payments, warehouses: warehouses, audit: audit,
 	}
 }
 
@@ -66,7 +68,7 @@ func (uc *ConfirmUseCase) Execute(ctx context.Context, companyID, id uuid.UUID) 
 	s.Status = domain.StatusConfirmed
 
 	_, tax, total := s.GrandTotal()
-	uc.bus.Publish(domain.SaleConfirmed{
+	events.PublishAndAudit(ctx, uc.bus, domain.SaleConfirmed{
 		SaleID:     s.ID,
 		CompanyID:  s.CompanyID,
 		CustomerID: s.CustomerID,
@@ -75,7 +77,7 @@ func (uc *ConfirmUseCase) Execute(ctx context.Context, companyID, id uuid.UUID) 
 		TaxAmount:  tax,
 		IssueDate:  s.IssueDate,
 		Lines:      s.Lines,
-	})
+	}, uc.audit, s.CompanyID, "sale.confirmed_side_effect_failed", "sale", s.ID)
 
 	return s, nil
 }

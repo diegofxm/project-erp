@@ -235,14 +235,20 @@ func main() {
 	getProfileUC := securityapp.NewGetProfileUseCase(securityRepo)
 	changePasswordUC := securityapp.NewChangePasswordUseCase(securityRepo)
 
+	// ── Audit ───────────────────────────────────────────────────────────────────
+	// Se construye acá (antes que purchase/sales/payroll) porque sus casos de uso de
+	// confirmar/recibir/pagar ahora reciben auditUC para registrar si falla algún suscriptor
+	// del bus de eventos (ver events.PublishAndAudit, plan de acción 2026-08-09 Fase 2 punto 10).
+	auditUC := auditapp.NewUseCase(auditpostgres.NewRepository(pool), logger.New("audit"))
+
 	// ── Casos de uso — purchase ─────────────────────────────────────────────────
 	createPurchaseUC := purchaseapp.NewCreateUseCase(purchaseRepo)
 	getPurchaseUC := purchaseapp.NewGetUseCase(purchaseRepo)
 	confirmPurchaseUC := purchaseapp.NewConfirmUseCase(purchaseRepo)
 	cancelPurchaseUC := purchaseapp.NewCancelUseCase(purchaseRepo)
-	receivePurchaseUC := purchaseapp.NewReceiveUseCase(purchaseRepo, bus)
+	receivePurchaseUC := purchaseapp.NewReceiveUseCase(purchaseRepo, bus, auditUC)
 	deletePurchaseUC := purchaseapp.NewDeleteUseCase(purchaseRepo)
-	purchasePaymentUC := purchaseapp.NewPaymentUseCase(purchasePaymentRepo, purchaseRepo, bus)
+	purchasePaymentUC := purchaseapp.NewPaymentUseCase(purchasePaymentRepo, purchaseRepo, bus, auditUC)
 	purchaseWithholdingUC := purchaseapp.NewAddWithholdingUseCase(purchaseRepo, purchaseRepo, accountingWithholdingRepo)
 	setPurchaseCounterUC := purchaseapp.NewSetNumberCounterUseCase(purchaseRepo)
 	issueCertificatesUC := accountingapp.NewIssueWithholdingCertificatesUseCase(purchaseRepo, accountingCertificateRepo)
@@ -259,10 +265,10 @@ func main() {
 	// ── Casos de uso — sales ────────────────────────────────────────────────────
 	createSaleUC := salesapp.NewCreateUseCase(salesRepo)
 	getSaleUC := salesapp.NewGetUseCase(salesRepo)
-	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus, productRepo, inventoryRepo, salesCustomerPort, paymentRepo, warehouseRepo)
+	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus, productRepo, inventoryRepo, salesCustomerPort, paymentRepo, warehouseRepo, auditUC)
 	cancelSaleUC := salesapp.NewCancelUseCase(salesRepo)
 	quoteUC := salesapp.NewQuoteUseCase(quoteRepo, salesRepo)
-	paymentUC := salesapp.NewPaymentUseCase(paymentRepo, salesRepo, bus)
+	paymentUC := salesapp.NewPaymentUseCase(paymentRepo, salesRepo, bus, auditUC)
 	setSalesCounterUC := salesapp.NewSetNumberCounterUseCase(salesRepo, quoteRepo)
 
 	// ── Casos de uso — accounting ───────────────────────────────────────────────
@@ -293,9 +299,6 @@ func main() {
 	saasPaymentUC := saasapp.NewPaymentUseCase(saasPaymentRepo)
 	saasMyPlanUC := saasapp.NewMyPlanUseCase(saasSubscriptionRepo, saasPlanRepo, saasDocumentCounter)
 	// saasProspectUC se construye más abajo (necesita `notifier`/`appURL`, que todavía no existen aquí).
-
-	// ── Audit ───────────────────────────────────────────────────────────────────
-	auditUC := auditapp.NewUseCase(auditpostgres.NewRepository(pool), logger.New("audit"))
 
 	// ── Notificaciones de sistema (certificado/rangos por vencer) ───────────────
 	notificationCompanyPort := notificationcompany.New(companyRepo)
@@ -374,7 +377,7 @@ func main() {
 	payrollPayslipRepo := payrollpostgres.NewPayslipRepository(pool)
 	payrollEmpUC := payrollapp.NewEmployeeUseCase(payrollEmpRepo)
 	payrollContractUC := payrollapp.NewContractUseCase(payrollContractRepo, payrollEmpRepo)
-	payrollPayslipUC := payrollapp.NewPayslipUseCase(payrollPayslipRepo, payrollContractRepo, payrollEmpRepo, bus)
+	payrollPayslipUC := payrollapp.NewPayslipUseCase(payrollPayslipRepo, payrollContractRepo, payrollEmpRepo, bus, auditUC)
 
 	moveInventoryUC := inventoryapp.NewMoveUseCase(inventoryRepo)
 	getInventoryUC := inventoryapp.NewGetUseCase(inventoryRepo)

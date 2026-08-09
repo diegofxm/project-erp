@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	companydomain "github.com/diegofxm/erp/internal/company/domain"
@@ -26,15 +27,17 @@ func NewOnPurchaseReceived(repo domain.Repository, products productdomain.Reposi
 }
 
 func (h *OnPurchaseReceived) Register(bus *events.Bus) {
-	bus.Subscribe(purchasedomain.PurchaseReceived{}.EventName(), func(evt events.Event) {
+	bus.Subscribe(purchasedomain.PurchaseReceived{}.EventName(), func(evt events.Event) error {
 		ev, ok := evt.(purchasedomain.PurchaseReceived)
 		if !ok {
-			return
+			return nil
 		}
 		ctx := context.Background()
 		if err := h.handle(ctx, ev); err != nil {
 			log.Printf("inventory: entrada stock compra %s: %v", ev.PurchaseID, err)
+			return fmt.Errorf("inventory: entrada stock compra %s: %w", ev.PurchaseID, err)
 		}
+		return nil
 	})
 }
 

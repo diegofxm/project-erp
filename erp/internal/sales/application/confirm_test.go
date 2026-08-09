@@ -156,7 +156,7 @@ func newConfirmTestUseCase(t *testing.T) (*application.ConfirmUseCase, *fakeSale
 	warehouseRepo := &fakeWarehouseRepo{warehouse: companydomain.Warehouse{ID: warehouseID, CompanyID: companyID, IsDefault: true}}
 
 	bus := events.NewBus()
-	uc := application.NewConfirmUseCase(saleRepo, bus, productRepo, inventoryRepo, customerPort, paymentRepo, warehouseRepo)
+	uc := application.NewConfirmUseCase(saleRepo, bus, productRepo, inventoryRepo, customerPort, paymentRepo, warehouseRepo, nil)
 	return uc, saleRepo, inventoryRepo, customerPort, paymentRepo, productRepo
 }
 

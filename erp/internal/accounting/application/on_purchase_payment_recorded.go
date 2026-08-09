@@ -30,15 +30,17 @@ func NewOnPurchasePaymentRecorded(
 }
 
 func (h *OnPurchasePaymentRecorded) Register(bus *events.Bus) {
-	bus.Subscribe(purchasedomain.PurchasePaymentRecorded{}.EventName(), func(evt events.Event) {
+	bus.Subscribe(purchasedomain.PurchasePaymentRecorded{}.EventName(), func(evt events.Event) error {
 		ev, ok := evt.(purchasedomain.PurchasePaymentRecorded)
 		if !ok {
-			return
+			return nil
 		}
 		ctx := context.Background()
 		if err := h.handle(ctx, ev); err != nil {
 			log.Printf("accounting: asiento pago compra %s: %v", ev.PaymentID, err)
+			return fmt.Errorf("accounting: asiento pago compra %s: %w", ev.PaymentID, err)
 		}
+		return nil
 	})
 }
 

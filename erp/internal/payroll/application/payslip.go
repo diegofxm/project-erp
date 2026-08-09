@@ -14,6 +14,7 @@ type PayslipUseCase struct {
 	contracts domain.ContractRepository
 	employees domain.EmployeeRepository
 	bus       *events.Bus
+	audit     events.AuditLogger
 }
 
 func NewPayslipUseCase(
@@ -21,8 +22,9 @@ func NewPayslipUseCase(
 	contracts domain.ContractRepository,
 	employees domain.EmployeeRepository,
 	bus *events.Bus,
+	audit events.AuditLogger,
 ) *PayslipUseCase {
-	return &PayslipUseCase{payslips: payslips, contracts: contracts, employees: employees, bus: bus}
+	return &PayslipUseCase{payslips: payslips, contracts: contracts, employees: employees, bus: bus, audit: audit}
 }
 
 // Generate crea una liquidación en estado draft calculando todos los conceptos de ley.
@@ -96,7 +98,7 @@ func (uc *PayslipUseCase) Approve(ctx context.Context, companyID, id uuid.UUID) 
 	if err := uc.payslips.UpdateStatus(ctx, id, domain.PayslipApproved); err != nil {
 		return err
 	}
-	uc.bus.Publish(domain.PayrollGenerated{
+	events.PublishAndAudit(ctx, uc.bus, domain.PayrollGenerated{
 		PayslipID:          ps.ID,
 		CompanyID:          ps.CompanyID,
 		EmployeeID:         ps.EmployeeID,
@@ -105,7 +107,7 @@ func (uc *PayslipUseCase) Approve(ctx context.Context, companyID, id uuid.UUID) 
 		TotalEarnedCents:   ps.TotalEarnedCents,
 		TotalDeductedCents: ps.TotalDeductedCents,
 		NetPayCents:        ps.NetPayCents,
-	})
+	}, uc.audit, ps.CompanyID, "payroll.approved_side_effect_failed", "payslip", ps.ID)
 	return nil
 }
 

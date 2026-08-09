@@ -10,12 +10,13 @@ import (
 )
 
 type ReceiveUseCase struct {
-	repo domain.Repository
-	bus  *events.Bus
+	repo  domain.Repository
+	bus   *events.Bus
+	audit events.AuditLogger
 }
 
-func NewReceiveUseCase(repo domain.Repository, bus *events.Bus) *ReceiveUseCase {
-	return &ReceiveUseCase{repo: repo, bus: bus}
+func NewReceiveUseCase(repo domain.Repository, bus *events.Bus, audit events.AuditLogger) *ReceiveUseCase {
+	return &ReceiveUseCase{repo: repo, bus: bus, audit: audit}
 }
 
 func (uc *ReceiveUseCase) Execute(ctx context.Context, companyID, id uuid.UUID) (*domain.PurchaseOrder, error) {
@@ -35,7 +36,7 @@ func (uc *ReceiveUseCase) Execute(ctx context.Context, companyID, id uuid.UUID) 
 	for _, l := range o.Lines {
 		taxAmount += l.TaxAmount
 	}
-	uc.bus.Publish(domain.PurchaseReceived{
+	events.PublishAndAudit(ctx, uc.bus, domain.PurchaseReceived{
 		PurchaseID:   o.ID,
 		CompanyID:    o.CompanyID,
 		SupplierID:   o.SupplierID,
@@ -45,7 +46,7 @@ func (uc *ReceiveUseCase) Execute(ctx context.Context, companyID, id uuid.UUID) 
 		IssueDate:    o.IssueDate,
 		Lines:        o.Lines,
 		Withholdings: o.Withholdings,
-	})
+	}, uc.audit, o.CompanyID, "purchase.received_side_effect_failed", "purchase", o.ID)
 
 	return o, nil
 }

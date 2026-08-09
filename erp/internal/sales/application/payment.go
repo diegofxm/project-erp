@@ -15,10 +15,11 @@ type PaymentUseCase struct {
 	paymentRepo domain.PaymentRepository
 	saleRepo    domain.Repository
 	bus         *events.Bus
+	audit       events.AuditLogger
 }
 
-func NewPaymentUseCase(paymentRepo domain.PaymentRepository, saleRepo domain.Repository, bus *events.Bus) *PaymentUseCase {
-	return &PaymentUseCase{paymentRepo: paymentRepo, saleRepo: saleRepo, bus: bus}
+func NewPaymentUseCase(paymentRepo domain.PaymentRepository, saleRepo domain.Repository, bus *events.Bus, audit events.AuditLogger) *PaymentUseCase {
+	return &PaymentUseCase{paymentRepo: paymentRepo, saleRepo: saleRepo, bus: bus, audit: audit}
 }
 
 type RecordPaymentRequest struct {
@@ -70,7 +71,7 @@ func (uc *PaymentUseCase) Record(ctx context.Context, companyID uuid.UUID, req R
 		return nil, err
 	}
 
-	uc.bus.Publish(domain.SalePaymentRecorded{
+	events.PublishAndAudit(ctx, uc.bus, domain.SalePaymentRecorded{
 		PaymentID:     saved.ID,
 		CompanyID:     companyID,
 		SaleID:        saved.SaleID,
@@ -78,7 +79,7 @@ func (uc *PaymentUseCase) Record(ctx context.Context, companyID uuid.UUID, req R
 		Amount:        saved.Amount,
 		PaymentMethod: saved.PaymentMethod,
 		PaymentDate:   saved.PaymentDate,
-	})
+	}, uc.audit, companyID, "sale.payment_side_effect_failed", "sale_payment", saved.ID)
 
 	return saved, nil
 }

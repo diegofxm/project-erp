@@ -35,15 +35,17 @@ func NewOnSaleConfirmed(
 }
 
 func (h *OnSaleConfirmed) Register(bus *events.Bus) {
-	bus.Subscribe(salesdomain.SaleConfirmed{}.EventName(), func(evt events.Event) {
+	bus.Subscribe(salesdomain.SaleConfirmed{}.EventName(), func(evt events.Event) error {
 		ev, ok := evt.(salesdomain.SaleConfirmed)
 		if !ok {
-			return
+			return nil
 		}
 		ctx := context.Background()
 		if err := h.handle(ctx, ev); err != nil {
 			log.Printf("accounting: asiento venta %s: %v", ev.SaleID, err)
+			return fmt.Errorf("accounting: asiento venta %s: %w", ev.SaleID, err)
 		}
+		return nil
 	})
 }
 

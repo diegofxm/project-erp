@@ -34,15 +34,17 @@ func NewOnPurchaseReceived(
 }
 
 func (h *OnPurchaseReceived) Register(bus *events.Bus) {
-	bus.Subscribe(purchasedomain.PurchaseReceived{}.EventName(), func(evt events.Event) {
+	bus.Subscribe(purchasedomain.PurchaseReceived{}.EventName(), func(evt events.Event) error {
 		ev, ok := evt.(purchasedomain.PurchaseReceived)
 		if !ok {
-			return
+			return nil
 		}
 		ctx := context.Background()
 		if err := h.handle(ctx, ev); err != nil {
 			log.Printf("accounting: asiento compra %s: %v", ev.PurchaseID, err)
+			return fmt.Errorf("accounting: asiento compra %s: %w", ev.PurchaseID, err)
 		}
+		return nil
 	})
 }
 

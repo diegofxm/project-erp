@@ -32,15 +32,17 @@ func NewOnPayrollGenerated(
 }
 
 func (h *OnPayrollGenerated) Register(bus *events.Bus) {
-	bus.Subscribe(payrolldomain.PayrollGenerated{}.EventName(), func(evt events.Event) {
+	bus.Subscribe(payrolldomain.PayrollGenerated{}.EventName(), func(evt events.Event) error {
 		ev, ok := evt.(payrolldomain.PayrollGenerated)
 		if !ok {
-			return
+			return nil
 		}
 		ctx := context.Background()
 		if err := h.handle(ctx, ev); err != nil {
 			log.Printf("accounting: asiento nómina %s: %v", ev.PayslipID, err)
+			return fmt.Errorf("accounting: asiento nómina %s: %w", ev.PayslipID, err)
 		}
+		return nil
 	})
 }
 
