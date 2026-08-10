@@ -19,6 +19,7 @@ erp/.env.*
 apidian.exe
 cofacture.exe
 *.exe
+/bin
 /bin/
 /dist/
 
@@ -30,3 +31,5 @@ coverage.txt
 server.exe
 apidian/server.exe
 info.txt
+
+.claude/

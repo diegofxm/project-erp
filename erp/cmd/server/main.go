@@ -447,6 +447,13 @@ func main() {
 	saasHandler.RegisterPublicRoutes(mux)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		if err := pool.Ping(ctx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"status":"error","service":"cofacture erp","detail":"base de datos no disponible"}`))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok","service":"cofacture erp"}`))
 	})

@@ -2726,6 +2726,30 @@ el segmento PYME.
 
 #### Infraestructura de despliegue
 
+> **⚠️ Desactualizado (corregido 2026-08-10) — Railway nunca se usó.** El plan de abajo (Railway
+> + Postgres gestionado por Railway) quedó obsoleto y no refleja la infraestructura real. Estado
+> real verificado con el usuario:
+> - **Servidor**: una VPS auto-administrada por el usuario, con un panel de despliegue propio
+>   ("dpanel") — el flujo es subir el binario compilado desde un selector de archivo en el panel
+>   y darle a un botón; dpanel lo publica en `/srv/dpanel/apps/api-cofacture` (patrón de release
+>   con symlink `current/`) y reinicia el servicio. El proceso corre bajo **systemd**
+>   (`app-api-cofacture.service`, versionado en `docs/deploy/app-api-cofacture.service`), no bajo
+>   Railway. Es un entorno de **pruebas**, no una producción confirmada con clientes reales.
+> - **Base de datos**: **alwaysdata.net**, también de pruebas — no Railway Postgres. Neon se
+>   evaluó en paralelo pero nunca se adoptó oficialmente (`erp/.env.example` lo documenta como
+>   opción de producción, pero es un ejemplo, no lo que corre hoy).
+> - **Backups**: **sin verificar, decisión pendiente** — el usuario no ha confirmado si
+>   alwaysdata incluye backups automáticos en su plan actual, ni ha decidido si el backup debería
+>   vivir en la misma base de datos de producción o mantenerse deliberadamente separado de la VPS
+>   (como defensa en profundidad ante un compromiso del servidor). La afirmación original de
+>   "Railway incluye snapshots automáticos, suficiente" nunca aplicó y no debe usarse como
+>   referencia de que existe algún backup hoy.
+>
+> Ver `docs/auditorias/2026-08-09/08-devops-produccion.md` y `plan-de-accion.md` (punto 18) para
+> el detalle de esta corrección. El resto de esta sección (dominio, ePayco, SMTP, plan de
+> monetización) es contenido de diseño más antiguo, anterior al módulo `saas/` actual, y no se
+> revisó como parte de esta corrección — no asumir que sigue vigente sin confirmarlo aparte.
+
 - **Plataforma**: Railway (elegida por el usuario). Un servicio Go + un servicio Postgres
   gestionado. Railway maneja SSL y dominios custom nativamente.
 - **Dominio**: `cofacture.co` (ya adquirido). El dashboard vive en `app.cofacture.co` (o
@@ -2739,7 +2763,7 @@ el segmento PYME.
 - **Correo transaccional**: SMTP propio (ya configurado en `internal/email`, sección 9.40).
   Ya usado para envío de documentos al cliente; se reutiliza sin cambios para notificaciones
   de onboarding y activación de cuenta.
-- **Backups**: Railway Postgres incluye snapshots automáticos. Suficiente para la fase inicial.
+- **Backups**: ~~Railway Postgres incluye snapshots automáticos. Suficiente para la fase inicial.~~ Ver corrección arriba — no aplica, backup real sin verificar.
 
 #### Flujo de adquisición de clientes (diseño)
 
@@ -2792,9 +2816,10 @@ Cliente recibe correo "Tu cuenta en Cofacture está lista"
 
 #### Secuencia de implementación recomendada
 
-1. **Infraestructura Railway** — configurar el proyecto, el servicio Postgres, las variables de
-   entorno de producción, el dominio `app.cofacture.co`, y hacer un primer despliegue del
-   estado actual. Esto valida el pipeline de deploy antes de agregar más código.
+1. **Infraestructura** — ~~Railway~~ (ver corrección arriba: la infraestructura real es una VPS
+   propia con systemd + dpanel, no Railway) — configurar las variables de entorno de producción,
+   el dominio `app.cofacture.co`, y confirmar el primer despliegue del estado actual sobre la
+   infraestructura real. Esto valida el pipeline de deploy antes de agregar más código.
 2. **`account_status` + guard** — migración + middleware. Sin esto, cualquier usuario que se
    registre tiene acceso inmediato sin validación; esto cierra ese hueco antes de abrir el
    registro al público.

@@ -1,0 +1,29 @@
+# /etc/systemd/system/app-api-cofacture.service
+#
+# Unit real en uso en la VPS de pruebas (2026-08-10), capturado con
+# `sudo systemctl cat app-api-cofacture`. Gestionado por "dpanel" (panel de despliegue propio del
+# usuario, autoadministrado): el flujo de deploy es subir el binario compilado desde un selector
+# de archivo en el panel; dpanel lo publica bajo /srv/dpanel/apps/api-cofacture/releases/<n>/ y
+# actualiza el symlink `current` -> release activa, luego reinicia este servicio. No hay un paso
+# de "git pull" en el servidor: el binario se compila localmente (ver
+# docs/deploy/build-release.ps1) y se sube ya compilado.
+#
+# Se versiona acá tal cual está hoy, solo para que el despliegue no dependa exclusivamente del
+# conocimiento de una persona (ver auditoría 2026-08-09, informe de DevOps). No está pensado para
+# copiarse/instalarse desde el repo -- dpanel ya lo administra en el servidor real.
+
+[Unit]
+Description=dpanel: api-cofacture
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/dpanel/apps/api-cofacture
+ExecStart=/srv/dpanel/apps/api-cofacture/current/bin
+Restart=on-failure
+RestartSec=2
+Environment=PORT=8080
+EnvironmentFile=-/srv/dpanel/apps/api-cofacture/shared/.env
+
+[Install]
+WantedBy=multi-user.target
