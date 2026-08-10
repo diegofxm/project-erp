@@ -24,7 +24,7 @@
 
 ## 🔧 Recomendaciones concretas y accionables
 
-1. Cambiar el `Makefile`/instrucciones de desarrollo (o crear uno si no existe) para que `go test ./... -tags=integration` sea el comando estándar documentado — de lo contrario los `schema_test.go` seguirán sin ejecutarse en la práctica. Si se agrega CI (ver informe de DevOps), el job debe usar explícitamente ese tag y levantar un Postgres de servicio.
+1. **✅ Parcialmente implementado (2026-08-09, punto 17 del plan de acción).** `.github/workflows/ci.yml` ya corre `go test ./... -tags=integration` con Postgres de servicio en cada push, así que los `schema_test.go` ahora sí se ejecutan automáticamente. Sigue faltando actualizar un `Makefile`/README con el comando estándar para desarrollo local (no bloqueante, cosmético).
 2. Priorizar tests de aplicación para `electronic` (emisión DIAN) primero, dado que es el módulo con mayor riesgo legal/financiero y hoy solo tiene `schema_test.go` — al menos cubrir la lógica de `confirm.go` (decisión síncrona/asíncrona, manejo de `TestSetID`).
 3. Documentar en el README (o crear uno en `erp/`) cómo correr las pruebas reales de `cofacture` (qué variables/fixtures necesita `COFACTURE_TEST_FIXTURES_DIR`), para que no dependan solo del conocimiento tácito de quien las escribió.
 4. Si se planea escalar el equipo, introducir al menos un smoke test de frontend (aunque sea con Vitest + Testing Library en 2-3 componentes críticos: login, confirmación de venta/factura) antes de que crezca más la base de código sin ninguna red de seguridad ahí.
