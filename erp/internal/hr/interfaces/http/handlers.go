@@ -131,7 +131,7 @@ type reviewBody struct {
 }
 
 func (h *Handler) handleApproveAbsence(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -151,7 +151,7 @@ func (h *Handler) handleApproveAbsence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleRejectAbsence(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -174,6 +174,20 @@ func mustTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	id := tenant.GetCompanyID(r.Context())
 	if id == uuid.Nil {
 		http.Error(w, "empresa requerida", http.StatusUnauthorized)
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+// requireManage exige además rol owner/admin -- para aprobar/rechazar ausencias, de forma que
+// un empleado no pueda resolver su propia solicitud (o la de un par) sin pasar por gestión.
+func requireManage(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, ok := mustTenant(w, r)
+	if !ok {
+		return uuid.Nil, false
+	}
+	if !tenant.CanManage(r.Context()) {
+		http.Error(w, "requiere rol de administrador", http.StatusForbidden)
 		return uuid.Nil, false
 	}
 	return id, true

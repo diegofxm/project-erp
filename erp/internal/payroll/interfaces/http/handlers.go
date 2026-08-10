@@ -69,7 +69,7 @@ type createEmployeeBody struct {
 }
 
 func (h *Handler) handleCreateEmployee(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -130,7 +130,7 @@ func (h *Handler) handleGetEmployee(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleDeactivateEmployee(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -167,7 +167,7 @@ type createContractBody struct {
 }
 
 func (h *Handler) handleCreateContract(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -234,7 +234,7 @@ type terminateBody struct {
 }
 
 func (h *Handler) handleTerminateContract(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -263,7 +263,7 @@ type generatePayslipBody struct {
 }
 
 func (h *Handler) handleGeneratePayslip(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -323,7 +323,7 @@ func (h *Handler) handleListPayslips(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleApprovePayslip(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -340,7 +340,7 @@ func (h *Handler) handleApprovePayslip(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleMarkPaidPayslip(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -357,7 +357,7 @@ func (h *Handler) handleMarkPaidPayslip(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) handleVoidPayslip(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -374,6 +374,21 @@ func (h *Handler) handleVoidPayslip(w http.ResponseWriter, r *http.Request) {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+// requireManage exige además rol owner/admin -- todo el módulo de nómina queda restringido
+// (datos salariales confidenciales y compromisos legales, decisión explícita del responsable
+// del proyecto, no solo las acciones irreversibles).
+func requireManage(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, ok := mustTenant(w, r)
+	if !ok {
+		return uuid.Nil, false
+	}
+	if !tenant.CanManage(r.Context()) {
+		http.Error(w, "requiere rol de administrador", http.StatusForbidden)
+		return uuid.Nil, false
+	}
+	return id, true
+}
 
 func mustTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	id := tenant.GetCompanyID(r.Context())

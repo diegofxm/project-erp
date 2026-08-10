@@ -7,6 +7,7 @@ import { getDianNumberingRanges } from "../../lib/dianVerification";
 import { ApiError } from "../../lib/apiClient";
 import { useCatalog } from "../../lib/useCatalog";
 import { useAuth } from "../../context/AuthContext";
+import { useCanManage } from "../../hooks/useCanManage";
 import { useConfirm } from "../../context/ConfirmContext";
 import { useToast } from "../../context/ToastContext";
 import type { CreateNumberingRangePayload, DianRange, NumberingRange, NumberingRangeStatus } from "../../lib/types";
@@ -48,12 +49,13 @@ function isExpiringSoon(r: NumberingRange): boolean {
   return daysLeft <= 30;
 }
 
-function RangesTable({ rows, docTypeName, onDeactivate, onArchive, onActivate }: {
+function RangesTable({ rows, docTypeName, onDeactivate, onArchive, onActivate, canManage }: {
   rows: NumberingRange[];
   docTypeName: (code: string) => string;
   onDeactivate: (r: NumberingRange) => void;
   onArchive: (r: NumberingRange) => void;
   onActivate: (r: NumberingRange) => void;
+  canManage: boolean;
 }) {
   const [offset, setOffset] = useState(0);
   const page = rows.slice(offset, offset + RANGES_PAGE_SIZE);
@@ -89,19 +91,19 @@ function RangesTable({ rows, docTypeName, onDeactivate, onArchive, onActivate }:
                 </td>
                 <td className="px-3 py-2 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    {r.status === "active" && (
+                    {canManage && r.status === "active" && (
                       <button type="button" title="Desactivar" aria-label="Desactivar" onClick={() => onDeactivate(r)}
                         className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)">
                         <Ban className="h-3.5 w-3.5" />
                       </button>
                     )}
-                    {(r.status === "expired" || r.status === "exhausted") && (
+                    {canManage && (r.status === "expired" || r.status === "exhausted") && (
                       <button type="button" title="Archivar" aria-label="Archivar" onClick={() => onArchive(r)}
                         className="rounded p-1 text-(--text-muted) transition-colors hover:bg-(--bg-hover)">
                         <Archive className="h-3.5 w-3.5" />
                       </button>
                     )}
-                    {r.status === "inactive" && wouldBeUsable(r) && (
+                    {canManage && r.status === "inactive" && wouldBeUsable(r) && (
                       <button type="button" title="Reactivar" aria-label="Reactivar" onClick={() => onActivate(r)}
                         className="rounded p-1 text-(--color-success) transition-colors hover:bg-(--bg-hover)">
                         <RotateCcw className="h-3.5 w-3.5" />
@@ -287,6 +289,7 @@ function ImportModal({ dianRanges, existingPrefixes, docTypes, environment, onIm
 
 export function NumberingRangesPanel() {
   const { activeCompany } = useAuth();
+  const canManage = useCanManage();
   const [ranges, setRanges] = useState<NumberingRange[] | null>(null);
   const { data: docTypes } = useCatalog(listDianDocumentTypes);
   const [showForm, setShowForm] = useState(false);
@@ -405,7 +408,7 @@ export function NumberingRangesPanel() {
       <Card className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-xs font-semibold text-(--text-primary)">Rangos de numeración</h2>
-          {ranges !== null && (
+          {ranges !== null && canManage && (
             <div className="flex items-center gap-2">
               {!showForm && (
                 <Button
@@ -446,7 +449,7 @@ export function NumberingRangesPanel() {
         {activeRanges.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <p className="text-xs font-medium text-(--text-secondary)">Activos</p>
-            <RangesTable rows={activeRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} onArchive={handleArchive} onActivate={handleActivate} />
+            <RangesTable rows={activeRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} onArchive={handleArchive} onActivate={handleActivate} canManage={canManage} />
           </div>
         )}
 
@@ -463,7 +466,7 @@ export function NumberingRangesPanel() {
               Inactivos y vencidos ({inactiveRanges.length})
             </button>
             {showInactive && (
-              <RangesTable rows={inactiveRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} onArchive={handleArchive} onActivate={handleActivate} />
+              <RangesTable rows={inactiveRanges} docTypeName={docTypeName} onDeactivate={handleDeactivate} onArchive={handleArchive} onActivate={handleActivate} canManage={canManage} />
             )}
           </div>
         )}
