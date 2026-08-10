@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { apiClient, ApiError, setAuthToken } from "../lib/apiClient";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { apiClient, ApiError, setAuthToken, setSessionExpiredHandler } from "../lib/apiClient";
 import type {
   AuthResult,
   Company,
@@ -77,10 +77,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+  // Evita que varios 401 casi simultáneos (ej. varias llamadas en paralelo al expirar la sesión)
+  // disparen logout() más de una vez -- se reinicia en cada login/verificación exitosa.
+  const sessionExpiredHandledRef = useRef(false);
 
   const applyAuthResult = useCallback(async (result: AuthResult) => {
     setAuthToken(result.token);
     setUser(result.user);
+    sessionExpiredHandledRef.current = false;
 
     let company: Company | null = null;
     if (result.company_id) {
@@ -127,6 +131,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setConnectionError(false);
   }, []);
 
+  // Interceptor global de 401 (ver docs/auditorias/2026-08-09/05-frontend.md punto 21): cualquier
+  // llamada autenticada que reciba 401 (fuera de las rutas exentas en apiClient.ts, como
+  // /auth/password) dispara logout() automáticamente en vez de dejar que cada página muestre un
+  // error genérico. ProtectedRoute ya redirige a /login reactivamente en cuanto isAuthenticated
+  // pasa a false -- no hace falta navegar explícitamente desde acá (AuthProvider está fuera del
+  // Router, no tiene acceso a useNavigate).
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      if (sessionExpiredHandledRef.current) return;
+      sessionExpiredHandledRef.current = true;
+      logout();
+    });
+    return () => setSessionExpiredHandler(null);
+  }, [logout]);
+
   const verifySession = useCallback(async () => {
     const stored = readStoredSession();
     try {
@@ -145,9 +164,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
       setConnectionError(false);
+      sessionExpiredHandledRef.current = false;
     } catch (err) {
       if (err instanceof ApiError) {
-        if (err.status === 401 || err.status === 404) logout();
+        // 401 ya lo maneja el interceptor global de apiClient.ts (dispara logout() solo). 404
+        // significa que el usuario ya no existe (ej. cuenta eliminada) -- eso el interceptor no lo
+        // cubre porque no es un status de sesión inválida en el resto del API, así que sigue
+        // manejándose acá explícitamente.
+        if (err.status === 404) logout();
         setConnectionError(false);
       } else {
         setConnectionError(true);

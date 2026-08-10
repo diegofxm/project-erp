@@ -229,11 +229,21 @@ Con el backend ya autorizando y auditando correctamente, el frontend deja de ten
 
 | # | Tarea | Depende de | Esfuerzo | Informe |
 |---|---|---|---|---|
-| **21** | Interceptor global de 401 en `apiClient.ts` con logout + redirección automática (hoy cada página muestra un error genérico). | 14 (necesita que exista logout server-side) | Medio | 05 |
+| **21** | Interceptor global de 401 en `apiClient.ts` con logout + redirección automática (hoy cada página muestra un error genérico). | ✅ **Resuelto** (ver nota) | 14 (necesita que exista logout server-side) | Medio | 05 |
 | **22** | Timeout de red (`AbortController`) en `fetch()` dentro de `request()`/`getBlob()`. | — | Bajo | 05 |
 | **23** | Hook compartido `useApiResource` (loading/error/cancelado) para reemplazar el patrón duplicado y con variaciones entre páginas. | 21, 22 (se construye sobre el cliente ya corregido) | Medio | 05 |
 | **24** | Accesibilidad: `aria-label` en botones icon-only e inputs de búsqueda crudos, semántica ARIA (`role="combobox"`, etc.) en `Combobox.tsx`. | — | Bajo-Medio | 05 |
 | **25** | Smoke tests de frontend (Vitest + Testing Library) sobre los flujos críticos: login, confirmación de venta/factura. | 21-24 (para testear el comportamiento ya corregido) | Medio | 07 |
+
+**Nota sobre el punto 21 (2026-08-10).** Interceptor global de 401 en `frontend/src/lib/apiClient.ts`:
+
+- **Mecanismo**: `setSessionExpiredHandler(handler)` registra un callback que `request()`/`getBlob()` invocan cuando la respuesta es 401. `apiClient.ts` no puede importar `AuthContext.tsx` directamente (dependencia circular, `AuthContext` ya importa `apiClient`), así que la relación se invierte con este callback — mismo patrón que ya usa el proyecto para desacoplar módulos (`AuditLogger` local en cada handler HTTP del backend).
+- **No todo 401 significa "sesión inválida".** Investigando el backend se encontró que `security` usa 401 también para `ErrInvalidPassword` (login) y `ErrCurrentPasswordIncorrect` (cambiar contraseña) — respuestas de negocio normales, con el usuario todavía autenticado en el segundo caso. Se excluyeron por ruta (`/auth/login`, `/auth/password`, `/auth/logout` — este último para no crear un loop entre `logout()` y el propio interceptor) en vez de disparar el logout automático a ciegas en cualquier 401, que habría desconectado a alguien por un simple typo al cambiar su contraseña.
+- **Sin navegación explícita.** `ProtectedRoute.tsx` ya redirige a `/login` reactivamente en cuanto `isAuthenticated` (derivado de `user !== null`) pasa a `false` — no hace falta llamar `useNavigate()` desde el interceptor, que además no podría: `AuthProvider` está fuera del `<BrowserRouter>` en `App.tsx`.
+- **Guard contra ráfagas**: un `useRef` en `AuthContext.tsx` evita que varios 401 casi simultáneos disparen `logout()` más de una vez; se reinicia en cada login/verificación de sesión exitosa.
+- **Limitación aceptada a propósito**: si la sesión se revoca justo mientras el usuario está en el formulario de cambiar contraseña, no se le desconecta automáticamente ahí — sí en la siguiente petición a cualquier otro endpoint. El backend no distingue "contraseña actual incorrecta" de "sesión revocada" con un código de error propio, solo con el texto del mensaje (`"error de contraseña actual"` vs `"no autenticado"`) — depender de ese texto para decidir sería frágil, así que se prefirió el falso negativo raro sobre el falso positivo común (typo → desconexión).
+
+**Verificado en vivo** contra el servidor real, no solo compilación: login normal, luego `POST /auth/logout` para revocar la sesión (incrementa `token_version`), y con el **mismo token viejo**: `GET /customers` → `401 {"error":"empresa activa requerida"}` (fuera de la lista de exención — dispararía el interceptor), `PUT /auth/password` → `401 {"error":"no autenticado"}` (dentro de la lista de exención — no dispara, comportamiento esperado). `npm run build` y `npm run lint` limpios. La interacción real en navegador (clic → 401 → redirección visible) queda pendiente de que el usuario la confirme visualmente, como el resto de cambios de frontend en esta sesión — no hay Playwright/chromium-cli en este entorno.
 
 ---
 
