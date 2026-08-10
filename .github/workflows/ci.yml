@@ -121,10 +121,8 @@ jobs:
       - name: build (tsc -b + vite build)
         run: npm run build
 
-      # No bloqueante todavía: hay vulnerabilidades altas conocidas y sin corregir (nanoid,
-      # postcss transitivas) -- ver punto 20 del plan de acción (docs/auditorias/2026-08-09/
-      # plan-de-accion.md). Reporta en cada corrida; volver blocking (quitar continue-on-error)
-      # cuando el punto 20 quede resuelto.
-      - name: npm audit (informativo, ver punto 20 pendiente)
+      # Bloqueante desde el punto 20 (2026-08-10): react-router/postcss/nanoid ya actualizados,
+      # npm audit está en 0 vulnerabilidades. Antes era continue-on-error mientras esas
+      # vulnerabilidades conocidas seguían sin corregir.
+      - name: npm audit
         run: npm audit --audit-level=high
-        continue-on-error: true
