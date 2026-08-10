@@ -39,6 +39,16 @@ jobs:
         with:
           go-version: "1.26.4"
 
+      # erp/go.mod NO declara github.com/diegofxm/cofacture como dependencia (ni require ni
+      # replace) -- a propósito, para no ensuciarlo con una ruta de filesystem local. La conexión
+      # solo existe vía go.work (raíz del repo), que está en .gitignore porque es "puente de
+      # desarrollo local" (cada dev lo genera con `go work use`). El checkout de CI no lo trae, así
+      # que hay que recrearlo aquí -- mismo contenido que el go.work local, no versionado tampoco.
+      - name: crear go.work (no versionado, ver .gitignore)
+        run: |
+          printf 'go 1.26.4\n\nuse (\n\t./cofacture\n\t./erp\n)\n' > go.work
+          cat go.work
+
       - name: go vet (erp)
         working-directory: erp
         run: go vet ./...
