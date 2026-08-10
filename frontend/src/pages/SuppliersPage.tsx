@@ -122,6 +122,7 @@ export function SuppliersPage() {
           <input
             type="text"
             placeholder="Buscar por nombre o identificación…"
+            aria-label="Buscar proveedores por nombre o identificación"
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
             className="w-full rounded border border-(--border-color) bg-(--bg-primary) py-1.5 pl-8 pr-3 text-xs text-(--text-primary) placeholder:text-(--text-muted) transition-colors"
@@ -171,16 +172,16 @@ export function SuppliersPage() {
                     <td className="px-3 py-2">
                       <div className="flex justify-end gap-1">
                         {s.entity_type_code === "2" && (
-                          <button type="button" title="Exportar datos personales (Habeas Data)" onClick={() => handleExport(s)}
+                          <button type="button" title="Exportar datos personales (Habeas Data)" aria-label="Exportar datos personales (Habeas Data)" onClick={() => handleExport(s)}
                             className="rounded p-1 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)">
                             <Download className="h-3.5 w-3.5" />
                           </button>
                         )}
-                        <button type="button" title="Editar" onClick={() => setEditing(s)}
+                        <button type="button" title="Editar" aria-label={`Editar ${s.name}`} onClick={() => setEditing(s)}
                           className="rounded p-1 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)">
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button type="button" title="Eliminar" onClick={() => handleDelete(s)}
+                        <button type="button" title="Eliminar" aria-label={`Eliminar ${s.name}`} onClick={() => handleDelete(s)}
                           className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

@@ -107,6 +107,7 @@ export function ProductsPage() {
           <input
             type="text"
             placeholder="Buscar por nombre o código interno…"
+            aria-label="Buscar productos por nombre o código interno"
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
             className="w-full rounded border border-(--border-color) bg-(--bg-primary) py-1.5 pl-8 pr-3 text-xs text-(--text-primary) placeholder:text-(--text-muted) transition-colors"
@@ -157,11 +158,11 @@ export function ProductsPage() {
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex justify-end gap-1">
-                        <button type="button" title="Editar" onClick={() => setEditing(p)}
+                        <button type="button" title="Editar" aria-label={`Editar ${p.name}`} onClick={() => setEditing(p)}
                           className="rounded p-1 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)">
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button type="button" title="Eliminar" onClick={() => handleDelete(p)}
+                        <button type="button" title="Eliminar" aria-label={`Eliminar ${p.name}`} onClick={() => handleDelete(p)}
                           className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

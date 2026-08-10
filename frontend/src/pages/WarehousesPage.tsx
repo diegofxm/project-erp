@@ -153,17 +153,17 @@ export function WarehousesPage() {
                   <td className="px-3 py-2">
                     <div className="flex justify-end gap-1">
                       {!w.is_default && w.is_active && (
-                        <button type="button" title="Marcar por defecto" onClick={() => handleSetDefault(w)}
+                        <button type="button" title="Marcar por defecto" aria-label={`Marcar ${w.name} por defecto`} onClick={() => handleSetDefault(w)}
                           className="rounded p-1 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)">
                           <Star className="h-3.5 w-3.5" />
                         </button>
                       )}
-                      <button type="button" title="Editar" onClick={() => startEdit(w)}
+                      <button type="button" title="Editar" aria-label={`Editar ${w.name}`} onClick={() => startEdit(w)}
                         className="rounded p-1 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)">
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       {w.is_active && (
-                        <button type="button" title="Desactivar" onClick={() => handleDeactivate(w)}
+                        <button type="button" title="Desactivar" aria-label={`Desactivar ${w.name}`} onClick={() => handleDeactivate(w)}
                           className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

@@ -184,6 +184,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
                         <button
                           type="button"
                           title="Editar línea"
+                          aria-label="Editar línea"
                           onClick={() => handleStartEdit(i)}
                           className="rounded p-1 text-(--text-muted) hover:bg-(--bg-hover) hover:text-(--accent-primary)"
                         >
@@ -192,6 +193,7 @@ export function LineItemsEditor({ lines, onChange }: LineItemsEditorProps) {
                         <button
                           type="button"
                           title="Quitar línea"
+                          aria-label="Quitar línea"
                           onClick={() => handleRemoveLine(i)}
                           className="rounded p-1 text-(--color-danger) hover:bg-(--bg-hover)"
                         >

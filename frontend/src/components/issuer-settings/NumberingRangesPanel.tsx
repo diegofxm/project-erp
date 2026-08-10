@@ -90,19 +90,19 @@ function RangesTable({ rows, docTypeName, onDeactivate, onArchive, onActivate }:
                 <td className="px-3 py-2 text-right">
                   <div className="flex items-center justify-end gap-1">
                     {r.status === "active" && (
-                      <button type="button" title="Desactivar" onClick={() => onDeactivate(r)}
+                      <button type="button" title="Desactivar" aria-label="Desactivar" onClick={() => onDeactivate(r)}
                         className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)">
                         <Ban className="h-3.5 w-3.5" />
                       </button>
                     )}
                     {(r.status === "expired" || r.status === "exhausted") && (
-                      <button type="button" title="Archivar" onClick={() => onArchive(r)}
+                      <button type="button" title="Archivar" aria-label="Archivar" onClick={() => onArchive(r)}
                         className="rounded p-1 text-(--text-muted) transition-colors hover:bg-(--bg-hover)">
                         <Archive className="h-3.5 w-3.5" />
                       </button>
                     )}
                     {r.status === "inactive" && wouldBeUsable(r) && (
-                      <button type="button" title="Reactivar" onClick={() => onActivate(r)}
+                      <button type="button" title="Reactivar" aria-label="Reactivar" onClick={() => onActivate(r)}
                         className="rounded p-1 text-(--color-success) transition-colors hover:bg-(--bg-hover)">
                         <RotateCcw className="h-3.5 w-3.5" />
                       </button>

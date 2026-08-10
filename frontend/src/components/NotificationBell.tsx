@@ -25,6 +25,9 @@ export function NotificationBell() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         title="Notificaciones"
+        aria-label={unreadCount > 0 ? `Notificaciones, ${unreadCount} sin leer` : "Notificaciones"}
+        aria-haspopup="true"
+        aria-expanded={open}
         className="relative rounded p-1.5 text-(--navbar-text) opacity-80 hover:bg-white/10 hover:opacity-100"
       >
         <Bell className="h-4 w-4" />
@@ -81,6 +84,7 @@ export function NotificationBell() {
                   <button
                     type="button"
                     title="Descartar"
+                    aria-label={`Descartar notificación: ${n.title}`}
                     onClick={() => dismiss(n.id)}
                     className="mr-1 mt-2 shrink-0 rounded p-1 text-(--text-muted) hover:bg-(--bg-tertiary) hover:text-(--text-primary)"
                   >

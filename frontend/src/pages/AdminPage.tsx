@@ -932,7 +932,7 @@ function ProspectsContent() {
           <ClipboardList className="h-4 w-4 shrink-0 text-(--accent-primary)" />
           Solicitudes de acceso
         </h1>
-        <button onClick={load} className="flex items-center gap-1 rounded px-2 py-1 text-xs text-(--text-secondary) hover:bg-(--bg-hover)" title="Recargar">
+        <button onClick={load} className="flex items-center gap-1 rounded px-2 py-1 text-xs text-(--text-secondary) hover:bg-(--bg-hover)" title="Recargar" aria-label="Recargar">
           <RefreshCw className="h-3.5 w-3.5" />
         </button>
       </div>

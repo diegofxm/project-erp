@@ -116,6 +116,7 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
                         <button
                           type="button"
                           title="Editar"
+                          aria-label="Editar forma de pago"
                           onClick={() => handleStartEdit(i)}
                           className="rounded p-1 text-(--text-muted) hover:bg-(--bg-hover) hover:text-(--accent-primary)"
                         >
@@ -124,6 +125,7 @@ export function PaymentMeansEditor({ paymentMeans, onChange }: PaymentMeansEdito
                         <button
                           type="button"
                           title="Quitar"
+                          aria-label="Quitar forma de pago"
                           onClick={() => handleRemove(i)}
                           className="rounded p-1 text-(--color-danger) hover:bg-(--bg-hover)"
                         >

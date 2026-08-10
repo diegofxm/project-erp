@@ -39,6 +39,7 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
               onClick={onToggleSidebar}
               className="rounded p-1.5 opacity-70 transition-colors hover:bg-white/10 hover:opacity-100"
               title="Menú"
+              aria-label="Abrir menú de navegación"
             >
               <Menu className="h-4 w-4" />
             </button>
@@ -58,6 +59,7 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
             onClick={onToggleSidebar}
             className="rounded p-1.5 opacity-70 transition-colors hover:bg-white/10 hover:opacity-100"
             title="Menú"
+            aria-label="Abrir menú de navegación"
           >
             <Menu className="h-4 w-4" />
           </button>
@@ -90,6 +92,7 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
           <Link
             to="/companies"
             title="Mis empresas"
+            aria-label="Mis empresas"
             className="rounded p-1.5 opacity-80 transition-colors hover:bg-white/10 hover:opacity-100"
           >
             <Building2 className="h-4 w-4" />
@@ -101,6 +104,9 @@ export function Navbar({ onToggleSidebar }: NavbarProps) {
               onClick={() => setMenuOpen((open) => !open)}
               className="flex items-center gap-1 rounded px-1.5 py-1 hover:bg-white/10"
               title={user?.name}
+              aria-label={`Menú de cuenta${user?.name ? ` de ${user.name}` : ""}`}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
             >
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-(--accent-primary) text-[10px] font-semibold text-white">
                 {getInitials(user?.name)}

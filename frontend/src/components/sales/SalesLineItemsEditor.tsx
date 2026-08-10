@@ -145,10 +145,10 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
                     {!disabled && (
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1">
-                          <button type="button" title="Editar línea" onClick={() => handleStartEdit(i)} className="rounded p-1 text-(--text-muted) hover:bg-(--bg-hover) hover:text-(--accent-primary)">
+                          <button type="button" title="Editar línea" aria-label="Editar línea" onClick={() => handleStartEdit(i)} className="rounded p-1 text-(--text-muted) hover:bg-(--bg-hover) hover:text-(--accent-primary)">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
-                          <button type="button" title="Quitar línea" onClick={() => handleRemoveLine(i)} className="rounded p-1 text-(--color-danger) hover:bg-(--bg-hover)">
+                          <button type="button" title="Quitar línea" aria-label="Quitar línea" onClick={() => handleRemoveLine(i)} className="rounded p-1 text-(--color-danger) hover:bg-(--bg-hover)">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>

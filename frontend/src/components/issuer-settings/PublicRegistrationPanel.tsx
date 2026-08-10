@@ -69,6 +69,7 @@ export function PublicRegistrationPanel() {
               type="button"
               onClick={handleCopy}
               title={copied ? "Copiado" : "Copiar enlace"}
+              aria-label={copied ? "Copiado" : "Copiar enlace"}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 transition-colors text-(--text-muted) hover:text-(--text-primary)"
             >
               {copied

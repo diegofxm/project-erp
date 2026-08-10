@@ -122,6 +122,7 @@ export function CustomersPage() {
           <input
             type="text"
             placeholder="Buscar por nombre o identificación…"
+            aria-label="Buscar clientes por nombre o identificación"
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
             className="w-full rounded border border-(--border-color) bg-(--bg-primary) py-1.5 pl-8 pr-3 text-xs text-(--text-primary) placeholder:text-(--text-muted) transition-colors"
@@ -171,16 +172,16 @@ export function CustomersPage() {
                     <td className="px-3 py-2">
                       <div className="flex justify-end gap-1">
                         {c.entity_type_code === "2" && (
-                          <button type="button" title="Exportar datos personales (Habeas Data)" onClick={() => handleExport(c)}
+                          <button type="button" title="Exportar datos personales (Habeas Data)" aria-label="Exportar datos personales (Habeas Data)" onClick={() => handleExport(c)}
                             className="rounded p-1 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)">
                             <Download className="h-3.5 w-3.5" />
                           </button>
                         )}
-                        <button type="button" title="Editar" onClick={() => setEditing(c)}
+                        <button type="button" title="Editar" aria-label={`Editar ${c.name}`} onClick={() => setEditing(c)}
                           className="rounded p-1 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)">
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button type="button" title="Eliminar" onClick={() => handleDelete(c)}
+                        <button type="button" title="Eliminar" aria-label={`Eliminar ${c.name}`} onClick={() => handleDelete(c)}
                           className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

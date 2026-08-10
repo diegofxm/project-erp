@@ -88,6 +88,7 @@ export function WithholdingTaxesEditor({ taxes, onChange }: WithholdingTaxesEdit
                     <button
                       type="button"
                       title="Quitar retención"
+                      aria-label="Quitar retención"
                       onClick={() => handleRemove(i)}
                       className="rounded p-1 text-(--color-danger) hover:bg-(--bg-hover)"
                     >

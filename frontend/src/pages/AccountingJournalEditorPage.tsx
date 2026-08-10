@@ -233,21 +233,22 @@ export function AccountingJournalEditorPage() {
           <table className="w-full text-left text-xs">
             <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
               <tr>
-                <th className="px-2 py-2 font-medium">Cuenta</th>
-                <th className="px-2 py-2 font-medium">Descripción</th>
-                <th className="w-32 px-2 py-2 font-medium">Débito</th>
-                <th className="w-32 px-2 py-2 font-medium">Crédito</th>
-                <th className="w-8 px-2 py-2" />
+                <th scope="col" className="px-2 py-2 font-medium">Cuenta</th>
+                <th scope="col" className="px-2 py-2 font-medium">Descripción</th>
+                <th scope="col" className="w-32 px-2 py-2 font-medium">Débito</th>
+                <th scope="col" className="w-32 px-2 py-2 font-medium">Crédito</th>
+                <th scope="col" className="w-8 px-2 py-2" />
               </tr>
             </thead>
             <tbody>
               {lines.map((l, i) => (
                 <tr key={i} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
                   <td className="px-2 py-1.5">
-                    <Combobox value={l.account_code} onChange={(v) => updateLine(i, { account_code: v })} options={accountOptions} placeholder="Buscar cuenta..." />
+                    <Combobox ariaLabel={`Cuenta línea ${i + 1}`} value={l.account_code} onChange={(v) => updateLine(i, { account_code: v })} options={accountOptions} placeholder="Buscar cuenta..." />
                   </td>
                   <td className="px-2 py-1.5">
                     <input
+                      aria-label={`Descripción línea ${i + 1}`}
                       value={l.description}
                       onChange={(e) => updateLine(i, { description: e.target.value })}
                       className="w-full rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1.5 text-xs text-(--text-primary)"
@@ -256,6 +257,7 @@ export function AccountingJournalEditorPage() {
                   <td className="px-2 py-1.5">
                     <input
                       type="number" min="0" step="0.01"
+                      aria-label={`Débito línea ${i + 1}`}
                       value={l.debit}
                       onChange={(e) => updateLine(i, { debit: e.target.value, credit: e.target.value ? "" : l.credit })}
                       className="w-full rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1.5 text-right font-mono text-xs text-(--text-primary)"
@@ -264,6 +266,7 @@ export function AccountingJournalEditorPage() {
                   <td className="px-2 py-1.5">
                     <input
                       type="number" min="0" step="0.01"
+                      aria-label={`Crédito línea ${i + 1}`}
                       value={l.credit}
                       onChange={(e) => updateLine(i, { credit: e.target.value, debit: e.target.value ? "" : l.debit })}
                       className="w-full rounded border border-(--border-color) bg-(--bg-primary) px-2 py-1.5 text-right font-mono text-xs text-(--text-primary)"
@@ -271,7 +274,7 @@ export function AccountingJournalEditorPage() {
                   </td>
                   <td className="px-2 py-1.5">
                     {lines.length > 2 && (
-                      <button type="button" onClick={() => removeLine(i)} className="rounded p-1 text-(--color-danger) hover:bg-(--bg-hover)">
+                      <button type="button" title="Eliminar línea" aria-label={`Eliminar línea ${i + 1}`} onClick={() => removeLine(i)} className="rounded p-1 text-(--color-danger) hover:bg-(--bg-hover)">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     )}
