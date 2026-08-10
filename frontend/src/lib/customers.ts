@@ -33,6 +33,7 @@ function toERPPayload(p: CustomerPayload) {
     email: p.email ?? "",
     phone: p.phone ?? "",
     credit_limit: p.credit_limit ?? null,
+    habeas_data_consent: p.habeas_data_consent ?? false,
   };
 }
 
@@ -46,6 +47,12 @@ export function updateCustomer(id: string, payload: CustomerPayload): Promise<Cu
 
 export function deleteCustomer(id: string): Promise<void> {
   return apiClient.del<void>(`/customers/${id}`);
+}
+
+// exportCustomerData — derecho de acceso ARCO (Ley 1581): todos los datos personales que el ERP
+// guarda sobre este cliente, tal como los devuelve el backend (ver docs/habeas-data-arco.md).
+export function exportCustomerData(id: string): Promise<{ exported_at: string; titular: Customer }> {
+  return apiClient.get(`/customers/${id}/export`);
 }
 
 // customerToPayload — convierte un Customer del catálogo ERP (campos planos) al CustomerPayload
@@ -75,6 +82,7 @@ export function customerToPayload(c: Customer): CustomerPayload {
     phone: c.phone || undefined,
     email: c.email || undefined,
     credit_limit: c.credit_limit,
+    habeas_data_consent: c.habeas_data_consent,
   };
 }
 

@@ -40,6 +40,11 @@ CREATE TABLE IF NOT EXISTS thirdparty.parties (
     credit_limit             NUMERIC,                     -- solo aplica si is_customer
     payment_terms_days       INTEGER NOT NULL DEFAULT 0,   -- solo aplica si is_supplier
 
+    -- Habeas Data (Ley 1581 de 2005) -- solo tiene sentido legal cuando entity_type_code='2'
+    -- (persona natural); para persona jurídica ('1') estos campos quedan sin usar a propósito.
+    habeas_data_consent      BOOLEAN NOT NULL DEFAULT FALSE,
+    habeas_data_consent_at   TIMESTAMPTZ,
+
     is_active               BOOLEAN NOT NULL DEFAULT TRUE,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),

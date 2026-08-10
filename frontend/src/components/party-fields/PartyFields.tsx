@@ -271,6 +271,23 @@ export function PartyFields({ value, onChange }: PartyFieldsProps) {
         </Select>
       </div>
 
+      {/* Habeas Data — solo aplica a persona natural (Ley 1581 de 2005) */}
+      {!isJuridica && (
+        <div className="col-span-12 rounded border border-(--border-color) bg-(--bg-primary) p-2">
+          <label className="flex items-start gap-2 text-xs text-(--text-primary)">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={value.habeas_data_consent ?? false}
+              onChange={(e) => onChange({ ...value, habeas_data_consent: e.target.checked })}
+            />
+            <span>
+              El titular autorizó el tratamiento de sus datos personales conforme a la Ley 1581 de 2005 (Habeas Data).
+            </span>
+          </label>
+        </div>
+      )}
+
       {/* Responsabilidades fiscales */}
       <div className="col-span-12 flex flex-col gap-1">
         <span className="text-xs font-medium text-(--text-secondary)">Responsabilidades fiscales</span>

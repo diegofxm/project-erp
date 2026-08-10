@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -40,6 +41,10 @@ type SaveRequest struct {
 	Phone                      string   `json:"phone"`
 	CreditLimit                *float64 `json:"credit_limit"`
 	PaymentTermsDays           int      `json:"payment_terms_days"`
+	// HabeasDataConsent solo tiene efecto si EntityTypeCode=="2" (persona natural) -- ver
+	// applyShared. Para persona jurídica se ignora silenciosamente (no es un titular bajo la
+	// Ley 1581, no tiene sentido pedirle consentimiento).
+	HabeasDataConsent bool `json:"habeas_data_consent"`
 }
 
 // Execute crea un tercero nuevo con el rol pedido. Si ya existe otro tercero con la misma
@@ -105,6 +110,21 @@ func applyShared(p *domain.Party, req SaveRequest, checkDigit string) {
 	p.AddressCountryName = req.AddressCountryName
 	p.Email = req.Email
 	p.Phone = req.Phone
+
+	// Habeas Data: solo aplica a persona natural. La fecha de consentimiento se estampa una sola
+	// vez (la primera vez que se marca) y se conserva en ediciones posteriores mientras el
+	// consentimiento siga activo; si se desmarca, se borra (no queda consentimiento vigente).
+	wasConsenting, prevConsentAt := p.HabeasDataConsent, p.HabeasDataConsentAt
+	p.HabeasDataConsent = req.EntityTypeCode == "2" && req.HabeasDataConsent
+	switch {
+	case !p.HabeasDataConsent:
+		p.HabeasDataConsentAt = nil
+	case wasConsenting && prevConsentAt != nil:
+		p.HabeasDataConsentAt = prevConsentAt
+	default:
+		now := time.Now()
+		p.HabeasDataConsentAt = &now
+	}
 }
 
 func applyRole(p *domain.Party, role domain.Role, req SaveRequest) {

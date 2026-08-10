@@ -140,6 +140,80 @@ func TestCreate_DuplicateSameRole_Rejected(t *testing.T) {
 	}
 }
 
+func TestCreate_HabeasDataConsent_PersonaNaturalStampsTimestamp(t *testing.T) {
+	repo := newFakeRepo()
+	uc := application.NewCreateUseCase(repo)
+	companyID := uuid.New()
+
+	req := baseSaveRequest()
+	req.IdentificationTypeCode = "13"
+	req.EntityTypeCode = "2"
+	req.HabeasDataConsent = true
+
+	p, err := uc.Execute(context.Background(), companyID, domain.RoleCustomer, req)
+	if err != nil {
+		t.Fatalf("no esperaba error: %v", err)
+	}
+	if !p.HabeasDataConsent {
+		t.Fatal("esperaba HabeasDataConsent=true")
+	}
+	if p.HabeasDataConsentAt == nil {
+		t.Fatal("esperaba HabeasDataConsentAt estampado")
+	}
+}
+
+func TestCreate_HabeasDataConsent_PersonaJuridicaSeIgnora(t *testing.T) {
+	repo := newFakeRepo()
+	uc := application.NewCreateUseCase(repo)
+	companyID := uuid.New()
+
+	req := baseSaveRequest() // EntityTypeCode queda vacío (no "2")
+	req.HabeasDataConsent = true
+
+	p, err := uc.Execute(context.Background(), companyID, domain.RoleCustomer, req)
+	if err != nil {
+		t.Fatalf("no esperaba error: %v", err)
+	}
+	if p.HabeasDataConsent || p.HabeasDataConsentAt != nil {
+		t.Fatalf("persona jurídica no debería registrar consentimiento, got consent=%v at=%v", p.HabeasDataConsent, p.HabeasDataConsentAt)
+	}
+}
+
+func TestUpdate_HabeasDataConsent_PreservaFechaOriginalTrasEditar(t *testing.T) {
+	repo := newFakeRepo()
+	createUC := application.NewCreateUseCase(repo)
+	updateUC := application.NewUpdateUseCase(repo)
+	companyID := uuid.New()
+
+	req := baseSaveRequest()
+	req.IdentificationTypeCode = "13"
+	req.EntityTypeCode = "2"
+	req.HabeasDataConsent = true
+	created, err := createUC.Execute(context.Background(), companyID, domain.RoleCustomer, req)
+	if err != nil {
+		t.Fatalf("alta falló: %v", err)
+	}
+	firstConsentAt := created.HabeasDataConsentAt
+
+	req.Phone = "3000000000" // edición no relacionada con el consentimiento
+	updated, err := updateUC.Execute(context.Background(), companyID, created.ID, domain.RoleCustomer, req)
+	if err != nil {
+		t.Fatalf("edición falló: %v", err)
+	}
+	if updated.HabeasDataConsentAt == nil || !updated.HabeasDataConsentAt.Equal(*firstConsentAt) {
+		t.Fatalf("esperaba conservar la fecha original de consentimiento %v, got %v", firstConsentAt, updated.HabeasDataConsentAt)
+	}
+
+	req.HabeasDataConsent = false
+	revoked, err := updateUC.Execute(context.Background(), companyID, created.ID, domain.RoleCustomer, req)
+	if err != nil {
+		t.Fatalf("revocar consentimiento falló: %v", err)
+	}
+	if revoked.HabeasDataConsent || revoked.HabeasDataConsentAt != nil {
+		t.Fatalf("esperaba consentimiento revocado sin fecha, got consent=%v at=%v", revoked.HabeasDataConsent, revoked.HabeasDataConsentAt)
+	}
+}
+
 func TestCreate_SameIdentificationDifferentCompany_CreatesIndependentParty(t *testing.T) {
 	repo := newFakeRepo()
 	uc := application.NewCreateUseCase(repo)

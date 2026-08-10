@@ -36,8 +36,9 @@ func (r *Repository) Save(ctx context.Context, p domain.Party) (*domain.Party, e
 			address_city_name, address_state_name, address_country_code, address_country_name,
 			email, phone,
 			is_customer, is_supplier, credit_limit, payment_terms_days,
+			habeas_data_consent, habeas_data_consent_at,
 			is_active, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
 		p.ID, p.CompanyID,
 		p.IdentificationTypeCode, p.IdentificationNumber, p.CheckDigit,
 		p.EntityTypeCode, p.MerchantRegistrationNumber,
@@ -46,6 +47,7 @@ func (r *Repository) Save(ctx context.Context, p domain.Party) (*domain.Party, e
 		p.AddressCityName, p.AddressStateName, p.AddressCountryCode, p.AddressCountryName,
 		p.Email, p.Phone,
 		p.IsCustomer, p.IsSupplier, p.CreditLimit, p.PaymentTermsDays,
+		p.HabeasDataConsent, p.HabeasDataConsentAt,
 		p.IsActive, p.CreatedAt, p.UpdatedAt,
 	)
 	if err != nil {
@@ -112,8 +114,9 @@ func (r *Repository) Update(ctx context.Context, p domain.Party) (*domain.Party,
 			address_city_name=$14, address_state_name=$15, address_country_code=$16, address_country_name=$17,
 			email=$18, phone=$19,
 			is_customer=$20, is_supplier=$21, credit_limit=$22, payment_terms_days=$23,
+			habeas_data_consent=$24, habeas_data_consent_at=$25,
 			updated_at=NOW()
-		WHERE id=$24 AND company_id=$25`,
+		WHERE id=$26 AND company_id=$27`,
 		p.IdentificationTypeCode, p.IdentificationNumber, p.CheckDigit,
 		p.EntityTypeCode, p.MerchantRegistrationNumber,
 		p.Name, p.TaxSchemeCode, p.TaxSchemeName, p.TaxRegimeCode, p.LiabilityCodes,
@@ -121,6 +124,7 @@ func (r *Repository) Update(ctx context.Context, p domain.Party) (*domain.Party,
 		p.AddressCityName, p.AddressStateName, p.AddressCountryCode, p.AddressCountryName,
 		p.Email, p.Phone,
 		p.IsCustomer, p.IsSupplier, p.CreditLimit, p.PaymentTermsDays,
+		p.HabeasDataConsent, p.HabeasDataConsentAt,
 		p.ID, p.CompanyID,
 	)
 	if err != nil {
@@ -154,6 +158,7 @@ const partySelect = `
 	       address_city_name, address_state_name, address_country_code, address_country_name,
 	       email, phone,
 	       is_customer, is_supplier, credit_limit, payment_terms_days,
+	       habeas_data_consent, habeas_data_consent_at,
 	       is_active, created_at, updated_at
 	FROM thirdparty.parties`
 
@@ -172,6 +177,7 @@ func scanParty(s scanner) (*domain.Party, error) {
 		&p.AddressCityName, &p.AddressStateName, &p.AddressCountryCode, &p.AddressCountryName,
 		&p.Email, &p.Phone,
 		&p.IsCustomer, &p.IsSupplier, &p.CreditLimit, &p.PaymentTermsDays,
+		&p.HabeasDataConsent, &p.HabeasDataConsentAt,
 		&p.IsActive, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {

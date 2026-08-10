@@ -62,6 +62,12 @@ type Party struct {
 	CreditLimit      *float64 `json:"credit_limit"`       // solo aplica si IsCustomer; nil = sin límite
 	PaymentTermsDays int      `json:"payment_terms_days"` // solo aplica si IsSupplier
 
+	// Habeas Data (Ley 1581 de 2005, Colombia) -- solo aplica cuando EntityTypeCode=="2" (persona
+	// natural); un tercero persona jurídica no es "titular" bajo esta ley. HabeasDataConsentAt se
+	// estampa la primera vez que HabeasDataConsent pasa a true (ver application.applyShared).
+	HabeasDataConsent   bool       `json:"habeas_data_consent"`
+	HabeasDataConsentAt *time.Time `json:"habeas_data_consent_at"`
+
 	IsActive  bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

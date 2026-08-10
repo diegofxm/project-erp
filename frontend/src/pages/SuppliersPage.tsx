@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
-import { createSupplier, deleteSupplier, listSuppliers, updateSupplier } from "../lib/suppliers";
+import { Download, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
+import { createSupplier, deleteSupplier, exportSupplierData, listSuppliers, updateSupplier } from "../lib/suppliers";
 import { ApiError } from "../lib/apiClient";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
@@ -66,6 +66,24 @@ export function SuppliersPage() {
       setError(err instanceof ApiError ? err.message : "No se pudo guardar el proveedor");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // handleExport — derecho de acceso ARCO (Ley 1581): descarga en JSON todos los datos
+  // personales que el ERP guarda de este proveedor. Solo aplica a persona natural
+  // (entity_type_code "2"); una persona jurídica no es titular bajo Habeas Data.
+  async function handleExport(supplier: Supplier) {
+    try {
+      const result = await exportSupplierData(supplier.id);
+      const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `habeas-data-${supplier.identification_number}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudieron exportar los datos");
     }
   }
 
@@ -153,6 +171,12 @@ export function SuppliersPage() {
                     <td className="px-3 py-2 text-(--text-secondary)">{s.phone || "—"}</td>
                     <td className="px-3 py-2">
                       <div className="flex justify-end gap-1">
+                        {s.entity_type_code === "2" && (
+                          <button type="button" title="Exportar datos personales (Habeas Data)" onClick={() => handleExport(s)}
+                            className="rounded p-1 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)">
+                            <Download className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                         <button type="button" title="Editar" onClick={() => setEditing(s)}
                           className="rounded p-1 text-(--text-secondary) transition-colors hover:bg-(--bg-hover)">
                           <Pencil className="h-3.5 w-3.5" />

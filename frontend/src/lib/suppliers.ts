@@ -32,6 +32,7 @@ function toERPPayload(p: SupplierPayload) {
     email: p.email ?? "",
     phone: p.phone ?? "",
     payment_terms_days: 0,
+    habeas_data_consent: p.habeas_data_consent ?? false,
   };
 }
 
@@ -45,6 +46,12 @@ export function updateSupplier(id: string, payload: SupplierPayload): Promise<Su
 
 export function deleteSupplier(id: string): Promise<void> {
   return apiClient.del<void>(`/suppliers/${id}`);
+}
+
+// exportSupplierData — derecho de acceso ARCO (Ley 1581): todos los datos personales que el ERP
+// guarda sobre este proveedor, tal como los devuelve el backend (ver docs/habeas-data-arco.md).
+export function exportSupplierData(id: string): Promise<{ exported_at: string; titular: Supplier }> {
+  return apiClient.get(`/suppliers/${id}/export`);
 }
 
 // supplierToPayload — convierte un Supplier del catálogo ERP (campos planos) al SupplierPayload
@@ -73,5 +80,6 @@ export function supplierToPayload(v: Supplier): SupplierPayload {
     tax_regime_code: v.tax_regime_code ?? undefined,
     phone: v.phone || undefined,
     email: v.email || undefined,
+    habeas_data_consent: v.habeas_data_consent,
   };
 }

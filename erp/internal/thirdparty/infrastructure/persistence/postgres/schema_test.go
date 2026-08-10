@@ -38,6 +38,7 @@ func TestSchema_ThirdpartyTables(t *testing.T) {
 			address_city_name, address_state_name, address_country_code, address_country_name,
 			email, phone,
 			is_customer, is_supplier, credit_limit, payment_terms_days,
+			habeas_data_consent, habeas_data_consent_at,
 			is_active, created_at, updated_at`},
 	}
 	for _, tt := range tables {

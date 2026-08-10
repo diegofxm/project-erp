@@ -401,6 +401,8 @@ export interface CustomerPayload {
   // Solo aplica al catálogo de clientes (CustomerForm) — ignorado cuando este payload se usa
   // para editar el cliente embebido en un documento electrónico.
   credit_limit?: number | null;
+  // Habeas Data (Ley 1581) — solo tiene efecto si entity_type_code es "2" (persona natural).
+  habeas_data_consent?: boolean;
 }
 
 // Customer — espejo de domain.Customer del ERP (campos planos, snake_case).
@@ -430,6 +432,9 @@ export interface Customer {
   // Cupo máximo de cartera (ventas confirmadas sin pagar) permitido — null = sin límite.
   // Se valida al confirmar una venta (ver sales ConfirmUseCase).
   credit_limit: number | null;
+  // Habeas Data (Ley 1581) — solo aplica cuando entity_type_code es "2" (persona natural).
+  habeas_data_consent: boolean;
+  habeas_data_consent_at: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -453,6 +458,8 @@ export interface SupplierPayload {
   tax_regime_code?: string;
   phone?: string;
   email?: string;
+  // Habeas Data (Ley 1581) — solo tiene efecto si entity_type_code es "2" (persona natural).
+  habeas_data_consent?: boolean;
 }
 
 // Supplier — espejo de domain.Supplier del ERP (campos planos).
@@ -480,6 +487,9 @@ export interface Supplier {
   email: string;
   phone: string;
   payment_terms_days: number;
+  // Habeas Data (Ley 1581) — solo aplica cuando entity_type_code es "2" (persona natural).
+  habeas_data_consent: boolean;
+  habeas_data_consent_at: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -65,8 +66,8 @@ func (h *Handler) logParty(ctx context.Context, companyID uuid.UUID, action stri
 		userID = &uid
 	}
 	h.audit.Log(ctx, companyID, userID, string(h.role)+"."+action, "party", &p.ID, map[string]any{
-		"name":                    p.Name,
-		"identification_number":   p.IdentificationNumber,
+		"name":                  p.Name,
+		"identification_number": p.IdentificationNumber,
 	})
 }
 
@@ -76,6 +77,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+h.pathPrefix+"/{id}", h.handleGetByID)
 	mux.HandleFunc("PUT "+h.pathPrefix+"/{id}", h.handleUpdate)
 	mux.HandleFunc("DELETE "+h.pathPrefix+"/{id}", h.handleDelete)
+	mux.HandleFunc("GET "+h.pathPrefix+"/{id}/export", h.handleExport)
 }
 
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -204,6 +206,50 @@ func (h *Handler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		h.audit.Log(r.Context(), companyID, userID, string(h.role)+".role_removed", "party", &id, nil)
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleExport atiende el derecho de acceso ARCO (Ley 1581 de 2005): exporta todos los datos
+// personales que este módulo guarda sobre el titular. A diferencia de handleGetByID, cada
+// exportación queda auditada de forma distinguible (<role>.data_exported) para poder demostrar
+// cuándo se atendió una solicitud concreta -- ver docs/habeas-data-arco.md.
+func (h *Handler) handleExport(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+
+	id, err := parseUUID(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+
+	p, err := h.get.ByID(r.Context(), companyID, id, h.role)
+	if err != nil {
+		if errors.Is(err, h.notFoundErr) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if h.audit != nil {
+		uid := tenant.GetUserID(r.Context())
+		var userID *uuid.UUID
+		if uid != uuid.Nil {
+			userID = &uid
+		}
+		h.audit.Log(r.Context(), companyID, userID, string(h.role)+".data_exported", "party", &p.ID, map[string]any{
+			"name":                  p.Name,
+			"identification_number": p.IdentificationNumber,
+		})
+	}
+
+	respond(w, http.StatusOK, map[string]any{
+		"exported_at": time.Now().UTC(),
+		"titular":     p,
+	})
 }
 
 // --- helpers ---
