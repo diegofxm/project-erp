@@ -528,6 +528,12 @@ func mustOpenDB(log *slog.Logger, url string) *pgxpool.Pool {
 		log.Error("parsear DATABASE_URL", "error", err)
 		os.Exit(1)
 	}
+	// Límites explícitos del pool -- 16 módulos comparten el mismo *pgxpool.Pool; sin esto queda
+	// en el default implícito de la librería (MaxConns = max(4, NumCPU)), sin monitorear ni
+	// justificar bajo tráfico real.
+	cfg.MaxConns = 20
+	cfg.MinConns = 2
+	cfg.MaxConnIdleTime = 5 * time.Minute
 	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		_, err := conn.Exec(ctx, "SET TIME ZONE 'America/Bogota'")
 		return err

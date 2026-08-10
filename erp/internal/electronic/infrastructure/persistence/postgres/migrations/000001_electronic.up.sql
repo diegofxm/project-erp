@@ -72,3 +72,11 @@ CREATE INDEX IF NOT EXISTS idx_documents_issue_date
 CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_document_key
     ON electronic.documents (company_id, document_key)
     WHERE document_key IS NOT NULL;
+-- FKs sin índice propio (cubiertas hoy solo indirectamente por idx_documents_company) --
+-- baratas de añadir ahora, antes de que reportes de rangos/terceros empiecen a filtrar por ellas.
+CREATE INDEX IF NOT EXISTS idx_documents_numbering_range
+    ON electronic.documents (numbering_range_id);
+CREATE INDEX IF NOT EXISTS idx_documents_customer
+    ON electronic.documents (customer_id) WHERE customer_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_documents_supplier
+    ON electronic.documents (supplier_id) WHERE supplier_id IS NOT NULL;

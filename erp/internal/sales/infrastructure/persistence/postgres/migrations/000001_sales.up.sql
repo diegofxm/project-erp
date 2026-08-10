@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS sales.sales (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sales_company ON sales.sales(company_id);
+-- Único condicional: number='' identifica borradores (aún no numerados), pueden repetirse;
+-- una vez confirmada la venta y asignado un consecutivo real, no puede repetirse por empresa.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_number ON sales.sales(company_id, number) WHERE number != '';
 
 CREATE TABLE IF NOT EXISTS sales.sale_lines (
     id          UUID PRIMARY KEY,

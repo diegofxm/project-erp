@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS purchase.orders (
 );
 
 CREATE INDEX IF NOT EXISTS idx_purchase_orders_company ON purchase.orders(company_id);
+-- Único condicional: number='' identifica borradores (aún no numerados), pueden repetirse;
+-- una vez confirmada la orden y asignado un consecutivo real, no puede repetirse por empresa.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_purchase_orders_number ON purchase.orders(company_id, number) WHERE number != '';
 
 CREATE TABLE IF NOT EXISTS purchase.order_lines (
     id                UUID PRIMARY KEY,
