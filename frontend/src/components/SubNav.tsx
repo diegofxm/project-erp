@@ -31,6 +31,7 @@ const SUB_NAVS: SubNavConfig[] = [
   {
     prefix: "/documents",
     items: [
+      { to: "/documents", label: "Panel", end: true },
       { to: "/documents/invoices",          label: "Factura Electrónica", color: DOC_COLORS["/documents/invoices"] },
       { to: "/documents/credit-notes",      label: "Nota Crédito",        color: DOC_COLORS["/documents/credit-notes"] },
       { to: "/documents/debit-notes",       label: "Nota Débito",         color: DOC_COLORS["/documents/debit-notes"] },
