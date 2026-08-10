@@ -443,14 +443,18 @@ func (uc *ConfirmUseCase) sendTestSet(ctx context.Context, d *domain.Document, z
 	return uc.finishFromPoll(ctx, d, zipKey, last, "respuesta de la DIAN no disponible todavía (sondeo agotado)")
 }
 
-// pollZipKey sondea el estado de un envío asíncrono (6 intentos, 5 s entre cada uno — mismo
-// patrón que el legacy) y devuelve el último resultado disponible, o nil si se agota el sondeo
-// sin respuesta útil.
+// PollInterval es la espera entre sondeos de PollStatusZip. Variable (no const) para que los
+// tests de reconciliación puedan acortarla en vez de esperar hasta 25s reales por caso.
+var PollInterval = 5 * time.Second
+
+// pollZipKey sondea el estado de un envío asíncrono (6 intentos, PollInterval entre cada uno —
+// mismo patrón que el legacy) y devuelve el último resultado disponible, o nil si se agota el
+// sondeo sin respuesta útil.
 func (uc *ConfirmUseCase) pollZipKey(zipKey string, p *prepared) *domain.SendResult {
 	var last *domain.SendResult
 	for attempt := 0; attempt < 6; attempt++ {
 		if attempt > 0 {
-			time.Sleep(5 * time.Second)
+			time.Sleep(PollInterval)
 		}
 		res, err := uc.sender.PollStatusZip(zipKey, p.company.Certificate, p.company.CertificatePassword, string(p.company.Environment))
 		if err != nil || res == nil {
