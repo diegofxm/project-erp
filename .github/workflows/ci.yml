@@ -35,9 +35,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # "1.26" (no "1.26.4" fijo) -- instala siempre el último parche de la serie 1.26.x. Fijar un
+      # patch exacto significa que un CVE del stdlib corregido en un parche posterior (ver
+      # GO-2026-5856, corregido en 1.26.5) queda pineado indefinidamente en el CI hasta que alguien
+      # note el error. erp/go.mod y cofacture/go.mod solo declaran "go 1.26.4" como mínimo (sin
+      # directiva toolchain), así que un parche más nuevo siempre es compatible.
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.4"
+          go-version: "1.26"
 
       # erp/go.mod NO declara github.com/diegofxm/cofacture como dependencia (ni require ni
       # replace) -- a propósito, para no ensuciarlo con una ruta de filesystem local. La conexión
