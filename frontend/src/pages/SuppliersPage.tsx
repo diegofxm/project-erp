@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, Pencil, Plus, Search, Trash2, Truck } from "lucide-react";
 import { createSupplier, deleteSupplier, exportSupplierData, listSuppliers, updateSupplier } from "../lib/suppliers";
 import { ApiError } from "../lib/apiClient";
+import { useApiResource } from "../hooks/useApiResource";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import type { Supplier, SupplierPayload } from "../lib/types";
@@ -17,22 +18,20 @@ type Editing = "new" | Supplier | null;
 const PAGE_SIZE = 10;
 
 export function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[] | null>(null);
+  const {
+    data: suppliers,
+    loading: loadingList,
+    error: loadError,
+    refresh,
+  } = useApiResource(listSuppliers, [], { fallbackErrorMessage: "No se pudieron cargar los proveedores" });
   const [editing, setEditing] = useState<Editing>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
   const confirm = useConfirm();
   const toast = useToast();
-
-  function refresh() {
-    listSuppliers()
-      .then(setSuppliers)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar los proveedores"));
-  }
-
-  useEffect(() => { refresh(); }, []);
+  const error = saveError ?? loadError;
 
   const filtered = useMemo(() => {
     if (!suppliers) return [];
@@ -52,7 +51,7 @@ export function SuppliersPage() {
   }
 
   async function handleSave(payload: SupplierPayload) {
-    setError(null);
+    setSaveError(null);
     setLoading(true);
     try {
       if (editing === "new") {
@@ -63,7 +62,7 @@ export function SuppliersPage() {
       setEditing(null);
       refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo guardar el proveedor");
+      setSaveError(err instanceof ApiError ? err.message : "No se pudo guardar el proveedor");
     } finally {
       setLoading(false);
     }
@@ -141,7 +140,7 @@ export function SuppliersPage() {
             loading={loading}
           />
         </Card>
-      ) : suppliers === null ? (
+      ) : loadingList ? (
         <div className="flex min-h-32 items-center justify-center">
           <Spinner className="h-5 w-5 text-(--text-muted)" />
         </div>

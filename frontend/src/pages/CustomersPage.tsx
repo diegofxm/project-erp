@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 import { createCustomer, deleteCustomer, exportCustomerData, listCustomers, updateCustomer } from "../lib/customers";
 import { ApiError } from "../lib/apiClient";
+import { useApiResource } from "../hooks/useApiResource";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import type { Customer, CustomerPayload } from "../lib/types";
@@ -17,22 +18,20 @@ type Editing = "new" | Customer | null;
 const PAGE_SIZE = 10;
 
 export function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[] | null>(null);
+  const {
+    data: customers,
+    loading: loadingList,
+    error: loadError,
+    refresh,
+  } = useApiResource(listCustomers, [], { fallbackErrorMessage: "No se pudieron cargar los clientes" });
   const [editing, setEditing] = useState<Editing>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [offset, setOffset] = useState(0);
   const confirm = useConfirm();
   const toast = useToast();
-
-  function refresh() {
-    listCustomers()
-      .then(setCustomers)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar los clientes"));
-  }
-
-  useEffect(() => { refresh(); }, []);
+  const error = saveError ?? loadError;
 
   const filtered = useMemo(() => {
     if (!customers) return [];
@@ -52,7 +51,7 @@ export function CustomersPage() {
   }
 
   async function handleSave(payload: CustomerPayload) {
-    setError(null);
+    setSaveError(null);
     setLoading(true);
     try {
       if (editing === "new") {
@@ -63,7 +62,7 @@ export function CustomersPage() {
       setEditing(null);
       refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo guardar el cliente");
+      setSaveError(err instanceof ApiError ? err.message : "No se pudo guardar el cliente");
     } finally {
       setLoading(false);
     }
@@ -141,7 +140,7 @@ export function CustomersPage() {
             loading={loading}
           />
         </Card>
-      ) : customers === null ? (
+      ) : loadingList ? (
         <div className="flex min-h-32 items-center justify-center">
           <Spinner className="h-5 w-5 text-(--text-muted)" />
         </div>

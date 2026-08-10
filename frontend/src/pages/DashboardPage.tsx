@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ReactGridLayout, WidthProvider } from "react-grid-layout/legacy";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -9,13 +9,14 @@ import {
   LayoutDashboard, ArrowRight, Settings2, Plus, RotateCcw, X, GripHorizontal,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useApiResource } from "../hooks/useApiResource";
 import { Card } from "../components/ui/Card";
 import { Spinner } from "../components/ui/Spinner";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { StatusBadge } from "../components/invoice-form/StatusBadge";
 import { computeBillingStats, type BillingStats } from "../lib/electronicStats";
 import { listDocuments } from "../lib/documents";
-import type { Document, DocumentStatus } from "../lib/types";
+import type { DocumentStatus } from "../lib/types";
 import { formatCOP } from "../lib/currency";
 import { addDaysColombiaISO } from "../lib/dateFormat";
 import { Link } from "react-router";
@@ -167,29 +168,25 @@ function TypeTooltip({ active, payload }: { active?: boolean; payload?: { payloa
 
 export function DashboardPage() {
   const { activeCompany } = useAuth();
-  const [stats, setStats] = useState<BillingStats | null>(null);
-  const [recentDocs, setRecentDocs] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
 
   const { visibleItems, hidden, updateItems, hide, show, reset } = useDashboardLayout();
 
-  useEffect(() => {
-    if (!activeCompany) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    listDocuments({ from: addDaysColombiaISO(-395), limit: 200 })
-      .then((docs) => {
-        if (cancelled) return;
-        setStats(computeBillingStats(docs));
-        setRecentDocs([...docs].sort((a, b) => (b.issue_date ?? "").localeCompare(a.issue_date ?? "")).slice(0, 6));
-      })
-      .catch((err: Error) => { if (!cancelled) setError(err.message ?? "No se pudieron cargar las métricas"); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [activeCompany?.id]);
+  const {
+    data: documents,
+    loading,
+    error,
+  } = useApiResource(
+    () => listDocuments({ from: addDaysColombiaISO(-395), limit: 200 }),
+    [activeCompany?.id],
+    { enabled: !!activeCompany, fallbackErrorMessage: "No se pudieron cargar las métricas" },
+  );
+
+  const stats = useMemo(() => computeBillingStats(documents ?? []), [documents]);
+  const recentDocs = useMemo(
+    () => [...(documents ?? [])].sort((a, b) => (b.issue_date ?? "").localeCompare(a.issue_date ?? "")).slice(0, 6),
+    [documents],
+  );
 
   const cm = stats?.current_month;
   const pm = stats?.previous_month;
