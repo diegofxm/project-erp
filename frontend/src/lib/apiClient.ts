@@ -41,13 +41,36 @@ function isSessionExpired401(path: string, status: number, hadToken: boolean): b
   return !SESSION_EXPIRY_EXEMPT_PATHS.some((p) => path.startsWith(p));
 }
 
+// Sin esto, un backend colgado deja el fetch() sin resolver nunca -- el spinner de la página gira
+// para siempre sin ningún mensaje de error. Deliberadamente NO extiende ApiError: un timeout es
+// una falla de conectividad, no una respuesta del servidor con un status HTTP real, así que debe
+// tratarse igual que "sin red" en el resto del código (ej. AuthContext.verifySession solo activa
+// el banner de "no se pudo conectar" para errores que NO son ApiError — ver ConnectionBanner.tsx).
+const REQUEST_TIMEOUT_MS = 20_000;
+
+class TimeoutError extends Error {
+  constructor() {
+    super("Tiempo de espera agotado. Verifica tu conexión e intenta de nuevo.");
+    this.name = "TimeoutError";
+  }
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, { ...options, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") throw new TimeoutError();
+    throw err;
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   const hadToken = authToken !== null;
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
 
-  const res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  const res = await fetchWithTimeout(`${API_BASE_URL}${path}`, { ...options, headers });
 
   // 204 No Content u otras respuestas sin body — evita que res.json() reviente.
   const text = await res.text();
@@ -69,7 +92,7 @@ async function getBlob(path: string): Promise<Blob> {
   const hadToken = authToken !== null;
   if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
 
-  const res = await fetch(`${API_BASE_URL}${path}`, { method: "GET", headers });
+  const res = await fetchWithTimeout(`${API_BASE_URL}${path}`, { method: "GET", headers });
   if (!res.ok) {
     const text = await res.text();
     const data = text ? JSON.parse(text) : null;
