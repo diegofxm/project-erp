@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { AlertTriangle, HelpCircle } from "lucide-react";
 import { Button } from "./Button";
 import { Card } from "./Card";
@@ -25,6 +25,8 @@ const TONE_ICON = {
 // nada nuevo que aprender visualmente.
 export function ConfirmDialog({ message, title, tone = "default", confirmLabel, onConfirm, onCancel }: ConfirmDialogProps) {
   const [mounted, setMounted] = useState(false);
+  const titleId = useId();
+  const messageId = useId();
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(id);
@@ -36,14 +38,18 @@ export function ConfirmDialog({ message, title, tone = "default", confirmLabel, 
       onClick={onCancel}
     >
       <Card
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-describedby={messageId}
         className={`w-full max-w-sm transition-all duration-200 ${mounted ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col items-center gap-3 p-5 text-center">
           {TONE_ICON[tone]}
           <div className="flex flex-col gap-1">
-            {title && <h2 className="text-sm font-semibold text-(--text-primary)">{title}</h2>}
-            <p className="text-xs text-(--text-secondary)">{message}</p>
+            {title && <h2 id={titleId} className="text-sm font-semibold text-(--text-primary)">{title}</h2>}
+            <p id={messageId} className="text-xs text-(--text-secondary)">{message}</p>
           </div>
         </div>
         <div className="flex justify-end gap-2 border-t border-(--border-light) p-3">

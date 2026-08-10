@@ -136,6 +136,10 @@ jobs:
       - name: build (tsc -b + vite build)
         run: npm run build
 
+      # Smoke tests (punto 25) -- Vitest + Testing Library, login y confirmación de venta.
+      - name: test (vitest)
+        run: npm test
+
       # Bloqueante desde el punto 20 (2026-08-10): react-router/postcss/nanoid ya actualizados,
       # npm audit está en 0 vulnerabilidades. Antes era continue-on-error mientras esas
       # vulnerabilidades conocidas seguían sin corregir.

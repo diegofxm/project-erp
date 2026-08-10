@@ -233,7 +233,7 @@ Con el backend ya autorizando y auditando correctamente, el frontend deja de ten
 | **22** | Timeout de red (`AbortController`) en `fetch()` dentro de `request()`/`getBlob()`. | ✅ **Resuelto** (ver nota) | — | Bajo | 05 |
 | **23** | Hook compartido `useApiResource` (loading/error/cancelado) para reemplazar el patrón duplicado y con variaciones entre páginas. | ✅ **Resuelto** (ver nota — adopción parcial a propósito) | 21, 22 (se construye sobre el cliente ya corregido) | Medio | 05 |
 | **24** | Accesibilidad: `aria-label` en botones icon-only e inputs de búsqueda crudos, semántica ARIA (`role="combobox"`, etc.) en `Combobox.tsx`. | ✅ **Resuelto** (ver nota — barrido completo, no parcial) | — | Bajo-Medio | 05 |
-| **25** | Smoke tests de frontend (Vitest + Testing Library) sobre los flujos críticos: login, confirmación de venta/factura. | 21-24 (para testear el comportamiento ya corregido) | Medio | 07 |
+| **25** | Smoke tests de frontend (Vitest + Testing Library) sobre los flujos críticos: login, confirmación de venta/factura. | ✅ **Resuelto** (ver nota — cierra la Fase 3) | 21-24 (para testear el comportamiento ya corregido) | Medio | 07 |
 
 **Nota sobre el punto 21 (2026-08-10).** Interceptor global de 401 en `frontend/src/lib/apiClient.ts`:
 
@@ -275,6 +275,23 @@ Con el backend ya autorizando y auditando correctamente, el frontend deja de ten
 - **Inputs de búsqueda crudos**: `aria-label` en los 3 que lo necesitaban (`CustomersPage.tsx`, `SuppliersPage.tsx`, `ProductsPage.tsx`). Se verificó primero que los pares "Desde"/"Hasta" en las páginas de documentos (`InvoicesPage.tsx`, `CreditNotesPage.tsx`, `DebitNotesPage.tsx`, `SupportDocumentsPage.tsx`, `AdjustmentNotesPage.tsx`) y los `Combobox` con `label` (`AccountingBankPage.tsx`, `AccountingBudgetsPage.tsx`, `PurchaseOrderEditorPage.tsx`, `QuoteEditorPage.tsx`, `SaleEditorPage.tsx`, `AdjustStockModal.tsx`, `TransferStockModal.tsx`, etc.) ya estaban correctamente etiquetados — la sospecha inicial de que también les faltaba resultó ser un falso positivo de una búsqueda de contexto insuficiente, corregida antes de tocar nada innecesariamente.
 
 **Verificado**: `npm run build` y `npm run lint` limpios tras el barrido completo (16 archivos), sin warnings nuevos. Verificación puramente estática (grep sistemático + revisión manual de cada coincidencia) dado que es un cambio de atributos HTML sin lógica — no se dispone de un lector de pantalla real ni de herramientas de auditoría axe/Lighthouse en este entorno para confirmar el resultado final con una herramienta automatizada; la corrección sigue el patrón WAI-ARIA documentado, pero la validación con un lector de pantalla real queda pendiente de que el usuario la haga, igual que el resto de verificaciones visuales de esta sesión.
+
+---
+
+**Nota sobre el punto 25 (2026-08-10) — cierra la Fase 3.** Infraestructura de tests de frontend desde cero: `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`, `jsdom` como dependencias nuevas; `vitest.config.ts` separado de `vite.config.ts` a propósito (para no arriesgar el tooling de build/dev existente al agregar tests); `src/test/setup.ts` con los matchers de jest-dom y limpieza entre tests (`cleanup()` + `localStorage.clear()`); script `npm test`. Se usó `globals: false` (default) en vez de `globals: true` para no tener que tocar `tsconfig.app.json` — cada test importa `describe`/`it`/`expect`/`vi` explícito desde `"vitest"`.
+
+Los 2 smoke tests pedidos por el punto (login, confirmación de venta/factura) **no son tests aislados con mocks livianos** — montan la página real dentro de su árbol de contexto real (`AuthProvider`, y para la venta también `ConfirmProvider`/`ToastProvider`, todos sin mockear) y solo interceptan `fetch()` por ruta con un router de mocks mínimo. Esto prueba el camino completo página → contexto → `apiClient` → `fetch`, no una versión simplificada que podría quedar desincronizada del comportamiento real:
+
+- `LoginPage.test.tsx`: credenciales correctas → navega al panel principal y persiste la sesión en `localStorage`; credenciales incorrectas → muestra el mensaje de error real del servidor y no navega.
+- `SaleEditorPage.test.tsx`: carga una venta en borrador real, hace clic en "Confirmar", **interactúa con el modal de confirmación real** (`ConfirmDialog`, no `window.confirm`) haciendo clic de verdad en sus botones, y verifica que el backend recibió `POST /sales/:id/confirm` (implícito: el router de mocks lanza si se llama una ruta no declarada) y que la UI refleja "Confirmada". Segundo caso: cancelar el diálogo no llama a confirmar y la venta sigue en "Borrador".
+
+**Efecto colateral encontrado escribiendo el test, corregido de una vez**: `ConfirmDialog.tsx` no tenía `role="dialog"`/`aria-modal`/`aria-labelledby`/`aria-describedby` — sin eso, ubicar el modal en el test de forma confiable requería una travesía frágil del DOM (`closest("div").parentElement`, que se rompió en el primer intento porque los botones están en un `<div>` hermano del mensaje, no un ancestro). Se agregó la semántica ARIA real (con `useId()` para los IDs, mismo patrón ya usado en `Combobox.tsx` del punto 24) — mejora de accesibilidad genuina, no solo un parche para que pasara el test; el test ahora usa `getByRole("dialog")`, que es además la forma correcta y estable de ubicar un modal en cualquier test futuro.
+
+**Wireado en CI**: nuevo step `npm test` en `.github/workflows/ci.yml` (job `frontend`, después de `build`, antes de `npm audit`) — sin esto, tener los tests solo serviría si alguien se acuerda de correrlos a mano.
+
+**Verificado con la lección del punto 17/18 aplicada** (no repetir el error de verificar en un entorno que no coincide con el de CI): se borró `node_modules` y se corrió `npm ci` limpio (no `npm install` sobre lo ya instalado, que puede ocultar problemas de lockfile) y se reprodujo la secuencia exacta del job `frontend` del CI en orden — `lint` → `build` → `test` → `audit` — los 4 pasos limpios contra la instalación fresca.
+
+Con esto se cierra la **Fase 3** (puntos 21-25) completa — los 5 puntos quedaron ✅ resueltos, ninguno parcial.
 
 ---
 
