@@ -35,6 +35,17 @@ func (uc *EmployeeUseCase) List(ctx context.Context, companyID uuid.UUID) ([]*do
 	return uc.repo.ListByCompany(ctx, companyID)
 }
 
+func (uc *EmployeeUseCase) Update(ctx context.Context, companyID, id uuid.UUID, in domain.UpdateEmployeeInput) (*domain.Employee, error) {
+	e, err := uc.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if e.CompanyID != companyID {
+		return nil, domain.ErrEmployeeNotFound
+	}
+	return uc.repo.Update(ctx, id, in)
+}
+
 func (uc *EmployeeUseCase) Deactivate(ctx context.Context, companyID, id uuid.UUID) error {
 	e, err := uc.repo.GetByID(ctx, id)
 	if err != nil {

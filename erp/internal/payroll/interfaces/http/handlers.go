@@ -98,6 +98,43 @@ func (h *Handler) handleCreateEmployee(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, e)
 }
 
+type updateEmployeeBody struct {
+	FirstName        string `json:"first_name"`
+	LastName         string `json:"last_name"`
+	Email            string `json:"email"`
+	Phone            string `json:"phone"`
+	DepartmentCode   string `json:"department_code"`
+	MunicipalityCode string `json:"municipality_code"`
+	AddressLine      string `json:"address_line"`
+}
+
+func (h *Handler) handleUpdateEmployee(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := requireManage(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	var body updateEmployeeBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	e, err := h.employees.Update(r.Context(), companyID, id, domain.UpdateEmployeeInput{
+		FirstName: body.FirstName, LastName: body.LastName, Email: body.Email, Phone: body.Phone,
+		DepartmentCode: body.DepartmentCode, MunicipalityCode: body.MunicipalityCode, AddressLine: body.AddressLine,
+	})
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	h.logAudit(r.Context(), companyID, "employee.updated", "employee", e.ID, map[string]any{"name": e.FullName()})
+	writeJSON(w, http.StatusOK, e)
+}
+
 func (h *Handler) handleListEmployees(w http.ResponseWriter, r *http.Request) {
 	companyID, ok := mustTenant(w, r)
 	if !ok {

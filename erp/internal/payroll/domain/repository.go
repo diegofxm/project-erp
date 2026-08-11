@@ -10,6 +10,7 @@ type EmployeeRepository interface {
 	Create(ctx context.Context, in CreateEmployeeInput) (*Employee, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*Employee, error)
 	ListByCompany(ctx context.Context, companyID uuid.UUID) ([]*Employee, error)
+	Update(ctx context.Context, id uuid.UUID, in UpdateEmployeeInput) (*Employee, error)
 	Deactivate(ctx context.Context, id uuid.UUID) error
 }
 
