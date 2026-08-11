@@ -8,6 +8,10 @@ import (
 
 type Repository interface {
 	Save(ctx context.Context, s Sale) (*Sale, error)
+	// Update reemplaza cliente/fecha/notas/líneas de una venta EN BORRADOR -- devuelve
+	// ErrSaleNotDraft si ya está confirmada (una venta confirmada se reversa con Cancel, no se
+	// edita). Recalcula totales a partir de las líneas nuevas, igual que Save.
+	Update(ctx context.Context, companyID, id uuid.UUID, s Sale) (*Sale, error)
 	GetByID(ctx context.Context, companyID, id uuid.UUID) (*Sale, error)
 	List(ctx context.Context, companyID uuid.UUID) ([]Sale, error)
 	UpdateStatus(ctx context.Context, companyID, id uuid.UUID, status SaleStatus) error

@@ -252,6 +252,7 @@ func main() {
 
 	// ── Casos de uso — purchase ─────────────────────────────────────────────────
 	createPurchaseUC := purchaseapp.NewCreateUseCase(purchaseRepo)
+	updatePurchaseUC := purchaseapp.NewUpdateUseCase(purchaseRepo)
 	getPurchaseUC := purchaseapp.NewGetUseCase(purchaseRepo)
 	confirmPurchaseUC := purchaseapp.NewConfirmUseCase(purchaseRepo)
 	cancelPurchaseUC := purchaseapp.NewCancelUseCase(purchaseRepo)
@@ -274,6 +275,7 @@ func main() {
 
 	// ── Casos de uso — sales ────────────────────────────────────────────────────
 	createSaleUC := salesapp.NewCreateUseCase(salesRepo)
+	updateSaleUC := salesapp.NewUpdateUseCase(salesRepo)
 	getSaleUC := salesapp.NewGetUseCase(salesRepo)
 	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus, productRepo, inventoryRepo, salesCustomerPort, paymentRepo, warehouseRepo, auditUC)
 	cancelSaleUC := salesapp.NewCancelUseCase(salesRepo)
@@ -433,8 +435,8 @@ func main() {
 	thirdpartyhttp.NewSupplierHandler(createPartyUC, getPartyUC, updatePartyUC, deletePartyUC, auditUC).RegisterRoutes(mux)
 	producthttp.NewHandler(createProductUC, getProductUC, updateProductUC, deleteProductUC, auditUC).RegisterRoutes(mux)
 	inventoryhttp.NewHandler(moveInventoryUC, getInventoryUC, auditUC).RegisterRoutes(mux)
-	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC, deletePurchaseUC, purchasePaymentUC, purchasePDFUC, sendPurchaseEmailUC, purchaseWithholdingUC, setPurchaseCounterUC, auditUC).RegisterRoutes(mux)
-	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC, quotePDFUC, sendQuoteEmailUC, setSalesCounterUC, deleteSaleUC, auditUC).RegisterRoutes(mux)
+	purchasehttp.NewHandler(createPurchaseUC, updatePurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC, deletePurchaseUC, purchasePaymentUC, purchasePDFUC, sendPurchaseEmailUC, purchaseWithholdingUC, setPurchaseCounterUC, auditUC).RegisterRoutes(mux)
+	saleshttp.NewHandler(createSaleUC, updateSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC, quotePDFUC, sendQuoteEmailUC, setSalesCounterUC, deleteSaleUC, auditUC).RegisterRoutes(mux)
 	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo, accountingWithholdingRepo, issueCertificatesUC, manageBankUC, fixedAssetUC, disposeFixedAssetUC, runDepreciationUC, budgetUC, ivaUC, incomeTaxUC, icaUC, exchangeRateUC, reconciliationUC, auditUC).RegisterRoutes(mux)
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, fromPurchaseUC, electronicDianRangesUC, electronicSendEmailUC, auditUC).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)

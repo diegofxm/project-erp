@@ -813,6 +813,10 @@ export interface CreateSalePayload {
   lines: SalesLineInput[];
 }
 
+// UpdateSalePayload -- igual que crear, sin "number" (el consecutivo no se puede reasignar
+// editando; solo aplica mientras la venta sigue en borrador, el backend lo valida).
+export type UpdateSalePayload = Omit<CreateSalePayload, "number">;
+
 export interface Sale {
   id: string;
   company_id: string;
@@ -893,6 +897,10 @@ export interface CreatePurchasePayload {
   notes: string;
   lines: PurchaseLineInput[];
 }
+
+// UpdatePurchasePayload -- igual que crear, sin "number" (no se reasigna editando; solo aplica
+// mientras la orden sigue en borrador, el backend lo valida).
+export type UpdatePurchasePayload = Omit<CreatePurchasePayload, "number">;
 
 export interface Purchase {
   id: string;

@@ -59,6 +59,60 @@ func (r *Repository) Save(ctx context.Context, s domain.Sale) (*domain.Sale, err
 	return &s, nil
 }
 
+func (r *Repository) Update(ctx context.Context, companyID, id uuid.UUID, s domain.Sale) (*domain.Sale, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("iniciar transacción: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var status string
+	err = tx.QueryRow(ctx, `SELECT status FROM sales.sales WHERE id=$1 AND company_id=$2 FOR UPDATE`, id, companyID).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrSaleNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("consultar venta: %w", err)
+	}
+	if status != string(domain.StatusDraft) {
+		return nil, domain.ErrSaleNotDraft
+	}
+
+	now := time.Now()
+	_, err = tx.Exec(ctx,
+		`UPDATE sales.sales SET customer_id=$3, issue_date=$4, due_date=$5, notes=$6, updated_at=$7 WHERE id=$1 AND company_id=$2`,
+		id, companyID, s.CustomerID, s.IssueDate, s.DueDate, s.Notes, now,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("actualizar venta: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM sales.sale_lines WHERE sale_id=$1`, id); err != nil {
+		return nil, fmt.Errorf("limpiar líneas: %w", err)
+	}
+	for i := range s.Lines {
+		l := &s.Lines[i]
+		l.ID = uuid.New()
+		l.SaleID = id
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO sales.sale_lines (id, sale_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+			l.ID, l.SaleID, l.ProductID, l.Description,
+			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount,
+		); err != nil {
+			return nil, fmt.Errorf("guardar línea: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	// Se relee completo (en vez de rearmar el struct a mano) para no arriesgar devolver Number/
+	// Status/CreatedAt vacíos -- el caller (application.UpdateUseCase) solo construye los campos
+	// que el usuario puede cambiar, no los campos de sistema.
+	return r.GetByID(ctx, companyID, id)
+}
+
 func (r *Repository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*domain.Sale, error) {
 	var s domain.Sale
 	var status string

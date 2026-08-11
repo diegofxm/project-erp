@@ -142,6 +142,57 @@ func (r *Repository) SetSupportDocumentID(ctx context.Context, companyID, id, do
 	return err
 }
 
+func (r *Repository) Update(ctx context.Context, companyID, id uuid.UUID, o domain.PurchaseOrder) (*domain.PurchaseOrder, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("iniciar transacción: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var status string
+	err = tx.QueryRow(ctx, `SELECT status FROM purchase.orders WHERE id=$1 AND company_id=$2 FOR UPDATE`, id, companyID).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrPurchaseNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("consultar orden: %w", err)
+	}
+	if status != string(domain.StatusDraft) {
+		return nil, domain.ErrPurchaseNotDraft
+	}
+
+	now := time.Now()
+	_, err = tx.Exec(ctx,
+		`UPDATE purchase.orders SET supplier_id=$3, issue_date=$4, due_date=$5, notes=$6, updated_at=$7 WHERE id=$1 AND company_id=$2`,
+		id, companyID, o.SupplierID, o.IssueDate, o.DueDate, o.Notes, now,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("actualizar orden: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM purchase.order_lines WHERE purchase_order_id=$1`, id); err != nil {
+		return nil, fmt.Errorf("limpiar líneas: %w", err)
+	}
+	for i := range o.Lines {
+		l := &o.Lines[i]
+		l.ID = uuid.New()
+		l.PurchaseOrderID = id
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO purchase.order_lines (id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+			l.ID, l.PurchaseOrderID, l.ProductID, l.Description,
+			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount,
+		); err != nil {
+			return nil, fmt.Errorf("guardar línea: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return r.GetByID(ctx, companyID, id)
+}
+
 func (r *Repository) Delete(ctx context.Context, companyID, id uuid.UUID) error {
 	o, err := r.GetByID(ctx, companyID, id)
 	if err != nil {

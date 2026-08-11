@@ -13,6 +13,11 @@ export function createQuote(payload: CreateQuotePayload): Promise<Quote> {
   return apiClient.post<Quote>("/quotes", payload);
 }
 
+// updateQuote -- solo permitido mientras la cotización está en borrador (el backend lo valida).
+export function updateQuote(id: string, payload: CreateQuotePayload): Promise<Quote> {
+  return apiClient.put<Quote>(`/quotes/${id}`, payload);
+}
+
 // sendQuote — cambia el estado a "sent" sin generar ni enviar nada. Se mantiene por si se
 // necesita marcar una cotización como enviada sin correo (ej. se entregó en persona). El botón
 // "Enviar" del editor usa sendQuoteEmail, que sí genera el PDF y lo manda al cliente.

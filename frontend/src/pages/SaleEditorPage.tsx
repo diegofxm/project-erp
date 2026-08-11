@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ShoppingCart, Check, Ban, FileText, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
-import { cancelSale, confirmSale, createSale, deleteSale, fetchSale } from "../lib/sales";
+import { cancelSale, confirmSale, createSale, deleteSale, fetchSale, updateSale } from "../lib/sales";
 import { listCustomers } from "../lib/customers";
 import { listNumberingRanges } from "../lib/numberingRanges";
 import { createInvoiceFromSale } from "../lib/documents";
@@ -27,8 +27,8 @@ const STATUS_TONE: Record<SaleStatus, StatusTone> = { draft: "neutral", confirme
 const INVOICE_DIAN_DOCUMENT_TYPE = "01";
 const today = () => todayColombiaISO();
 
-// Igual que QuoteEditorPage: sales/ no tiene endpoint de actualización (solo Create/Confirm/
-// Cancel), así que una venta ya creada es de solo lectura salvo sus transiciones de estado.
+// Editable mientras está en borrador (crear o corregir cliente/fecha/notas/líneas); una vez
+// confirmada, solo admite transiciones de estado (Cancelar, generar factura).
 export function SaleEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -61,10 +61,23 @@ export function SaleEditorPage() {
     if (isNew || !id) return;
     setLoading(true);
     fetchSale(id)
-      .then(setSale)
+      .then((s) => {
+        setSale(s);
+        if (s.status === "draft") {
+          setCustomerId(s.customer_id);
+          setIssueDate(s.issue_date);
+          setDueDate(s.due_date ?? "");
+          setNotes(s.notes);
+          setLines(s.lines);
+        }
+      })
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la venta"))
       .finally(() => setLoading(false));
   }, [id, isNew]);
+
+  // Editable mientras es nueva O sigue en borrador -- una vez confirmada, sales/ no soporta
+  // editar (solo Cancelar/transiciones de estado).
+  const isEditable = isNew || sale?.status === "draft";
 
   // Rangos activos de Factura Electrónica — solo hacen falta si la venta ya está confirmada
   // (para "Generar factura electrónica"), no tiene sentido cargarlos antes.
@@ -119,6 +132,24 @@ export function SaleEditorPage() {
       toast.success("Venta cancelada.");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo cancelar la venta");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveEdit() {
+    if (!sale) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const updated = await updateSale(sale.id, {
+        customer_id: customerId, issue_date: issueDate,
+        due_date: dueDate || undefined, notes, lines,
+      });
+      setSale(updated);
+      toast.success("Venta actualizada.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo actualizar la venta");
     } finally {
       setSaving(false);
     }
@@ -202,6 +233,15 @@ export function SaleEditorPage() {
               <Input label="Vence cartera (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               <Input label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} />
             </>
+          ) : isEditable && sale ? (
+            <>
+              <Combobox label="Cliente" value={customerId} onChange={setCustomerId} options={customerOptions} placeholder="Buscar cliente…" />
+              <Input label="Fecha" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
+              <Input label="Vence cartera (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              <div className="sm:col-span-3">
+                <Input label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </div>
+            </>
           ) : sale ? (
             <>
               <div>
@@ -226,9 +266,14 @@ export function SaleEditorPage() {
           ) : null}
         </div>
 
-        <SalesLineItemsEditor lines={isNew ? lines : sale?.lines ?? []} onChange={setLines} disabled={!isNew} />
+        <SalesLineItemsEditor lines={isEditable ? lines : sale?.lines ?? []} onChange={setLines} disabled={!isEditable} />
 
-        <div className="mt-4 flex justify-end border-t border-(--border-light) pt-3">
+        <div className="mt-4 flex items-center justify-between border-t border-(--border-light) pt-3">
+          {!isNew && sale?.status === "draft" ? (
+            <Button type="button" loading={saving} disabled={!customerId || lines.length === 0} onClick={handleSaveEdit}>
+              Guardar cambios
+            </Button>
+          ) : <span />}
           <span className="text-xs text-(--text-secondary)">
             Total: <span className="font-mono text-sm font-semibold text-(--text-primary)">{formatCOP.format(total)}</span>
           </span>

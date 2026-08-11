@@ -23,6 +23,9 @@ type fakeSaleRepo struct {
 }
 
 func (f *fakeSaleRepo) Save(context.Context, domain.Sale) (*domain.Sale, error) { return &f.sale, nil }
+func (f *fakeSaleRepo) Update(context.Context, uuid.UUID, uuid.UUID, domain.Sale) (*domain.Sale, error) {
+	return &f.sale, nil
+}
 func (f *fakeSaleRepo) GetByID(context.Context, uuid.UUID, uuid.UUID) (*domain.Sale, error) {
 	return &f.sale, nil
 }

@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { CreateSalePayload, Sale } from "./types";
+import type { CreateSalePayload, Sale, UpdateSalePayload } from "./types";
 
 export function listSales(): Promise<Sale[]> {
   return apiClient.get<Sale[]>("/sales");
@@ -11,6 +11,11 @@ export function fetchSale(id: string): Promise<Sale> {
 
 export function createSale(payload: CreateSalePayload): Promise<Sale> {
   return apiClient.post<Sale>("/sales", payload);
+}
+
+// updateSale -- solo permitido mientras la venta está en borrador (el backend lo valida).
+export function updateSale(id: string, payload: UpdateSalePayload): Promise<Sale> {
+  return apiClient.put<Sale>(`/sales/${id}`, payload);
 }
 
 // Al confirmar, el backend dispara sale.confirmed: accounting/ contabiliza y inventory/

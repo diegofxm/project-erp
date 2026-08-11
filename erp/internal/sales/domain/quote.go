@@ -69,6 +69,10 @@ func (q *Quote) GrandTotal() (subtotal, tax, total float64) {
 // QuoteRepository gestiona la persistencia de cotizaciones.
 type QuoteRepository interface {
 	Save(ctx context.Context, q Quote) (*Quote, error)
+	// Update reemplaza cliente/fecha de validez/notas/líneas de una cotización EN BORRADOR --
+	// devuelve ErrQuoteNotDraft si ya se envió (a partir de "sent" se corrige rechazando y
+	// creando una nueva, no editando la ya enviada al cliente).
+	Update(ctx context.Context, companyID, id uuid.UUID, q Quote) (*Quote, error)
 	GetByID(ctx context.Context, companyID, id uuid.UUID) (*Quote, error)
 	List(ctx context.Context, companyID uuid.UUID) ([]Quote, error)
 	UpdateStatus(ctx context.Context, companyID, id uuid.UUID, status QuoteStatus) error

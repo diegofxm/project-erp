@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ClipboardList, FileText, Send, Check, X as XIcon, ArrowRightCircle, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
-import { acceptQuote, convertQuoteToSale, createQuote, deleteQuote, fetchQuote, getQuotePdfBlobUrl, rejectQuote, sendQuoteEmail } from "../lib/quotes";
+import { acceptQuote, convertQuoteToSale, createQuote, deleteQuote, fetchQuote, getQuotePdfBlobUrl, rejectQuote, sendQuoteEmail, updateQuote } from "../lib/quotes";
 import { listCustomers } from "../lib/customers";
 import { ApiError } from "../lib/apiClient";
 import { openInNewTab } from "../lib/openInNewTab";
@@ -28,10 +28,8 @@ const STATUS_TONE: Record<QuoteStatus, StatusTone> = {
   draft: "neutral", sent: "info", accepted: "success", rejected: "danger", expired: "warning",
 };
 
-// A diferencia de los editores de documentos electrónicos, sales/ NO tiene endpoint de
-// actualización (ver application/quote.go — solo Create/Send/Accept/Reject/ConvertToSale/
-// Delete). Una vez creada, la cotización es de solo lectura salvo por sus transiciones de
-// estado: no hay "editar borrador ya guardado", solo "crear" o "avanzar/rechazar/eliminar".
+// Editable mientras está en borrador (crear o corregir cliente/fecha de validez/notas/líneas);
+// una vez enviada, solo admite transiciones de estado (aceptar/rechazar/convertir a venta).
 export function QuoteEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -60,10 +58,20 @@ export function QuoteEditorPage() {
     if (isNew || !id) return;
     setLoading(true);
     fetchQuote(id)
-      .then(setQuote)
+      .then((q) => {
+        setQuote(q);
+        if (q.status === "draft") {
+          setCustomerId(q.customer_id);
+          setValidUntil(q.valid_until ?? "");
+          setNotes(q.notes);
+          setLines(q.lines);
+        }
+      })
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la cotización"))
       .finally(() => setLoading(false));
   }, [id, isNew]);
+
+  const isEditable = isNew || quote?.status === "draft";
 
   const customerOptions = customers.map((c) => ({ value: c.id, label: c.name }));
   const customerName = (cid: string) => customers.find((c) => c.id === cid)?.name ?? "—";
@@ -82,6 +90,21 @@ export function QuoteEditorPage() {
       navigate(`/sales/quotes/${created.id}`, { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo crear la cotización");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveEdit() {
+    if (!quote) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const updated = await updateQuote(quote.id, { customer_id: customerId, lines, valid_until: validUntil || undefined, notes });
+      setQuote(updated);
+      toast.success("Cotización actualizada.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo actualizar la cotización");
     } finally {
       setSaving(false);
     }
@@ -219,7 +242,7 @@ export function QuoteEditorPage() {
 
       <Card className="p-4">
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {isNew ? (
+          {isEditable && (isNew || quote) ? (
             <>
               <Combobox label="Cliente" value={customerId} onChange={setCustomerId} options={customerOptions} placeholder="Buscar cliente…" />
               <Input label="Válida hasta (opcional)" type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
@@ -249,9 +272,14 @@ export function QuoteEditorPage() {
           ) : null}
         </div>
 
-        <SalesLineItemsEditor lines={isNew ? lines : quote?.lines ?? []} onChange={setLines} disabled={!isNew} />
+        <SalesLineItemsEditor lines={isEditable ? lines : quote?.lines ?? []} onChange={setLines} disabled={!isEditable} />
 
-        <div className="mt-4 flex justify-end border-t border-(--border-light) pt-3">
+        <div className="mt-4 flex items-center justify-between border-t border-(--border-light) pt-3">
+          {!isNew && quote?.status === "draft" ? (
+            <Button type="button" loading={saving} disabled={!customerId || lines.length === 0} onClick={handleSaveEdit}>
+              Guardar cambios
+            </Button>
+          ) : <span />}
           <span className="text-xs text-(--text-secondary)">
             Total: <span className="font-mono text-sm font-semibold text-(--text-primary)">{formatCOP.format(total)}</span>
           </span>

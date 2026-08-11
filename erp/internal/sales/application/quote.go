@@ -73,6 +73,33 @@ func (uc *QuoteUseCase) Create(ctx context.Context, companyID uuid.UUID, req Cre
 	return uc.quoteRepo.Save(ctx, q)
 }
 
+// Update corrige cliente/fecha de validez/notas/líneas de una cotización EN BORRADOR -- mismo
+// request que Create (CreateQuoteRequest), ya que el formulario de captura es el mismo.
+func (uc *QuoteUseCase) Update(ctx context.Context, companyID, id uuid.UUID, req CreateQuoteRequest) (*domain.Quote, error) {
+	if len(req.Lines) == 0 {
+		return nil, fmt.Errorf("la cotización debe tener al menos una línea")
+	}
+	q := domain.Quote{CustomerID: req.CustomerID, Notes: req.Notes}
+	if req.ValidUntil != "" {
+		t, err := time.Parse("2006-01-02", req.ValidUntil)
+		if err == nil {
+			q.ValidUntil = &t
+		}
+	}
+	for _, l := range req.Lines {
+		q.Lines = append(q.Lines, domain.QuoteLine{
+			ProductID:   l.ProductID,
+			Description: l.Description,
+			Quantity:    l.Quantity,
+			UnitPrice:   l.UnitPrice,
+			Discount:    l.Discount,
+			TaxRate:     l.TaxRate,
+		})
+	}
+	q.CalculateTotals()
+	return uc.quoteRepo.Update(ctx, companyID, id, q)
+}
+
 func (uc *QuoteUseCase) List(ctx context.Context, companyID uuid.UUID) ([]domain.Quote, error) {
 	return uc.quoteRepo.List(ctx, companyID)
 }

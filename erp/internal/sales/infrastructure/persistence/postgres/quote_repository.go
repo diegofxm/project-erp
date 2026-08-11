@@ -61,6 +61,57 @@ func (r *QuoteRepository) Save(ctx context.Context, q domain.Quote) (*domain.Quo
 	return &q, nil
 }
 
+func (r *QuoteRepository) Update(ctx context.Context, companyID, id uuid.UUID, q domain.Quote) (*domain.Quote, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("iniciar transacción: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var status string
+	err = tx.QueryRow(ctx, `SELECT status FROM sales.quotes WHERE id=$1 AND company_id=$2 FOR UPDATE`, id, companyID).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrQuoteNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("consultar cotización: %w", err)
+	}
+	if status != string(domain.QuoteStatusDraft) {
+		return nil, domain.ErrQuoteNotDraft
+	}
+
+	now := time.Now()
+	_, err = tx.Exec(ctx,
+		`UPDATE sales.quotes SET customer_id=$3, valid_until=$4, notes=$5, updated_at=$6 WHERE id=$1 AND company_id=$2`,
+		id, companyID, q.CustomerID, q.ValidUntil, q.Notes, now,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("actualizar cotización: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM sales.quote_lines WHERE quote_id=$1`, id); err != nil {
+		return nil, fmt.Errorf("limpiar líneas: %w", err)
+	}
+	for i := range q.Lines {
+		l := &q.Lines[i]
+		l.ID = uuid.New()
+		l.QuoteID = id
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO sales.quote_lines (id, quote_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+			l.ID, l.QuoteID, l.ProductID, l.Description,
+			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount,
+		); err != nil {
+			return nil, fmt.Errorf("guardar línea cotización: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return r.GetByID(ctx, companyID, id)
+}
+
 func (r *QuoteRepository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*domain.Quote, error) {
 	var q domain.Quote
 	var status string

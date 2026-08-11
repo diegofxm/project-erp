@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ShoppingBag, Check, Ban, PackageCheck, Trash2, FileText, Mail, Receipt, Plus } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
-import { addWithholding, cancelPurchase, confirmPurchase, createPurchase, deletePurchase, fetchPurchase, getPurchasePdfBlobUrl, receivePurchase, sendPurchaseEmail } from "../lib/purchases";
+import { addWithholding, cancelPurchase, confirmPurchase, createPurchase, deletePurchase, fetchPurchase, getPurchasePdfBlobUrl, receivePurchase, sendPurchaseEmail, updatePurchase } from "../lib/purchases";
 import { listSuppliers } from "../lib/suppliers";
 import { listNumberingRanges } from "../lib/numberingRanges";
 import { listWithholdingConcepts } from "../lib/accounting";
@@ -34,10 +34,9 @@ const STATUS_TONE: Record<PurchaseStatus, StatusTone> = {
 const SUPPORT_DOC_DIAN_TYPE = "05";
 const today = () => todayColombiaISO();
 
-// Igual que SaleEditorPage: purchase/ no tiene endpoint de actualización (solo Create/Confirm/
-// Receive/Cancel/Delete), así que una orden ya creada es de solo lectura salvo transiciones de
-// estado. A diferencia de una venta, el ciclo tiene un paso extra: Confirmar (compromiso con el
-// proveedor) y luego Recibir (entra a inventario y se contabiliza) son pasos separados.
+// Editable mientras está en borrador (crear o corregir proveedor/fecha/notas/líneas). A
+// diferencia de una venta, el ciclo tiene un paso extra: Confirmar (compromiso con el proveedor)
+// y luego Recibir (entra a inventario y se contabiliza) son pasos separados.
 export function PurchaseOrderEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -77,10 +76,21 @@ export function PurchaseOrderEditorPage() {
     if (isNew || !id) return;
     setLoading(true);
     fetchPurchase(id)
-      .then(setPurchase)
+      .then((p) => {
+        setPurchase(p);
+        if (p.status === "draft") {
+          setSupplierId(p.supplier_id);
+          setIssueDate(p.issue_date);
+          setDueDate(p.due_date ?? "");
+          setNotes(p.notes);
+          setLines(p.lines);
+        }
+      })
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la orden de compra"))
       .finally(() => setLoading(false));
   }, [id, isNew]);
+
+  const isEditable = isNew || purchase?.status === "draft";
 
   // Rangos activos de Documento Soporte — solo hacen falta si la orden ya está recibida (para
   // "Generar Documento Soporte"), no tiene sentido cargarlos antes.
@@ -106,6 +116,24 @@ export function PurchaseOrderEditorPage() {
       navigate(`/purchases/${created.id}`, { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo crear la orden de compra");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveEdit() {
+    if (!purchase) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const updated = await updatePurchase(purchase.id, {
+        supplier_id: supplierId, issue_date: issueDate,
+        due_date: dueDate || undefined, notes, lines,
+      });
+      setPurchase(updated);
+      toast.success("Orden de compra actualizada.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo actualizar la orden de compra");
     } finally {
       setSaving(false);
     }
@@ -290,6 +318,15 @@ export function PurchaseOrderEditorPage() {
               <Input label="Recepción esperada (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               <Input label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} />
             </>
+          ) : isEditable && purchase ? (
+            <>
+              <Combobox label="Proveedor" value={supplierId} onChange={setSupplierId} options={supplierOptions} placeholder="Buscar proveedor…" />
+              <Input label="Fecha" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
+              <Input label="Recepción esperada (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              <div className="sm:col-span-3">
+                <Input label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </div>
+            </>
           ) : purchase ? (
             <>
               <div>
@@ -314,9 +351,14 @@ export function PurchaseOrderEditorPage() {
           ) : null}
         </div>
 
-        <SalesLineItemsEditor lines={isNew ? lines : purchase?.lines ?? []} onChange={setLines} disabled={!isNew} />
+        <SalesLineItemsEditor lines={isEditable ? lines : purchase?.lines ?? []} onChange={setLines} disabled={!isEditable} />
 
-        <div className="mt-4 flex justify-end border-t border-(--border-light) pt-3">
+        <div className="mt-4 flex items-center justify-between border-t border-(--border-light) pt-3">
+          {!isNew && purchase?.status === "draft" ? (
+            <Button type="button" loading={saving} disabled={!supplierId || lines.length === 0} onClick={handleSaveEdit}>
+              Guardar cambios
+            </Button>
+          ) : <span />}
           <span className="text-xs text-(--text-secondary)">
             Total: <span className="font-mono text-sm font-semibold text-(--text-primary)">{formatCOP.format(total)}</span>
           </span>

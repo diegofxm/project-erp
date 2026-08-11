@@ -151,6 +151,7 @@ func toPayableDTO(b domain.PayableBalance) payableDTO {
 
 type Handler struct {
 	create      *application.CreateUseCase
+	update      *application.UpdateUseCase
 	get         *application.GetUseCase
 	confirm     *application.ConfirmUseCase
 	cancel      *application.CancelUseCase
@@ -166,6 +167,7 @@ type Handler struct {
 
 func NewHandler(
 	create *application.CreateUseCase,
+	update *application.UpdateUseCase,
 	get *application.GetUseCase,
 	confirm *application.ConfirmUseCase,
 	cancel *application.CancelUseCase,
@@ -179,7 +181,7 @@ func NewHandler(
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
-		create: create, get: get, confirm: confirm, cancel: cancel, receive: receive, delete: del, payment: payment,
+		create: create, update: update, get: get, confirm: confirm, cancel: cancel, receive: receive, delete: del, payment: payment,
 		pdf: pdf, sendEmail: sendEmail, withholding: withholding, setCounter: setCounter, audit: audit,
 	}
 }
@@ -391,6 +393,38 @@ func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, http.StatusCreated, toPurchaseDTO(o))
+}
+
+func (h *Handler) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var req application.CreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	o, err := h.update.Execute(r.Context(), cid, id, req)
+	if err != nil {
+		if errors.Is(err, domain.ErrPurchaseNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrPurchaseNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.logAudit(r.Context(), cid, "purchase.updated", "purchase", o.ID, nil)
+	respond(w, http.StatusOK, toPurchaseDTO(o))
 }
 
 func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
