@@ -86,6 +86,9 @@ func (f *fakeInventoryRepo) ListMovements(context.Context, uuid.UUID, *uuid.UUID
 func (f *fakeInventoryRepo) Transfer(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, float64, string, string) (*inventorydomain.Movement, *inventorydomain.Movement, error) {
 	return nil, nil, nil
 }
+func (f *fakeInventoryRepo) DeleteMovement(context.Context, uuid.UUID, uuid.UUID) error {
+	return nil
+}
 
 type fakeCustomerPort struct {
 	customer domain.Customer
