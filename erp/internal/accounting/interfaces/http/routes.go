@@ -11,6 +11,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("POST /api/v1/accounting/bank-accounts", h.handleCreateBankAccount)
 	mux.HandleFunc("GET /api/v1/accounting/bank-accounts", h.handleListBankAccounts)
+	mux.HandleFunc("PUT /api/v1/accounting/bank-accounts/{id}", h.handleUpdateBankAccount)
+	mux.HandleFunc("DELETE /api/v1/accounting/bank-accounts/{id}", h.handleDeactivateBankAccount)
 	mux.HandleFunc("POST /api/v1/accounting/bank-accounts/{id}/statement-lines", h.handleAddStatementLine)
 	mux.HandleFunc("GET /api/v1/accounting/bank-accounts/{id}/statement-lines", h.handleListStatement)
 	mux.HandleFunc("GET /api/v1/accounting/statement-lines/{line_id}/candidates", h.handleCandidates)

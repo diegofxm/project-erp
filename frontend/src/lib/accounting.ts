@@ -112,6 +112,16 @@ export function createBankAccount(payload: { name: string; bank_name: string; ac
   return apiClient.post<BankAccount>("/accounting/bank-accounts", payload);
 }
 
+// updateBankAccount — corrige nombre/banco/número. La cuenta PUC ligada no se puede reasignar
+// (cambiarla retroactivamente descuadraría la conciliación ya hecha).
+export function updateBankAccount(id: string, payload: { name: string; bank_name: string; account_no: string }): Promise<BankAccount> {
+  return apiClient.put<BankAccount>(`/accounting/bank-accounts/${id}`, payload);
+}
+
+export function deactivateBankAccount(id: string): Promise<void> {
+  return apiClient.del(`/accounting/bank-accounts/${id}`);
+}
+
 export function listStatement(bankAccountId: string): Promise<StatementLine[]> {
   return apiClient.get<StatementLine[]>(`/accounting/bank-accounts/${bankAccountId}/statement-lines`);
 }

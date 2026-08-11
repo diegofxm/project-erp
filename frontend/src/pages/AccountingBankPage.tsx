@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Landmark, Plus, Link2 } from "lucide-react";
+import { Landmark, Plus, Link2, Pencil, Archive } from "lucide-react";
 import {
-  addStatementLine, createBankAccount, getCandidates, listAccounts, listBankAccounts, listStatement, reconcile,
+  addStatementLine, createBankAccount, deactivateBankAccount, getCandidates, listAccounts, listBankAccounts,
+  listStatement, reconcile, updateBankAccount,
 } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
 import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
+import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import type { Account, BankAccount, ReconciliationCandidate, StatementLine } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -27,6 +29,7 @@ function todayISO(): string {
 
 export function AccountingBankPage() {
   const toast = useToast();
+  const confirmDialog = useConfirm();
   const [accounts, setAccounts] = useState<BankAccount[] | null>(null);
   const [pucAccounts, setPucAccounts] = useState<Account[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -50,6 +53,12 @@ export function AccountingBankPage() {
 
   const [candidateFor, setCandidateFor] = useState<StatementLine | null>(null);
   const [candidates, setCandidates] = useState<ReconciliationCandidate[] | null>(null);
+
+  const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editBankName, setEditBankName] = useState("");
+  const [editAccountNo, setEditAccountNo] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   function refreshAccounts() {
     listBankAccounts()
@@ -85,6 +94,39 @@ export function AccountingBankPage() {
       toast.error(err instanceof ApiError ? err.message : "No se pudo crear la cuenta bancaria");
     } finally {
       setSavingAccount(false);
+    }
+  }
+
+  function openEdit(a: BankAccount) {
+    setEditingAccount(a);
+    setEditName(a.name);
+    setEditBankName(a.bank_name);
+    setEditAccountNo(a.account_no);
+  }
+
+  async function handleSaveEdit() {
+    if (!editingAccount || !editName || !editAccountNo) return;
+    setSavingEdit(true);
+    try {
+      await updateBankAccount(editingAccount.id, { name: editName, bank_name: editBankName, account_no: editAccountNo });
+      toast.success("Cuenta bancaria actualizada.");
+      setEditingAccount(null);
+      refreshAccounts();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo actualizar la cuenta bancaria");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleDeactivate(a: BankAccount) {
+    if (!(await confirmDialog(`¿Desactivar la cuenta "${a.name}"? Dejará de estar disponible para nuevos movimientos.`, { tone: "danger" }))) return;
+    try {
+      await deactivateBankAccount(a.id);
+      toast.success("Cuenta bancaria desactivada.");
+      refreshAccounts();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo desactivar la cuenta bancaria");
     }
   }
 
@@ -148,14 +190,25 @@ export function AccountingBankPage() {
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {accounts.map((a) => (
-              <button
+              <div
                 key={a.id}
-                type="button"
-                onClick={() => setSelected(a.id)}
-                className={`rounded border px-3 py-1.5 text-xs transition-colors ${selected === a.id ? "border-(--accent-primary) bg-(--bg-selected) text-(--accent-primary)" : "border-(--border-color) text-(--text-secondary) hover:bg-(--bg-hover)"}`}
+                className={`flex items-center gap-1 rounded border pl-3 pr-1 py-1 text-xs transition-colors ${selected === a.id ? "border-(--accent-primary) bg-(--bg-selected) text-(--accent-primary)" : "border-(--border-color) text-(--text-secondary)"} ${!a.is_active ? "opacity-50" : ""}`}
               >
-                {a.name} <span className="font-mono text-(--text-muted)">{a.account_no}</span>
-              </button>
+                <button type="button" onClick={() => setSelected(a.id)} className="hover:underline">
+                  {a.name} <span className="font-mono text-(--text-muted)">{a.account_no}</span>
+                  {!a.is_active && <span className="ml-1 text-(--text-muted)">(inactiva)</span>}
+                </button>
+                <button type="button" title="Editar" aria-label={`Editar ${a.name}`} onClick={() => openEdit(a)}
+                  className="rounded p-1 text-(--text-muted) transition-colors hover:bg-(--bg-hover) hover:text-(--text-primary)">
+                  <Pencil className="h-3 w-3" />
+                </button>
+                {a.is_active && (
+                  <button type="button" title="Desactivar" aria-label={`Desactivar ${a.name}`} onClick={() => handleDeactivate(a)}
+                    className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)">
+                    <Archive className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
             ))}
             <Button type="button" variant="secondary" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setShowNewAccount(true)}>
               Nueva cuenta
@@ -249,6 +302,23 @@ export function AccountingBankPage() {
             </>
           )}
         </>
+      )}
+
+      {editingAccount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditingAccount(null)}>
+          <Card className="w-full max-w-md p-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-3 text-xs font-semibold text-(--text-primary)">Editar cuenta bancaria</h3>
+            <div className="flex flex-col gap-3">
+              <Input label="Nombre" required value={editName} onChange={(e) => setEditName(e.target.value)} />
+              <Input label="Banco" value={editBankName} onChange={(e) => setEditBankName(e.target.value)} />
+              <Input label="Número de cuenta" required value={editAccountNo} onChange={(e) => setEditAccountNo(e.target.value)} />
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setEditingAccount(null)}>Cancelar</Button>
+              <Button type="button" loading={savingEdit} disabled={!editName || !editAccountNo} onClick={handleSaveEdit}>Guardar</Button>
+            </div>
+          </Card>
+        </div>
       )}
 
       {candidateFor && (

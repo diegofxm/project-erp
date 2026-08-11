@@ -46,6 +46,11 @@ type BankAccountRepository interface {
 	Create(ctx context.Context, a BankAccount) (*BankAccount, error)
 	List(ctx context.Context, companyID uuid.UUID) ([]BankAccount, error)
 	GetByID(ctx context.Context, companyID, id uuid.UUID) (*BankAccount, error)
+	// Update corrige nombre/banco/número de cuenta -- AccountID (la cuenta PUC ligada) no se
+	// puede reasignar acá, cambiarla retroactivamente descuadraría la conciliación ya hecha
+	// contra el mayor de la cuenta anterior.
+	Update(ctx context.Context, companyID, id uuid.UUID, name, bankName, accountNo string) (*BankAccount, error)
+	Deactivate(ctx context.Context, companyID, id uuid.UUID) error
 }
 
 type BankStatementRepository interface {

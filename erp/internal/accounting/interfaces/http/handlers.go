@@ -554,6 +554,60 @@ func (h *Handler) handleListBankAccounts(w http.ResponseWriter, r *http.Request)
 	respond(w, http.StatusOK, toBankAccountDTOs(list))
 }
 
+func (h *Handler) handleUpdateBankAccount(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var body struct {
+		Name      string `json:"name"`
+		BankName  string `json:"bank_name"`
+		AccountNo string `json:"account_no"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	a, err := h.bank.UpdateAccount(r.Context(), cid, id, application.UpdateBankAccountRequest{
+		Name: body.Name, BankName: body.BankName, AccountNo: body.AccountNo,
+	})
+	if err != nil {
+		if errors.Is(err, domain.ErrBankAccountNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toBankAccountDTO(*a))
+}
+
+func (h *Handler) handleDeactivateBankAccount(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.bank.DeactivateAccount(r.Context(), cid, id); err != nil {
+		if errors.Is(err, domain.ErrBankAccountNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) handleAddStatementLine(w http.ResponseWriter, r *http.Request) {
 	cid, ok := requireTenant(w, r)
 	if !ok {

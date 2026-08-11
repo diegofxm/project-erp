@@ -64,6 +64,34 @@ func (r *BankAccountRepository) GetByID(ctx context.Context, companyID, id uuid.
 	return a, err
 }
 
+func (r *BankAccountRepository) Update(ctx context.Context, companyID, id uuid.UUID, name, bankName, accountNo string) (*domain.BankAccount, error) {
+	row := r.pool.QueryRow(ctx, `
+		UPDATE accounting.bank_accounts SET name=$3, bank_name=$4, account_no=$5, updated_at=NOW()
+		WHERE id=$1 AND company_id=$2
+		RETURNING id, company_id, name, bank_name, account_no, account_id, is_active, created_at, updated_at`,
+		id, companyID, name, bankName, accountNo,
+	)
+	a, err := scanBankAccount(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrBankAccountNotFound
+	}
+	return a, err
+}
+
+func (r *BankAccountRepository) Deactivate(ctx context.Context, companyID, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE accounting.bank_accounts SET is_active=FALSE, updated_at=NOW() WHERE id=$1 AND company_id=$2`,
+		id, companyID,
+	)
+	if err != nil {
+		return fmt.Errorf("desactivar cuenta bancaria: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrBankAccountNotFound
+	}
+	return nil
+}
+
 func scanBankAccount(row pgx.Row) (*domain.BankAccount, error) {
 	var a domain.BankAccount
 	err := row.Scan(&a.ID, &a.CompanyID, &a.Name, &a.BankName, &a.AccountNo, &a.AccountID, &a.IsActive, &a.CreatedAt, &a.UpdatedAt)
