@@ -73,7 +73,7 @@ function LookupTrmModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
           <div className="mt-4 rounded border border-(--border-color) bg-(--bg-secondary) p-3">
             <p className="text-xs text-(--text-secondary)">TRM del {formatDateOnly(result.rate_date)}</p>
             <p className="text-lg font-semibold tabular-nums text-(--text-primary)">
-              {result.rate.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+              {result.rate.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
             <p className="mt-1 text-xs text-(--text-secondary)">{result.description || "—"}</p>
           </div>
@@ -143,7 +143,7 @@ export function AccountingExchangeRatesPage() {
     setSyncing(true);
     try {
       const r = await syncExchangeRate();
-      toast.success(`TRM sincronizada: ${r.rate.toLocaleString("es-CO")} (${formatDateOnly(r.rate_date)})`);
+      toast.success(`TRM sincronizada: ${r.rate.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${formatDateOnly(r.rate_date)})`);
       refresh();
       refreshToday();
     } catch (err) {
@@ -187,7 +187,7 @@ export function AccountingExchangeRatesPage() {
               ? "Hoy: —"
               : todayRate === null
                 ? "Hoy: sin sincronizar"
-                : `Hoy: ${todayRate.rate.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
+                : `Hoy: ${todayRate.rate.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </span>
           <InfoTip>
             La TRM se sincroniza sola todos los días a la 1:00 a.m. (hora Colombia) — este botón es solo un respaldo manual por si ese disparador llegara a fallar un día.
@@ -256,7 +256,7 @@ export function AccountingExchangeRatesPage() {
                   <tr key={`${r.rate_date}-${r.from_currency}-${r.to_currency}`} className={i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
                     <td className="px-3 py-2 text-(--text-secondary)">{formatDateOnly(r.rate_date)}</td>
                     <td className="px-3 py-2 font-mono text-(--text-primary)">{r.from_currency} → {r.to_currency}</td>
-                    <td className="px-3 py-2 font-mono text-(--text-primary)">{r.rate.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
+                    <td className="px-3 py-2 font-mono text-(--text-primary)">{r.rate.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{r.source}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{r.description || "—"}</td>
                   </tr>
