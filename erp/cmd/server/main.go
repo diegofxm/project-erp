@@ -372,6 +372,12 @@ func main() {
 		log.Info("notificaciones: modo noop (SMTP_HOST no configurado)")
 	}
 	appURL := os.Getenv("APP_URL")
+	// forgotPasswordLimiter es un contador aparte de loginRateLimiter (declarado más arriba) --
+	// un correo bloqueado para login (contraseñas mal escritas) no debe impedirle pedir un enlace
+	// de recuperación, y viceversa.
+	forgotPasswordLimiter := securityapp.NewLoginRateLimiter()
+	forgotPasswordUC := securityapp.NewForgotPasswordUseCase(securityRepo, notifier, appURL, forgotPasswordLimiter)
+	resetPasswordUC := securityapp.NewResetPasswordUseCase(securityRepo, jwtSvc)
 	electronicSendEmailUC := electronicapp.NewSendDocumentEmailUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer, notifier, electronicAdapter, appURL)
 	saasProspectUC := saasapp.NewProspectUseCase(saasProspectRepo, saasUserPort, saasCompanyPort, notifier, appURL)
 
@@ -424,7 +430,8 @@ func main() {
 	securityhttp.NewHandler(
 		registerUC, loginUC, selectCompanyUC,
 		inviteUserUC, acceptInviteUC,
-		updateProfileUC, getProfileUC, changePasswordUC, logoutUC, auditUC,
+		updateProfileUC, getProfileUC, changePasswordUC, logoutUC,
+		forgotPasswordUC, resetPasswordUC, auditUC,
 	).RegisterRoutes(mux)
 	companyhttp.NewHandler(
 		createCompanyUC, getCompanyUC,

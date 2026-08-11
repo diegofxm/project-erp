@@ -29,6 +29,8 @@ type Handler struct {
 	getProfile     *application.GetProfileUseCase
 	changePassword *application.ChangePasswordUseCase
 	logout         *application.LogoutUseCase
+	forgotPassword *application.ForgotPasswordUseCase
+	resetPassword  *application.ResetPasswordUseCase
 	audit          AuditLogger
 }
 
@@ -42,6 +44,8 @@ func NewHandler(
 	getProfile *application.GetProfileUseCase,
 	changePassword *application.ChangePasswordUseCase,
 	logout *application.LogoutUseCase,
+	forgotPassword *application.ForgotPasswordUseCase,
+	resetPassword *application.ResetPasswordUseCase,
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
@@ -54,6 +58,8 @@ func NewHandler(
 		getProfile:     getProfile,
 		changePassword: changePassword,
 		logout:         logout,
+		forgotPassword: forgotPassword,
+		resetPassword:  resetPassword,
 		audit:          audit,
 	}
 }
@@ -108,6 +114,37 @@ func (h *Handler) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 		// CompanyID llega uuid.Nil aquí (falta select-company) — logAuth no hace nada por ahora,
 		// pero el sitio ya queda listo si el flujo alguna vez vincula la empresa antes.
 		h.logAuth(r.Context(), result, "auth.invite_accepted")
+	}
+	respondAuth(w, result, err)
+}
+
+// handleForgotPassword siempre responde 200 con un mensaje genérico, exista o no el correo (ver
+// ForgotPasswordUseCase) -- así la respuesta HTTP en sí no delata si una cuenta existe.
+func (h *Handler) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Email string `json:"email"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	if err := h.forgotPassword.Execute(r.Context(), body.Email); err != nil {
+		respondError(w, err)
+		return
+	}
+	respond(w, map[string]string{"message": "Si el correo existe, te enviamos un enlace para restablecer tu contraseña."}, nil)
+}
+
+func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Token    string `json:"token"`
+		Password string `json:"password"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	result, err := h.resetPassword.Execute(r.Context(), body.Token, body.Password)
+	if err == nil {
+		h.logAuth(r.Context(), result, "auth.password_reset")
 	}
 	respondAuth(w, result, err)
 }

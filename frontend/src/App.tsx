@@ -11,6 +11,8 @@ import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { AcceptInvitePage } from "./pages/AcceptInvitePage";
 import { SetupPasswordPage } from "./pages/SetupPasswordPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsGeneralPage } from "./pages/SettingsGeneralPage";
 import { SettingsAccountPage } from "./pages/SettingsAccountPage";
@@ -76,6 +78,8 @@ function App() {
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/accept-invite" element={<AcceptInvitePage />} />
                 <Route path="/setup-password" element={<SetupPasswordPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/r/:companyId" element={<PublicCustomerRegisterPage />} />
                 <Route element={<ProtectedRoute />}>
                   <Route element={<DashboardLayout />}>

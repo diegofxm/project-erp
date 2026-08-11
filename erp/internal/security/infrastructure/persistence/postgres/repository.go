@@ -102,6 +102,32 @@ func (r *Repository) SetInviteToken(ctx context.Context, userID uuid.UUID, token
 	return nil
 }
 
+func (r *Repository) GetByResetToken(ctx context.Context, token uuid.UUID) (*domain.User, error) {
+	return r.scanOne(ctx, "WHERE reset_token = $1", token)
+}
+
+func (r *Repository) SetResetToken(ctx context.Context, userID uuid.UUID, token uuid.UUID, expiresAt time.Time) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE security.users SET reset_token=$1, reset_token_expires_at=$2, updated_at=NOW() WHERE id=$3`,
+		token, expiresAt, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("generar token de recuperación: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ClearResetToken(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE security.users SET reset_token=NULL, reset_token_expires_at=NULL, updated_at=NOW() WHERE id=$1`,
+		userID,
+	)
+	if err != nil {
+		return fmt.Errorf("limpiar token de recuperación: %w", err)
+	}
+	return nil
+}
+
 // IsSuperAdmin es una consulta puntual (sin traer el resto del usuario) — la usa
 // company.CreateUseCase para decidir si la empresa recién creada debe quedar con el plan Interno
 // de una vez (ver company/infrastructure/saas.Adapter).
@@ -236,7 +262,8 @@ func (r *Repository) HasCompany(ctx context.Context, userID, companyID uuid.UUID
 
 const userSelect = `
 	SELECT id, email, password_hash, name, role, is_active, is_superadmin, token_version,
-	       invite_token, invite_token_expires_at, invite_accepted_at, created_at, updated_at
+	       invite_token, invite_token_expires_at, invite_accepted_at,
+	       reset_token, reset_token_expires_at, created_at, updated_at
 	FROM security.users`
 
 func (r *Repository) scanOne(ctx context.Context, where string, arg any) (*domain.User, error) {
@@ -258,6 +285,7 @@ func scanUser(s scanner) (*domain.User, error) {
 		&u.ID, &u.Email, &u.PasswordHash, &u.Name, &u.Role,
 		&u.IsActive, &u.IsSuperAdmin, &u.TokenVersion,
 		&u.InviteToken, &u.InviteTokenExpiresAt, &u.InviteAcceptedAt,
+		&u.ResetToken, &u.ResetTokenExpiresAt,
 		&u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {

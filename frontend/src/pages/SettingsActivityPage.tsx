@@ -19,6 +19,7 @@ const ACTION_LABELS: Record<string, string> = {
   "auth.company_selected": "Empresa seleccionada",
   "auth.profile_updated":  "Perfil actualizado",
   "auth.password_changed": "Contraseña cambiada",
+  "auth.password_reset":   "Contraseña restablecida por correo",
   "auth.user_invited":     "Usuario invitado",
   // Empresa
   "company.profile_updated":     "Datos de la empresa actualizados",
