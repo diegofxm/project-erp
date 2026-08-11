@@ -60,7 +60,7 @@ func (h *OnSaleConfirmed) handle(ctx context.Context, ev salesdomain.SaleConfirm
 			WarehouseID: warehouse.ID,
 			Type:        domain.MovementExit,
 			Quantity:    line.Quantity,
-			Reference:   ev.SaleID.String(),
+			Reference:   ev.Number,
 			Description: "Salida por venta",
 		}
 		if err := applyMovement(ctx, h.repo, m); err != nil {
