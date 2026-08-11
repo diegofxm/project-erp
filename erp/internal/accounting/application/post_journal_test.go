@@ -97,6 +97,9 @@ func (f *fakeJournalRepo) RegisterVoucherType(_ context.Context, cfg domain.Vouc
 func (f *fakeJournalRepo) ListVoucherTypes(context.Context, uuid.UUID) ([]*domain.VoucherTypeConfig, error) {
 	return nil, nil
 }
+func (f *fakeJournalRepo) GetVoucherType(context.Context, uuid.UUID, string) (*domain.VoucherTypeConfig, error) {
+	return nil, domain.ErrVoucherTypeNotFound
+}
 func (f *fakeJournalRepo) IsRegisteredVoucherType(_ context.Context, _ uuid.UUID, code string) (bool, error) {
 	return f.registeredVoucherTypes[code], nil
 }

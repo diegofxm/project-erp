@@ -88,6 +88,14 @@ export function createVoucherType(payload: { code: string; name: string; resets_
   return apiClient.post<VoucherType>("/accounting/voucher-types", payload);
 }
 
+export function updateVoucherType(code: string, payload: { name: string; resets_annually: boolean }): Promise<VoucherType> {
+  return apiClient.put<VoucherType>(`/accounting/voucher-types/${encodeURIComponent(code)}`, payload);
+}
+
+export function deactivateVoucherType(code: string): Promise<void> {
+  return apiClient.del(`/accounting/voucher-types/${encodeURIComponent(code)}`);
+}
+
 // ── Retenciones ───────────────────────────────────────────────────────────────
 
 export function listWithholdingConcepts(): Promise<WithholdingConcept[]> {

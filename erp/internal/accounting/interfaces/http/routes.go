@@ -55,6 +55,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/accounting/periods/{id}/reopen", h.handleReopenPeriod)
 	mux.HandleFunc("POST /api/v1/accounting/voucher-types", h.handleCreateVoucherType)
 	mux.HandleFunc("GET /api/v1/accounting/voucher-types", h.handleListVoucherTypes)
+	mux.HandleFunc("PUT /api/v1/accounting/voucher-types/{code}", h.handleUpdateVoucherType)
+	mux.HandleFunc("DELETE /api/v1/accounting/voucher-types/{code}", h.handleDeactivateVoucherType)
 	mux.HandleFunc("POST /api/v1/accounting/voucher-counters", h.handleSetVoucherCounter)
 
 	// Asientos contables

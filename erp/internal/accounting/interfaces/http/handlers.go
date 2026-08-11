@@ -1201,6 +1201,50 @@ func (h *Handler) handleSetVoucherCounter(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// handleUpdateVoucherType corrige nombre/resets_annually -- RegisterVoucherType ya es un upsert
+// por (company_id, code), así que reusarlo con el mismo código alcanza; se mantiene como ruta
+// PUT propia (en vez de reusar POST /voucher-types) para que la semántica HTTP sea clara.
+func (h *Handler) handleUpdateVoucherType(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	code := r.PathValue("code")
+	var body struct {
+		Name           string `json:"name"`
+		ResetsAnnually bool   `json:"resets_annually"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	cfg, err := h.get.RegisterVoucherType(r.Context(), domain.VoucherTypeConfig{
+		CompanyID: cid, Code: code, Name: body.Name, ResetsAnnually: body.ResetsAnnually, IsActive: true,
+	})
+	if err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toVoucherTypeDTOs([]*domain.VoucherTypeConfig{cfg})[0])
+}
+
+func (h *Handler) handleDeactivateVoucherType(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	code := r.PathValue("code")
+	if _, err := h.get.DeactivateVoucherType(r.Context(), cid, code); err != nil {
+		if errors.Is(err, domain.ErrVoucherTypeNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) handleListVoucherTypes(w http.ResponseWriter, r *http.Request) {
 	cid, ok := requireTenant(w, r)
 	if !ok {

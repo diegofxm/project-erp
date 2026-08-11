@@ -395,6 +395,21 @@ func (r *JournalRepository) IsRegisteredVoucherType(ctx context.Context, company
 	return exists, err
 }
 
+func (r *JournalRepository) GetVoucherType(ctx context.Context, companyID uuid.UUID, code string) (*domain.VoucherTypeConfig, error) {
+	const q = `
+		SELECT id, company_id, code, name, resets_annually, is_active, created_at, updated_at
+		FROM accounting.voucher_types WHERE company_id = $1 AND code = $2`
+	var out domain.VoucherTypeConfig
+	err := r.pool.QueryRow(ctx, q, companyID, code).Scan(
+		&out.ID, &out.CompanyID, &out.Code, &out.Name,
+		&out.ResetsAnnually, &out.IsActive, &out.CreatedAt, &out.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrVoucherTypeNotFound
+	}
+	return &out, err
+}
+
 func (r *JournalRepository) ListVoucherTypes(ctx context.Context, companyID uuid.UUID) ([]*domain.VoucherTypeConfig, error) {
 	const q = `
 		SELECT id, company_id, code, name, resets_annually, is_active, created_at, updated_at
