@@ -806,9 +806,10 @@ export interface Quote {
 
 export type SaleStatus = "draft" | "confirmed" | "cancelled";
 
+// El consecutivo (number) lo asigna siempre el backend (VTA-YYYY-NNNNN) -- nunca se manda desde
+// el cliente, ni al crear ni al editar, así que Create/Update comparten exactamente esta forma.
 export interface CreateSalePayload {
   customer_id: string;
-  number: string;
   issue_date: string; // YYYY-MM-DD
   due_date?: string;  // YYYY-MM-DD, vencimiento de cartera
   notes: string;
@@ -816,9 +817,7 @@ export interface CreateSalePayload {
   payment_means?: PaymentMean[];
 }
 
-// UpdateSalePayload -- igual que crear, sin "number" (el consecutivo no se puede reasignar
-// editando; solo aplica mientras la venta sigue en borrador, el backend lo valida).
-export type UpdateSalePayload = Omit<CreateSalePayload, "number">;
+export type UpdateSalePayload = CreateSalePayload;
 
 export interface Sale {
   id: string;
@@ -893,9 +892,10 @@ export interface PurchaseLine extends PurchaseLineInput {
 
 export type PurchaseStatus = "draft" | "confirmed" | "received" | "cancelled";
 
+// El consecutivo (number) lo asigna siempre el backend (OC-YYYY-NNNNN) -- nunca se manda desde
+// el cliente, ni al crear ni al editar, así que Create/Update comparten exactamente esta forma.
 export interface CreatePurchasePayload {
   supplier_id: string;
-  number: string;
   issue_date: string; // YYYY-MM-DD
   due_date?: string;  // YYYY-MM-DD, recepción esperada
   notes: string;
@@ -903,9 +903,7 @@ export interface CreatePurchasePayload {
   payment_means?: PaymentMean[];
 }
 
-// UpdatePurchasePayload -- igual que crear, sin "number" (no se reasigna editando; solo aplica
-// mientras la orden sigue en borrador, el backend lo valida).
-export type UpdatePurchasePayload = Omit<CreatePurchasePayload, "number">;
+export type UpdatePurchasePayload = CreatePurchasePayload;
 
 export interface Purchase {
   id: string;

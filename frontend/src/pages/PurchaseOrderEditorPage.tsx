@@ -59,7 +59,6 @@ export function PurchaseOrderEditorPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [supplierId, setSupplierId] = useState("");
-  const [number, setNumber] = useState("");
   const [issueDate, setIssueDate] = useState(today());
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -117,7 +116,7 @@ export function PurchaseOrderEditorPage() {
     setSaving(true);
     try {
       const created = await createPurchase({
-        supplier_id: supplierId, number, issue_date: issueDate,
+        supplier_id: supplierId, issue_date: issueDate,
         due_date: dueDate || undefined, notes, lines, payment_means: paymentMeans,
       });
       toast.success(`Orden de compra ${created.number || ""} creada.`);
@@ -277,7 +276,7 @@ export function PurchaseOrderEditorPage() {
         <div className="flex flex-wrap items-center gap-1.5">
           {purchase && <StatusPill tone={STATUS_TONE[purchase.status]} label={STATUS_LABEL[purchase.status]} />}
           {isNew && (
-            <Button type="button" loading={saving} disabled={!supplierId || !number || lines.length === 0} onClick={handleCreate}>
+            <Button type="button" loading={saving} disabled={!supplierId || lines.length === 0} onClick={handleCreate}>
               Guardar orden
             </Button>
           )}
@@ -316,19 +315,11 @@ export function PurchaseOrderEditorPage() {
 
       {error && <Banner tone="danger">{error}</Banner>}
 
-      <Card className="p-4">
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {isNew ? (
+      <Card className="flex flex-col gap-4 p-4">
+        {/* Datos del documento */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {isEditable ? (
             <>
-              <Combobox label="Proveedor" value={supplierId} onChange={setSupplierId} options={supplierOptions} placeholder="Buscar proveedor…" />
-              <Input label="Número interno" required value={number} onChange={(e) => setNumber(e.target.value)} placeholder="Ej. OC-001" />
-              <Input label="Fecha" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
-              <Input label="Recepción esperada (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-              <Input label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </>
-          ) : isEditable && purchase ? (
-            <>
-              <Combobox label="Proveedor" value={supplierId} onChange={setSupplierId} options={supplierOptions} placeholder="Buscar proveedor…" />
               <Input label="Fecha" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
               <Input label="Recepción esperada (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               <div className="sm:col-span-3">
@@ -337,10 +328,6 @@ export function PurchaseOrderEditorPage() {
             </>
           ) : purchase ? (
             <>
-              <div>
-                <p className="text-xs font-medium text-(--text-secondary)">Proveedor</p>
-                <p className="text-xs text-(--text-primary)">{supplierName(purchase.supplier_id)}</p>
-              </div>
               <div>
                 <p className="text-xs font-medium text-(--text-secondary)">Fecha</p>
                 <p className="text-xs text-(--text-primary)">{formatDateOnly(purchase.issue_date)}</p>
@@ -359,8 +346,25 @@ export function PurchaseOrderEditorPage() {
           ) : null}
         </div>
 
-        <div className="mb-4">
-          <p className="mb-2 text-xs font-medium text-(--text-secondary)">Medios de pago</p>
+        {/* Proveedor */}
+        <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Proveedor</h2>
+          {isEditable ? (
+            <Combobox label="Proveedor" value={supplierId} onChange={setSupplierId} options={supplierOptions} placeholder="Buscar proveedor…" />
+          ) : purchase ? (
+            <p className="text-xs text-(--text-primary)">{supplierName(purchase.supplier_id)}</p>
+          ) : null}
+        </section>
+
+        {/* Líneas */}
+        <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Líneas</h2>
+          <SalesLineItemsEditor lines={isEditable ? lines : purchase?.lines ?? []} onChange={setLines} disabled={!isEditable} />
+        </section>
+
+        {/* Forma de pago */}
+        <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Forma de pago</h2>
           {isEditable ? (
             <PaymentMeansEditor paymentMeans={paymentMeans} onChange={setPaymentMeans} />
           ) : purchase?.payment_means && purchase.payment_means.length > 0 ? (
@@ -376,11 +380,10 @@ export function PurchaseOrderEditorPage() {
           ) : (
             <p className="text-xs text-(--text-muted)">—</p>
           )}
-        </div>
+        </section>
 
-        <SalesLineItemsEditor lines={isEditable ? lines : purchase?.lines ?? []} onChange={setLines} disabled={!isEditable} />
-
-        <div className="mt-4 flex items-center justify-between border-t border-(--border-light) pt-3">
+        {/* Totales y guardar */}
+        <div className="flex items-center justify-between border-t border-(--border-light) pt-3">
           {!isNew && purchase?.status === "draft" ? (
             <Button type="button" loading={saving} disabled={!supplierId || lines.length === 0} onClick={handleSaveEdit}>
               Guardar cambios

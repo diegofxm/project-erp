@@ -249,20 +249,18 @@ export function QuoteEditorPage() {
 
       {error && <Banner tone="danger">{error}</Banner>}
 
-      <Card className="p-4">
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <Card className="flex flex-col gap-4 p-4">
+        {/* Datos del documento */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {isEditable && (isNew || quote) ? (
             <>
-              <Combobox label="Cliente" value={customerId} onChange={setCustomerId} options={customerOptions} placeholder="Buscar cliente…" />
               <Input label="Válida hasta (opcional)" type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
-              <Input label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <div className="sm:col-span-2">
+                <Input label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </div>
             </>
           ) : quote ? (
             <>
-              <div>
-                <p className="text-xs font-medium text-(--text-secondary)">Cliente</p>
-                <p className="text-xs text-(--text-primary)">{customerName(quote.customer_id)}</p>
-              </div>
               <div>
                 <p className="text-xs font-medium text-(--text-secondary)">Fecha</p>
                 <p className="text-xs text-(--text-primary)">{formatDateOnly(quote.issue_date)}</p>
@@ -281,8 +279,25 @@ export function QuoteEditorPage() {
           ) : null}
         </div>
 
-        <div className="mb-4">
-          <p className="mb-2 text-xs font-medium text-(--text-secondary)">Medios de pago</p>
+        {/* Cliente */}
+        <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Cliente</h2>
+          {isEditable && (isNew || quote) ? (
+            <Combobox label="Cliente" value={customerId} onChange={setCustomerId} options={customerOptions} placeholder="Buscar cliente…" />
+          ) : quote ? (
+            <p className="text-xs text-(--text-primary)">{customerName(quote.customer_id)}</p>
+          ) : null}
+        </section>
+
+        {/* Líneas */}
+        <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Líneas</h2>
+          <SalesLineItemsEditor lines={isEditable ? lines : quote?.lines ?? []} onChange={setLines} disabled={!isEditable} />
+        </section>
+
+        {/* Forma de pago */}
+        <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Forma de pago</h2>
           {isEditable ? (
             <PaymentMeansEditor paymentMeans={paymentMeans} onChange={setPaymentMeans} />
           ) : quote?.payment_means && quote.payment_means.length > 0 ? (
@@ -298,11 +313,10 @@ export function QuoteEditorPage() {
           ) : (
             <p className="text-xs text-(--text-muted)">—</p>
           )}
-        </div>
+        </section>
 
-        <SalesLineItemsEditor lines={isEditable ? lines : quote?.lines ?? []} onChange={setLines} disabled={!isEditable} />
-
-        <div className="mt-4 flex items-center justify-between border-t border-(--border-light) pt-3">
+        {/* Totales y guardar */}
+        <div className="flex items-center justify-between border-t border-(--border-light) pt-3">
           {!isNew && quote?.status === "draft" ? (
             <Button type="button" loading={saving} disabled={!customerId || lines.length === 0} onClick={handleSaveEdit}>
               Guardar cambios

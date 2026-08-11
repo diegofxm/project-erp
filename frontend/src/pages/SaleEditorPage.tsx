@@ -49,7 +49,6 @@ export function SaleEditorPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [customerId, setCustomerId] = useState("");
-  const [number, setNumber] = useState("");
   const [issueDate, setIssueDate] = useState(today());
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -104,7 +103,7 @@ export function SaleEditorPage() {
     setSaving(true);
     try {
       const created = await createSale({
-        customer_id: customerId, number, issue_date: issueDate,
+        customer_id: customerId, issue_date: issueDate,
         due_date: dueDate || undefined, notes, lines, payment_means: paymentMeans,
       });
       toast.success(`Venta ${created.number || ""} creada.`);
@@ -207,7 +206,7 @@ export function SaleEditorPage() {
         <div className="flex flex-wrap items-center gap-1.5">
           {sale && <StatusPill tone={STATUS_TONE[sale.status]} label={STATUS_LABEL[sale.status]} />}
           {isNew && (
-            <Button type="button" loading={saving} disabled={!customerId || !number || lines.length === 0} onClick={handleCreate}>
+            <Button type="button" loading={saving} disabled={!customerId || lines.length === 0} onClick={handleCreate}>
               Guardar venta
             </Button>
           )}
@@ -231,19 +230,11 @@ export function SaleEditorPage() {
 
       {error && <Banner tone="danger">{error}</Banner>}
 
-      <Card className="p-4">
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {isNew ? (
+      <Card className="flex flex-col gap-4 p-4">
+        {/* Datos del documento */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {isEditable ? (
             <>
-              <Combobox label="Cliente" value={customerId} onChange={setCustomerId} options={customerOptions} placeholder="Buscar cliente…" />
-              <Input label="Número interno" required value={number} onChange={(e) => setNumber(e.target.value)} placeholder="Ej. V-001" />
-              <Input label="Fecha" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
-              <Input label="Vence cartera (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-              <Input label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </>
-          ) : isEditable && sale ? (
-            <>
-              <Combobox label="Cliente" value={customerId} onChange={setCustomerId} options={customerOptions} placeholder="Buscar cliente…" />
               <Input label="Fecha" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
               <Input label="Vence cartera (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               <div className="sm:col-span-3">
@@ -252,10 +243,6 @@ export function SaleEditorPage() {
             </>
           ) : sale ? (
             <>
-              <div>
-                <p className="text-xs font-medium text-(--text-secondary)">Cliente</p>
-                <p className="text-xs text-(--text-primary)">{customerName(sale.customer_id)}</p>
-              </div>
               <div>
                 <p className="text-xs font-medium text-(--text-secondary)">Fecha</p>
                 <p className="text-xs text-(--text-primary)">{formatDateOnly(sale.issue_date)}</p>
@@ -274,8 +261,25 @@ export function SaleEditorPage() {
           ) : null}
         </div>
 
-        <div className="mb-4">
-          <p className="mb-2 text-xs font-medium text-(--text-secondary)">Medios de pago</p>
+        {/* Cliente */}
+        <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Cliente</h2>
+          {isEditable ? (
+            <Combobox label="Cliente" value={customerId} onChange={setCustomerId} options={customerOptions} placeholder="Buscar cliente…" />
+          ) : sale ? (
+            <p className="text-xs text-(--text-primary)">{customerName(sale.customer_id)}</p>
+          ) : null}
+        </section>
+
+        {/* Líneas */}
+        <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Líneas</h2>
+          <SalesLineItemsEditor lines={isEditable ? lines : sale?.lines ?? []} onChange={setLines} disabled={!isEditable} />
+        </section>
+
+        {/* Forma de pago */}
+        <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Forma de pago</h2>
           {isEditable ? (
             <PaymentMeansEditor paymentMeans={paymentMeans} onChange={setPaymentMeans} />
           ) : sale?.payment_means && sale.payment_means.length > 0 ? (
@@ -291,11 +295,10 @@ export function SaleEditorPage() {
           ) : (
             <p className="text-xs text-(--text-muted)">—</p>
           )}
-        </div>
+        </section>
 
-        <SalesLineItemsEditor lines={isEditable ? lines : sale?.lines ?? []} onChange={setLines} disabled={!isEditable} />
-
-        <div className="mt-4 flex items-center justify-between border-t border-(--border-light) pt-3">
+        {/* Totales y guardar */}
+        <div className="flex items-center justify-between border-t border-(--border-light) pt-3">
           {!isNew && sale?.status === "draft" ? (
             <Button type="button" loading={saving} disabled={!customerId || lines.length === 0} onClick={handleSaveEdit}>
               Guardar cambios
