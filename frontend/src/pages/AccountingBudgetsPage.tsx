@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calculator, Plus } from "lucide-react";
-import { approveBudget, compareBudget, createBudget, listAccounts, listBudgetLines, listBudgets, setBudgetLine } from "../lib/accounting";
+import { Calculator, Plus, Pencil, Trash2 } from "lucide-react";
+import { approveBudget, compareBudget, createBudget, deleteBudget, deleteBudgetLine, listAccounts, listBudgetLines, listBudgets, setBudgetLine, updateBudget } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
+import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import type { Account, Budget, BudgetActualRow, BudgetLine } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -22,6 +23,7 @@ function money(v: number): string {
 
 export function AccountingBudgetsPage() {
   const toast = useToast();
+  const confirmDialog = useConfirm();
   const [budgets, setBudgets] = useState<Budget[] | null>(null);
   const [pucAccounts, setPucAccounts] = useState<Account[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -38,6 +40,10 @@ export function AccountingBudgetsPage() {
   const [lineAccount, setLineAccount] = useState("");
   const [lineMonths, setLineMonths] = useState<string[]>(Array(12).fill(""));
   const [savingLine, setSavingLine] = useState(false);
+
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
 
   function refreshBudgets() {
     listBudgets().then((list) => { setBudgets(list); if (!selected && list.length > 0) setSelected(list[0].id); })
@@ -94,6 +100,46 @@ export function AccountingBudgetsPage() {
       toast.error(err instanceof ApiError ? err.message : "No se pudo guardar la línea");
     } finally {
       setSavingLine(false);
+    }
+  }
+
+  async function handleRename() {
+    if (!selected || !renameValue) return;
+    setSavingRename(true);
+    try {
+      await updateBudget(selected, renameValue);
+      toast.success("Presupuesto renombrado.");
+      setRenaming(false);
+      refreshBudgets();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo renombrar el presupuesto");
+    } finally {
+      setSavingRename(false);
+    }
+  }
+
+  async function handleDeleteBudget() {
+    if (!selectedBudget) return;
+    if (!(await confirmDialog(`¿Eliminar el presupuesto "${selectedBudget.name}"? Esta acción no se puede deshacer.`, { tone: "danger" }))) return;
+    try {
+      await deleteBudget(selectedBudget.id);
+      toast.success("Presupuesto eliminado.");
+      setSelected(null);
+      refreshBudgets();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el presupuesto");
+    }
+  }
+
+  async function handleDeleteLine(accountCode: string) {
+    if (!selected) return;
+    if (!(await confirmDialog(`¿Quitar la cuenta ${accountCode} de este presupuesto?`, { tone: "danger" }))) return;
+    try {
+      await deleteBudgetLine(selected, accountCode);
+      toast.success("Línea eliminada.");
+      refreshLines();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar la línea");
     }
   }
 
@@ -171,10 +217,34 @@ export function AccountingBudgetsPage() {
               <div className="mb-3 flex items-center justify-between">
                 <StatusPill tone={selectedBudget.status === "APPROVED" ? "success" : selectedBudget.status === "CLOSED" ? "neutral" : "warning"} label={selectedBudget.status === "DRAFT" ? "Borrador" : selectedBudget.status === "APPROVED" ? "Aprobado" : "Cerrado"} />
                 <div className="flex gap-2">
+                  {selectedBudget.status === "DRAFT" && (
+                    <>
+                      <button type="button" title="Renombrar" aria-label={`Renombrar ${selectedBudget.name}`}
+                        onClick={() => { setRenameValue(selectedBudget.name); setRenaming(true); }}
+                        className="rounded p-1.5 text-(--text-muted) transition-colors hover:bg-(--bg-hover) hover:text-(--text-primary)">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" title="Eliminar presupuesto" aria-label={`Eliminar ${selectedBudget.name}`}
+                        onClick={handleDeleteBudget}
+                        className="rounded p-1.5 text-(--color-danger) transition-colors hover:bg-(--bg-hover)">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  )}
                   <Button type="button" variant="secondary" onClick={handleCompare}>Comparar vs. real</Button>
                   {selectedBudget.status === "DRAFT" && <Button type="button" variant="success" onClick={handleApprove}>Aprobar</Button>}
                 </div>
               </div>
+
+              {renaming && (
+                <Card className="mb-3 p-4">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1"><Input label="Nombre del presupuesto" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} /></div>
+                    <Button type="button" variant="secondary" onClick={() => setRenaming(false)}>Cancelar</Button>
+                    <Button type="button" disabled={!renameValue} loading={savingRename} onClick={handleRename}>Guardar</Button>
+                  </div>
+                </Card>
+              )}
 
               {selectedBudget.status === "DRAFT" && (
                 <Card className="mb-3 p-4">
@@ -201,6 +271,7 @@ export function AccountingBudgetsPage() {
                           <th className="px-3 py-2 font-medium">Cuenta</th>
                           {MONTHS.map((m) => <th key={m} className="px-2 py-2 text-right font-medium">{m}</th>)}
                           <th className="px-3 py-2 text-right font-medium">Total</th>
+                          {selectedBudget.status === "DRAFT" && <th className="px-3 py-2" />}
                         </tr>
                       </thead>
                       <tbody>
@@ -209,6 +280,14 @@ export function AccountingBudgetsPage() {
                             <td className="px-3 py-2 text-(--text-primary)">{l.account_code} — {l.account_name}</td>
                             {l.months.map((m, idx) => <td key={idx} className="px-2 py-2 text-right font-mono text-(--text-secondary)">{m ? money(m) : "—"}</td>)}
                             <td className="px-3 py-2 text-right font-mono font-semibold text-(--text-primary)">{money(l.total)}</td>
+                            {selectedBudget.status === "DRAFT" && (
+                              <td className="px-3 py-2 text-right">
+                                <button type="button" title="Quitar cuenta" aria-label={`Quitar ${l.account_code}`} onClick={() => handleDeleteLine(l.account_code)}
+                                  className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>

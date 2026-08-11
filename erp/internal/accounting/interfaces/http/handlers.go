@@ -324,6 +324,90 @@ func (h *Handler) handleCreateBudget(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusCreated, toBudgetDTO(*b))
 }
 
+func (h *Handler) handleUpdateBudget(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	b, err := h.budget.Rename(r.Context(), cid, id, body.Name)
+	if err != nil {
+		if errors.Is(err, domain.ErrBudgetNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrBudgetNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toBudgetDTO(*b))
+}
+
+func (h *Handler) handleDeleteBudget(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.budget.Delete(r.Context(), cid, id); err != nil {
+		if errors.Is(err, domain.ErrBudgetNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrBudgetNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) handleDeleteBudgetLine(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	budgetID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	accountCode := r.PathValue("account_code")
+	if err := h.budget.DeleteLine(r.Context(), cid, budgetID, accountCode); err != nil {
+		if errors.Is(err, domain.ErrBudgetNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrBudgetNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) handleListBudgets(w http.ResponseWriter, r *http.Request) {
 	cid, ok := requireTenant(w, r)
 	if !ok {

@@ -196,8 +196,23 @@ export function createBudget(year: number, name: string): Promise<Budget> {
   return apiClient.post<Budget>("/accounting/budgets", { year, name });
 }
 
+// updateBudget/deleteBudget -- solo permitidos mientras el presupuesto está en borrador.
+export function updateBudget(id: string, name: string): Promise<Budget> {
+  return apiClient.put<Budget>(`/accounting/budgets/${id}`, { name });
+}
+
+export function deleteBudget(id: string): Promise<void> {
+  return apiClient.del(`/accounting/budgets/${id}`);
+}
+
 export function setBudgetLine(budgetId: string, accountCode: string, months: number[]): Promise<BudgetLine> {
   return apiClient.post<BudgetLine>(`/accounting/budgets/${budgetId}/lines`, { account_code: accountCode, months });
+}
+
+// deleteBudgetLine -- quita una cuenta del presupuesto (en vez de tener que poner los 12 meses
+// en cero como workaround). Solo permitido mientras el presupuesto está en borrador.
+export function deleteBudgetLine(budgetId: string, accountCode: string): Promise<void> {
+  return apiClient.del(`/accounting/budgets/${budgetId}/lines/${encodeURIComponent(accountCode)}`);
 }
 
 export function listBudgetLines(budgetId: string): Promise<BudgetLine[]> {

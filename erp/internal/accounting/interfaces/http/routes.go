@@ -26,7 +26,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("POST /api/v1/accounting/budgets", h.handleCreateBudget)
 	mux.HandleFunc("GET /api/v1/accounting/budgets", h.handleListBudgets)
+	mux.HandleFunc("PUT /api/v1/accounting/budgets/{id}", h.handleUpdateBudget)
+	mux.HandleFunc("DELETE /api/v1/accounting/budgets/{id}", h.handleDeleteBudget)
 	mux.HandleFunc("POST /api/v1/accounting/budgets/{id}/lines", h.handleSetBudgetLine)
+	mux.HandleFunc("DELETE /api/v1/accounting/budgets/{id}/lines/{account_code}", h.handleDeleteBudgetLine)
 	mux.HandleFunc("GET /api/v1/accounting/budgets/{id}/lines", h.handleListBudgetLines)
 	mux.HandleFunc("GET /api/v1/accounting/budgets/{id}/compare", h.handleBudgetCompare)
 	mux.HandleFunc("POST /api/v1/accounting/budgets/{id}/approve", h.handleApproveBudget)
