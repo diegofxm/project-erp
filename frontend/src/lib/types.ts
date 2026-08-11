@@ -1230,6 +1230,8 @@ export interface FixedAsset {
   asset_account: string;
   depreciation_account: string;
   accumulated_account: string;
+  gain_account?: string;
+  loss_account?: string;
   acquisition_date: string;
   acquisition_cost: number;
   salvage_value: number;

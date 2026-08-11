@@ -79,9 +79,10 @@ type DepreciationEntry struct {
 }
 
 var (
-	ErrFixedAssetNotFound  = errors.New("activo fijo no encontrado")
-	ErrDepreciationExists  = errors.New("ya se corrió la depreciación de este período")
-	ErrNoDepreciableAssets = errors.New("no hay activos con saldo por depreciar en este período")
+	ErrFixedAssetNotFound   = errors.New("activo fijo no encontrado")
+	ErrDepreciationExists   = errors.New("ya se corrió la depreciación de este período")
+	ErrNoDepreciableAssets  = errors.New("no hay activos con saldo por depreciar en este período")
+	ErrAssetAlreadyDisposed = errors.New("el activo ya fue dado de baja")
 )
 
 type FixedAssetRepository interface {

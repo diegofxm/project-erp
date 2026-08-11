@@ -31,6 +31,7 @@ type Handler struct {
 	certificates *application.IssueWithholdingCertificatesUseCase
 	bank         *application.ManageBankUseCase
 	assets       *application.FixedAssetUseCase
+	dispose      *application.DisposeFixedAssetUseCase
 	depreciation *application.RunDepreciationUseCase
 	budget       *application.BudgetUseCase
 	iva          *application.IVAUseCase
@@ -51,6 +52,7 @@ func NewHandler(
 	certificates *application.IssueWithholdingCertificatesUseCase,
 	bank *application.ManageBankUseCase,
 	assets *application.FixedAssetUseCase,
+	dispose *application.DisposeFixedAssetUseCase,
 	depreciation *application.RunDepreciationUseCase,
 	budget *application.BudgetUseCase,
 	iva *application.IVAUseCase,
@@ -62,7 +64,7 @@ func NewHandler(
 ) *Handler {
 	return &Handler{
 		post: post, get: get, void: void, period: period, accounts: accounts, withholding: withholding,
-		certificates: certificates, bank: bank, assets: assets, depreciation: depreciation, budget: budget,
+		certificates: certificates, bank: bank, assets: assets, dispose: dispose, depreciation: depreciation, budget: budget,
 		iva: iva, incomeTax: incomeTax, ica: ica, exchangeRate: exchangeRate, reconcile: reconcile, audit: audit,
 	}
 }
@@ -429,6 +431,8 @@ func (h *Handler) handleCreateFixedAsset(w http.ResponseWriter, r *http.Request)
 		AssetAccount         string `json:"asset_account"`
 		DepreciationAccount  string `json:"depreciation_account"`
 		AccumulatedAccount   string `json:"accumulated_account"`
+		GainAccount          string `json:"gain_account"`
+		LossAccount          string `json:"loss_account"`
 		AcquisitionDate      string `json:"acquisition_date"`
 		AcquisitionCostCents int64  `json:"acquisition_cost_cents"`
 		SalvageValueCents    int64  `json:"salvage_value_cents"`
@@ -447,6 +451,7 @@ func (h *Handler) handleCreateFixedAsset(w http.ResponseWriter, r *http.Request)
 	a, err := h.assets.Create(r.Context(), cid, application.CreateFixedAssetRequest{
 		Code: body.Code, Name: body.Name, Description: body.Description,
 		AssetAccount: body.AssetAccount, DepreciationAccount: body.DepreciationAccount, AccumulatedAccount: body.AccumulatedAccount,
+		GainAccount: body.GainAccount, LossAccount: body.LossAccount,
 		AcquisitionDate: date, AcquisitionCostCents: body.AcquisitionCostCents, SalvageValueCents: body.SalvageValueCents,
 		UsefulLifeMonths: body.UsefulLifeMonths, ThirdPartyNIT: body.ThirdPartyNIT,
 	})
@@ -469,6 +474,53 @@ func (h *Handler) handleListFixedAssets(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	respond(w, http.StatusOK, toFixedAssetDTOs(list))
+}
+
+func (h *Handler) handleDisposeFixedAsset(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var body struct {
+		DisposalDate        string `json:"disposal_date"`
+		ProceedsCents       int64  `json:"proceeds_cents"`
+		ProceedsAccountCode string `json:"proceeds_account_code"`
+		Description         string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	date, err := time.Parse("2006-01-02", body.DisposalDate)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "disposal_date debe ser YYYY-MM-DD")
+		return
+	}
+	a, err := h.dispose.Execute(r.Context(), cid, id, application.DisposeFixedAssetRequest{
+		DisposalDate: date, ProceedsCents: body.ProceedsCents,
+		ProceedsAccountCode: body.ProceedsAccountCode, Description: body.Description,
+	})
+	if err != nil {
+		if errors.Is(err, domain.ErrFixedAssetNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrAssetAlreadyDisposed) || errors.Is(err, domain.ErrPeriodClosed) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	h.logAudit(r.Context(), cid, "fixed_asset.disposed", "fixed_asset", a.ID, map[string]any{
+		"code": a.Code, "name": a.Name, "proceeds_cents": body.ProceedsCents,
+	})
+	respond(w, http.StatusOK, toFixedAssetDTO(application.AssetWithAccumulated{FixedAsset: *a}))
 }
 
 func (h *Handler) handleRunDepreciation(w http.ResponseWriter, r *http.Request) {

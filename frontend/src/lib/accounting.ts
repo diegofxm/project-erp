@@ -151,6 +151,9 @@ export interface CreateFixedAssetPayload {
   asset_account: string;
   depreciation_account: string;
   accumulated_account: string;
+  // Solo hacen falta si el activo se termina dando de baja con utilidad/pérdida (ver dispose).
+  gain_account?: string;
+  loss_account?: string;
   acquisition_date: string;
   acquisition_cost_cents: number;
   salvage_value_cents: number;
@@ -160,6 +163,19 @@ export interface CreateFixedAssetPayload {
 
 export function createFixedAsset(payload: CreateFixedAssetPayload): Promise<FixedAsset> {
   return apiClient.post<FixedAsset>("/accounting/fixed-assets", payload);
+}
+
+export interface DisposeFixedAssetPayload {
+  disposal_date: string;
+  // 0 si es una baja sin venta (activo dañado/obsoleto). > 0 si se vendió.
+  proceeds_cents: number;
+  // Requerida solo cuando proceeds_cents > 0 -- cuenta PUC que recibe el dinero.
+  proceeds_account_code?: string;
+  description?: string;
+}
+
+export function disposeFixedAsset(id: string, payload: DisposeFixedAssetPayload): Promise<FixedAsset> {
+  return apiClient.post<FixedAsset>(`/accounting/fixed-assets/${id}/dispose`, payload);
 }
 
 export function runDepreciation(date: string): Promise<DepreciationRun> {

@@ -20,6 +20,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("POST /api/v1/accounting/fixed-assets", h.handleCreateFixedAsset)
 	mux.HandleFunc("GET /api/v1/accounting/fixed-assets", h.handleListFixedAssets)
+	mux.HandleFunc("POST /api/v1/accounting/fixed-assets/{id}/dispose", h.handleDisposeFixedAsset)
 	mux.HandleFunc("POST /api/v1/accounting/depreciation-runs", h.handleRunDepreciation)
 	mux.HandleFunc("GET /api/v1/accounting/depreciation-runs", h.handleListDepreciationRuns)
 
