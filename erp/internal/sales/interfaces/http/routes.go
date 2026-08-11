@@ -8,6 +8,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/sales/{id}", h.handleGetByID)
 	mux.HandleFunc("POST /api/v1/sales/{id}/confirm", h.handleConfirm)
 	mux.HandleFunc("POST /api/v1/sales/{id}/cancel", h.handleCancel)
+	mux.HandleFunc("DELETE /api/v1/sales/{id}", h.handleDeleteSale)
 
 	// Cotizaciones
 	mux.HandleFunc("GET /api/v1/quotes", h.handleListQuotes)

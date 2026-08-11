@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { ShoppingCart, Check, Ban, FileText } from "lucide-react";
+import { ShoppingCart, Check, Ban, FileText, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
-import { cancelSale, confirmSale, createSale, fetchSale } from "../lib/sales";
+import { cancelSale, confirmSale, createSale, deleteSale, fetchSale } from "../lib/sales";
 import { listCustomers } from "../lib/customers";
 import { listNumberingRanges } from "../lib/numberingRanges";
 import { createInvoiceFromSale } from "../lib/documents";
@@ -124,6 +124,18 @@ export function SaleEditorPage() {
     }
   }
 
+  async function handleDelete() {
+    if (!sale) return;
+    if (!(await confirmDialog(`¿Eliminar la venta ${sale.number || "en borrador"}? Esta acción no se puede deshacer.`, { tone: "danger" }))) return;
+    try {
+      await deleteSale(sale.id);
+      toast.success("Venta eliminada.");
+      navigate("/sales/orders");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar la venta");
+    }
+  }
+
   async function handleGenerateInvoice() {
     if (!sale || !rangeId) return;
     setGenerating(true);
@@ -158,6 +170,11 @@ export function SaleEditorPage() {
           {isNew && (
             <Button type="button" loading={saving} disabled={!customerId || !number || lines.length === 0} onClick={handleCreate}>
               Guardar venta
+            </Button>
+          )}
+          {sale?.status === "draft" && (
+            <Button type="button" variant="danger" icon={<Trash2 className="h-3.5 w-3.5" />} onClick={handleDelete}>
+              Eliminar
             </Button>
           )}
           {canManage && (sale?.status === "draft" || sale?.status === "confirmed") && (

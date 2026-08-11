@@ -22,3 +22,9 @@ export function confirmSale(id: string): Promise<Sale> {
 export function cancelSale(id: string): Promise<void> {
   return apiClient.post<void>(`/sales/${id}/cancel`, undefined);
 }
+
+// deleteSale — solo permitido mientras la venta está en borrador (el backend lo valida y
+// devuelve 422 si no). Para una venta ya confirmada, usa cancelSale.
+export function deleteSale(id: string): Promise<void> {
+  return apiClient.del(`/sales/${id}`);
+}

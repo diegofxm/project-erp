@@ -180,6 +180,7 @@ type Handler struct {
 	quotePDF       *application.GetQuotePDFUseCase
 	sendQuoteEmail *application.SendQuoteEmailUseCase
 	setCounter     *application.SetNumberCounterUseCase
+	delete         *application.DeleteUseCase
 	audit          AuditLogger
 }
 
@@ -193,11 +194,12 @@ func NewHandler(
 	quotePDF *application.GetQuotePDFUseCase,
 	sendQuoteEmail *application.SendQuoteEmailUseCase,
 	setCounter *application.SetNumberCounterUseCase,
+	del *application.DeleteUseCase,
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
 		create: create, get: get, confirm: confirm, cancel: cancel, quote: quote, payment: payment,
-		quotePDF: quotePDF, sendQuoteEmail: sendQuoteEmail, setCounter: setCounter, audit: audit,
+		quotePDF: quotePDF, sendQuoteEmail: sendQuoteEmail, setCounter: setCounter, delete: del, audit: audit,
 	}
 }
 
@@ -527,6 +529,35 @@ func (h *Handler) handleConvertQuoteToSale(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	respond(w, http.StatusCreated, toSaleDTO(sale))
+}
+
+// handleDeleteSale elimina una venta en borrador -- Repository.Delete ya valida el estado.
+func (h *Handler) handleDeleteSale(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.delete.Execute(r.Context(), cid, id); err != nil {
+		if errors.Is(err, domain.ErrSaleNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrSaleNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if h.audit != nil {
+		h.logAudit(r.Context(), cid, "sale.deleted", "sale", id, nil)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) handleDeleteQuote(w http.ResponseWriter, r *http.Request) {
