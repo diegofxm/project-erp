@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	cofdom "github.com/diegofxm/cofacture/domain"
 	"github.com/diegofxm/erp/internal/purchase/application"
 	"github.com/diegofxm/erp/internal/purchase/domain"
 	"github.com/diegofxm/erp/internal/shared/tenant"
@@ -71,6 +72,26 @@ func toWithholdingDTO(w domain.PurchaseWithholding) withholdingDTO {
 	}
 }
 
+// paymentMeanDTO -- mismo formato snake_case que electronic/interfaces/http para el mismo tipo
+// cofdom.PaymentMean, así el frontend reutiliza PaymentMeansEditor.tsx sin adaptar nada.
+type paymentMeanDTO struct {
+	Code              string `json:"code"`
+	PaymentMethodCode string `json:"payment_method_code"`
+	DueDate           string `json:"due_date,omitempty"`
+	PaymentReference  string `json:"payment_reference,omitempty"`
+}
+
+func toPaymentMeanDTOs(pms []cofdom.PaymentMean) []paymentMeanDTO {
+	out := make([]paymentMeanDTO, len(pms))
+	for i, pm := range pms {
+		out[i] = paymentMeanDTO{
+			Code: pm.Code, PaymentMethodCode: pm.PaymentMethodCode,
+			DueDate: pm.DueDate, PaymentReference: pm.PaymentReference,
+		}
+	}
+	return out
+}
+
 type purchaseDTO struct {
 	ID                uuid.UUID         `json:"id"`
 	CompanyID         uuid.UUID         `json:"company_id"`
@@ -81,6 +102,7 @@ type purchaseDTO struct {
 	DueDate           string            `json:"due_date,omitempty"`
 	Notes             string            `json:"notes"`
 	Lines             []purchaseLineDTO `json:"lines"`
+	PaymentMeans      []paymentMeanDTO  `json:"payment_means"`
 	Withholdings      []withholdingDTO  `json:"withholdings"`
 	SupportDocumentID *uuid.UUID        `json:"support_document_id,omitempty"`
 	CreatedAt         time.Time         `json:"created_at"`
@@ -104,7 +126,8 @@ func toPurchaseDTO(o *domain.PurchaseOrder) purchaseDTO {
 		ID: o.ID, CompanyID: o.CompanyID, SupplierID: o.SupplierID,
 		Number: o.Number, Status: string(o.Status),
 		IssueDate: formatDate(o.IssueDate), DueDate: formatDatePtr(o.DueDate),
-		Notes: o.Notes, Lines: lines, Withholdings: withholdings, SupportDocumentID: o.SupportDocumentID,
+		Notes: o.Notes, Lines: lines, PaymentMeans: toPaymentMeanDTOs(o.PaymentMeans),
+		Withholdings: withholdings, SupportDocumentID: o.SupportDocumentID,
 		CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt,
 	}
 }

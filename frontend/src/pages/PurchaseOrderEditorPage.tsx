@@ -6,6 +6,8 @@ import { listSuppliers } from "../lib/suppliers";
 import { listNumberingRanges } from "../lib/numberingRanges";
 import { listWithholdingConcepts } from "../lib/accounting";
 import { createSupportDocFromPurchase } from "../lib/documents";
+import { listPaymentMethods, listPaymentTerms } from "../lib/catalogs";
+import { useCatalog } from "../lib/useCatalog";
 import { ApiError } from "../lib/apiClient";
 import { openInNewTab } from "../lib/openInNewTab";
 import { useConfirm } from "../context/ConfirmContext";
@@ -13,7 +15,7 @@ import { useCanManage } from "../hooks/useCanManage";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
 import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
-import type { Purchase, PurchaseStatus, PurchaseLineInput, NumberingRange, Supplier, WithholdingConcept } from "../lib/types";
+import type { Purchase, PurchaseStatus, PurchaseLineInput, NumberingRange, PaymentMean, Supplier, WithholdingConcept } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -24,6 +26,7 @@ import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { SendEmailModal } from "../components/ui/SendEmailModal";
 import { StatusPill, type StatusTone } from "../components/ui/StatusPill";
 import { SalesLineItemsEditor, salesLinesTotal } from "../components/sales/SalesLineItemsEditor";
+import { PaymentMeansEditor } from "../components/invoice-form/PaymentMeansEditor";
 
 const STATUS_LABEL: Record<PurchaseStatus, string> = {
   draft: "Borrador", confirmed: "Confirmada", received: "Recibida", cancelled: "Cancelada",
@@ -61,11 +64,15 @@ export function PurchaseOrderEditorPage() {
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<PurchaseLineInput[]>([]);
+  const [paymentMeans, setPaymentMeans] = useState<PaymentMean[]>([]);
   const [rangeId, setRangeId] = useState("");
   const [concepts, setConcepts] = useState<WithholdingConcept[]>([]);
   const [whConceptId, setWhConceptId] = useState("");
   const [whBase, setWhBase] = useState("");
   const [addingWh, setAddingWh] = useState(false);
+
+  const { data: paymentTerms } = useCatalog(listPaymentTerms);
+  const { data: paymentMethods } = useCatalog(listPaymentMethods);
 
   useEffect(() => {
     listSuppliers().then(setSuppliers).catch(() => setSuppliers([]));
@@ -84,6 +91,7 @@ export function PurchaseOrderEditorPage() {
           setDueDate(p.due_date ?? "");
           setNotes(p.notes);
           setLines(p.lines);
+          setPaymentMeans(p.payment_means ?? []);
         }
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la orden de compra"))
@@ -110,7 +118,7 @@ export function PurchaseOrderEditorPage() {
     try {
       const created = await createPurchase({
         supplier_id: supplierId, number, issue_date: issueDate,
-        due_date: dueDate || undefined, notes, lines,
+        due_date: dueDate || undefined, notes, lines, payment_means: paymentMeans,
       });
       toast.success(`Orden de compra ${created.number || ""} creada.`);
       navigate(`/purchases/${created.id}`, { replace: true });
@@ -128,7 +136,7 @@ export function PurchaseOrderEditorPage() {
     try {
       const updated = await updatePurchase(purchase.id, {
         supplier_id: supplierId, issue_date: issueDate,
-        due_date: dueDate || undefined, notes, lines,
+        due_date: dueDate || undefined, notes, lines, payment_means: paymentMeans,
       });
       setPurchase(updated);
       toast.success("Orden de compra actualizada.");
@@ -349,6 +357,25 @@ export function PurchaseOrderEditorPage() {
               )}
             </>
           ) : null}
+        </div>
+
+        <div className="mb-4">
+          <p className="mb-2 text-xs font-medium text-(--text-secondary)">Medios de pago</p>
+          {isEditable ? (
+            <PaymentMeansEditor paymentMeans={paymentMeans} onChange={setPaymentMeans} />
+          ) : purchase?.payment_means && purchase.payment_means.length > 0 ? (
+            <p className="text-xs text-(--text-primary)">
+              {purchase.payment_means
+                .map((pm) => {
+                  const term = paymentTerms.find((t) => t.code === pm.code)?.name ?? pm.code;
+                  const method = paymentMethods.find((m) => m.code === pm.payment_method_code)?.name ?? pm.payment_method_code;
+                  return `${term} — ${method}`;
+                })
+                .join(", ")}
+            </p>
+          ) : (
+            <p className="text-xs text-(--text-muted)">—</p>
+          )}
         </div>
 
         <SalesLineItemsEditor lines={isEditable ? lines : purchase?.lines ?? []} onChange={setLines} disabled={!isEditable} />

@@ -14,6 +14,10 @@ CREATE TABLE IF NOT EXISTS purchase.orders (
     issue_date           TIMESTAMPTZ NOT NULL,
     due_date             TIMESTAMPTZ,
     notes                TEXT NOT NULL DEFAULT '',
+    -- Forma/medio de pago (catálogos DIAN payment_terms/payment_methods, mismo tipo que usa
+    -- electronic.documents.payment_means) -- se hereda al Documento Soporte generado desde esta
+    -- orden en vez de forzar "Contado/Efectivo" (ver electronic/application/from_purchase.go).
+    payment_means        JSONB NOT NULL DEFAULT '[]',
     -- Documento Soporte (si alguno) generado a partir de esta orden, para no poder generar dos
     -- veces desde la misma orden. Sin FK a electronic.documents a propósito: cada módulo es dueño
     -- de su schema, la integridad se maneja en la aplicación (mismo criterio que

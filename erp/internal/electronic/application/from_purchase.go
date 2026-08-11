@@ -76,7 +76,7 @@ func (uc *CreateFromPurchaseUseCase) Execute(ctx context.Context, req FromPurcha
 		NumberingRangeID:  req.NumberingRangeID,
 		Supplier:          purchaseSupplierToParty(supplier),
 		Lines:             purchaseLinesToCof(purchase.Lines, productMap),
-		PaymentMeans:      []cofdom.PaymentMean{{Code: "1", PaymentMethodCode: "1"}},
+		PaymentMeans:      purchasePaymentMeansOrDefault(purchase.PaymentMeans),
 		Note:              purchase.Notes,
 		CurrencyCode:      "COP",
 		OperationTypeCode: operationType,
@@ -125,6 +125,15 @@ func purchaseSupplierToParty(s *domain.Party) cofdom.Party {
 		Phone:          s.Phone,
 		Email:          s.Email,
 	}
+}
+
+// purchasePaymentMeansOrDefault -- ver salePaymentMeansOrDefault, mismo criterio para el
+// documento soporte generado desde una orden de compra.
+func purchasePaymentMeansOrDefault(pms []cofdom.PaymentMean) []cofdom.PaymentMean {
+	if len(pms) == 0 {
+		return []cofdom.PaymentMean{{Code: "1", PaymentMethodCode: "1"}}
+	}
+	return pms
 }
 
 func purchaseLinesToCof(lines []purchasedomain.PurchaseLine, products map[uuid.UUID]*productdomain.Product) []cofdom.Line {

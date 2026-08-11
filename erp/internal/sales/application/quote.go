@@ -20,10 +20,11 @@ func NewQuoteUseCase(quoteRepo domain.QuoteRepository, saleRepo domain.Repositor
 }
 
 type CreateQuoteRequest struct {
-	CustomerID uuid.UUID         `json:"customer_id"`
-	Lines      []QuoteLine       `json:"lines"`
-	ValidUntil string            `json:"valid_until"` // YYYY-MM-DD, opcional
-	Notes      string            `json:"notes"`
+	CustomerID   uuid.UUID            `json:"customer_id"`
+	Lines        []QuoteLine          `json:"lines"`
+	ValidUntil   string               `json:"valid_until"` // YYYY-MM-DD, opcional
+	Notes        string               `json:"notes"`
+	PaymentMeans []PaymentMeanRequest `json:"payment_means"`
 }
 
 type QuoteLine struct {
@@ -45,13 +46,14 @@ func (uc *QuoteUseCase) Create(ctx context.Context, companyID uuid.UUID, req Cre
 		return nil, fmt.Errorf("asignar consecutivo: %w", err)
 	}
 	q := domain.Quote{
-		ID:         uuid.New(),
-		CompanyID:  companyID,
-		CustomerID: req.CustomerID,
-		Number:     fmt.Sprintf("COT-%d-%05d", issueDate.Year(), seq),
-		Status:     domain.QuoteStatusDraft,
-		IssueDate:  issueDate,
-		Notes:      req.Notes,
+		ID:           uuid.New(),
+		CompanyID:    companyID,
+		CustomerID:   req.CustomerID,
+		Number:       fmt.Sprintf("COT-%d-%05d", issueDate.Year(), seq),
+		Status:       domain.QuoteStatusDraft,
+		IssueDate:    issueDate,
+		Notes:        req.Notes,
+		PaymentMeans: paymentMeansToCofdom(req.PaymentMeans),
 	}
 	if req.ValidUntil != "" {
 		t, err := time.Parse("2006-01-02", req.ValidUntil)
@@ -79,7 +81,7 @@ func (uc *QuoteUseCase) Update(ctx context.Context, companyID, id uuid.UUID, req
 	if len(req.Lines) == 0 {
 		return nil, fmt.Errorf("la cotización debe tener al menos una línea")
 	}
-	q := domain.Quote{CustomerID: req.CustomerID, Notes: req.Notes}
+	q := domain.Quote{CustomerID: req.CustomerID, Notes: req.Notes, PaymentMeans: paymentMeansToCofdom(req.PaymentMeans)}
 	if req.ValidUntil != "" {
 		t, err := time.Parse("2006-01-02", req.ValidUntil)
 		if err == nil {

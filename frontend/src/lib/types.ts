@@ -786,6 +786,7 @@ export interface CreateQuotePayload {
   lines: SalesLineInput[];
   valid_until?: string; // YYYY-MM-DD, opcional
   notes: string;
+  payment_means?: PaymentMean[];
 }
 
 export interface Quote {
@@ -798,6 +799,7 @@ export interface Quote {
   valid_until?: string;
   notes: string;
   lines: SalesLine[];
+  payment_means?: PaymentMean[];
   created_at: string;
   updated_at: string;
 }
@@ -811,6 +813,7 @@ export interface CreateSalePayload {
   due_date?: string;  // YYYY-MM-DD, vencimiento de cartera
   notes: string;
   lines: SalesLineInput[];
+  payment_means?: PaymentMean[];
 }
 
 // UpdateSalePayload -- igual que crear, sin "number" (el consecutivo no se puede reasignar
@@ -827,6 +830,7 @@ export interface Sale {
   due_date?: string;
   notes: string;
   lines: SalesLine[];
+  payment_means?: PaymentMean[];
   // Factura electrónica ya generada desde esta venta, si alguna — cuando está presente, no se
   // puede volver a generar (ver electronic CreateFromSaleUseCase).
   invoice_document_id?: string;
@@ -896,6 +900,7 @@ export interface CreatePurchasePayload {
   due_date?: string;  // YYYY-MM-DD, recepción esperada
   notes: string;
   lines: PurchaseLineInput[];
+  payment_means?: PaymentMean[];
 }
 
 // UpdatePurchasePayload -- igual que crear, sin "number" (no se reasigna editando; solo aplica
@@ -912,6 +917,7 @@ export interface Purchase {
   due_date?: string;
   notes: string;
   lines: PurchaseLine[];
+  payment_means?: PaymentMean[];
   withholdings: PurchaseWithholding[];
   // Documento Soporte ya generado desde esta orden, si alguno — cuando está presente, no se
   // puede volver a generar (ver electronic CreateFromPurchaseUseCase).

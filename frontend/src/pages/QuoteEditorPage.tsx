@@ -3,13 +3,15 @@ import { ClipboardList, FileText, Send, Check, X as XIcon, ArrowRightCircle, Tra
 import { useNavigate, useParams } from "react-router";
 import { acceptQuote, convertQuoteToSale, createQuote, deleteQuote, fetchQuote, getQuotePdfBlobUrl, rejectQuote, sendQuoteEmail, updateQuote } from "../lib/quotes";
 import { listCustomers } from "../lib/customers";
+import { listPaymentMethods, listPaymentTerms } from "../lib/catalogs";
+import { useCatalog } from "../lib/useCatalog";
 import { ApiError } from "../lib/apiClient";
 import { openInNewTab } from "../lib/openInNewTab";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
 import { formatDateOnly } from "../lib/dateFormat";
-import type { Customer, Quote, QuoteStatus, SalesLineInput } from "../lib/types";
+import type { Customer, PaymentMean, Quote, QuoteStatus, SalesLineInput } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -20,6 +22,7 @@ import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { SendEmailModal } from "../components/ui/SendEmailModal";
 import { StatusPill, type StatusTone } from "../components/ui/StatusPill";
 import { SalesLineItemsEditor, salesLinesTotal } from "../components/sales/SalesLineItemsEditor";
+import { PaymentMeansEditor } from "../components/invoice-form/PaymentMeansEditor";
 
 const STATUS_LABEL: Record<QuoteStatus, string> = {
   draft: "Borrador", sent: "Enviada", accepted: "Aceptada", rejected: "Rechazada", expired: "Vencida",
@@ -49,6 +52,10 @@ export function QuoteEditorPage() {
   const [validUntil, setValidUntil] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<SalesLineInput[]>([]);
+  const [paymentMeans, setPaymentMeans] = useState<PaymentMean[]>([]);
+
+  const { data: paymentTerms } = useCatalog(listPaymentTerms);
+  const { data: paymentMethods } = useCatalog(listPaymentMethods);
 
   useEffect(() => {
     listCustomers().then(setCustomers).catch(() => setCustomers([]));
@@ -65,6 +72,7 @@ export function QuoteEditorPage() {
           setValidUntil(q.valid_until ?? "");
           setNotes(q.notes);
           setLines(q.lines);
+          setPaymentMeans(q.payment_means ?? []);
         }
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la cotización"))
@@ -85,6 +93,7 @@ export function QuoteEditorPage() {
         lines,
         valid_until: validUntil || undefined,
         notes,
+        payment_means: paymentMeans,
       });
       toast.success(`Cotización ${created.number || ""} creada.`);
       navigate(`/sales/quotes/${created.id}`, { replace: true });
@@ -100,7 +109,7 @@ export function QuoteEditorPage() {
     setError(null);
     setSaving(true);
     try {
-      const updated = await updateQuote(quote.id, { customer_id: customerId, lines, valid_until: validUntil || undefined, notes });
+      const updated = await updateQuote(quote.id, { customer_id: customerId, lines, valid_until: validUntil || undefined, notes, payment_means: paymentMeans });
       setQuote(updated);
       toast.success("Cotización actualizada.");
     } catch (err) {
@@ -270,6 +279,25 @@ export function QuoteEditorPage() {
               )}
             </>
           ) : null}
+        </div>
+
+        <div className="mb-4">
+          <p className="mb-2 text-xs font-medium text-(--text-secondary)">Medios de pago</p>
+          {isEditable ? (
+            <PaymentMeansEditor paymentMeans={paymentMeans} onChange={setPaymentMeans} />
+          ) : quote?.payment_means && quote.payment_means.length > 0 ? (
+            <p className="text-xs text-(--text-primary)">
+              {quote.payment_means
+                .map((pm) => {
+                  const term = paymentTerms.find((t) => t.code === pm.code)?.name ?? pm.code;
+                  const method = paymentMethods.find((m) => m.code === pm.payment_method_code)?.name ?? pm.payment_method_code;
+                  return `${term} — ${method}`;
+                })
+                .join(", ")}
+            </p>
+          ) : (
+            <p className="text-xs text-(--text-muted)">—</p>
+          )}
         </div>
 
         <SalesLineItemsEditor lines={isEditable ? lines : quote?.lines ?? []} onChange={setLines} disabled={!isEditable} />

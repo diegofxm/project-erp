@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	cofdom "github.com/diegofxm/cofacture/domain"
 	"github.com/diegofxm/erp/internal/purchase/domain"
 )
 
@@ -27,12 +28,33 @@ type LineRequest struct {
 	TaxRate     float64   `json:"tax_rate"`
 }
 
+// PaymentMeanRequest -- mismos campos/catálogos DIAN (payment_terms/payment_methods) que ya usa
+// electronic para documentos electrónicos; se convierte 1:1 a cofdom.PaymentMean.
+type PaymentMeanRequest struct {
+	Code              string `json:"code"`
+	PaymentMethodCode string `json:"payment_method_code"`
+	DueDate           string `json:"due_date,omitempty"`
+	PaymentReference  string `json:"payment_reference,omitempty"`
+}
+
+func paymentMeansToCofdom(pms []PaymentMeanRequest) []cofdom.PaymentMean {
+	out := make([]cofdom.PaymentMean, len(pms))
+	for i, pm := range pms {
+		out[i] = cofdom.PaymentMean{
+			Code: pm.Code, PaymentMethodCode: pm.PaymentMethodCode,
+			DueDate: pm.DueDate, PaymentReference: pm.PaymentReference,
+		}
+	}
+	return out
+}
+
 type CreateRequest struct {
-	SupplierID uuid.UUID     `json:"supplier_id"`
-	IssueDate  time.Time     `json:"issue_date"`
-	DueDate    *time.Time    `json:"due_date"`
-	Notes      string        `json:"notes"`
-	Lines      []LineRequest `json:"lines"`
+	SupplierID   uuid.UUID            `json:"supplier_id"`
+	IssueDate    time.Time            `json:"issue_date"`
+	DueDate      *time.Time           `json:"due_date"`
+	Notes        string               `json:"notes"`
+	Lines        []LineRequest        `json:"lines"`
+	PaymentMeans []PaymentMeanRequest `json:"payment_means"`
 }
 
 func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req CreateRequest) (*domain.PurchaseOrder, error) {
@@ -59,15 +81,16 @@ func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req C
 	}
 
 	o := domain.PurchaseOrder{
-		ID:         uuid.New(),
-		CompanyID:  companyID,
-		SupplierID: req.SupplierID,
-		Number:     fmt.Sprintf("OC-%d-%05d", year, seq),
-		Status:     domain.StatusDraft,
-		IssueDate:  req.IssueDate,
-		DueDate:    req.DueDate,
-		Notes:      req.Notes,
-		Lines:      lines,
+		ID:           uuid.New(),
+		CompanyID:    companyID,
+		SupplierID:   req.SupplierID,
+		Number:       fmt.Sprintf("OC-%d-%05d", year, seq),
+		Status:       domain.StatusDraft,
+		IssueDate:    req.IssueDate,
+		DueDate:      req.DueDate,
+		Notes:        req.Notes,
+		Lines:        lines,
+		PaymentMeans: paymentMeansToCofdom(req.PaymentMeans),
 	}
 	o.CalculateTotals()
 

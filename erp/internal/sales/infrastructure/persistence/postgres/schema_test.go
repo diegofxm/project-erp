@@ -30,9 +30,9 @@ func TestSchema_SalesTables(t *testing.T) {
 		name string
 		cols string
 	}{
-		{"sales.sales", "id, company_id, customer_id, number, status, issue_date, due_date, notes, invoice_document_id, created_at, updated_at"},
+		{"sales.sales", "id, company_id, customer_id, number, status, issue_date, due_date, notes, payment_means, invoice_document_id, created_at, updated_at"},
 		{"sales.sale_lines", "id, sale_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount"},
-		{"sales.quotes", "id, company_id, customer_id, number, status, issue_date, valid_until, notes, created_at, updated_at"},
+		{"sales.quotes", "id, company_id, customer_id, number, status, issue_date, valid_until, notes, payment_means, created_at, updated_at"},
 		{"sales.quote_lines", "id, quote_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount"},
 		{"sales.sale_payments", "id, company_id, sale_id, payment_date, amount, payment_method, reference, notes, created_at"},
 		{"sales.number_counters", "company_id, doc_type, year, last_seq"},

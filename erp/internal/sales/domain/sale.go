@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	cofdom "github.com/diegofxm/cofacture/domain"
 )
 
 type SaleStatus string
@@ -28,6 +30,11 @@ type Sale struct {
 	DueDate    *time.Time // fecha vencimiento cartera
 	Notes      string
 	Lines      []SaleLine
+	// PaymentMeans -- mismo tipo y catálogos DIAN que usa electronic (payment_terms/
+	// payment_methods) para no inventar una segunda clasificación. Se hereda tal cual a la
+	// factura electrónica generada desde esta venta (ver electronic/application/from_sale.go) --
+	// antes esa función forzaba "Contado/Efectivo" sin importar cómo se pactó la venta.
+	PaymentMeans []cofdom.PaymentMean
 	// InvoiceDocumentID — factura electrónica ya generada desde esta venta, si alguna
 	// (electronic.documents.id, sin FK — cada módulo es dueño de su schema). nil = todavía no
 	// se ha facturado.

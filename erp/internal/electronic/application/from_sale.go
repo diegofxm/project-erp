@@ -69,7 +69,7 @@ func (uc *CreateFromSaleUseCase) Execute(ctx context.Context, req FromSaleReques
 		NumberingRangeID: req.NumberingRangeID,
 		Customer:         saleCustomerToParty(customer),
 		Lines:            saleLinesТoСof(sale.Lines, productMap),
-		PaymentMeans:     []cofdom.PaymentMean{{Code: "1", PaymentMethodCode: "1"}},
+		PaymentMeans:     salePaymentMeansOrDefault(sale.PaymentMeans),
 		Note:             sale.Notes,
 		CurrencyCode:     "COP",
 		CustomerID:       &sale.CustomerID,
@@ -117,6 +117,17 @@ func saleCustomerToParty(c *domain.Party) cofdom.Party {
 		Phone:          c.Phone,
 		Email:          c.Email,
 	}
+}
+
+// salePaymentMeansOrDefault usa los medios de pago realmente pactados en la venta -- antes esta
+// función siempre forzaba "Contado/Efectivo" (código 1/1) sin importar cómo se vendió. Si la venta
+// no trae ninguno (ventas creadas antes de este cambio, o el vendedor dejó el campo vacío), se
+// conserva ese mismo default como último recurso para no romper la generación del documento.
+func salePaymentMeansOrDefault(pms []cofdom.PaymentMean) []cofdom.PaymentMean {
+	if len(pms) == 0 {
+		return []cofdom.PaymentMean{{Code: "1", PaymentMethodCode: "1"}}
+	}
+	return pms
 }
 
 func saleLinesТoСof(lines []salesdomain.SaleLine, products map[uuid.UUID]*productdomain.Product) []cofdom.Line {

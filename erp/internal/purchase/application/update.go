@@ -40,11 +40,12 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, companyID, id uuid.UUID, r
 	}
 
 	o := domain.PurchaseOrder{
-		SupplierID: req.SupplierID,
-		IssueDate:  issueDate,
-		DueDate:    req.DueDate,
-		Notes:      req.Notes,
-		Lines:      lines,
+		SupplierID:   req.SupplierID,
+		IssueDate:    issueDate,
+		DueDate:      req.DueDate,
+		Notes:        req.Notes,
+		Lines:        lines,
+		PaymentMeans: paymentMeansToCofdom(req.PaymentMeans),
 	}
 	o.CalculateTotals()
 

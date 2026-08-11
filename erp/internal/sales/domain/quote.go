@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	cofdom "github.com/diegofxm/cofacture/domain"
 )
 
 type QuoteStatus string
@@ -29,8 +31,11 @@ type Quote struct {
 	ValidUntil *time.Time
 	Notes      string
 	Lines      []QuoteLine
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	// PaymentMeans -- mismo tipo/catálogos que Sale.PaymentMeans y que electronic; se hereda a
+	// la venta al convertir (ver QuoteUseCase.ConvertToSale) y de ahí a la factura electrónica.
+	PaymentMeans []cofdom.PaymentMean
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type QuoteLine struct {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	cofdom "github.com/diegofxm/cofacture/domain"
 	"github.com/diegofxm/erp/internal/sales/application"
 	"github.com/diegofxm/erp/internal/sales/domain"
 	"github.com/diegofxm/erp/internal/shared/tenant"
@@ -52,19 +53,40 @@ type saleLineDTO struct {
 	Total       float64   `json:"total"`
 }
 
+// paymentMeanDTO -- mismo formato snake_case que electronic/interfaces/http para el mismo tipo
+// cofdom.PaymentMean, así el frontend reutiliza PaymentMeansEditor.tsx sin adaptar nada.
+type paymentMeanDTO struct {
+	Code              string `json:"code"`
+	PaymentMethodCode string `json:"payment_method_code"`
+	DueDate           string `json:"due_date,omitempty"`
+	PaymentReference  string `json:"payment_reference,omitempty"`
+}
+
+func toPaymentMeanDTOs(pms []cofdom.PaymentMean) []paymentMeanDTO {
+	out := make([]paymentMeanDTO, len(pms))
+	for i, pm := range pms {
+		out[i] = paymentMeanDTO{
+			Code: pm.Code, PaymentMethodCode: pm.PaymentMethodCode,
+			DueDate: pm.DueDate, PaymentReference: pm.PaymentReference,
+		}
+	}
+	return out
+}
+
 type saleDTO struct {
-	ID                uuid.UUID     `json:"id"`
-	CompanyID         uuid.UUID     `json:"company_id"`
-	CustomerID        uuid.UUID     `json:"customer_id"`
-	Number            string        `json:"number"`
-	Status            string        `json:"status"`
-	IssueDate         string        `json:"issue_date"`
-	DueDate           string        `json:"due_date,omitempty"`
-	Notes             string        `json:"notes"`
-	Lines             []saleLineDTO `json:"lines"`
-	InvoiceDocumentID *uuid.UUID    `json:"invoice_document_id,omitempty"`
-	CreatedAt         time.Time     `json:"created_at"`
-	UpdatedAt         time.Time     `json:"updated_at"`
+	ID                uuid.UUID        `json:"id"`
+	CompanyID         uuid.UUID        `json:"company_id"`
+	CustomerID        uuid.UUID        `json:"customer_id"`
+	Number            string           `json:"number"`
+	Status            string           `json:"status"`
+	IssueDate         string           `json:"issue_date"`
+	DueDate           string           `json:"due_date,omitempty"`
+	Notes             string           `json:"notes"`
+	Lines             []saleLineDTO    `json:"lines"`
+	PaymentMeans      []paymentMeanDTO `json:"payment_means"`
+	InvoiceDocumentID *uuid.UUID       `json:"invoice_document_id,omitempty"`
+	CreatedAt         time.Time        `json:"created_at"`
+	UpdatedAt         time.Time        `json:"updated_at"`
 }
 
 func toSaleDTO(s *domain.Sale) saleDTO {
@@ -80,8 +102,9 @@ func toSaleDTO(s *domain.Sale) saleDTO {
 		ID: s.ID, CompanyID: s.CompanyID, CustomerID: s.CustomerID,
 		Number: s.Number, Status: string(s.Status),
 		IssueDate: formatDate(s.IssueDate), DueDate: formatDatePtr(s.DueDate),
-		Notes: s.Notes, Lines: lines, InvoiceDocumentID: s.InvoiceDocumentID,
-		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
+		Notes: s.Notes, Lines: lines, PaymentMeans: toPaymentMeanDTOs(s.PaymentMeans),
+		InvoiceDocumentID: s.InvoiceDocumentID,
+		CreatedAt:         s.CreatedAt, UpdatedAt: s.UpdatedAt,
 	}
 }
 
@@ -99,17 +122,18 @@ type quoteLineDTO struct {
 }
 
 type quoteDTO struct {
-	ID         uuid.UUID      `json:"id"`
-	CompanyID  uuid.UUID      `json:"company_id"`
-	CustomerID uuid.UUID      `json:"customer_id"`
-	Number     string         `json:"number"`
-	Status     string         `json:"status"`
-	IssueDate  string         `json:"issue_date"`
-	ValidUntil string         `json:"valid_until,omitempty"`
-	Notes      string         `json:"notes"`
-	Lines      []quoteLineDTO `json:"lines"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
+	ID           uuid.UUID        `json:"id"`
+	CompanyID    uuid.UUID        `json:"company_id"`
+	CustomerID   uuid.UUID        `json:"customer_id"`
+	Number       string           `json:"number"`
+	Status       string           `json:"status"`
+	IssueDate    string           `json:"issue_date"`
+	ValidUntil   string           `json:"valid_until,omitempty"`
+	Notes        string           `json:"notes"`
+	Lines        []quoteLineDTO   `json:"lines"`
+	PaymentMeans []paymentMeanDTO `json:"payment_means"`
+	CreatedAt    time.Time        `json:"created_at"`
+	UpdatedAt    time.Time        `json:"updated_at"`
 }
 
 func toQuoteDTO(q *domain.Quote) quoteDTO {
@@ -125,7 +149,7 @@ func toQuoteDTO(q *domain.Quote) quoteDTO {
 		ID: q.ID, CompanyID: q.CompanyID, CustomerID: q.CustomerID,
 		Number: q.Number, Status: string(q.Status),
 		IssueDate: formatDate(q.IssueDate), ValidUntil: formatDatePtr(q.ValidUntil),
-		Notes: q.Notes, Lines: lines,
+		Notes: q.Notes, Lines: lines, PaymentMeans: toPaymentMeanDTOs(q.PaymentMeans),
 		CreatedAt: q.CreatedAt, UpdatedAt: q.UpdatedAt,
 	}
 }

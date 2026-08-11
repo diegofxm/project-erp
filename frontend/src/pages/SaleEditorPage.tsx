@@ -5,13 +5,15 @@ import { cancelSale, confirmSale, createSale, deleteSale, fetchSale, updateSale 
 import { listCustomers } from "../lib/customers";
 import { listNumberingRanges } from "../lib/numberingRanges";
 import { createInvoiceFromSale } from "../lib/documents";
+import { listPaymentMethods, listPaymentTerms } from "../lib/catalogs";
+import { useCatalog } from "../lib/useCatalog";
 import { ApiError } from "../lib/apiClient";
 import { useConfirm } from "../context/ConfirmContext";
 import { useCanManage } from "../hooks/useCanManage";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
 import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
-import type { Customer, NumberingRange, Sale, SaleStatus, SalesLineInput } from "../lib/types";
+import type { Customer, NumberingRange, PaymentMean, Sale, SaleStatus, SalesLineInput } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -21,6 +23,7 @@ import { Spinner } from "../components/ui/Spinner";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { StatusPill, type StatusTone } from "../components/ui/StatusPill";
 import { SalesLineItemsEditor, salesLinesTotal } from "../components/sales/SalesLineItemsEditor";
+import { PaymentMeansEditor } from "../components/invoice-form/PaymentMeansEditor";
 
 const STATUS_LABEL: Record<SaleStatus, string> = { draft: "Borrador", confirmed: "Confirmada", cancelled: "Cancelada" };
 const STATUS_TONE: Record<SaleStatus, StatusTone> = { draft: "neutral", confirmed: "success", cancelled: "danger" };
@@ -51,7 +54,11 @@ export function SaleEditorPage() {
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<SalesLineInput[]>([]);
+  const [paymentMeans, setPaymentMeans] = useState<PaymentMean[]>([]);
   const [rangeId, setRangeId] = useState("");
+
+  const { data: paymentTerms } = useCatalog(listPaymentTerms);
+  const { data: paymentMethods } = useCatalog(listPaymentMethods);
 
   useEffect(() => {
     listCustomers().then(setCustomers).catch(() => setCustomers([]));
@@ -69,6 +76,7 @@ export function SaleEditorPage() {
           setDueDate(s.due_date ?? "");
           setNotes(s.notes);
           setLines(s.lines);
+          setPaymentMeans(s.payment_means ?? []);
         }
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la venta"))
@@ -97,7 +105,7 @@ export function SaleEditorPage() {
     try {
       const created = await createSale({
         customer_id: customerId, number, issue_date: issueDate,
-        due_date: dueDate || undefined, notes, lines,
+        due_date: dueDate || undefined, notes, lines, payment_means: paymentMeans,
       });
       toast.success(`Venta ${created.number || ""} creada.`);
       navigate(`/sales/${created.id}`, { replace: true });
@@ -144,7 +152,7 @@ export function SaleEditorPage() {
     try {
       const updated = await updateSale(sale.id, {
         customer_id: customerId, issue_date: issueDate,
-        due_date: dueDate || undefined, notes, lines,
+        due_date: dueDate || undefined, notes, lines, payment_means: paymentMeans,
       });
       setSale(updated);
       toast.success("Venta actualizada.");
@@ -264,6 +272,25 @@ export function SaleEditorPage() {
               )}
             </>
           ) : null}
+        </div>
+
+        <div className="mb-4">
+          <p className="mb-2 text-xs font-medium text-(--text-secondary)">Medios de pago</p>
+          {isEditable ? (
+            <PaymentMeansEditor paymentMeans={paymentMeans} onChange={setPaymentMeans} />
+          ) : sale?.payment_means && sale.payment_means.length > 0 ? (
+            <p className="text-xs text-(--text-primary)">
+              {sale.payment_means
+                .map((pm) => {
+                  const term = paymentTerms.find((t) => t.code === pm.code)?.name ?? pm.code;
+                  const method = paymentMethods.find((m) => m.code === pm.payment_method_code)?.name ?? pm.payment_method_code;
+                  return `${term} — ${method}`;
+                })
+                .join(", ")}
+            </p>
+          ) : (
+            <p className="text-xs text-(--text-muted)">—</p>
+          )}
         </div>
 
         <SalesLineItemsEditor lines={isEditable ? lines : sale?.lines ?? []} onChange={setLines} disabled={!isEditable} />

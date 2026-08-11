@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -32,11 +33,15 @@ func (r *QuoteRepository) Save(ctx context.Context, q domain.Quote) (*domain.Quo
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	paymentMeans, err := json.Marshal(q.PaymentMeans)
+	if err != nil {
+		return nil, fmt.Errorf("serializar payment_means: %w", err)
+	}
 	_, err = tx.Exec(ctx, `
-		INSERT INTO sales.quotes (id, company_id, customer_id, number, status, issue_date, valid_until, notes, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		INSERT INTO sales.quotes (id, company_id, customer_id, number, status, issue_date, valid_until, notes, payment_means, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 		q.ID, q.CompanyID, q.CustomerID, q.Number, string(q.Status),
-		q.IssueDate, q.ValidUntil, q.Notes, q.CreatedAt, q.UpdatedAt,
+		q.IssueDate, q.ValidUntil, q.Notes, paymentMeans, q.CreatedAt, q.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("guardar cotización: %w", err)
@@ -80,10 +85,14 @@ func (r *QuoteRepository) Update(ctx context.Context, companyID, id uuid.UUID, q
 		return nil, domain.ErrQuoteNotDraft
 	}
 
+	paymentMeans, err := json.Marshal(q.PaymentMeans)
+	if err != nil {
+		return nil, fmt.Errorf("serializar payment_means: %w", err)
+	}
 	now := time.Now()
 	_, err = tx.Exec(ctx,
-		`UPDATE sales.quotes SET customer_id=$3, valid_until=$4, notes=$5, updated_at=$6 WHERE id=$1 AND company_id=$2`,
-		id, companyID, q.CustomerID, q.ValidUntil, q.Notes, now,
+		`UPDATE sales.quotes SET customer_id=$3, valid_until=$4, notes=$5, payment_means=$6, updated_at=$7 WHERE id=$1 AND company_id=$2`,
+		id, companyID, q.CustomerID, q.ValidUntil, q.Notes, paymentMeans, now,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("actualizar cotización: %w", err)
@@ -115,12 +124,13 @@ func (r *QuoteRepository) Update(ctx context.Context, companyID, id uuid.UUID, q
 func (r *QuoteRepository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*domain.Quote, error) {
 	var q domain.Quote
 	var status string
+	var paymentMeans []byte
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, company_id, customer_id, number, status, issue_date, valid_until, notes, created_at, updated_at
+		SELECT id, company_id, customer_id, number, status, issue_date, valid_until, notes, payment_means, created_at, updated_at
 		FROM sales.quotes WHERE id=$1 AND company_id=$2`,
 		id, companyID,
 	).Scan(&q.ID, &q.CompanyID, &q.CustomerID, &q.Number, &status,
-		&q.IssueDate, &q.ValidUntil, &q.Notes, &q.CreatedAt, &q.UpdatedAt)
+		&q.IssueDate, &q.ValidUntil, &q.Notes, &paymentMeans, &q.CreatedAt, &q.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrQuoteNotFound
 	}
@@ -128,13 +138,16 @@ func (r *QuoteRepository) GetByID(ctx context.Context, companyID, id uuid.UUID) 
 		return nil, fmt.Errorf("obtener cotización: %w", err)
 	}
 	q.Status = domain.QuoteStatus(status)
+	if err := json.Unmarshal(paymentMeans, &q.PaymentMeans); err != nil {
+		return nil, fmt.Errorf("deserializar payment_means: %w", err)
+	}
 	q.Lines, err = r.loadQuoteLines(ctx, q.ID)
 	return &q, err
 }
 
 func (r *QuoteRepository) List(ctx context.Context, companyID uuid.UUID) ([]domain.Quote, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, company_id, customer_id, number, status, issue_date, valid_until, notes, created_at, updated_at
+		SELECT id, company_id, customer_id, number, status, issue_date, valid_until, notes, payment_means, created_at, updated_at
 		FROM sales.quotes WHERE company_id=$1 ORDER BY created_at DESC`,
 		companyID,
 	)
@@ -147,11 +160,15 @@ func (r *QuoteRepository) List(ctx context.Context, companyID uuid.UUID) ([]doma
 	for rows.Next() {
 		var q domain.Quote
 		var status string
+		var paymentMeans []byte
 		if err := rows.Scan(&q.ID, &q.CompanyID, &q.CustomerID, &q.Number, &status,
-			&q.IssueDate, &q.ValidUntil, &q.Notes, &q.CreatedAt, &q.UpdatedAt); err != nil {
+			&q.IssueDate, &q.ValidUntil, &q.Notes, &paymentMeans, &q.CreatedAt, &q.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("leer cotización: %w", err)
 		}
 		q.Status = domain.QuoteStatus(status)
+		if err := json.Unmarshal(paymentMeans, &q.PaymentMeans); err != nil {
+			return nil, fmt.Errorf("deserializar payment_means: %w", err)
+		}
 		out = append(out, q)
 	}
 	if err := rows.Err(); err != nil {

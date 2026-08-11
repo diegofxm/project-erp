@@ -41,11 +41,12 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, companyID, id uuid.UUID, r
 	}
 
 	s := domain.Sale{
-		CustomerID: req.CustomerID,
-		IssueDate:  issueDate,
-		DueDate:    req.DueDate,
-		Notes:      req.Notes,
-		Lines:      lines,
+		CustomerID:   req.CustomerID,
+		IssueDate:    issueDate,
+		DueDate:      req.DueDate,
+		Notes:        req.Notes,
+		Lines:        lines,
+		PaymentMeans: paymentMeansToCofdom(req.PaymentMeans),
 	}
 	s.CalculateTotals()
 

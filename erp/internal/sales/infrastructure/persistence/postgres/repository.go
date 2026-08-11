@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -28,11 +29,15 @@ func (r *Repository) Save(ctx context.Context, s domain.Sale) (*domain.Sale, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	paymentMeans, err := json.Marshal(s.PaymentMeans)
+	if err != nil {
+		return nil, fmt.Errorf("serializar payment_means: %w", err)
+	}
 	_, err = tx.Exec(ctx, `
-		INSERT INTO sales.sales (id, company_id, customer_id, number, status, issue_date, due_date, notes, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		INSERT INTO sales.sales (id, company_id, customer_id, number, status, issue_date, due_date, notes, payment_means, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 		s.ID, s.CompanyID, s.CustomerID, s.Number, string(s.Status),
-		s.IssueDate, s.DueDate, s.Notes, s.CreatedAt, s.UpdatedAt,
+		s.IssueDate, s.DueDate, s.Notes, paymentMeans, s.CreatedAt, s.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("guardar venta: %w", err)
@@ -78,10 +83,14 @@ func (r *Repository) Update(ctx context.Context, companyID, id uuid.UUID, s doma
 		return nil, domain.ErrSaleNotDraft
 	}
 
+	paymentMeans, err := json.Marshal(s.PaymentMeans)
+	if err != nil {
+		return nil, fmt.Errorf("serializar payment_means: %w", err)
+	}
 	now := time.Now()
 	_, err = tx.Exec(ctx,
-		`UPDATE sales.sales SET customer_id=$3, issue_date=$4, due_date=$5, notes=$6, updated_at=$7 WHERE id=$1 AND company_id=$2`,
-		id, companyID, s.CustomerID, s.IssueDate, s.DueDate, s.Notes, now,
+		`UPDATE sales.sales SET customer_id=$3, issue_date=$4, due_date=$5, notes=$6, payment_means=$7, updated_at=$8 WHERE id=$1 AND company_id=$2`,
+		id, companyID, s.CustomerID, s.IssueDate, s.DueDate, s.Notes, paymentMeans, now,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("actualizar venta: %w", err)
@@ -116,12 +125,13 @@ func (r *Repository) Update(ctx context.Context, companyID, id uuid.UUID, s doma
 func (r *Repository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*domain.Sale, error) {
 	var s domain.Sale
 	var status string
+	var paymentMeans []byte
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, company_id, customer_id, number, status, issue_date, due_date, notes, invoice_document_id, created_at, updated_at
+		SELECT id, company_id, customer_id, number, status, issue_date, due_date, notes, payment_means, invoice_document_id, created_at, updated_at
 		FROM sales.sales WHERE id=$1 AND company_id=$2`,
 		id, companyID,
 	).Scan(&s.ID, &s.CompanyID, &s.CustomerID, &s.Number, &status,
-		&s.IssueDate, &s.DueDate, &s.Notes, &s.InvoiceDocumentID, &s.CreatedAt, &s.UpdatedAt)
+		&s.IssueDate, &s.DueDate, &s.Notes, &paymentMeans, &s.InvoiceDocumentID, &s.CreatedAt, &s.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrSaleNotFound
 	}
@@ -129,6 +139,9 @@ func (r *Repository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*dom
 		return nil, fmt.Errorf("obtener venta: %w", err)
 	}
 	s.Status = domain.SaleStatus(status)
+	if err := json.Unmarshal(paymentMeans, &s.PaymentMeans); err != nil {
+		return nil, fmt.Errorf("deserializar payment_means: %w", err)
+	}
 
 	lines, err := r.loadLines(ctx, s.ID)
 	if err != nil {
@@ -140,7 +153,7 @@ func (r *Repository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*dom
 
 func (r *Repository) List(ctx context.Context, companyID uuid.UUID) ([]domain.Sale, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, company_id, customer_id, number, status, issue_date, due_date, notes, invoice_document_id, created_at, updated_at
+		SELECT id, company_id, customer_id, number, status, issue_date, due_date, notes, payment_means, invoice_document_id, created_at, updated_at
 		FROM sales.sales WHERE company_id=$1 ORDER BY created_at DESC`,
 		companyID,
 	)
@@ -153,11 +166,15 @@ func (r *Repository) List(ctx context.Context, companyID uuid.UUID) ([]domain.Sa
 	for rows.Next() {
 		var s domain.Sale
 		var status string
+		var paymentMeans []byte
 		if err := rows.Scan(&s.ID, &s.CompanyID, &s.CustomerID, &s.Number, &status,
-			&s.IssueDate, &s.DueDate, &s.Notes, &s.InvoiceDocumentID, &s.CreatedAt, &s.UpdatedAt); err != nil {
+			&s.IssueDate, &s.DueDate, &s.Notes, &paymentMeans, &s.InvoiceDocumentID, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("leer venta: %w", err)
 		}
 		s.Status = domain.SaleStatus(status)
+		if err := json.Unmarshal(paymentMeans, &s.PaymentMeans); err != nil {
+			return nil, fmt.Errorf("deserializar payment_means: %w", err)
+		}
 		out = append(out, s)
 	}
 	if err := rows.Err(); err != nil {
