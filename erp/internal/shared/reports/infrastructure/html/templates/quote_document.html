@@ -36,6 +36,8 @@ body {
   display: flex;
   flex-direction: column;
   padding: 9mm 10mm 10mm 10mm;
+  position: relative;
+  z-index: 1;
 }
 
 .header {
@@ -205,11 +207,36 @@ table.items tbody td.c { text-align: center; color: var(--muted); }
   line-height: 1.4;
 }
 
+/* ── Franja proveedor tecnológico (dentro del margen derecho) ─── */
+.cfbrand {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 10mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 0;
+}
+.cfbrand-text {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: #999999;
+  font-size: 7.5pt;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
 </style>
 </head>
 <body>
 
 <div class="page">
+
+  <!-- Marca cofacture — borde derecho de todas las páginas -->
+  <div class="cfbrand"><span class="cfbrand-text">Proveedor tecnológico: <strong>cofacture</strong> · www.cofacture.co</span></div>
 
   <div class="header">
     <div class="co-block">
