@@ -96,6 +96,7 @@ describe("SaleEditorPage — confirmación de venta", () => {
       { method: "GET", path: "/electronic/numbering-ranges", body: [] },
       { method: "GET", path: "/catalogs/payment-terms", body: { payment_terms: [] } },
       { method: "GET", path: "/catalogs/payment-methods", body: { payment_methods: [] } },
+      { method: "GET", path: "/catalogs/unit-measures", body: { unit_measures: [] } },
     ]);
 
     renderSaleEditorPage();
@@ -128,6 +129,7 @@ describe("SaleEditorPage — confirmación de venta", () => {
       { method: "GET", path: `/sales/${SALE_ID}`, body: sale },
       { method: "GET", path: "/catalogs/payment-terms", body: { payment_terms: [] } },
       { method: "GET", path: "/catalogs/payment-methods", body: { payment_methods: [] } },
+      { method: "GET", path: "/catalogs/unit-measures", body: { unit_measures: [] } },
       // Sin ruta para POST /confirm -- si el código llegara a llamarla, el mock lanza y el test falla.
     ]);
 

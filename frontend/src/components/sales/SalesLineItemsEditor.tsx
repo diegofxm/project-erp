@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
+import { listUnitMeasures } from "../../lib/catalogs";
 import { formatCOP } from "../../lib/currency";
 import { listProducts } from "../../lib/products";
+import { useCatalog } from "../../lib/useCatalog";
 import type { Product, SalesLineInput } from "../../lib/types";
 import { Button } from "../ui/Button";
 import { Combobox } from "../ui/Combobox";
@@ -16,18 +18,20 @@ interface SalesLineItemsEditorProps {
 interface DraftLine {
   productId: string;
   description: string;
+  unitCode: string;
   quantity: string;
   unitPrice: string;
   discount: string;
   taxRate: string;
 }
 
-const EMPTY_DRAFT: DraftLine = { productId: "", description: "", quantity: "1", unitPrice: "", discount: "", taxRate: "" };
+const EMPTY_DRAFT: DraftLine = { productId: "", description: "", unitCode: "", quantity: "1", unitPrice: "", discount: "", taxRate: "" };
 
 function draftFromProduct(product: Product): DraftLine {
   return {
     productId: product.id,
     description: product.name,
+    unitCode: product.unit_measure_code,
     quantity: "1",
     unitPrice: product.base_price.toString(),
     discount: "",
@@ -41,12 +45,16 @@ function lineTotal(l: { quantity: number; unit_price: number; discount: number; 
   return subtotal + (subtotal * l.tax_rate) / 100;
 }
 
-// Versión simplificada de LineItemsEditor.tsx (factura electrónica) — sin unidad de medida ni
-// catálogo de impuestos DIAN, porque sales/ no los necesita: es un pedido comercial interno,
-// no un documento fiscal. tax_rate es un número libre (%), no un código de catálogo.
+// Mismo layout de línea que LineItemsEditor.tsx (factura electrónica): producto, descripción,
+// unidad de medida, cantidad, precio. Se diferencia solo en lo que sales/ no necesita porque no
+// es un documento fiscal DIAN: sin item_code/item_type_code (clasificación DIAN del ítem, se
+// deriva del producto solo al generar la factura electrónica, ver electronic/application/
+// from_sale.go) y con descuento por línea + impuesto como número libre (%) en vez del catálogo
+// de tipos de impuesto DIAN.
 export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineItemsEditorProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const { data: unitMeasures, loading: loadingUnitMeasures } = useCatalog(listUnitMeasures);
   const [draft, setDraft] = useState<DraftLine>(EMPTY_DRAFT);
   const [showForm, setShowForm] = useState(false);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
@@ -69,6 +77,7 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
     setDraft({
       productId: l.product_id,
       description: l.description,
+      unitCode: l.unit_code,
       quantity: l.quantity.toString(),
       unitPrice: l.unit_price.toString(),
       discount: l.discount ? l.discount.toString() : "",
@@ -81,6 +90,7 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
     const line: SalesLineInput = {
       product_id: draft.productId,
       description: draft.description,
+      unit_code: draft.unitCode,
       quantity: Number(draft.quantity || 0),
       unit_price: Number(draft.unitPrice || 0),
       discount: Number(draft.discount || 0),
@@ -107,7 +117,11 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
     if (editingIdx === index) handleCancel();
   }
 
-  const canAdd = draft.description.trim() !== "" && Number(draft.quantity) > 0 && Number(draft.unitPrice) > 0;
+  const canAdd =
+    draft.description.trim() !== "" &&
+    draft.unitCode !== "" &&
+    Number(draft.quantity) > 0 &&
+    Number(draft.unitPrice) > 0;
   const draftPreview = lineTotal({
     quantity: Number(draft.quantity || 0),
     unit_price: Number(draft.unitPrice || 0),
@@ -123,6 +137,7 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
             <thead className="bg-(--bg-tertiary) text-(--text-secondary)">
               <tr>
                 <th className="px-3 py-2 font-medium">Descripción</th>
+                <th className="px-3 py-2 font-medium">Unidad</th>
                 <th className="px-3 py-2 font-medium">Cant.</th>
                 <th className="px-3 py-2 font-medium">Precio unitario</th>
                 <th className="px-3 py-2 font-medium">Dto.</th>
@@ -137,6 +152,7 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
                 return (
                   <tr key={i} className={isEditing ? "bg-(--color-info-bg) outline-1 outline-(--color-info-border)" : i % 2 === 1 ? "bg-(--bg-secondary)" : "bg-(--bg-primary)"}>
                     <td className="px-3 py-2 text-(--text-primary)">{line.description}</td>
+                    <td className="px-3 py-2 text-(--text-secondary)">{line.unit_code || "—"}</td>
                     <td className="px-3 py-2 font-mono text-(--text-secondary)">{line.quantity}</td>
                     <td className="px-3 py-2 font-mono text-(--text-secondary)">{formatCOP.format(line.unit_price)}</td>
                     <td className="px-3 py-2 text-(--text-secondary)">{line.discount ? `${line.discount}%` : "—"}</td>
@@ -185,6 +201,16 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
             </div>
             <div className="col-span-12 sm:col-span-7">
               <Input label="Descripción" required value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+            </div>
+            <div className="col-span-12 sm:col-span-3">
+              <Combobox
+                label="Unidad de medida"
+                disabled={loadingUnitMeasures}
+                value={draft.unitCode}
+                onChange={(unitCode) => setDraft({ ...draft, unitCode })}
+                options={unitMeasures.map((u) => ({ value: u.code, label: `${u.code} — ${u.name}` }))}
+                placeholder={loadingUnitMeasures ? "Cargando…" : "Buscar unidad…"}
+              />
             </div>
             <div className="col-span-6 sm:col-span-3">
               <Input label="Cantidad" type="number" min="0" step="0.01" value={draft.quantity} onChange={(e) => setDraft({ ...draft, quantity: e.target.value })} />

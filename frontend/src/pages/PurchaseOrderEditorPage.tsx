@@ -5,7 +5,7 @@ import { addWithholding, cancelPurchase, confirmPurchase, createPurchase, delete
 import { listSuppliers } from "../lib/suppliers";
 import { listNumberingRanges } from "../lib/numberingRanges";
 import { listWithholdingConcepts } from "../lib/accounting";
-import { createSupportDocFromPurchase } from "../lib/documents";
+import { createSupportDocFromPurchase, getDocument } from "../lib/documents";
 import { listPaymentMethods, listPaymentTerms } from "../lib/catalogs";
 import { useCatalog } from "../lib/useCatalog";
 import { ApiError } from "../lib/apiClient";
@@ -15,7 +15,7 @@ import { useCanManage } from "../hooks/useCanManage";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
 import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
-import type { Purchase, PurchaseStatus, PurchaseLineInput, NumberingRange, PaymentMean, Supplier, WithholdingConcept } from "../lib/types";
+import type { Purchase, PurchaseStatus, PurchaseLineInput, DocumentStatus, NumberingRange, PaymentMean, Supplier, WithholdingConcept } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -37,6 +37,8 @@ const STATUS_TONE: Record<PurchaseStatus, StatusTone> = {
 };
 const SUPPORT_DOC_DIAN_TYPE = "05";
 const today = () => todayColombiaISO();
+// Ver el mismo comentario en SaleEditorPage.tsx.
+const RETRYABLE_DOC_STATUSES: DocumentStatus[] = ["rejected", "send_error", "environment_mismatch"];
 
 // Editable mientras está en borrador (crear o corregir proveedor/fecha/notas/líneas). A
 // diferencia de una venta, el ciclo tiene un paso extra: Confirmar (compromiso con el proveedor)
@@ -66,6 +68,7 @@ export function PurchaseOrderEditorPage() {
   const [lines, setLines] = useState<PurchaseLineInput[]>([]);
   const [paymentMeans, setPaymentMeans] = useState<PaymentMean[]>([]);
   const [rangeId, setRangeId] = useState("");
+  const [linkedSupportDocStatus, setLinkedSupportDocStatus] = useState<DocumentStatus | null>(null);
   const [concepts, setConcepts] = useState<WithholdingConcept[]>([]);
   const [whConceptId, setWhConceptId] = useState("");
   const [whBase, setWhBase] = useState("");
@@ -108,6 +111,19 @@ export function PurchaseOrderEditorPage() {
       .then((all) => setRanges(all.filter((r) => r.status === "active")))
       .catch(() => setRanges([]));
   }, [purchase?.status]);
+
+  // Ver el mismo comentario en SaleEditorPage.tsx.
+  useEffect(() => {
+    if (!purchase?.support_document_id) {
+      setLinkedSupportDocStatus(null);
+      return;
+    }
+    getDocument(purchase.support_document_id)
+      .then((doc) => setLinkedSupportDocStatus(doc.status))
+      .catch(() => setLinkedSupportDocStatus(null));
+  }, [purchase?.support_document_id]);
+
+  const supportDocIsRetryable = linkedSupportDocStatus !== null && RETRYABLE_DOC_STATUSES.includes(linkedSupportDocStatus);
 
   const supplierOptions = suppliers.map((s) => ({ value: s.id, label: s.name }));
   const supplierName = (sid: string) => suppliers.find((s) => s.id === sid)?.name ?? "—";
@@ -454,7 +470,7 @@ export function PurchaseOrderEditorPage() {
         </Card>
       )}
 
-      {purchase?.status === "received" && purchase.support_document_id && (
+      {purchase?.status === "received" && purchase.support_document_id && !supportDocIsRetryable && (
         <Card className="mt-3 p-4">
           <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold text-(--text-primary)">
             <FileText className="h-3.5 w-3.5 text-(--color-success)" />
@@ -466,12 +482,23 @@ export function PurchaseOrderEditorPage() {
         </Card>
       )}
 
-      {purchase?.status === "received" && !purchase.support_document_id && (
+      {purchase?.status === "received" && (!purchase.support_document_id || supportDocIsRetryable) && (
         <Card className="mt-3 p-4">
           <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-(--text-primary)">
             <FileText className="h-3.5 w-3.5 text-(--accent-primary)" />
             Generar Documento Soporte
           </h3>
+          {supportDocIsRetryable && (
+            <div className="mb-3">
+              <Banner tone="danger">
+                El Documento Soporte generado anteriormente fue rechazado por la DIAN y no consumió el consecutivo —{" "}
+                <button type="button" className="underline" onClick={() => navigate(`/documents/support-documents/${purchase.support_document_id}`)}>
+                  revisa el motivo del rechazo
+                </button>
+                , corrige lo necesario y genera uno nuevo.
+              </Banner>
+            </div>
+          )}
           {ranges.length === 0 ? (
             <p className="text-xs text-(--text-secondary)">
               No tienes un rango de numeración activo para Documento Soporte — configúralo en{" "}

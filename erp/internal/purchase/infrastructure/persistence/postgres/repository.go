@@ -48,10 +48,10 @@ func (r *Repository) Save(ctx context.Context, o domain.PurchaseOrder) (*domain.
 		l.ID = uuid.New()
 		l.PurchaseOrderID = o.ID
 		_, err = tx.Exec(ctx, `
-			INSERT INTO purchase.order_lines (id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+			INSERT INTO purchase.order_lines (id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount, unit_code)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 			l.ID, l.PurchaseOrderID, l.ProductID, l.Description,
-			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount,
+			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount, l.UnitCode,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("guardar línea: %w", err)
@@ -195,10 +195,10 @@ func (r *Repository) Update(ctx context.Context, companyID, id uuid.UUID, o doma
 		l.ID = uuid.New()
 		l.PurchaseOrderID = id
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO purchase.order_lines (id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+			INSERT INTO purchase.order_lines (id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount, unit_code)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 			l.ID, l.PurchaseOrderID, l.ProductID, l.Description,
-			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount,
+			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount, l.UnitCode,
 		); err != nil {
 			return nil, fmt.Errorf("guardar línea: %w", err)
 		}
@@ -247,7 +247,7 @@ func (r *Repository) loadWithholdings(ctx context.Context, orderID uuid.UUID) ([
 
 func (r *Repository) loadLines(ctx context.Context, orderID uuid.UUID) ([]domain.PurchaseLine, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount
+		SELECT id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount, unit_code
 		FROM purchase.order_lines WHERE purchase_order_id=$1`,
 		orderID,
 	)
@@ -260,7 +260,7 @@ func (r *Repository) loadLines(ctx context.Context, orderID uuid.UUID) ([]domain
 	for rows.Next() {
 		var l domain.PurchaseLine
 		if err := rows.Scan(&l.ID, &l.PurchaseOrderID, &l.ProductID, &l.Description,
-			&l.Quantity, &l.UnitPrice, &l.TaxRate, &l.Subtotal, &l.TaxAmount, &l.Total, &l.Discount); err != nil {
+			&l.Quantity, &l.UnitPrice, &l.TaxRate, &l.Subtotal, &l.TaxAmount, &l.Total, &l.Discount, &l.UnitCode); err != nil {
 			return nil, fmt.Errorf("leer línea: %w", err)
 		}
 		lines = append(lines, l)

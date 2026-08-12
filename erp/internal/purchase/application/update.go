@@ -27,6 +27,7 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, companyID, id uuid.UUID, r
 			ID:          uuid.New(),
 			ProductID:   l.ProductID,
 			Description: l.Description,
+			UnitCode:    l.UnitCode,
 			Quantity:    l.Quantity,
 			UnitPrice:   l.UnitPrice,
 			Discount:    l.Discount,

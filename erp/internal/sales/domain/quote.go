@@ -43,13 +43,15 @@ type QuoteLine struct {
 	QuoteID     uuid.UUID
 	ProductID   uuid.UUID
 	Description string
-	Quantity    float64
-	UnitPrice   float64
-	Discount    float64 // porcentaje 0-100, aplicado antes de impuestos
-	TaxRate     float64
-	Subtotal    float64
-	TaxAmount   float64
-	Total       float64
+	// UnitCode -- ver el mismo campo en SaleLine (sale.go).
+	UnitCode  string
+	Quantity  float64
+	UnitPrice float64
+	Discount  float64 // porcentaje 0-100, aplicado antes de impuestos
+	TaxRate   float64
+	Subtotal  float64
+	TaxAmount float64
+	Total     float64
 }
 
 func (q *Quote) CalculateTotals() {

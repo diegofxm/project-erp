@@ -22,6 +22,7 @@ func NewCreateUseCase(repo domain.Repository) *CreateUseCase {
 type LineRequest struct {
 	ProductID   uuid.UUID `json:"product_id"`
 	Description string    `json:"description"`
+	UnitCode    string    `json:"unit_code"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
 	Discount    float64   `json:"discount"`
@@ -75,6 +76,7 @@ func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req C
 			ID:          uuid.New(),
 			ProductID:   l.ProductID,
 			Description: l.Description,
+			UnitCode:    l.UnitCode,
 			Quantity:    l.Quantity,
 			UnitPrice:   l.UnitPrice,
 			Discount:    l.Discount,

@@ -31,7 +31,7 @@ func TestSchema_PurchaseTables(t *testing.T) {
 		cols string
 	}{
 		{"purchase.orders", "id, company_id, supplier_id, number, status, issue_date, due_date, notes, payment_means, created_at, updated_at, support_document_id"},
-		{"purchase.order_lines", "id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount"},
+		{"purchase.order_lines", "id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount, unit_code"},
 		{"purchase.purchase_payments", "id, company_id, purchase_id, payment_date, amount, payment_method, reference, notes, created_at"},
 		{"purchase.purchase_withholdings", "id, purchase_order_id, concept_code, concept_name, base, rate_bp, amount, account_payable, created_at"},
 		{"purchase.number_counters", "company_id, year, last_seq"},

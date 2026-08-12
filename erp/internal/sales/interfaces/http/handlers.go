@@ -50,6 +50,7 @@ type saleLineDTO struct {
 	ID          uuid.UUID `json:"id"`
 	ProductID   uuid.UUID `json:"product_id"`
 	Description string    `json:"description"`
+	UnitCode    string    `json:"unit_code"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
 	Discount    float64   `json:"discount"`
@@ -99,7 +100,7 @@ func toSaleDTO(s *domain.Sale) saleDTO {
 	lines := make([]saleLineDTO, len(s.Lines))
 	for i, l := range s.Lines {
 		lines[i] = saleLineDTO{
-			ID: l.ID, ProductID: l.ProductID, Description: l.Description,
+			ID: l.ID, ProductID: l.ProductID, Description: l.Description, UnitCode: l.UnitCode,
 			Quantity: l.Quantity, UnitPrice: l.UnitPrice, Discount: l.Discount, TaxRate: l.TaxRate,
 			Subtotal: l.Subtotal, TaxAmount: l.TaxAmount, Total: l.Total,
 		}
@@ -118,6 +119,7 @@ type quoteLineDTO struct {
 	ID          uuid.UUID `json:"id"`
 	ProductID   uuid.UUID `json:"product_id"`
 	Description string    `json:"description"`
+	UnitCode    string    `json:"unit_code"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
 	Discount    float64   `json:"discount"`
@@ -146,7 +148,7 @@ func toQuoteDTO(q *domain.Quote) quoteDTO {
 	lines := make([]quoteLineDTO, len(q.Lines))
 	for i, l := range q.Lines {
 		lines[i] = quoteLineDTO{
-			ID: l.ID, ProductID: l.ProductID, Description: l.Description,
+			ID: l.ID, ProductID: l.ProductID, Description: l.Description, UnitCode: l.UnitCode,
 			Quantity: l.Quantity, UnitPrice: l.UnitPrice, Discount: l.Discount, TaxRate: l.TaxRate,
 			Subtotal: l.Subtotal, TaxAmount: l.TaxAmount, Total: l.Total,
 		}

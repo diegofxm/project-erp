@@ -79,13 +79,15 @@ type PurchaseLine struct {
 	PurchaseOrderID uuid.UUID
 	ProductID       uuid.UUID
 	Description     string
-	Quantity        float64
-	UnitPrice       float64
-	Discount        float64 // porcentaje 0-100, aplicado antes de impuestos
-	TaxRate         float64
-	Subtotal        float64 // Quantity * UnitPrice - descuento
-	TaxAmount       float64 // Subtotal * TaxRate / 100
-	Total           float64 // Subtotal + TaxAmount
+	// UnitCode -- ver el mismo campo en sales.domain.SaleLine.
+	UnitCode  string
+	Quantity  float64
+	UnitPrice float64
+	Discount  float64 // porcentaje 0-100, aplicado antes de impuestos
+	TaxRate   float64
+	Subtotal  float64 // Quantity * UnitPrice - descuento
+	TaxAmount float64 // Subtotal * TaxRate / 100
+	Total     float64 // Subtotal + TaxAmount
 }
 
 func (o *PurchaseOrder) CalculateTotals() {

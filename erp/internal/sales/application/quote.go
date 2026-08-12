@@ -30,6 +30,7 @@ type CreateQuoteRequest struct {
 type QuoteLine struct {
 	ProductID   uuid.UUID `json:"product_id"`
 	Description string    `json:"description"`
+	UnitCode    string    `json:"unit_code"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
 	Discount    float64   `json:"discount"`
@@ -65,6 +66,7 @@ func (uc *QuoteUseCase) Create(ctx context.Context, companyID uuid.UUID, req Cre
 		q.Lines = append(q.Lines, domain.QuoteLine{
 			ProductID:   l.ProductID,
 			Description: l.Description,
+			UnitCode:    l.UnitCode,
 			Quantity:    l.Quantity,
 			UnitPrice:   l.UnitPrice,
 			Discount:    l.Discount,
@@ -92,6 +94,7 @@ func (uc *QuoteUseCase) Update(ctx context.Context, companyID, id uuid.UUID, req
 		q.Lines = append(q.Lines, domain.QuoteLine{
 			ProductID:   l.ProductID,
 			Description: l.Description,
+			UnitCode:    l.UnitCode,
 			Quantity:    l.Quantity,
 			UnitPrice:   l.UnitPrice,
 			Discount:    l.Discount,
@@ -179,6 +182,7 @@ func (uc *QuoteUseCase) ConvertToSale(ctx context.Context, companyID, id uuid.UU
 		sale.Lines = append(sale.Lines, domain.SaleLine{
 			ProductID:   ql.ProductID,
 			Description: ql.Description,
+			UnitCode:    ql.UnitCode,
 			Quantity:    ql.Quantity,
 			UnitPrice:   ql.UnitPrice,
 			Discount:    ql.Discount,

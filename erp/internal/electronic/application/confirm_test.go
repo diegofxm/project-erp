@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -490,6 +491,53 @@ func TestConfirm_Rejected_ReleasesNumber(t *testing.T) {
 	}
 	if len(numbering.releasedNumbers) != 1 {
 		t.Fatalf("esperaba liberar el consecutivo tras un rechazo, got %v", numbering.releasedNumbers)
+	}
+}
+
+// TestConfirm_RespondedCUFEMismatch_WarnsNumberAlreadyConsumed cubre el diagnóstico real del
+// 2026-08-11: cuando la DIAN responde con un CUFE (XmlDocumentKey) distinto al que este
+// documento generó, no validó nuestro contenido -- devolvió el resultado de un envío anterior
+// para el mismo consecutivo (típicamente quemado a mano en el portal de habilitación). El
+// mensaje original de la DIAN describe ese documento ajeno y debe reemplazarse por una alerta
+// clara en vez de mostrarse tal cual.
+func TestConfirm_RespondedCUFEMismatch_WarnsNumberAlreadyConsumed(t *testing.T) {
+	uc, docs, numbering, sender := newConfirmTestUseCase(t)
+	numbering.nr.TestSetID = ""
+	sender.sendBillSyncResult = &domain.SendResult{
+		HasRejections:        true,
+		StatusMessage:        "Nombre informado No corresponde al registrado en el RUT",
+		RespondedDocumentKey: "cufe-de-un-documento-completamente-distinto",
+	}
+
+	doc, err := uc.Confirm(context.Background(), docs.doc.CompanyID, docs.doc.ID)
+	if err != nil {
+		t.Fatalf("no esperaba error de Go: %v", err)
+	}
+	if doc.Status != domain.StatusRejected {
+		t.Fatalf("esperaba StatusRejected, got %s", doc.Status)
+	}
+	if doc.DianStatusMessage == "Nombre informado No corresponde al registrado en el RUT" {
+		t.Fatalf("el mensaje original de la DIAN (de un documento ajeno) no debió pasar tal cual, got %q", doc.DianStatusMessage)
+	}
+	if !strings.Contains(doc.DianStatusMessage, "ya fue usado anteriormente ante la DIAN") {
+		t.Fatalf("esperaba la alerta de consecutivo ya consumido, got %q", doc.DianStatusMessage)
+	}
+}
+
+// TestConfirm_RespondedCUFEMatch_NoWarning confirma que el caso normal (la DIAN responde sobre
+// el mismo CUFE que enviamos) no dispara la alerta -- el StatusMessage original de la DIAN pasa
+// intacto.
+func TestConfirm_RespondedCUFEMatch_NoWarning(t *testing.T) {
+	uc, docs, numbering, sender := newConfirmTestUseCase(t)
+	numbering.nr.TestSetID = ""
+	sender.sendBillSyncResult = &domain.SendResult{IsValid: true, StatusMessage: "ha sido autorizada"}
+
+	doc, err := uc.Confirm(context.Background(), docs.doc.CompanyID, docs.doc.ID)
+	if err != nil {
+		t.Fatalf("no esperaba error de Go: %v", err)
+	}
+	if doc.DianStatusMessage != "ha sido autorizada" {
+		t.Fatalf("esperaba el mensaje original de la DIAN sin alterar, got %q", doc.DianStatusMessage)
 	}
 }
 

@@ -50,6 +50,7 @@ type purchaseLineDTO struct {
 	ID          uuid.UUID `json:"id"`
 	ProductID   uuid.UUID `json:"product_id"`
 	Description string    `json:"description"`
+	UnitCode    string    `json:"unit_code"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
 	Discount    float64   `json:"discount"`
@@ -119,7 +120,7 @@ func toPurchaseDTO(o *domain.PurchaseOrder) purchaseDTO {
 	lines := make([]purchaseLineDTO, len(o.Lines))
 	for i, l := range o.Lines {
 		lines[i] = purchaseLineDTO{
-			ID: l.ID, ProductID: l.ProductID, Description: l.Description,
+			ID: l.ID, ProductID: l.ProductID, Description: l.Description, UnitCode: l.UnitCode,
 			Quantity: l.Quantity, UnitPrice: l.UnitPrice, Discount: l.Discount, TaxRate: l.TaxRate,
 			Subtotal: l.Subtotal, TaxAmount: l.TaxAmount, Total: l.Total,
 		}

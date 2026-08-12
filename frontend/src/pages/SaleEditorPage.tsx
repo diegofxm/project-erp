@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router";
 import { cancelSale, confirmSale, createSale, deleteSale, fetchSale, updateSale } from "../lib/sales";
 import { listCustomers } from "../lib/customers";
 import { listNumberingRanges } from "../lib/numberingRanges";
-import { createInvoiceFromSale } from "../lib/documents";
+import { createInvoiceFromSale, getDocument } from "../lib/documents";
 import { listPaymentMethods, listPaymentTerms } from "../lib/catalogs";
 import { useCatalog } from "../lib/useCatalog";
 import { ApiError } from "../lib/apiClient";
@@ -12,7 +12,7 @@ import { useConfirm } from "../context/ConfirmContext";
 import { useCanManage } from "../hooks/useCanManage";
 import { useToast } from "../context/ToastContext";
 import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
-import type { Customer, NumberingRange, PaymentMean, Sale, SaleStatus, SalesLineInput } from "../lib/types";
+import type { Customer, DocumentStatus, NumberingRange, PaymentMean, Sale, SaleStatus, SalesLineInput } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -29,6 +29,10 @@ const STATUS_LABEL: Record<SaleStatus, string> = { draft: "Borrador", confirmed:
 const STATUS_TONE: Record<SaleStatus, StatusTone> = { draft: "neutral", confirmed: "success", cancelled: "danger" };
 const INVOICE_DIAN_DOCUMENT_TYPE = "01";
 const today = () => todayColombiaISO();
+// Mismo criterio que erp/internal/electronic/application/confirm.go isRetryableFailure -- estados
+// terminales donde el consecutivo ya se liberó, así que es seguro generar una factura nueva desde
+// la venta en vez de quedar bloqueada para siempre apuntando a la factura rechazada.
+const RETRYABLE_INVOICE_STATUSES: DocumentStatus[] = ["rejected", "send_error", "environment_mismatch"];
 
 // Editable mientras está en borrador (crear o corregir cliente/fecha/notas/líneas); una vez
 // confirmada, solo admite transiciones de estado (Cancelar, generar factura).
@@ -55,6 +59,7 @@ export function SaleEditorPage() {
   const [lines, setLines] = useState<SalesLineInput[]>([]);
   const [paymentMeans, setPaymentMeans] = useState<PaymentMean[]>([]);
   const [rangeId, setRangeId] = useState("");
+  const [linkedInvoiceStatus, setLinkedInvoiceStatus] = useState<DocumentStatus | null>(null);
 
   const { data: paymentTerms } = useCatalog(listPaymentTerms);
   const { data: paymentMethods } = useCatalog(listPaymentMethods);
@@ -94,6 +99,22 @@ export function SaleEditorPage() {
       .then((all) => setRanges(all.filter((r) => r.status === "active")))
       .catch(() => setRanges([]));
   }, [sale?.status]);
+
+  // Si ya se generó una factura desde esta venta, hay que saber su estado real: si quedó
+  // rechazada (u otro estado terminal recuperable), se vuelve a mostrar el selector de rango para
+  // poder corregir y reintentar en vez de dejar la venta apuntando para siempre a una factura
+  // rechazada sin salida (ver backend isRetryableFailure).
+  useEffect(() => {
+    if (!sale?.invoice_document_id) {
+      setLinkedInvoiceStatus(null);
+      return;
+    }
+    getDocument(sale.invoice_document_id)
+      .then((doc) => setLinkedInvoiceStatus(doc.status))
+      .catch(() => setLinkedInvoiceStatus(null));
+  }, [sale?.invoice_document_id]);
+
+  const invoiceIsRetryable = linkedInvoiceStatus !== null && RETRYABLE_INVOICE_STATUSES.includes(linkedInvoiceStatus);
 
   const customerOptions = customers.map((c) => ({ value: c.id, label: c.name }));
   const customerName = (cid: string) => customers.find((c) => c.id === cid)?.name ?? "—";
@@ -316,7 +337,7 @@ export function SaleEditorPage() {
         )}
       </Card>
 
-      {sale?.status === "confirmed" && sale.invoice_document_id && (
+      {sale?.status === "confirmed" && sale.invoice_document_id && !invoiceIsRetryable && (
         <Card className="mt-3 p-4">
           <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold text-(--text-primary)">
             <FileText className="h-3.5 w-3.5 text-(--color-success)" />
@@ -328,12 +349,23 @@ export function SaleEditorPage() {
         </Card>
       )}
 
-      {sale?.status === "confirmed" && !sale.invoice_document_id && (
+      {sale?.status === "confirmed" && (!sale.invoice_document_id || invoiceIsRetryable) && (
         <Card className="mt-3 p-4">
           <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-(--text-primary)">
             <FileText className="h-3.5 w-3.5 text-(--accent-primary)" />
             Generar factura electrónica
           </h3>
+          {invoiceIsRetryable && (
+            <div className="mb-3">
+              <Banner tone="danger">
+                La factura electrónica generada anteriormente fue rechazada por la DIAN y no consumió el consecutivo —{" "}
+                <button type="button" className="underline" onClick={() => navigate(`/documents/invoices/${sale.invoice_document_id}`)}>
+                  revisa el motivo del rechazo
+                </button>
+                , corrige lo necesario (cliente, líneas, forma de pago) y genera una factura nueva.
+              </Banner>
+            </div>
+          )}
           {ranges.length === 0 ? (
             <p className="text-xs text-(--text-secondary)">
               No tienes un rango de numeración activo para Factura Electrónica — configúralo en{" "}

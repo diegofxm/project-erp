@@ -48,13 +48,16 @@ type SaleLine struct {
 	SaleID      uuid.UUID
 	ProductID   uuid.UUID
 	Description string
-	Quantity    float64
-	UnitPrice   float64
-	Discount    float64 // porcentaje 0-100, aplicado antes de impuestos
-	TaxRate     float64
-	Subtotal    float64
-	TaxAmount   float64
-	Total       float64
+	// UnitCode -- código de unidad de medida (catálogo DIAN, ej. "94" = Servicio), mismo campo
+	// que electronic.documents ya pedía en su formulario -- ver electronic/application/from_sale.go.
+	UnitCode  string
+	Quantity  float64
+	UnitPrice float64
+	Discount  float64 // porcentaje 0-100, aplicado antes de impuestos
+	TaxRate   float64
+	Subtotal  float64
+	TaxAmount float64
+	Total     float64
 }
 
 // SaleConfirmed es el evento publicado al confirmar una venta.

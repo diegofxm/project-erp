@@ -44,7 +44,20 @@ func (uc *CreateFromSaleUseCase) Execute(ctx context.Context, req FromSaleReques
 		return nil, fmt.Errorf("from-sale: la venta debe estar confirmada")
 	}
 	if sale.InvoiceDocumentID != nil {
-		return nil, fmt.Errorf("from-sale: esta venta ya generó la factura %s", *sale.InvoiceDocumentID)
+		existing, err := uc.draft.documents.GetByID(ctx, *sale.InvoiceDocumentID)
+		if err != nil {
+			return nil, fmt.Errorf("from-sale: verificar factura existente: %w", err)
+		}
+		// La factura ya generada solo bloquea un reintento si sigue viva (borrador, construida,
+		// enviada, aceptada) o si quedó en StatusSendUnknown (ambiguo -- puede haber llegado a la
+		// DIAN, reintentar a ciegas arriesga doble facturación, ver domain.StatusSendUnknown). Si
+		// quedó en un estado terminal donde el consecutivo ya se liberó (mismo criterio que
+		// confirm.go finish()), es seguro generar una factura nueva -- el usuario corrige lo que
+		// causó el rechazo y reintenta (bug real reportado 2026-08-11: la venta quedaba con "Ver
+		// factura" apuntando para siempre a una factura rechazada, sin forma de corregir y reenviar).
+		if !isRetryableFailure(existing.Status) {
+			return nil, fmt.Errorf("from-sale: esta venta ya generó la factura %s", *sale.InvoiceDocumentID)
+		}
 	}
 
 	customer, err := uc.customers.GetByID(ctx, req.CompanyID, sale.CustomerID)
@@ -174,16 +187,26 @@ func saleLinesТoСof(lines []salesdomain.SaleLine, products map[uuid.UUID]*prod
 				taxName = p.TaxSchemeName
 			}
 		}
-		var taxes []cofdom.Tax
-		if l.TaxRate > 0 {
-			taxes = []cofdom.Tax{{
-				TypeCode:           taxCode,
-				TypeName:           taxName,
-				Percent:            l.TaxRate,
-				TaxableAmountCents: int64(l.Subtotal * 100),
-				TaxAmountCents:     int64(l.TaxAmount * 100),
-			}}
+		// La unidad elegida en la propia línea de venta (SalesLineItemsEditor.tsx) manda sobre la
+		// del producto -- el vendedor puede vender el mismo producto en una unidad distinta a la
+		// registrada en su ficha (ej. producto en caja vendido por unidad suelta).
+		if l.UnitCode != "" {
+			unitCode = l.UnitCode
 		}
+		// Siempre se arma la entrada de impuesto, incluso al 0% -- igual que LinesFromInput
+		// (create_draft.go, ruta de creación directa). Antes esto se omitía por completo cuando
+		// TaxRate era 0, dejando la línea sin ningún <cac:TaxTotal> y, por lo tanto, su base fuera
+		// del <cac:TaxTotal> de cabecera (aggregateTaxes solo suma lo que hay en l.Taxes) -- la
+		// DIAN rechaza eso con FAU04 "Base Imponible es distinto a la suma de los valores de las
+		// bases imponibles de todas líneas de detalle" en cuanto la factura mezcla líneas
+		// gravadas y no gravadas (bug real encontrado 2026-08-11).
+		taxes := []cofdom.Tax{{
+			TypeCode:           taxCode,
+			TypeName:           taxName,
+			Percent:            l.TaxRate,
+			TaxableAmountCents: int64(l.Subtotal * 100),
+			TaxAmountCents:     int64(l.TaxAmount * 100),
+		}}
 		out[i] = cofdom.Line{
 			ItemCode:           itemCode,
 			ItemTypeCode:       itemTypeCode,

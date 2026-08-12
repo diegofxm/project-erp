@@ -766,6 +766,7 @@ export interface ListDocumentsFilter {
 export interface SalesLineInput {
   product_id: string;
   description: string;
+  unit_code: string;
   quantity: number;
   unit_price: number;
   discount: number; // porcentaje 0-100, aplicado antes de impuestos
@@ -877,6 +878,7 @@ export interface ReceivableBalance {
 export interface PurchaseLineInput {
   product_id: string;
   description: string;
+  unit_code: string;
   quantity: number;
   unit_price: number;
   discount: number; // porcentaje 0-100, aplicado antes de impuestos
