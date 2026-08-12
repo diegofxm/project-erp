@@ -219,3 +219,18 @@ export function SalesLineItemsEditor({ lines, onChange, disabled }: SalesLineIte
 export function salesLinesTotal(lines: { quantity: number; unit_price: number; discount: number; tax_rate: number }[]) {
   return lines.reduce((sum, l) => sum + lineTotal(l), 0);
 }
+
+// salesLinesBreakdown -- mismos números que salesLinesTotal, pero separando subtotal/impuesto
+// para el cuadro de totales (ver components/sales/SalesTotalsSummary.tsx), igual que
+// TotalsSummary.tsx hace para factura electrónica.
+export function salesLinesBreakdown(lines: { quantity: number; unit_price: number; discount: number; tax_rate: number }[]) {
+  let subtotal = 0;
+  let tax = 0;
+  for (const l of lines) {
+    const gross = l.quantity * l.unit_price;
+    const lineSubtotal = gross - (gross * l.discount) / 100;
+    subtotal += lineSubtotal;
+    tax += (lineSubtotal * l.tax_rate) / 100;
+  }
+  return { subtotal, tax, total: subtotal + tax };
+}

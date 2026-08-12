@@ -25,7 +25,8 @@ import { Spinner } from "../components/ui/Spinner";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { SendEmailModal } from "../components/ui/SendEmailModal";
 import { StatusPill, type StatusTone } from "../components/ui/StatusPill";
-import { SalesLineItemsEditor, salesLinesTotal } from "../components/sales/SalesLineItemsEditor";
+import { SalesLineItemsEditor } from "../components/sales/SalesLineItemsEditor";
+import { SalesTotalsSummary } from "../components/sales/SalesTotalsSummary";
 import { PaymentMeansEditor } from "../components/invoice-form/PaymentMeansEditor";
 
 const STATUS_LABEL: Record<PurchaseStatus, string> = {
@@ -262,7 +263,6 @@ export function PurchaseOrderEditorPage() {
   }
 
   const title = isNew ? "Nueva orden de compra" : purchase ? `Orden ${purchase.number || "(borrador)"}` : "Orden de compra";
-  const total = isNew ? salesLinesTotal(lines) : purchase ? salesLinesTotal(purchase.lines) : 0;
   const canSendEmail = purchase?.status === "confirmed" || purchase?.status === "received";
 
   return (
@@ -275,11 +275,6 @@ export function PurchaseOrderEditorPage() {
         </h1>
         <div className="flex flex-wrap items-center gap-1.5">
           {purchase && <StatusPill tone={STATUS_TONE[purchase.status]} label={STATUS_LABEL[purchase.status]} />}
-          {isNew && (
-            <Button type="button" loading={saving} disabled={!supplierId || lines.length === 0} onClick={handleCreate}>
-              Guardar orden
-            </Button>
-          )}
           {!isNew && purchase && (
             <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
               Ver PDF
@@ -382,17 +377,29 @@ export function PurchaseOrderEditorPage() {
           )}
         </section>
 
-        {/* Totales y guardar */}
-        <div className="flex items-center justify-between border-t border-(--border-light) pt-3">
-          {!isNew && purchase?.status === "draft" ? (
-            <Button type="button" loading={saving} disabled={!supplierId || lines.length === 0} onClick={handleSaveEdit}>
-              Guardar cambios
+        {/* Totales */}
+        <section className="grid grid-cols-12 gap-3 border-t border-(--border-color) pt-3">
+          <div className="col-span-12 sm:col-span-4 sm:col-start-9">
+            <SalesTotalsSummary lines={isEditable ? lines : purchase?.lines ?? []} />
+          </div>
+        </section>
+
+        {isEditable && (
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={() => navigate("/purchases")} className="flex-1">
+              Cancelar
             </Button>
-          ) : <span />}
-          <span className="text-xs text-(--text-secondary)">
-            Total: <span className="font-mono text-sm font-semibold text-(--text-primary)">{formatCOP.format(total)}</span>
-          </span>
-        </div>
+            <Button
+              type="button"
+              disabled={!supplierId || lines.length === 0}
+              loading={saving}
+              onClick={isNew ? handleCreate : handleSaveEdit}
+              className="flex-1"
+            >
+              {isNew ? "Crear orden" : "Guardar cambios"}
+            </Button>
+          </div>
+        )}
       </Card>
 
       {purchase && (purchase.status === "confirmed" || purchase.status === "received") && (

@@ -9,7 +9,6 @@ import { ApiError } from "../lib/apiClient";
 import { openInNewTab } from "../lib/openInNewTab";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
-import { formatCOP } from "../lib/currency";
 import { formatDateOnly } from "../lib/dateFormat";
 import type { Customer, PaymentMean, Quote, QuoteStatus, SalesLineInput } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -21,7 +20,8 @@ import { Spinner } from "../components/ui/Spinner";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { SendEmailModal } from "../components/ui/SendEmailModal";
 import { StatusPill, type StatusTone } from "../components/ui/StatusPill";
-import { SalesLineItemsEditor, salesLinesTotal } from "../components/sales/SalesLineItemsEditor";
+import { SalesLineItemsEditor } from "../components/sales/SalesLineItemsEditor";
+import { SalesTotalsSummary } from "../components/sales/SalesTotalsSummary";
 import { PaymentMeansEditor } from "../components/invoice-form/PaymentMeansEditor";
 
 const STATUS_LABEL: Record<QuoteStatus, string> = {
@@ -205,7 +205,6 @@ export function QuoteEditorPage() {
   }
 
   const title = isNew ? "Nueva cotización" : quote ? `Cotización ${quote.number || "(borrador)"}` : "Cotización";
-  const total = isNew ? salesLinesTotal(lines) : quote ? salesLinesTotal(quote.lines) : 0;
 
   return (
     <div className="p-4">
@@ -217,11 +216,6 @@ export function QuoteEditorPage() {
         </h1>
         <div className="flex flex-wrap items-center gap-1.5">
           {quote && <StatusPill tone={STATUS_TONE[quote.status]} label={STATUS_LABEL[quote.status]} />}
-          {isNew && (
-            <Button type="button" loading={saving} disabled={!customerId || lines.length === 0} onClick={handleCreate}>
-              Guardar cotización
-            </Button>
-          )}
           {!isNew && quote && (
             <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
               Ver PDF
@@ -315,17 +309,29 @@ export function QuoteEditorPage() {
           )}
         </section>
 
-        {/* Totales y guardar */}
-        <div className="flex items-center justify-between border-t border-(--border-light) pt-3">
-          {!isNew && quote?.status === "draft" ? (
-            <Button type="button" loading={saving} disabled={!customerId || lines.length === 0} onClick={handleSaveEdit}>
-              Guardar cambios
+        {/* Totales */}
+        <section className="grid grid-cols-12 gap-3 border-t border-(--border-color) pt-3">
+          <div className="col-span-12 sm:col-span-4 sm:col-start-9">
+            <SalesTotalsSummary lines={isEditable ? lines : quote?.lines ?? []} />
+          </div>
+        </section>
+
+        {isEditable && (isNew || quote) && (
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={() => navigate("/sales/quotes")} className="flex-1">
+              Cancelar
             </Button>
-          ) : <span />}
-          <span className="text-xs text-(--text-secondary)">
-            Total: <span className="font-mono text-sm font-semibold text-(--text-primary)">{formatCOP.format(total)}</span>
-          </span>
-        </div>
+            <Button
+              type="button"
+              disabled={!customerId || lines.length === 0}
+              loading={saving}
+              onClick={isNew ? handleCreate : handleSaveEdit}
+              className="flex-1"
+            >
+              {isNew ? "Crear cotización" : "Guardar cambios"}
+            </Button>
+          </div>
+        )}
       </Card>
 
       {showEmailModal && quote && (

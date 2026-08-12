@@ -11,7 +11,6 @@ import { ApiError } from "../lib/apiClient";
 import { useConfirm } from "../context/ConfirmContext";
 import { useCanManage } from "../hooks/useCanManage";
 import { useToast } from "../context/ToastContext";
-import { formatCOP } from "../lib/currency";
 import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
 import type { Customer, NumberingRange, PaymentMean, Sale, SaleStatus, SalesLineInput } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -22,7 +21,8 @@ import { Input } from "../components/ui/Input";
 import { Spinner } from "../components/ui/Spinner";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { StatusPill, type StatusTone } from "../components/ui/StatusPill";
-import { SalesLineItemsEditor, salesLinesTotal } from "../components/sales/SalesLineItemsEditor";
+import { SalesLineItemsEditor } from "../components/sales/SalesLineItemsEditor";
+import { SalesTotalsSummary } from "../components/sales/SalesTotalsSummary";
 import { PaymentMeansEditor } from "../components/invoice-form/PaymentMeansEditor";
 
 const STATUS_LABEL: Record<SaleStatus, string> = { draft: "Borrador", confirmed: "Confirmada", cancelled: "Cancelada" };
@@ -193,7 +193,6 @@ export function SaleEditorPage() {
   }
 
   const title = isNew ? "Nueva venta" : sale ? `Venta ${sale.number || "(borrador)"}` : "Venta";
-  const total = isNew ? salesLinesTotal(lines) : sale ? salesLinesTotal(sale.lines) : 0;
 
   return (
     <div className="p-4">
@@ -205,11 +204,6 @@ export function SaleEditorPage() {
         </h1>
         <div className="flex flex-wrap items-center gap-1.5">
           {sale && <StatusPill tone={STATUS_TONE[sale.status]} label={STATUS_LABEL[sale.status]} />}
-          {isNew && (
-            <Button type="button" loading={saving} disabled={!customerId || lines.length === 0} onClick={handleCreate}>
-              Guardar venta
-            </Button>
-          )}
           {sale?.status === "draft" && (
             <Button type="button" variant="danger" icon={<Trash2 className="h-3.5 w-3.5" />} onClick={handleDelete}>
               Eliminar
@@ -297,17 +291,29 @@ export function SaleEditorPage() {
           )}
         </section>
 
-        {/* Totales y guardar */}
-        <div className="flex items-center justify-between border-t border-(--border-light) pt-3">
-          {!isNew && sale?.status === "draft" ? (
-            <Button type="button" loading={saving} disabled={!customerId || lines.length === 0} onClick={handleSaveEdit}>
-              Guardar cambios
+        {/* Totales */}
+        <section className="grid grid-cols-12 gap-3 border-t border-(--border-color) pt-3">
+          <div className="col-span-12 sm:col-span-4 sm:col-start-9">
+            <SalesTotalsSummary lines={isEditable ? lines : sale?.lines ?? []} />
+          </div>
+        </section>
+
+        {isEditable && (
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={() => navigate("/sales")} className="flex-1">
+              Cancelar
             </Button>
-          ) : <span />}
-          <span className="text-xs text-(--text-secondary)">
-            Total: <span className="font-mono text-sm font-semibold text-(--text-primary)">{formatCOP.format(total)}</span>
-          </span>
-        </div>
+            <Button
+              type="button"
+              disabled={!customerId || lines.length === 0}
+              loading={saving}
+              onClick={isNew ? handleCreate : handleSaveEdit}
+              className="flex-1"
+            >
+              {isNew ? "Crear venta" : "Guardar cambios"}
+            </Button>
+          </div>
+        )}
       </Card>
 
       {sale?.status === "confirmed" && sale.invoice_document_id && (
