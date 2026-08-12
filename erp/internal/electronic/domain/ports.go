@@ -98,6 +98,13 @@ type SendResult struct {
 	HasRejections          bool
 	IsTestSetClosed        bool
 	ApplicationResponseXML string
+
+	// RespondedDocumentKey es el CUFE/CUDE que la propia DIAN indica en XmlDocumentKey como el
+	// documento al que aplica esta respuesta. Si no coincide con el CUFE que este documento
+	// generó, la DIAN no validó el contenido que acabamos de enviar -- devolvió el resultado ya
+	// registrado de un envío anterior para ese mismo consecutivo (típicamente, un número que ya
+	// se "quemó" fuera de este sistema, ej. pruebas manuales en el portal de habilitación).
+	RespondedDocumentKey string
 }
 
 // SenderPort envía el ZIP a la DIAN y consulta el estado.

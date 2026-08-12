@@ -68,6 +68,11 @@ func (uc *SendQuoteEmailUseCase) Send(ctx context.Context, companyID, quoteID uu
 		return nil, fmt.Errorf("quote email: empresa: %w", err)
 	}
 
+	// El PDF adjunto debe reflejar el estado POST-envío ("Enviada", sin la franja de borrador) --
+	// el documento que el cliente recibe es, por definición, uno que ya se envió. La persistencia
+	// real del estado sigue pasando después de un envío exitoso (más abajo); esto solo adelanta
+	// el valor en memoria para que buildQuotePDFData vea el estado correcto al construir el PDF.
+	q.Status = domain.QuoteStatusSent
 	pdfData := buildQuotePDFData(q, customer, co)
 	pdfBytes, err := uc.renderer.Render(ctx, reportsdomain.RenderRequest{
 		TemplateID: "quote_document",
@@ -128,7 +133,6 @@ func (uc *SendQuoteEmailUseCase) Send(ctx context.Context, companyID, quoteID uu
 	if err := uc.quotes.UpdateStatus(ctx, companyID, quoteID, domain.QuoteStatusSent); err != nil {
 		return nil, fmt.Errorf("quote email: correo enviado pero no se pudo actualizar el estado: %w", err)
 	}
-	q.Status = domain.QuoteStatusSent
 	return q, nil
 }
 

@@ -31,6 +31,7 @@ type Handler struct {
 	certificates *application.IssueWithholdingCertificatesUseCase
 	bank         *application.ManageBankUseCase
 	assets       *application.FixedAssetUseCase
+	dispose      *application.DisposeFixedAssetUseCase
 	depreciation *application.RunDepreciationUseCase
 	budget       *application.BudgetUseCase
 	iva          *application.IVAUseCase
@@ -51,6 +52,7 @@ func NewHandler(
 	certificates *application.IssueWithholdingCertificatesUseCase,
 	bank *application.ManageBankUseCase,
 	assets *application.FixedAssetUseCase,
+	dispose *application.DisposeFixedAssetUseCase,
 	depreciation *application.RunDepreciationUseCase,
 	budget *application.BudgetUseCase,
 	iva *application.IVAUseCase,
@@ -62,7 +64,7 @@ func NewHandler(
 ) *Handler {
 	return &Handler{
 		post: post, get: get, void: void, period: period, accounts: accounts, withholding: withholding,
-		certificates: certificates, bank: bank, assets: assets, depreciation: depreciation, budget: budget,
+		certificates: certificates, bank: bank, assets: assets, dispose: dispose, depreciation: depreciation, budget: budget,
 		iva: iva, incomeTax: incomeTax, ica: ica, exchangeRate: exchangeRate, reconcile: reconcile, audit: audit,
 	}
 }
@@ -322,6 +324,90 @@ func (h *Handler) handleCreateBudget(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusCreated, toBudgetDTO(*b))
 }
 
+func (h *Handler) handleUpdateBudget(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	b, err := h.budget.Rename(r.Context(), cid, id, body.Name)
+	if err != nil {
+		if errors.Is(err, domain.ErrBudgetNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrBudgetNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toBudgetDTO(*b))
+}
+
+func (h *Handler) handleDeleteBudget(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.budget.Delete(r.Context(), cid, id); err != nil {
+		if errors.Is(err, domain.ErrBudgetNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrBudgetNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) handleDeleteBudgetLine(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	budgetID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	accountCode := r.PathValue("account_code")
+	if err := h.budget.DeleteLine(r.Context(), cid, budgetID, accountCode); err != nil {
+		if errors.Is(err, domain.ErrBudgetNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrBudgetNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) handleListBudgets(w http.ResponseWriter, r *http.Request) {
 	cid, ok := requireTenant(w, r)
 	if !ok {
@@ -429,6 +515,8 @@ func (h *Handler) handleCreateFixedAsset(w http.ResponseWriter, r *http.Request)
 		AssetAccount         string `json:"asset_account"`
 		DepreciationAccount  string `json:"depreciation_account"`
 		AccumulatedAccount   string `json:"accumulated_account"`
+		GainAccount          string `json:"gain_account"`
+		LossAccount          string `json:"loss_account"`
 		AcquisitionDate      string `json:"acquisition_date"`
 		AcquisitionCostCents int64  `json:"acquisition_cost_cents"`
 		SalvageValueCents    int64  `json:"salvage_value_cents"`
@@ -447,6 +535,7 @@ func (h *Handler) handleCreateFixedAsset(w http.ResponseWriter, r *http.Request)
 	a, err := h.assets.Create(r.Context(), cid, application.CreateFixedAssetRequest{
 		Code: body.Code, Name: body.Name, Description: body.Description,
 		AssetAccount: body.AssetAccount, DepreciationAccount: body.DepreciationAccount, AccumulatedAccount: body.AccumulatedAccount,
+		GainAccount: body.GainAccount, LossAccount: body.LossAccount,
 		AcquisitionDate: date, AcquisitionCostCents: body.AcquisitionCostCents, SalvageValueCents: body.SalvageValueCents,
 		UsefulLifeMonths: body.UsefulLifeMonths, ThirdPartyNIT: body.ThirdPartyNIT,
 	})
@@ -469,6 +558,53 @@ func (h *Handler) handleListFixedAssets(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	respond(w, http.StatusOK, toFixedAssetDTOs(list))
+}
+
+func (h *Handler) handleDisposeFixedAsset(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var body struct {
+		DisposalDate        string `json:"disposal_date"`
+		ProceedsCents       int64  `json:"proceeds_cents"`
+		ProceedsAccountCode string `json:"proceeds_account_code"`
+		Description         string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	date, err := time.Parse("2006-01-02", body.DisposalDate)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "disposal_date debe ser YYYY-MM-DD")
+		return
+	}
+	a, err := h.dispose.Execute(r.Context(), cid, id, application.DisposeFixedAssetRequest{
+		DisposalDate: date, ProceedsCents: body.ProceedsCents,
+		ProceedsAccountCode: body.ProceedsAccountCode, Description: body.Description,
+	})
+	if err != nil {
+		if errors.Is(err, domain.ErrFixedAssetNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrAssetAlreadyDisposed) || errors.Is(err, domain.ErrPeriodClosed) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	h.logAudit(r.Context(), cid, "fixed_asset.disposed", "fixed_asset", a.ID, map[string]any{
+		"code": a.Code, "name": a.Name, "proceeds_cents": body.ProceedsCents,
+	})
+	respond(w, http.StatusOK, toFixedAssetDTO(application.AssetWithAccumulated{FixedAsset: *a}))
 }
 
 func (h *Handler) handleRunDepreciation(w http.ResponseWriter, r *http.Request) {
@@ -552,6 +688,60 @@ func (h *Handler) handleListBankAccounts(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	respond(w, http.StatusOK, toBankAccountDTOs(list))
+}
+
+func (h *Handler) handleUpdateBankAccount(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var body struct {
+		Name      string `json:"name"`
+		BankName  string `json:"bank_name"`
+		AccountNo string `json:"account_no"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	a, err := h.bank.UpdateAccount(r.Context(), cid, id, application.UpdateBankAccountRequest{
+		Name: body.Name, BankName: body.BankName, AccountNo: body.AccountNo,
+	})
+	if err != nil {
+		if errors.Is(err, domain.ErrBankAccountNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toBankAccountDTO(*a))
+}
+
+func (h *Handler) handleDeactivateBankAccount(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.bank.DeactivateAccount(r.Context(), cid, id); err != nil {
+		if errors.Is(err, domain.ErrBankAccountNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) handleAddStatementLine(w http.ResponseWriter, r *http.Request) {
@@ -1009,6 +1199,50 @@ func (h *Handler) handleSetVoucherCounter(w http.ResponseWriter, r *http.Request
 	respond(w, http.StatusOK, map[string]any{
 		"code": body.Code, "year": body.Year, "last_seq": seq, "next_will_be": seq + 1,
 	})
+}
+
+// handleUpdateVoucherType corrige nombre/resets_annually -- RegisterVoucherType ya es un upsert
+// por (company_id, code), así que reusarlo con el mismo código alcanza; se mantiene como ruta
+// PUT propia (en vez de reusar POST /voucher-types) para que la semántica HTTP sea clara.
+func (h *Handler) handleUpdateVoucherType(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	code := r.PathValue("code")
+	var body struct {
+		Name           string `json:"name"`
+		ResetsAnnually bool   `json:"resets_annually"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	cfg, err := h.get.RegisterVoucherType(r.Context(), domain.VoucherTypeConfig{
+		CompanyID: cid, Code: code, Name: body.Name, ResetsAnnually: body.ResetsAnnually, IsActive: true,
+	})
+	if err != nil {
+		respondError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toVoucherTypeDTOs([]*domain.VoucherTypeConfig{cfg})[0])
+}
+
+func (h *Handler) handleDeactivateVoucherType(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	code := r.PathValue("code")
+	if _, err := h.get.DeactivateVoucherType(r.Context(), cid, code); err != nil {
+		if errors.Is(err, domain.ErrVoucherTypeNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) handleListVoucherTypes(w http.ResponseWriter, r *http.Request) {

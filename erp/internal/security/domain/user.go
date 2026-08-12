@@ -15,13 +15,13 @@ const (
 )
 
 type User struct {
-	ID                   uuid.UUID
-	Email                string
-	PasswordHash         *string // nil = invitación pendiente
-	Name                 string
-	Role                 Role
-	IsSuperAdmin         bool
-	IsActive             bool
+	ID           uuid.UUID
+	Email        string
+	PasswordHash *string // nil = invitación pendiente
+	Name         string
+	Role         Role
+	IsSuperAdmin bool
+	IsActive     bool
 	// TokenVersion se incrusta en cada JWT emitido (claim "tv") y se compara contra este valor
 	// en cada request autenticado (ver SessionVerifier) -- así se puede revocar una sesión del
 	// lado del servidor (logout, cambio de contraseña) aunque el JWT en sí siga siendo válido
@@ -30,8 +30,14 @@ type User struct {
 	InviteToken          *uuid.UUID
 	InviteTokenExpiresAt *time.Time
 	InviteAcceptedAt     *time.Time
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	// ResetToken/ResetTokenExpiresAt -- recuperación de contraseña por correo (forgot-password),
+	// mismo mecanismo que InviteToken pero para un usuario que YA tiene cuenta activa (ver
+	// ForgotPasswordUseCase/ResetPasswordUseCase). Nunca conviven con datos de invitación: un
+	// usuario con invitación pendiente (PasswordHash nil) no tiene contraseña que recuperar.
+	ResetToken          *uuid.UUID
+	ResetTokenExpiresAt *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // UserCompany vincula un usuario a una empresa con su rol en ella.

@@ -61,7 +61,7 @@ func (h *OnPurchaseReceived) handle(ctx context.Context, ev purchasedomain.Purch
 			WarehouseID: warehouse.ID,
 			Type:        domain.MovementEntry,
 			Quantity:    line.Quantity,
-			Reference:   ev.PurchaseID.String(),
+			Reference:   ev.Number,
 			Description: "Entrada por compra",
 		}
 		if err := applyMovement(ctx, h.repo, m); err != nil {

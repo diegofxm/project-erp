@@ -80,6 +80,57 @@ func (h *Handler) handleRequestAbsence(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, a)
 }
 
+// handleUpdateAbsence corrige tipo/fechas/motivo mientras la solicitud sigue pendiente.
+func (h *Handler) handleUpdateAbsence(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	var body requestAbsenceBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	in := domain.CreateAbsenceInput{CompanyID: companyID, EmployeeID: body.EmployeeID, Type: body.Type, Reason: body.Reason}
+	if t, err := time.Parse("2006-01-02", body.StartDate); err == nil {
+		in.StartDate = t
+	}
+	if t, err := time.Parse("2006-01-02", body.EndDate); err == nil {
+		in.EndDate = t
+	}
+	a, err := h.absences.Update(r.Context(), companyID, id, in)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	h.logAbsence(r.Context(), companyID, "updated", a.ID, map[string]any{"type": string(a.Type)})
+	writeJSON(w, http.StatusOK, a)
+}
+
+// handleWithdrawAbsence retira una solicitud pendiente antes de que alguien la revise.
+func (h *Handler) handleWithdrawAbsence(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := mustTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "id inválido", http.StatusBadRequest)
+		return
+	}
+	if err := h.absences.Withdraw(r.Context(), companyID, id); err != nil {
+		writeErr(w, err)
+		return
+	}
+	h.logAbsence(r.Context(), companyID, "withdrawn", id, nil)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) handleListAbsences(w http.ResponseWriter, r *http.Request) {
 	companyID, ok := mustTenant(w, r)
 	if !ok {
@@ -131,7 +182,7 @@ type reviewBody struct {
 }
 
 func (h *Handler) handleApproveAbsence(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -151,7 +202,7 @@ func (h *Handler) handleApproveAbsence(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleRejectAbsence(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -174,6 +225,20 @@ func mustTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	id := tenant.GetCompanyID(r.Context())
 	if id == uuid.Nil {
 		http.Error(w, "empresa requerida", http.StatusUnauthorized)
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+// requireManage exige además rol owner/admin -- para aprobar/rechazar ausencias, de forma que
+// un empleado no pueda resolver su propia solicitud (o la de un par) sin pasar por gestión.
+func requireManage(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, ok := mustTenant(w, r)
+	if !ok {
+		return uuid.Nil, false
+	}
+	if !tenant.CanManage(r.Context()) {
+		http.Error(w, "requiere rol de administrador", http.StatusForbidden)
 		return uuid.Nil, false
 	}
 	return id, true

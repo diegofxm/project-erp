@@ -108,10 +108,10 @@ func (r *Repository) SaveMovement(ctx context.Context, m domain.Movement) (*doma
 	m.Number = number
 	_, err = r.pool.Exec(ctx,
 		`INSERT INTO inventory.movements
-		 (id, company_id, number, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		 (id, company_id, number, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id, is_addition)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 		m.ID, m.CompanyID, m.Number, m.ProductID, m.WarehouseID, string(m.Type),
-		m.Quantity, m.Reference, m.Description, m.CreatedAt, m.TransferGroupID,
+		m.Quantity, m.Reference, m.Description, m.CreatedAt, m.TransferGroupID, m.IsAddition,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("guardar movimiento: %w", err)
@@ -124,14 +124,14 @@ func (r *Repository) ListMovements(ctx context.Context, companyID uuid.UUID, pro
 	var err error
 	if productID != nil {
 		rows, err = r.pool.Query(ctx,
-			`SELECT id, company_id, number, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id
+			`SELECT id, company_id, number, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id, is_addition
 			 FROM inventory.movements
 			 WHERE company_id=$1 AND product_id=$2 ORDER BY created_at DESC`,
 			companyID, *productID,
 		)
 	} else {
 		rows, err = r.pool.Query(ctx,
-			`SELECT id, company_id, number, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id
+			`SELECT id, company_id, number, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id, is_addition
 			 FROM inventory.movements
 			 WHERE company_id=$1 ORDER BY created_at DESC`,
 			companyID,
@@ -148,7 +148,7 @@ func (r *Repository) ListMovements(ctx context.Context, companyID uuid.UUID, pro
 		var mType string
 		if err := rows.Scan(
 			&m.ID, &m.CompanyID, &m.Number, &m.ProductID, &m.WarehouseID,
-			&mType, &m.Quantity, &m.Reference, &m.Description, &m.CreatedAt, &m.TransferGroupID,
+			&mType, &m.Quantity, &m.Reference, &m.Description, &m.CreatedAt, &m.TransferGroupID, &m.IsAddition,
 		); err != nil {
 			return nil, fmt.Errorf("leer movimiento: %w", err)
 		}
@@ -156,6 +156,99 @@ func (r *Repository) ListMovements(ctx context.Context, companyID uuid.UUID, pro
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+// DeleteMovement elimina un movimiento (o el par completo si es un transfer, mismo
+// transfer_group_id) y revierte su efecto sobre el stock -- todo en una transacción con
+// bloqueo de fila (FOR UPDATE) sobre el stock afectado, mismo patrón que Transfer().
+func (r *Repository) DeleteMovement(ctx context.Context, companyID, id uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("iniciar transacción: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var groupID *uuid.UUID
+	err = tx.QueryRow(ctx,
+		`SELECT transfer_group_id FROM inventory.movements WHERE id=$1 AND company_id=$2`,
+		id, companyID,
+	).Scan(&groupID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.ErrMovementNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("consultar movimiento: %w", err)
+	}
+
+	var rows pgx.Rows
+	if groupID != nil {
+		rows, err = tx.Query(ctx,
+			`SELECT id, product_id, warehouse_id, quantity, is_addition FROM inventory.movements WHERE company_id=$1 AND transfer_group_id=$2`,
+			companyID, *groupID,
+		)
+	} else {
+		rows, err = tx.Query(ctx,
+			`SELECT id, product_id, warehouse_id, quantity, is_addition FROM inventory.movements WHERE id=$1 AND company_id=$2`,
+			id, companyID,
+		)
+	}
+	if err != nil {
+		return fmt.Errorf("consultar movimientos a revertir: %w", err)
+	}
+	type toReverse struct {
+		id          uuid.UUID
+		productID   uuid.UUID
+		warehouseID uuid.UUID
+		quantity    float64
+		isAddition  bool
+	}
+	var list []toReverse
+	for rows.Next() {
+		var t toReverse
+		if err := rows.Scan(&t.id, &t.productID, &t.warehouseID, &t.quantity, &t.isAddition); err != nil {
+			rows.Close()
+			return fmt.Errorf("leer movimiento: %w", err)
+		}
+		list = append(list, t)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, t := range list {
+		var current float64
+		err := tx.QueryRow(ctx,
+			`SELECT quantity FROM inventory.stock WHERE company_id=$1 AND product_id=$2 AND warehouse_id=$3 FOR UPDATE`,
+			companyID, t.productID, t.warehouseID,
+		).Scan(&current)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("consultar stock: %w", err)
+		}
+		// Revertir: si el movimiento sumó, ahora hay que restar, y viceversa.
+		var newQty float64
+		if t.isAddition {
+			newQty = current - t.quantity
+		} else {
+			newQty = current + t.quantity
+		}
+		if newQty < 0 {
+			return domain.ErrDeleteWouldMakeStockNegative
+		}
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO inventory.stock (id, company_id, product_id, warehouse_id, quantity, updated_at)
+			 VALUES ($1,$2,$3,$4,$5,$6)
+			 ON CONFLICT (company_id, product_id, warehouse_id) DO UPDATE SET quantity=$5, updated_at=$6`,
+			uuid.New(), companyID, t.productID, t.warehouseID, newQty, time.Now(),
+		); err != nil {
+			return fmt.Errorf("actualizar stock: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM inventory.movements WHERE id=$1`, t.id); err != nil {
+			return fmt.Errorf("eliminar movimiento: %w", err)
+		}
+	}
+
+	return tx.Commit(ctx)
 }
 
 // Transfer traslada `quantity` de `fromWarehouseID` a `toWarehouseID` en una sola transacción:
@@ -193,12 +286,12 @@ func (r *Repository) Transfer(ctx context.Context, companyID, productID, fromWar
 	fromMovement := domain.Movement{
 		ID: uuid.New(), CompanyID: companyID, ProductID: productID, WarehouseID: fromWarehouseID,
 		Type: domain.MovementTransfer, Quantity: quantity, Reference: reference, Description: description,
-		TransferGroupID: &groupID, CreatedAt: now,
+		TransferGroupID: &groupID, CreatedAt: now, IsAddition: false,
 	}
 	toMovement := domain.Movement{
 		ID: uuid.New(), CompanyID: companyID, ProductID: productID, WarehouseID: toWarehouseID,
 		Type: domain.MovementTransfer, Quantity: quantity, Reference: reference, Description: description,
-		TransferGroupID: &groupID, CreatedAt: now,
+		TransferGroupID: &groupID, CreatedAt: now, IsAddition: true,
 	}
 
 	for _, m := range []*domain.Movement{&fromMovement, &toMovement} {
@@ -209,10 +302,10 @@ func (r *Repository) Transfer(ctx context.Context, companyID, productID, fromWar
 		m.Number = number
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO inventory.movements
-			 (id, company_id, number, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+			 (id, company_id, number, product_id, warehouse_id, type, quantity, reference, description, created_at, transfer_group_id, is_addition)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 			m.ID, m.CompanyID, m.Number, m.ProductID, m.WarehouseID, string(m.Type),
-			m.Quantity, m.Reference, m.Description, m.CreatedAt, m.TransferGroupID,
+			m.Quantity, m.Reference, m.Description, m.CreatedAt, m.TransferGroupID, m.IsAddition,
 		); err != nil {
 			return nil, nil, fmt.Errorf("guardar movimiento de traslado: %w", err)
 		}

@@ -14,6 +14,10 @@ CREATE TABLE IF NOT EXISTS sales.sales (
     issue_date           TIMESTAMPTZ NOT NULL,
     due_date             TIMESTAMPTZ,
     notes                TEXT NOT NULL DEFAULT '',
+    -- Forma/medio de pago (catálogos DIAN payment_terms/payment_methods, mismo tipo que usa
+    -- electronic.documents.payment_means) -- se hereda a la factura electrónica generada desde
+    -- esta venta en vez de forzar "Contado/Efectivo" (ver electronic/application/from_sale.go).
+    payment_means        JSONB NOT NULL DEFAULT '[]',
     -- Factura electrónica (si alguna) generada a partir de esta venta, para no poder generar dos
     -- veces desde la misma venta (ver electronic/application CreateFromSaleUseCase). Sin FK a
     -- electronic.documents a propósito: cada módulo es dueño de su schema, la integridad se
@@ -55,6 +59,7 @@ CREATE TABLE IF NOT EXISTS sales.quotes (
     issue_date  TIMESTAMPTZ NOT NULL,
     valid_until TIMESTAMPTZ,
     notes       TEXT NOT NULL DEFAULT '',
+    payment_means JSONB NOT NULL DEFAULT '[]',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

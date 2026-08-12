@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	cofdom "github.com/diegofxm/cofacture/domain"
 )
 
 type QuoteStatus string
@@ -29,8 +31,11 @@ type Quote struct {
 	ValidUntil *time.Time
 	Notes      string
 	Lines      []QuoteLine
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	// PaymentMeans -- mismo tipo/catálogos que Sale.PaymentMeans y que electronic; se hereda a
+	// la venta al convertir (ver QuoteUseCase.ConvertToSale) y de ahí a la factura electrónica.
+	PaymentMeans []cofdom.PaymentMean
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type QuoteLine struct {
@@ -38,13 +43,15 @@ type QuoteLine struct {
 	QuoteID     uuid.UUID
 	ProductID   uuid.UUID
 	Description string
-	Quantity    float64
-	UnitPrice   float64
-	Discount    float64 // porcentaje 0-100, aplicado antes de impuestos
-	TaxRate     float64
-	Subtotal    float64
-	TaxAmount   float64
-	Total       float64
+	// UnitCode -- ver el mismo campo en SaleLine (sale.go).
+	UnitCode  string
+	Quantity  float64
+	UnitPrice float64
+	Discount  float64 // porcentaje 0-100, aplicado antes de impuestos
+	TaxRate   float64
+	Subtotal  float64
+	TaxAmount float64
+	Total     float64
 }
 
 func (q *Quote) CalculateTotals() {
@@ -69,6 +76,10 @@ func (q *Quote) GrandTotal() (subtotal, tax, total float64) {
 // QuoteRepository gestiona la persistencia de cotizaciones.
 type QuoteRepository interface {
 	Save(ctx context.Context, q Quote) (*Quote, error)
+	// Update reemplaza cliente/fecha de validez/notas/líneas de una cotización EN BORRADOR --
+	// devuelve ErrQuoteNotDraft si ya se envió (a partir de "sent" se corrige rechazando y
+	// creando una nueva, no editando la ya enviada al cliente).
+	Update(ctx context.Context, companyID, id uuid.UUID, q Quote) (*Quote, error)
 	GetByID(ctx context.Context, companyID, id uuid.UUID) (*Quote, error)
 	List(ctx context.Context, companyID uuid.UUID) ([]Quote, error)
 	UpdateStatus(ctx context.Context, companyID, id uuid.UUID, status QuoteStatus) error

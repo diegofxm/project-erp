@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { History, SlidersHorizontal, ArrowRightLeft } from "lucide-react";
-import { createMovement, listMovements } from "../lib/inventory";
+import { History, SlidersHorizontal, ArrowRightLeft, Trash2 } from "lucide-react";
+import { createMovement, deleteMovement, listMovements } from "../lib/inventory";
 import { listProducts } from "../lib/products";
 import { listWarehouses } from "../lib/warehouses";
 import { ApiError } from "../lib/apiClient";
+import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import type { Movement, MovementType, Product, Warehouse } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
@@ -30,6 +31,7 @@ export function InventoryMovementsPage() {
   const [showAdjust, setShowAdjust] = useState(false);
   const [showTransfer, setShowTransfer] = useState(false);
   const toast = useToast();
+  const confirmDialog = useConfirm();
 
   function refresh() {
     listMovements()
@@ -65,6 +67,21 @@ export function InventoryMovementsPage() {
     toast.success("Traslado registrado.");
     setShowTransfer(false);
     refresh();
+  }
+
+  async function handleDelete(m: Movement) {
+    const extra = m.type === "transfer" ? " Se eliminarán las dos entradas del traslado (origen y destino)." : "";
+    if (!(await confirmDialog(
+      `¿Eliminar el movimiento ${m.number}? Esto revierte su efecto sobre el stock.${extra}`,
+      { tone: "danger" }
+    ))) return;
+    try {
+      await deleteMovement(m.id);
+      toast.success("Movimiento eliminado.");
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el movimiento");
+    }
   }
 
   return (
@@ -111,6 +128,7 @@ export function InventoryMovementsPage() {
                 <th className="px-3 py-2 font-medium">Cantidad</th>
                 <th className="px-3 py-2 font-medium">Referencia</th>
                 <th className="px-3 py-2 font-medium">Descripción</th>
+                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>
@@ -124,6 +142,17 @@ export function InventoryMovementsPage() {
                   <td className="px-3 py-2 font-mono text-(--text-primary)">{m.quantity}</td>
                   <td className="px-3 py-2 text-(--text-secondary)">{m.reference || "—"}</td>
                   <td className="px-3 py-2 text-(--text-secondary)">{m.description || "—"}</td>
+                  <td className="px-3 py-2 text-right">
+                    <button
+                      type="button"
+                      title="Eliminar movimiento"
+                      aria-label={`Eliminar movimiento ${m.number}`}
+                      onClick={() => handleDelete(m)}
+                      className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

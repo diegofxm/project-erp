@@ -398,10 +398,14 @@ func (uc *ConfirmUseCase) sendSync(ctx context.Context, d *domain.Document, zipN
 		return uc.retryAsyncAfterSyncFailure(ctx, d, zipName, zipBytes, p, err)
 	}
 	status := domain.StatusAccepted
+	statusMessage := result.StatusMessage
 	if result.HasRejections || !result.IsValid {
 		status = domain.StatusRejected
 	}
-	return uc.finish(ctx, d, status, "", result.StatusCode, result.StatusDescription, result.StatusMessage, result.ApplicationResponseXML)
+	if warn := consumedNumberWarning(d, result.RespondedDocumentKey); warn != "" {
+		statusMessage = warn
+	}
+	return uc.finish(ctx, d, status, "", result.StatusCode, result.StatusDescription, statusMessage, result.ApplicationResponseXML)
 }
 
 // retryAsyncAfterSyncFailure reenvía el mismo ZIP ya firmado por la ruta asíncrona
@@ -443,14 +447,18 @@ func (uc *ConfirmUseCase) sendTestSet(ctx context.Context, d *domain.Document, z
 	return uc.finishFromPoll(ctx, d, zipKey, last, "respuesta de la DIAN no disponible todavía (sondeo agotado)")
 }
 
-// pollZipKey sondea el estado de un envío asíncrono (6 intentos, 5 s entre cada uno — mismo
-// patrón que el legacy) y devuelve el último resultado disponible, o nil si se agota el sondeo
-// sin respuesta útil.
+// PollInterval es la espera entre sondeos de PollStatusZip. Variable (no const) para que los
+// tests de reconciliación puedan acortarla en vez de esperar hasta 25s reales por caso.
+var PollInterval = 5 * time.Second
+
+// pollZipKey sondea el estado de un envío asíncrono (6 intentos, PollInterval entre cada uno —
+// mismo patrón que el legacy) y devuelve el último resultado disponible, o nil si se agota el
+// sondeo sin respuesta útil.
 func (uc *ConfirmUseCase) pollZipKey(zipKey string, p *prepared) *domain.SendResult {
 	var last *domain.SendResult
 	for attempt := 0; attempt < 6; attempt++ {
 		if attempt > 0 {
-			time.Sleep(5 * time.Second)
+			time.Sleep(PollInterval)
 		}
 		res, err := uc.sender.PollStatusZip(zipKey, p.company.Certificate, p.company.CertificatePassword, string(p.company.Environment))
 		if err != nil || res == nil {
@@ -473,10 +481,14 @@ func (uc *ConfirmUseCase) finishFromPoll(ctx context.Context, d *domain.Document
 		return uc.finish(ctx, d, domain.StatusSent, zipKey, "", "", pendingMessage, "")
 	}
 	status := domain.StatusAccepted
+	statusMessage := last.StatusMessage
 	if last.HasRejections || !last.IsValid {
 		status = domain.StatusRejected
 	}
-	return uc.finish(ctx, d, status, zipKey, last.StatusCode, last.StatusDescription, last.StatusMessage, last.ApplicationResponseXML)
+	if warn := consumedNumberWarning(d, last.RespondedDocumentKey); warn != "" {
+		statusMessage = warn
+	}
+	return uc.finish(ctx, d, status, zipKey, last.StatusCode, last.StatusDescription, statusMessage, last.ApplicationResponseXML)
 }
 
 // CheckPendingStatus reintenta consultar el estado de un documento en StatusSent (un envío
@@ -520,6 +532,25 @@ func (uc *ConfirmUseCase) markError(ctx context.Context, d *domain.Document, sen
 	return uc.finish(ctx, d, domain.StatusSendUnknown, "", "", "", sendErr.Error(), "")
 }
 
+// consumedNumberWarning detecta que la DIAN respondió con un CUFE/CUDE distinto al que este
+// documento generó (RespondedDocumentKey, tomado de XmlDocumentKey en la respuesta SOAP) --
+// señal inequívoca de que la DIAN no validó el contenido que acabamos de enviar, sino que
+// devolvió el resultado ya registrado de un envío anterior para ese mismo consecutivo (ej. un
+// número quemado manualmente en el portal de habilitación, fuera de este sistema). En ese caso
+// el StatusDescription/StatusMessage originales describen un documento ajeno y serían engañosos
+// -- se reemplazan por una alerta clara y accionable (bug real diagnosticado 2026-08-11: el
+// mismo consecutivo devolvía siempre el rechazo de un documento de junio, sin importar el
+// contenido enviado hoy).
+func consumedNumberWarning(d *domain.Document, respondedDocumentKey string) string {
+	if respondedDocumentKey == "" || respondedDocumentKey == d.DocumentKey {
+		return ""
+	}
+	return fmt.Sprintf(
+		"El consecutivo %s%d ya fue usado anteriormente ante la DIAN por fuera de este sistema (la DIAN respondió con un CUFE/CUDE distinto al que este documento generó, por lo que no llegó a validar su contenido). Verifica en el portal de habilitación de la DIAN cuál es el próximo consecutivo disponible y ajusta el rango de numeración antes de reintentar.",
+		d.Prefix, d.Number,
+	)
+}
+
 func (uc *ConfirmUseCase) finish(ctx context.Context, d *domain.Document, status domain.Status, trackID, statusCode, statusDescription, statusMessage, applicationResponseXML string) (*domain.Document, error) {
 	if err := uc.documents.UpdateDianStatus(ctx, d.ID, status, trackID, statusCode, statusDescription, statusMessage, applicationResponseXML); err != nil {
 		return nil, err
@@ -533,10 +564,21 @@ func (uc *ConfirmUseCase) finish(ctx context.Context, d *domain.Document, status
 	// StatusSendUnknown queda deliberadamente fuera: liberar el consecutivo ahí es justo el
 	// riesgo que este cambio corrige (ver domain.StatusSendUnknown). StatusEnvironmentMismatch
 	// SÍ libera -- el documento nunca se transmitió, no hay ambigüedad ni riesgo de duplicado.
-	if status == domain.StatusRejected || status == domain.StatusSendError || status == domain.StatusEnvironmentMismatch {
+	if isRetryableFailure(status) {
 		_ = uc.numbering.ReleaseIfCurrent(ctx, d.NumberingRangeID, d.Number)
 	}
 	return d, nil
+}
+
+// isRetryableFailure es el mismo criterio en los dos lugares donde importa si un documento
+// fallido puede reintentarse sin riesgo: acá decide si se libera el consecutivo, y en
+// from_sale.go/from_purchase.go decide si una venta/compra que ya generó un documento puede
+// generar uno nuevo (antes esa venta quedaba bloqueada para siempre apuntando a la factura
+// rechazada, sin forma de corregir y reenviar -- bug real reportado 2026-08-11). StatusSendUnknown
+// queda deliberadamente fuera de ambos: es ambiguo si la DIAN llegó a recibir el documento,
+// reintentar (con un número nuevo) arriesga doble facturación.
+func isRetryableFailure(status domain.Status) bool {
+	return status == domain.StatusRejected || status == domain.StatusSendError || status == domain.StatusEnvironmentMismatch
 }
 
 // ── helpers de construcción de cofacture.* ────────────────────────────────────────────────

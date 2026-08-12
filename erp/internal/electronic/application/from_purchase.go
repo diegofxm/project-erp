@@ -47,7 +47,16 @@ func (uc *CreateFromPurchaseUseCase) Execute(ctx context.Context, req FromPurcha
 		return nil, fmt.Errorf("from-purchase: la orden debe estar recibida")
 	}
 	if purchase.SupportDocumentID != nil {
-		return nil, fmt.Errorf("from-purchase: esta orden ya generó el documento soporte %s", *purchase.SupportDocumentID)
+		// Ver el mismo comentario en from_sale.go -- solo bloquea si el documento existente sigue
+		// vivo o quedó en un estado ambiguo (StatusSendUnknown); si quedó en un estado terminal
+		// donde el consecutivo ya se liberó, es seguro generar uno nuevo.
+		existing, err := uc.draft.documents.GetByID(ctx, *purchase.SupportDocumentID)
+		if err != nil {
+			return nil, fmt.Errorf("from-purchase: verificar documento soporte existente: %w", err)
+		}
+		if !isRetryableFailure(existing.Status) {
+			return nil, fmt.Errorf("from-purchase: esta orden ya generó el documento soporte %s", *purchase.SupportDocumentID)
+		}
 	}
 
 	supplier, err := uc.suppliers.GetByID(ctx, req.CompanyID, purchase.SupplierID)
@@ -76,7 +85,7 @@ func (uc *CreateFromPurchaseUseCase) Execute(ctx context.Context, req FromPurcha
 		NumberingRangeID:  req.NumberingRangeID,
 		Supplier:          purchaseSupplierToParty(supplier),
 		Lines:             purchaseLinesToCof(purchase.Lines, productMap),
-		PaymentMeans:      []cofdom.PaymentMean{{Code: "1", PaymentMethodCode: "1"}},
+		PaymentMeans:      purchasePaymentMeansOrDefault(purchase.PaymentMeans),
 		Note:              purchase.Notes,
 		CurrencyCode:      "COP",
 		OperationTypeCode: operationType,
@@ -127,6 +136,15 @@ func purchaseSupplierToParty(s *domain.Party) cofdom.Party {
 	}
 }
 
+// purchasePaymentMeansOrDefault -- ver salePaymentMeansOrDefault, mismo criterio para el
+// documento soporte generado desde una orden de compra.
+func purchasePaymentMeansOrDefault(pms []cofdom.PaymentMean) []cofdom.PaymentMean {
+	if len(pms) == 0 {
+		return []cofdom.PaymentMean{{Code: "1", PaymentMethodCode: "1"}}
+	}
+	return pms
+}
+
 func purchaseLinesToCof(lines []purchasedomain.PurchaseLine, products map[uuid.UUID]*productdomain.Product) []cofdom.Line {
 	out := make([]cofdom.Line, len(lines))
 	for i, l := range lines {
@@ -135,34 +153,55 @@ func purchaseLinesToCof(lines []purchasedomain.PurchaseLine, products map[uuid.U
 		itemCode := ""
 		itemTypeCode := ""
 		itemTypeName := ""
+		itemTypeAgencyID := ""
 		taxCode := "01"
 		taxName := "IVA"
 		if p != nil {
 			if p.UnitMeasureCode != "" {
 				unitCode = p.UnitMeasureCode
 			}
-			itemCode = p.Code
-			itemTypeCode = p.StandardCodeType
-			itemTypeName = p.StandardCode
+			// Ver el mismo comentario en from_sale.go -- StandardCodeID es el CÓDIGO de catálogo
+			// DIAN (schemeID, ej. "999"); schemeName/schemeAgencyID se resuelven contra la tabla
+			// oficial itemStandards (create_draft.go) en vez del texto libre del producto.
+			itemCode = p.StandardCode
+			if itemCode == "" {
+				itemCode = p.Code
+			}
+			itemTypeCode = p.StandardCodeID
+			if itemTypeCode == "" {
+				itemTypeCode = "999"
+			}
+			if std, ok := itemStandards[itemTypeCode]; ok {
+				itemTypeName = std.name
+				itemTypeAgencyID = std.agencyID
+			} else {
+				itemTypeName = p.StandardCodeType
+				itemTypeAgencyID = p.StandardCodeAgencyID
+			}
 			if p.TaxSchemeCode != "" {
 				taxCode = p.TaxSchemeCode
 				taxName = p.TaxSchemeName
 			}
 		}
-		var taxes []cofdom.Tax
-		if l.TaxRate > 0 {
-			taxes = []cofdom.Tax{{
-				TypeCode:           taxCode,
-				TypeName:           taxName,
-				Percent:            l.TaxRate,
-				TaxableAmountCents: int64(l.Subtotal * 100),
-				TaxAmountCents:     int64(l.TaxAmount * 100),
-			}}
+		// Ver el mismo comentario en from_sale.go -- la unidad de la propia línea manda sobre la
+		// del producto.
+		if l.UnitCode != "" {
+			unitCode = l.UnitCode
 		}
+		// Ver el mismo comentario en from_sale.go -- siempre se arma la entrada de impuesto,
+		// incluso al 0%, para que la línea no quede fuera del TaxTotal de cabecera (FAU04).
+		taxes := []cofdom.Tax{{
+			TypeCode:           taxCode,
+			TypeName:           taxName,
+			Percent:            l.TaxRate,
+			TaxableAmountCents: int64(l.Subtotal * 100),
+			TaxAmountCents:     int64(l.TaxAmount * 100),
+		}}
 		out[i] = cofdom.Line{
 			ItemCode:           itemCode,
 			ItemTypeCode:       itemTypeCode,
 			ItemTypeName:       itemTypeName,
+			ItemTypeAgencyID:   itemTypeAgencyID,
 			Description:        l.Description,
 			Quantity:           l.Quantity,
 			UnitCode:           unitCode,

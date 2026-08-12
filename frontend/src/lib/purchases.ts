@@ -1,5 +1,5 @@
 import { apiClient } from "./apiClient";
-import type { CreatePurchasePayload, Purchase, PurchaseWithholding } from "./types";
+import type { CreatePurchasePayload, Purchase, PurchaseWithholding, UpdatePurchasePayload } from "./types";
 
 export function listPurchases(): Promise<Purchase[]> {
   return apiClient.get<Purchase[]>("/purchases");
@@ -11,6 +11,11 @@ export function fetchPurchase(id: string): Promise<Purchase> {
 
 export function createPurchase(payload: CreatePurchasePayload): Promise<Purchase> {
   return apiClient.post<Purchase>("/purchases", payload);
+}
+
+// updatePurchase -- solo permitido mientras la orden está en borrador (el backend lo valida).
+export function updatePurchase(id: string, payload: UpdatePurchasePayload): Promise<Purchase> {
+  return apiClient.put<Purchase>(`/purchases/${id}`, payload);
 }
 
 export function confirmPurchase(id: string): Promise<Purchase> {

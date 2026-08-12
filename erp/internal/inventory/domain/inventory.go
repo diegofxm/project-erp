@@ -61,11 +61,27 @@ type Movement struct {
 	Reference       string  // número de factura, OC, etc.
 	Description     string
 	TransferGroupID *uuid.UUID // solo en movimientos tipo transfer — enlaza el par salida/entrada
-	CreatedAt       time.Time
+	// IsAddition indica si este movimiento sumó (true) o restó (false) al stock -- necesario para
+	// poder revertir el efecto al eliminar (ver DeleteMovement), ya que Type solo no alcanza para
+	// distinguir el lado origen/destino de un transfer.
+	IsAddition bool
+	CreatedAt  time.Time
+}
+
+// StockDelta es el efecto que este movimiento tuvo sobre el stock, con signo.
+func (m Movement) StockDelta() float64 {
+	if m.IsAddition {
+		return m.Quantity
+	}
+	return -m.Quantity
 }
 
 var (
 	ErrInsufficientStock = errors.New("stock insuficiente")
 	ErrStockNotFound     = errors.New("stock no encontrado")
 	ErrMovementNotFound  = errors.New("movimiento no encontrado")
+	// ErrDeleteWouldMakeStockNegative: revertir este movimiento dejaría el stock en negativo --
+	// típicamente porque ya se registraron salidas posteriores que dependían de esta entrada.
+	// Hay que resolver/eliminar esos movimientos posteriores primero.
+	ErrDeleteWouldMakeStockNegative = errors.New("eliminar este movimiento dejaría el stock en negativo -- revisa los movimientos posteriores del mismo producto/bodega")
 )

@@ -88,6 +88,14 @@ export function createVoucherType(payload: { code: string; name: string; resets_
   return apiClient.post<VoucherType>("/accounting/voucher-types", payload);
 }
 
+export function updateVoucherType(code: string, payload: { name: string; resets_annually: boolean }): Promise<VoucherType> {
+  return apiClient.put<VoucherType>(`/accounting/voucher-types/${encodeURIComponent(code)}`, payload);
+}
+
+export function deactivateVoucherType(code: string): Promise<void> {
+  return apiClient.del(`/accounting/voucher-types/${encodeURIComponent(code)}`);
+}
+
 // ── Retenciones ───────────────────────────────────────────────────────────────
 
 export function listWithholdingConcepts(): Promise<WithholdingConcept[]> {
@@ -110,6 +118,16 @@ export function listBankAccounts(): Promise<BankAccount[]> {
 
 export function createBankAccount(payload: { name: string; bank_name: string; account_no: string; account_code: string }): Promise<BankAccount> {
   return apiClient.post<BankAccount>("/accounting/bank-accounts", payload);
+}
+
+// updateBankAccount — corrige nombre/banco/número. La cuenta PUC ligada no se puede reasignar
+// (cambiarla retroactivamente descuadraría la conciliación ya hecha).
+export function updateBankAccount(id: string, payload: { name: string; bank_name: string; account_no: string }): Promise<BankAccount> {
+  return apiClient.put<BankAccount>(`/accounting/bank-accounts/${id}`, payload);
+}
+
+export function deactivateBankAccount(id: string): Promise<void> {
+  return apiClient.del(`/accounting/bank-accounts/${id}`);
 }
 
 export function listStatement(bankAccountId: string): Promise<StatementLine[]> {
@@ -141,6 +159,9 @@ export interface CreateFixedAssetPayload {
   asset_account: string;
   depreciation_account: string;
   accumulated_account: string;
+  // Solo hacen falta si el activo se termina dando de baja con utilidad/pérdida (ver dispose).
+  gain_account?: string;
+  loss_account?: string;
   acquisition_date: string;
   acquisition_cost_cents: number;
   salvage_value_cents: number;
@@ -150,6 +171,19 @@ export interface CreateFixedAssetPayload {
 
 export function createFixedAsset(payload: CreateFixedAssetPayload): Promise<FixedAsset> {
   return apiClient.post<FixedAsset>("/accounting/fixed-assets", payload);
+}
+
+export interface DisposeFixedAssetPayload {
+  disposal_date: string;
+  // 0 si es una baja sin venta (activo dañado/obsoleto). > 0 si se vendió.
+  proceeds_cents: number;
+  // Requerida solo cuando proceeds_cents > 0 -- cuenta PUC que recibe el dinero.
+  proceeds_account_code?: string;
+  description?: string;
+}
+
+export function disposeFixedAsset(id: string, payload: DisposeFixedAssetPayload): Promise<FixedAsset> {
+  return apiClient.post<FixedAsset>(`/accounting/fixed-assets/${id}/dispose`, payload);
 }
 
 export function runDepreciation(date: string): Promise<DepreciationRun> {
@@ -170,8 +204,23 @@ export function createBudget(year: number, name: string): Promise<Budget> {
   return apiClient.post<Budget>("/accounting/budgets", { year, name });
 }
 
+// updateBudget/deleteBudget -- solo permitidos mientras el presupuesto está en borrador.
+export function updateBudget(id: string, name: string): Promise<Budget> {
+  return apiClient.put<Budget>(`/accounting/budgets/${id}`, { name });
+}
+
+export function deleteBudget(id: string): Promise<void> {
+  return apiClient.del(`/accounting/budgets/${id}`);
+}
+
 export function setBudgetLine(budgetId: string, accountCode: string, months: number[]): Promise<BudgetLine> {
   return apiClient.post<BudgetLine>(`/accounting/budgets/${budgetId}/lines`, { account_code: accountCode, months });
+}
+
+// deleteBudgetLine -- quita una cuenta del presupuesto (en vez de tener que poner los 12 meses
+// en cero como workaround). Solo permitido mientras el presupuesto está en borrador.
+export function deleteBudgetLine(budgetId: string, accountCode: string): Promise<void> {
+  return apiClient.del(`/accounting/budgets/${budgetId}/lines/${encodeURIComponent(accountCode)}`);
 }
 
 export function listBudgetLines(budgetId: string): Promise<BudgetLine[]> {

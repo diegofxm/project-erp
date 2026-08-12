@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Boxes, Plus, PlayCircle } from "lucide-react";
-import { createFixedAsset, listAccounts, listFixedAssets, runDepreciation } from "../lib/accounting";
+import { Boxes, Plus, PlayCircle, ArchiveX } from "lucide-react";
+import { createFixedAsset, disposeFixedAsset, listAccounts, listFixedAssets, runDepreciation } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { formatCOP } from "../lib/currency";
 import { todayColombiaISO } from "../lib/dateFormat";
@@ -29,8 +29,11 @@ const STATUS_TONE: Record<string, StatusTone> = { ACTIVE: "success", FULLY_DEPRE
 
 const EMPTY = {
   code: "", name: "", description: "", asset_account: "", depreciation_account: "", accumulated_account: "",
+  gain_account: "", loss_account: "",
   acquisition_date: todayISO(), acquisition_cost: "", salvage_value: "0", useful_life_months: "60",
 };
+
+const EMPTY_DISPOSAL = { disposal_date: todayISO(), proceeds: "", proceeds_account_code: "", description: "" };
 
 export function AccountingFixedAssetsPage() {
   const toast = useToast();
@@ -42,6 +45,10 @@ export function AccountingFixedAssetsPage() {
   const [saving, setSaving] = useState(false);
   const [runDate, setRunDate] = useState(todayISO());
   const [running, setRunning] = useState(false);
+
+  const [disposingAsset, setDisposingAsset] = useState<FixedAsset | null>(null);
+  const [disposalForm, setDisposalForm] = useState(EMPTY_DISPOSAL);
+  const [disposing, setDisposing] = useState(false);
 
   function refresh() {
     listFixedAssets().then(setAssets).catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar los activos fijos"));
@@ -63,6 +70,7 @@ export function AccountingFixedAssetsPage() {
       await createFixedAsset({
         code: form.code, name: form.name, description: form.description,
         asset_account: form.asset_account, depreciation_account: form.depreciation_account, accumulated_account: form.accumulated_account,
+        gain_account: form.gain_account || undefined, loss_account: form.loss_account || undefined,
         acquisition_date: form.acquisition_date,
         acquisition_cost_cents: Math.round(Number(form.acquisition_cost) * 100),
         salvage_value_cents: Math.round(Number(form.salvage_value || 0) * 100),
@@ -76,6 +84,32 @@ export function AccountingFixedAssetsPage() {
       toast.error(err instanceof ApiError ? err.message : "No se pudo crear el activo");
     } finally {
       setSaving(false);
+    }
+  }
+
+  function openDispose(a: FixedAsset) {
+    setDisposingAsset(a);
+    setDisposalForm(EMPTY_DISPOSAL);
+  }
+
+  async function handleDispose() {
+    if (!disposingAsset) return;
+    const proceedsCents = Math.round(Number(disposalForm.proceeds || 0) * 100);
+    setDisposing(true);
+    try {
+      await disposeFixedAsset(disposingAsset.id, {
+        disposal_date: disposalForm.disposal_date,
+        proceeds_cents: proceedsCents,
+        proceeds_account_code: proceedsCents > 0 ? disposalForm.proceeds_account_code : undefined,
+        description: disposalForm.description || undefined,
+      });
+      toast.success("Activo dado de baja.");
+      setDisposingAsset(null);
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo dar de baja el activo");
+    } finally {
+      setDisposing(false);
     }
   }
 
@@ -134,6 +168,15 @@ export function AccountingFixedAssetsPage() {
             <Combobox label="Cuenta del activo" value={form.asset_account} onChange={(v) => setForm({ ...form, asset_account: v })} options={accountOptions} placeholder="Ej. 152405" />
             <Combobox label="Cuenta de gasto (depreciación)" value={form.depreciation_account} onChange={(v) => setForm({ ...form, depreciation_account: v })} options={accountOptions} placeholder="Ej. 516010" />
             <Combobox label="Cuenta de depreciación acumulada" value={form.accumulated_account} onChange={(v) => setForm({ ...form, accumulated_account: v })} options={accountOptions} placeholder="Ej. 159220" />
+            <div className="sm:col-span-3 flex items-center gap-1 pt-1">
+              <span className="text-xs font-medium text-(--text-secondary)">Al vender o dar de baja (opcional, se puede completar después)</span>
+              <InfoTip>
+                Solo hacen falta si este activo se termina vendiendo o dando de baja con utilidad
+                o pérdida. Si no las configuras ahora, podrás editarlas más adelante.
+              </InfoTip>
+            </div>
+            <Combobox label="Cuenta de utilidad en venta" value={form.gain_account} onChange={(v) => setForm({ ...form, gain_account: v })} options={accountOptions} placeholder="Ej. 424525" />
+            <Combobox label="Cuenta de pérdida en venta" value={form.loss_account} onChange={(v) => setForm({ ...form, loss_account: v })} options={accountOptions} placeholder="Ej. 530525" />
           </div>
           <div className="mt-3 flex justify-end gap-2 border-t border-(--border-light) pt-3">
             <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>Cancelar</Button>
@@ -157,6 +200,7 @@ export function AccountingFixedAssetsPage() {
                 <th className="px-3 py-2 font-medium">Depreciación mensual</th>
                 <th className="px-3 py-2 font-medium">Acumulada</th>
                 <th className="px-3 py-2 font-medium">Estado</th>
+                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>
@@ -168,10 +212,56 @@ export function AccountingFixedAssetsPage() {
                   <td className="px-3 py-2 font-mono text-(--text-secondary)">{money(a.monthly_depreciation)}</td>
                   <td className="px-3 py-2 font-mono text-(--text-secondary)">{money(a.accumulated)}</td>
                   <td className="px-3 py-2"><StatusPill tone={STATUS_TONE[a.status]} label={STATUS_LABEL[a.status]} /></td>
+                  <td className="px-3 py-2 text-right">
+                    {a.status !== "DISPOSED" && (
+                      <button type="button" title="Dar de baja / vender" aria-label={`Dar de baja ${a.name}`} onClick={() => openDispose(a)}
+                        className="rounded p-1 text-(--color-danger) transition-colors hover:bg-(--bg-hover)">
+                        <ArchiveX className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {disposingAsset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDisposingAsset(null)}>
+          <Card className="w-full max-w-md p-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-1 text-xs font-semibold text-(--text-primary)">Dar de baja: {disposingAsset.name}</h3>
+            <p className="mb-3 text-xs text-(--text-secondary)">
+              Valor en libros actual: {money(disposingAsset.acquisition_cost - disposingAsset.accumulated)}.
+              Deja el valor de venta en 0 si es una baja sin venta (activo dañado u obsoleto).
+            </p>
+            <div className="flex flex-col gap-3">
+              <Input label="Fecha de baja" type="date" value={disposalForm.disposal_date} onChange={(e) => setDisposalForm({ ...disposalForm, disposal_date: e.target.value })} />
+              <Input label="Valor de venta (0 si no se vendió)" type="number" min="0" value={disposalForm.proceeds} onChange={(e) => setDisposalForm({ ...disposalForm, proceeds: e.target.value })} />
+              {Number(disposalForm.proceeds || 0) > 0 && (
+                <Combobox
+                  label="Cuenta que recibe el pago"
+                  value={disposalForm.proceeds_account_code}
+                  onChange={(v) => setDisposalForm({ ...disposalForm, proceeds_account_code: v })}
+                  options={accountOptions}
+                  placeholder="Ej. 111005 (banco) o cuenta por cobrar"
+                />
+              )}
+              <Input label="Descripción (opcional)" value={disposalForm.description} onChange={(e) => setDisposalForm({ ...disposalForm, description: e.target.value })} />
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setDisposingAsset(null)}>Cancelar</Button>
+              <Button
+                type="button"
+                variant="danger"
+                loading={disposing}
+                disabled={Number(disposalForm.proceeds || 0) > 0 && !disposalForm.proceeds_account_code}
+                onClick={handleDispose}
+              >
+                Dar de baja
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
     </div>

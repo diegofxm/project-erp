@@ -90,6 +90,41 @@ func (r *AbsenceRepository) UpdateStatus(ctx context.Context, id uuid.UUID, stat
 	return nil
 }
 
+func (r *AbsenceRepository) Update(ctx context.Context, id uuid.UUID, in domain.CreateAbsenceInput) (*domain.Absence, error) {
+	days := int(in.EndDate.Sub(in.StartDate).Hours()/24) + 1
+	row := r.pool.QueryRow(ctx,
+		`UPDATE hr.absences SET type=$2, start_date=$3, end_date=$4, days=$5, reason=$6, updated_at=NOW()
+		 WHERE id=$1 AND status='pending'
+		 RETURNING `+absenceCols,
+		id, in.Type, in.StartDate, in.EndDate, days, nilStr(in.Reason),
+	)
+	a, err := scanAbsence(row)
+	if errors.Is(err, domain.ErrAbsenceNotFound) {
+		// scanAbsence ya tradujo pgx.ErrNoRows a ErrAbsenceNotFound -- puede ser que la ausencia
+		// no exista de verdad, o que exista pero ya no esté pendiente. Distinguir consultándola
+		// directamente (sin el filtro de estado) para devolver el error correcto en cada caso.
+		if _, getErr := r.GetByID(ctx, id); getErr != nil {
+			return nil, getErr
+		}
+		return nil, domain.ErrAbsenceNotPending
+	}
+	return a, err
+}
+
+func (r *AbsenceRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM hr.absences WHERE id=$1 AND status='pending'`, id)
+	if err != nil {
+		return fmt.Errorf("hr absences delete: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		if _, getErr := r.GetByID(ctx, id); getErr != nil {
+			return getErr
+		}
+		return domain.ErrAbsenceNotPending
+	}
+	return nil
+}
+
 func scanAbsence(row pgx.Row) (*domain.Absence, error) {
 	var a domain.Absence
 	var reason, notes *string

@@ -144,6 +144,7 @@ func (a *Adapter) SendBillSync(zipFileName string, zipBytes []byte, cert []byte,
 		IsValid:                interpreted.IsValid,
 		HasRejections:          interpreted.HasRejections(),
 		ApplicationResponseXML: string(interpreted.ApplicationResponseXML),
+		RespondedDocumentKey:   interpreted.XmlDocumentKey,
 	}, nil
 }
 
@@ -209,6 +210,7 @@ func (a *Adapter) PollStatusZip(zipKey string, cert []byte, password string, env
 		HasRejections:          interpreted.HasRejections(),
 		IsTestSetClosed:        interpreted.IsTestSetClosed(),
 		ApplicationResponseXML: string(interpreted.ApplicationResponseXML),
+		RespondedDocumentKey:   interpreted.XmlDocumentKey,
 	}, nil
 }
 

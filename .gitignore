@@ -8,9 +8,12 @@
 /go.work.sum
 
 # Credenciales y configuración local
-apidian/.env
-apidian/.env.*
-!apidian/.env.example
+# "**/" al inicio -- sin él, un patrón con "/" en medio (ej. "apidian/.env") queda anclado a la
+# raíz del repo y NO cubre variantes anidadas como "_legacy/apidian/.env" (así se filtró un .env
+# real al historial de git, ver punto 01 del plan de acción / docs/auditorias).
+**/apidian/.env
+**/apidian/.env.*
+!**/apidian/.env.example
 erp/.env
 erp/.env.*
 !erp/.env.example

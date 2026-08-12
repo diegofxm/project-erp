@@ -6,13 +6,16 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/sales", h.handleList)
 	mux.HandleFunc("POST /api/v1/sales", h.handleCreate)
 	mux.HandleFunc("GET /api/v1/sales/{id}", h.handleGetByID)
+	mux.HandleFunc("PUT /api/v1/sales/{id}", h.handleUpdate)
 	mux.HandleFunc("POST /api/v1/sales/{id}/confirm", h.handleConfirm)
 	mux.HandleFunc("POST /api/v1/sales/{id}/cancel", h.handleCancel)
+	mux.HandleFunc("DELETE /api/v1/sales/{id}", h.handleDeleteSale)
 
 	// Cotizaciones
 	mux.HandleFunc("GET /api/v1/quotes", h.handleListQuotes)
 	mux.HandleFunc("POST /api/v1/quotes", h.handleCreateQuote)
 	mux.HandleFunc("GET /api/v1/quotes/{id}", h.handleGetQuote)
+	mux.HandleFunc("PUT /api/v1/quotes/{id}", h.handleUpdateQuote)
 	mux.HandleFunc("DELETE /api/v1/quotes/{id}", h.handleDeleteQuote)
 	mux.HandleFunc("POST /api/v1/quotes/{id}/send", h.handleSendQuote)
 	mux.HandleFunc("GET /api/v1/quotes/{id}/pdf", h.handleGetQuotePDF)
