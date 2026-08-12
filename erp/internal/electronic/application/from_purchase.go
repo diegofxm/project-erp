@@ -144,15 +144,31 @@ func purchaseLinesToCof(lines []purchasedomain.PurchaseLine, products map[uuid.U
 		itemCode := ""
 		itemTypeCode := ""
 		itemTypeName := ""
+		itemTypeAgencyID := ""
 		taxCode := "01"
 		taxName := "IVA"
 		if p != nil {
 			if p.UnitMeasureCode != "" {
 				unitCode = p.UnitMeasureCode
 			}
-			itemCode = p.Code
-			itemTypeCode = p.StandardCodeType
-			itemTypeName = p.StandardCode
+			// Ver el mismo comentario en from_sale.go -- StandardCodeID es el CÓDIGO de catálogo
+			// DIAN (schemeID, ej. "999"); schemeName/schemeAgencyID se resuelven contra la tabla
+			// oficial itemStandards (create_draft.go) en vez del texto libre del producto.
+			itemCode = p.StandardCode
+			if itemCode == "" {
+				itemCode = p.Code
+			}
+			itemTypeCode = p.StandardCodeID
+			if itemTypeCode == "" {
+				itemTypeCode = "999"
+			}
+			if std, ok := itemStandards[itemTypeCode]; ok {
+				itemTypeName = std.name
+				itemTypeAgencyID = std.agencyID
+			} else {
+				itemTypeName = p.StandardCodeType
+				itemTypeAgencyID = p.StandardCodeAgencyID
+			}
 			if p.TaxSchemeCode != "" {
 				taxCode = p.TaxSchemeCode
 				taxName = p.TaxSchemeName
@@ -172,6 +188,7 @@ func purchaseLinesToCof(lines []purchasedomain.PurchaseLine, products map[uuid.U
 			ItemCode:           itemCode,
 			ItemTypeCode:       itemTypeCode,
 			ItemTypeName:       itemTypeName,
+			ItemTypeAgencyID:   itemTypeAgencyID,
 			Description:        l.Description,
 			Quantity:           l.Quantity,
 			UnitCode:           unitCode,

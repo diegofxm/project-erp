@@ -138,15 +138,37 @@ func saleLinesТoСof(lines []salesdomain.SaleLine, products map[uuid.UUID]*prod
 		itemCode := ""
 		itemTypeCode := ""
 		itemTypeName := ""
+		itemTypeAgencyID := ""
 		taxCode := "01"
 		taxName := "IVA"
 		if p != nil {
 			if p.UnitMeasureCode != "" {
 				unitCode = p.UnitMeasureCode
 			}
-			itemCode = p.Code
-			itemTypeCode = p.StandardCodeType
-			itemTypeName = p.StandardCode
+			// StandardCode/StandardCodeID van al <cbc:ID schemeID= schemeName=> de
+			// StandardItemIdentification (ver cofacture/builder/line_items.go) -- StandardCodeID es
+			// el CÓDIGO de catálogo DIAN (ej. "999"), no el nombre. Antes este mapeo mandaba
+			// StandardCodeType (texto libre del producto, ej. "Estándar propio") como schemeID, y
+			// la DIAN rechazaba con FAZ12 "Codigo informado en @schemID no es valido" (bug real
+			// encontrado 2026-08-11). schemeName/schemeAgencyID se resuelven contra itemStandards
+			// (tabla oficial 13.3.5 del Anexo Técnico, ver create_draft.go) en vez de confiar en el
+			// texto libre que el producto tenga guardado -- así el XML siempre queda con el nombre
+			// oficial exacto sin importar qué se haya escrito al crear el producto.
+			itemCode = p.StandardCode
+			if itemCode == "" {
+				itemCode = p.Code // nunca dejar el <cbc:ID> vacío si el producto no definió StandardCode
+			}
+			itemTypeCode = p.StandardCodeID
+			if itemTypeCode == "" {
+				itemTypeCode = "999"
+			}
+			if std, ok := itemStandards[itemTypeCode]; ok {
+				itemTypeName = std.name
+				itemTypeAgencyID = std.agencyID
+			} else {
+				itemTypeName = p.StandardCodeType
+				itemTypeAgencyID = p.StandardCodeAgencyID
+			}
 			if p.TaxSchemeCode != "" {
 				taxCode = p.TaxSchemeCode
 				taxName = p.TaxSchemeName
@@ -166,6 +188,7 @@ func saleLinesТoСof(lines []salesdomain.SaleLine, products map[uuid.UUID]*prod
 			ItemCode:           itemCode,
 			ItemTypeCode:       itemTypeCode,
 			ItemTypeName:       itemTypeName,
+			ItemTypeAgencyID:   itemTypeAgencyID,
 			Description:        l.Description,
 			Quantity:           l.Quantity,
 			UnitCode:           unitCode,
