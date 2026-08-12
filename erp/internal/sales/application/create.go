@@ -50,11 +50,22 @@ func paymentMeansToCofdom(pms []PaymentMeanRequest) []cofdom.PaymentMean {
 
 type CreateRequest struct {
 	CustomerID   uuid.UUID            `json:"customer_id"`
-	IssueDate    time.Time            `json:"issue_date"`
-	DueDate      *time.Time           `json:"due_date"`
+	IssueDate    string               `json:"issue_date"` // YYYY-MM-DD -- ver parseDate más abajo
+	DueDate      string               `json:"due_date"`   // YYYY-MM-DD, opcional
 	Notes        string               `json:"notes"`
 	Lines        []LineRequest        `json:"lines"`
 	PaymentMeans []PaymentMeanRequest `json:"payment_means"`
+}
+
+// parseDate interpreta una fecha YYYY-MM-DD tal como la manda <input type="date"> del frontend
+// -- NUNCA time.Time directo en el DTO: el JSON de Go exige RFC3339 completo para time.Time
+// ("2026-08-11T00:00:00Z"), y decodificar "2026-08-11" a secas contra ese tipo falla con 400
+// "cuerpo inválido" antes de que el handler llegue a validar nada (bug real encontrado
+// 2026-08-11 -- crear una venta/orden directamente, sin pasar por cotización, siempre fallaba).
+// Cadena vacía o no parseable → zero time.Time, el llamador decide el default.
+func parseDate(s string) time.Time {
+	t, _ := time.Parse("2006-01-02", s)
+	return t
 }
 
 func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req CreateRequest) (*domain.Sale, error) {
@@ -71,23 +82,28 @@ func (uc *CreateUseCase) Execute(ctx context.Context, companyID uuid.UUID, req C
 		}
 	}
 
-	year := req.IssueDate.Year()
-	if year == 0 {
-		year = time.Now().Year()
+	issueDate := parseDate(req.IssueDate)
+	if issueDate.IsZero() {
+		issueDate = time.Now()
 	}
-	seq, err := uc.repo.NextSaleNumber(ctx, companyID, year)
+	seq, err := uc.repo.NextSaleNumber(ctx, companyID, issueDate.Year())
 	if err != nil {
 		return nil, fmt.Errorf("asignar consecutivo: %w", err)
+	}
+
+	var dueDate *time.Time
+	if d := parseDate(req.DueDate); !d.IsZero() {
+		dueDate = &d
 	}
 
 	s := domain.Sale{
 		ID:           uuid.New(),
 		CompanyID:    companyID,
 		CustomerID:   req.CustomerID,
-		Number:       fmt.Sprintf("VTA-%d-%05d", year, seq),
+		Number:       fmt.Sprintf("VTA-%d-%05d", issueDate.Year(), seq),
 		Status:       domain.StatusDraft,
-		IssueDate:    req.IssueDate,
-		DueDate:      req.DueDate,
+		IssueDate:    issueDate,
+		DueDate:      dueDate,
 		Notes:        req.Notes,
 		Lines:        lines,
 		PaymentMeans: paymentMeansToCofdom(req.PaymentMeans),

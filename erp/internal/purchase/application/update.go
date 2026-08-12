@@ -34,15 +34,19 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, companyID, id uuid.UUID, r
 		}
 	}
 
-	issueDate := req.IssueDate
+	issueDate := parseDate(req.IssueDate)
 	if issueDate.IsZero() {
 		issueDate = time.Now()
+	}
+	var dueDate *time.Time
+	if d := parseDate(req.DueDate); !d.IsZero() {
+		dueDate = &d
 	}
 
 	o := domain.PurchaseOrder{
 		SupplierID:   req.SupplierID,
 		IssueDate:    issueDate,
-		DueDate:      req.DueDate,
+		DueDate:      dueDate,
 		Notes:        req.Notes,
 		Lines:        lines,
 		PaymentMeans: paymentMeansToCofdom(req.PaymentMeans),

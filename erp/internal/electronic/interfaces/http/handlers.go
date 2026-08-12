@@ -1207,11 +1207,18 @@ type numberingRangeDTO struct {
 	UpdatedAt            time.Time          `json:"updated_at"`
 }
 
+// formatDate SIEMPRE formatea en UTC -- resolution_date/valid_from/valid_to de un rango de
+// numeración se parsean con time.Parse("2006-01-02", ...) (medianoche UTC), y pgx devuelve el
+// TIMESTAMPTZ ya escaneado en la zona LOCAL del proceso Go. Sin el .UTC() explícito acá, en
+// cualquier servidor con zona horaria detrás de UTC (Colombia, UTC-5) la medianoche UTC se ve
+// como las 19:00 del día anterior en hora local, y Format("2006-01-02") imprime la fecha
+// equivocada -- mismo bug encontrado 2026-08-11 en sales/purchase, aplica igual acá porque
+// comparte el patrón exacto de parseo.
 func formatDate(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.Format("2006-01-02")
+	return t.UTC().Format("2006-01-02")
 }
 
 func toNumberingRangeDTO(nr *domain.NumberingRange) numberingRangeDTO {

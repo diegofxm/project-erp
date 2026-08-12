@@ -26,11 +26,17 @@ type AuditLogger interface {
 // conoce HTTP) — acá se mapean a snake_case, igual que el resto de los módulos (ver
 // electronic/interfaces/http toNumberingRangeDTO).
 
+// formatDate SIEMPRE formatea en UTC -- application.parseDate interpreta "YYYY-MM-DD" del
+// frontend como medianoche UTC (time.Parse sin location = UTC), y pgx devuelve los TIMESTAMPTZ
+// ya escaneados en la zona LOCAL del proceso Go. Sin el .UTC() explícito acá, en cualquier
+// servidor con zona horaria detrás de UTC (Colombia, UTC-5) la medianoche UTC se ve como las
+// 19:00 del día anterior en hora local, y Format("2006-01-02") imprime la fecha equivocada --
+// bug real encontrado 2026-08-11 (una venta guardada el 12 se mostraba de vuelta como el 11).
 func formatDate(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.Format("2006-01-02")
+	return t.UTC().Format("2006-01-02")
 }
 
 func formatDatePtr(t *time.Time) string {
