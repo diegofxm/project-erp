@@ -9,24 +9,24 @@ import (
 )
 
 const (
-	nsNomina = "dian:gov:co:facturaelectronica:NominaIndividual"
+	nsNomina             = "dian:gov:co:facturaelectronica:NominaIndividual"
 	schemaLocationNomina = "dian:gov:co:facturaelectronica:NominaIndividual NominaIndividualElectronicaXSD.xsd"
 
-	// EncripCUNE es el valor fijo del atributo InformacionGeneral/@EncripCUNE.
+	// EncripCUNE is the fixed value of the InformacionGeneral/@EncripCUNE attribute.
 	EncripCUNE = "CUNE-SHA384"
-	// Version es el valor fijo de InformacionGeneral/@Version.
+	// Version is the fixed value of the InformacionGeneral/@Version attribute.
 	Version = "V1.0: Documento Soporte de Pago de Nómina Electrónica"
 )
 
-// Build construye el árbol XML de un NominaIndividual ya con CUNE y CodigoQR calculados.
-// El documento todavía no está firmado — llamar builder.SignaturePlaceholder + signer.Sign
-// después de esta función, igual que el pipeline de facturas.
+// Build builds the XML tree of a NominaIndividual, with CUNE and CodigoQR already computed.
+// The document is not signed yet — call builder.SignaturePlaceholder + signer.Sign afterward,
+// same pipeline as invoices.
 //
-// El caller es responsable de calcular:
-//   - n.DevengadosTotal / n.DeduccionesTotal / n.ComprobanteTotal (si no vienen calculados)
-//   - El CUNE vía Cune() y asignarlo en n antes de llamar Build
-//   - El SoftwareSC vía securitycode.Compute(softwareID, pin, numDoc) y asignarlo en n
-//   - El CodigoQR vía qr.URL(ambiente, cune) y pasarlo como parámetro
+// The caller is responsible for computing:
+//   - n.DevengadosTotal / n.DeduccionesTotal / n.ComprobanteTotal (if not already computed)
+//   - The CUNE via Cune() and assigning it to n before calling Build
+//   - The SoftwareSC via securitycode.Compute(softwareID, pin, numDoc) and assigning it to n
+//   - The CodigoQR via qr.URL(ambiente, cune) and passing it as a parameter
 func Build(n Nomina, cune, softwareSC, codigoQR string) (*etree.Document, error) {
 	doc := etree.NewDocument()
 	doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8" standalone="no"`)
@@ -42,16 +42,22 @@ func Build(n Nomina, cune, softwareSC, codigoQR string) (*etree.Document, error)
 	root.CreateAttr("SchemaLocation", "")
 	root.CreateAttr("xsi:schemaLocation", schemaLocationNomina)
 
-	// ext:UBLExtensions — solo un ext:UBLExtension vacío reservado para la firma.
-	// (NominaIndividual no tiene DianExtensions: los equivalentes son ProveedorXML, CodigoQR, etc.)
+	// ext:UBLExtensions — just an empty ext:UBLExtension reserved for the signature.
+	// (NominaIndividual has no DianExtensions: its equivalents are ProveedorXML, CodigoQR, etc.)
 	root.CreateElement("ext:UBLExtensions").
 		CreateElement("ext:UBLExtension").
 		CreateElement("ext:ExtensionContent")
 
-	// Novedad (siempre false para NominaIndividual normal — true solo para novedades de ajuste).
+	// Novedad marks this document as an adjustment ("novedad") of a previously submitted
+	// NominaIndividual — true for TipoXML "103"/"104", false for a normal "102" payroll.
+	// CUNENov must carry the original document's CUNE when this is an adjustment.
+	isAdjustment := n.TipoXML == "103" || n.TipoXML == "104"
+	if isAdjustment && n.CUNENovedad == "" {
+		return nil, fmt.Errorf("payroll: CUNENovedad is required when TipoXML is an adjustment (\"103\"/\"104\")")
+	}
 	novedad := root.CreateElement("Novedad")
-	novedad.CreateAttr("CUNENov", "")
-	novedad.SetText("false")
+	novedad.CreateAttr("CUNENov", n.CUNENovedad)
+	novedad.SetText(boolStr(isAdjustment))
 
 	// Periodo
 	fecRetiro := n.FechaRetiro
@@ -108,7 +114,7 @@ func Build(n Nomina, cune, softwareSC, codigoQR string) (*etree.Document, error)
 	info.CreateAttr("TipoMoneda", n.TipoMoneda)
 	info.CreateAttr("TRM", n.TRM)
 
-	// Notas (opcional)
+	// Notas (optional)
 	if n.Notas != "" {
 		root.CreateElement("Notas").SetText(n.Notas)
 	}
@@ -157,7 +163,7 @@ func Build(n Nomina, cune, softwareSC, codigoQR string) (*etree.Document, error)
 
 	// FechasPagos
 	if len(n.FechasPago) == 0 {
-		return nil, fmt.Errorf("payroll: FechasPago no puede estar vacío")
+		return nil, fmt.Errorf("payroll: FechasPago must not be empty")
 	}
 	fechas := root.CreateElement("FechasPagos")
 	for _, f := range n.FechasPago {
@@ -173,7 +179,7 @@ func Build(n Nomina, cune, softwareSC, codigoQR string) (*etree.Document, error)
 	if t := n.Devengados.Transporte; t != nil {
 		tr := dev.CreateElement("Transporte")
 		tr.CreateAttr("AuxilioTransporte", money(t.AuxilioTransporte))
-		// ViaticoManuAlojS/NS solo se emiten si son > 0 (NIE072/073 rechaza ceros).
+		// ViaticoManuAlojS/NS are only emitted when > 0 (NIE072/073 rejects zeros).
 		if t.ViaticoManuAlojS > 0 {
 			tr.CreateAttr("ViaticoManuAlojS", money(t.ViaticoManuAlojS))
 		}
@@ -214,9 +220,9 @@ func Build(n Nomina, cune, softwareSC, codigoQR string) (*etree.Document, error)
 	return doc, nil
 }
 
-func money(v float64) string    { return fmt.Sprintf("%.2f", v) }
-func pct(v float64) string      { return fmt.Sprintf("%.2f", v) }
-func boolStr(b bool) string     {
+func money(v float64) string { return fmt.Sprintf("%.2f", v) }
+func pct(v float64) string   { return fmt.Sprintf("%.2f", v) }
+func boolStr(b bool) string {
 	if b {
 		return "true"
 	}

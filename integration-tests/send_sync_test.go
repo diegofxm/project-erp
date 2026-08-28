@@ -1,4 +1,4 @@
-package soap
+package integrationtest
 
 import (
 	"os"
@@ -13,29 +13,30 @@ import (
 	"github.com/diegofxm/cofacture/qr"
 	"github.com/diegofxm/cofacture/securitycode"
 	"github.com/diegofxm/cofacture/signer"
+	"github.com/diegofxm/cofacture/soap"
 	"github.com/diegofxm/cofacture/zip"
 )
 
-// TestSendBillSync_Real verifica si la DIAN sigue aceptando envíos contra habilitación a
-// través de SendBillSync (envío normal, no atado a un TestSetID) ahora que el set de
-// pruebas oficial de la Fase 1.7/1.9 ya quedó "Aceptado" — esa es justamente la pregunta que
-// esta prueba responde: ¿el ambiente de habilitación sigue disponible para pruebas continuas
-// usando las operaciones de envío normales, o la DIAN bloquea todo envío adicional una vez
-// completada la certificación? Ver docs/apidian-architecture.md sección 9.9 para el
-// resultado y su interpretación.
+// TestSendBillSync_Real checks whether the DIAN still accepts submissions against the
+// certification environment via SendBillSync (a normal submission, not tied to a TestSetID) now
+// that the official Phase 1.7/1.9 test set has already been marked "Accepted" — that is exactly
+// the question this test answers: does the certification environment remain available for
+// ongoing testing via the normal submission operations, or does the DIAN block any further
+// submissions once certification is complete? See docs/apidian-architecture.md section 9.9 for
+// the result and its interpretation.
 func TestSendBillSync_Real(t *testing.T) {
 	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")
 	if dir == "" {
-		t.Skip("COFACTURE_TEST_FIXTURES_DIR no configurado, se omite la prueba real contra la DIAN")
+		t.Skip("COFACTURE_TEST_FIXTURES_DIR not set, skipping real-DIAN test")
 	}
 
 	certPEM, err := os.ReadFile(filepath.Join(dir, "certificado_cert.pem"))
 	if err != nil {
-		t.Fatalf("leer certificado: %v", err)
+		t.Fatalf("read certificate: %v", err)
 	}
 	keyPEM, err := os.ReadFile(filepath.Join(dir, "certificado_key.pem"))
 	if err != nil {
-		t.Fatalf("leer llave privada: %v", err)
+		t.Fatalf("read private key: %v", err)
 	}
 	cert, key, err := signer.LoadPEM(certPEM, keyPEM)
 	if err != nil {
@@ -46,20 +47,20 @@ func TestSendBillSync_Real(t *testing.T) {
 
 	rangeFromDate, err := time.Parse("02-01-2006", env["DIAN_RANGE_DATE_FROM"])
 	if err != nil {
-		t.Fatalf("parsear DIAN_RANGE_DATE_FROM: %v", err)
+		t.Fatalf("parse DIAN_RANGE_DATE_FROM: %v", err)
 	}
 	rangeToDate, err := time.Parse("02-01-2006", env["DIAN_RANGE_DATE_TO"])
 	if err != nil {
-		t.Fatalf("parsear DIAN_RANGE_DATE_TO: %v", err)
+		t.Fatalf("parse DIAN_RANGE_DATE_TO: %v", err)
 	}
 
 	now := time.Now().In(domain.Bogota)
 	rangeFromInt, err := strconv.ParseInt(env["DIAN_RANGE_FROM"], 10, 64)
 	if err != nil {
-		t.Fatalf("parsear DIAN_RANGE_FROM: %v", err)
+		t.Fatalf("parse DIAN_RANGE_FROM: %v", err)
 	}
-	// Mismo truco que TestSendTestSetAsync_Real: desplazamiento por hora para no repetir
-	// número de factura entre corridas de esta prueba.
+	// Same trick as TestSendTestSetAsync_Real: an hour-based offset so as not to repeat the
+	// invoice number between runs of this test.
 	number := strconv.FormatInt(rangeFromInt+2+time.Now().Unix()%100000, 10)
 
 	inv := domain.Invoice{
@@ -173,10 +174,10 @@ func TestSendBillSync_Real(t *testing.T) {
 
 	outputsDir := filepath.Join(dir, "outputs")
 	if err := os.MkdirAll(outputsDir, 0o755); err != nil {
-		t.Fatalf("crear outputs/: %v", err)
+		t.Fatalf("create outputs/: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(outputsDir, "_realsend_sync_invoice.xml"), xmlBytes, 0o644); err != nil {
-		t.Fatalf("guardar copia local del XML: %v", err)
+	if err := os.WriteFile(filepath.Join(outputsDir, "_send_sync_invoice.xml"), xmlBytes, 0o644); err != nil {
+		t.Fatalf("save local copy of the XML: %v", err)
 	}
 
 	fileName := zip.DocumentFileName(zip.KindInvoice, inv.Supplier.Identification.Number, zip.SoftwarePropioCode, now.Year(), 1)
@@ -186,7 +187,7 @@ func TestSendBillSync_Real(t *testing.T) {
 	}
 	zipFileName := zip.PackageFileName(inv.Supplier.Identification.Number, zip.SoftwarePropioCode, now.Year(), 1)
 
-	client := New(HabilitacionURL, cert, key)
+	client := soap.New(soap.HabilitacionURL, cert, key)
 	result, err := client.SendBillSync(zipFileName, zipBytes)
 	if err != nil {
 		t.Fatalf("SendBillSync: %v", err)

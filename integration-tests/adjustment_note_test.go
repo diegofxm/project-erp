@@ -1,4 +1,4 @@
-package soap
+package integrationtest
 
 import (
 	"fmt"
@@ -13,29 +13,31 @@ import (
 	"github.com/diegofxm/cofacture/qr"
 	"github.com/diegofxm/cofacture/securitycode"
 	"github.com/diegofxm/cofacture/signer"
+	"github.com/diegofxm/cofacture/soap"
 	"github.com/diegofxm/cofacture/zip"
 )
 
-// TestSendBillSync_AdjustmentNote_Real construye, firma, comprime y envía una Nota de Ajuste
-// al DS (NA, InvoiceTypeCode "95") vía SendBillSync (habilitación libre, sin test_set_id).
-// Referencia el DS SEDS984000000 ya autorizado por la DIAN en habilitación.
+// TestSendBillSync_AdjustmentNote_Real builds, signs, compresses, and sends an Adjustment Note
+// to the Support Document (NA, InvoiceTypeCode "95") via SendBillSync (unrestricted certification
+// endpoint, no test_set_id). References Support Document SEDS984000000, already authorized by
+// the DIAN in the certification environment.
 //
-// El objetivo es validar el builder (CreditNote root) y el flujo de envío antes de integrarlo
-// en apidian, donde la DIAN rechazaba con "MessagesType not found" porque el builder generaba
-// un <Invoice> en lugar de <CreditNote>.
+// The goal is to validate the builder (CreditNote root) and the submission flow before
+// integrating it into apidian, where the DIAN was rejecting with "MessagesType not found"
+// because the builder was generating an <Invoice> instead of a <CreditNote>.
 func TestSendBillSync_AdjustmentNote_Real(t *testing.T) {
 	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")
 	if dir == "" {
-		t.Skip("COFACTURE_TEST_FIXTURES_DIR no configurado, se omite la prueba real contra la DIAN")
+		t.Skip("COFACTURE_TEST_FIXTURES_DIR not set, skipping real-DIAN test")
 	}
 
 	certPEM, err := os.ReadFile(filepath.Join(dir, "certificado_cert.pem"))
 	if err != nil {
-		t.Fatalf("leer certificado: %v", err)
+		t.Fatalf("read certificate: %v", err)
 	}
 	keyPEM, err := os.ReadFile(filepath.Join(dir, "certificado_key.pem"))
 	if err != nil {
-		t.Fatalf("leer llave privada: %v", err)
+		t.Fatalf("read private key: %v", err)
 	}
 	cert, key, err := signer.LoadPEM(certPEM, keyPEM)
 	if err != nil {
@@ -46,13 +48,13 @@ func TestSendBillSync_AdjustmentNote_Real(t *testing.T) {
 
 	now := time.Now().In(domain.Bogota)
 
-	// Número único por ejecución dentro del rango NAP (1–1000000).
+	// Number unique per run, within the NAP range (1-1000000).
 	number := fmt.Sprintf("%d", 1+(time.Now().Unix()%999999))
 
 	base := domain.Invoice{
 		ProfileID:         "DIAN 2.1: Nota de ajuste al documento soporte en adquisiciones efectuadas a sujetos no obligados a expedir factura o documento equivalente",
 		EnvironmentCode:   env["DIAN_ENVIRONMENT"],
-		OperationTypeCode: "10", // Residente (igual que el DS referenciado)
+		OperationTypeCode: "10", // Resident (same as the referenced Support Document)
 		DocumentTypeCode:  "95",
 		HashType:          "CUDS-SHA384",
 
@@ -64,7 +66,8 @@ func TestSendBillSync_AdjustmentNote_Real(t *testing.T) {
 
 		CurrencyCode: "COP",
 
-		// Roles invertidos igual que DS: Supplier = SNO (proveedor no obligado), Customer = ABS (empresa).
+		// Roles reversed just like the Support Document: Supplier = SNO (third party not required
+		// to invoice), Customer = ABS (the company).
 		Supplier: domain.Party{
 			EntityTypeCode: "2",
 			Identification: domain.Identification{
@@ -88,7 +91,7 @@ func TestSendBillSync_AdjustmentNote_Real(t *testing.T) {
 			TaxSchemeName:  "No aplica",
 		},
 
-		// Customer = empresa emisora del DS (ABS = Diego).
+		// Customer = the company that issued the Support Document (ABS = Diego).
 		Customer: domain.Party{
 			EntityTypeCode: "2",
 			Identification: domain.Identification{
@@ -114,8 +117,9 @@ func TestSendBillSync_AdjustmentNote_Real(t *testing.T) {
 
 		PaymentMeans: []domain.PaymentMean{{Code: "1", PaymentMethodCode: "10"}},
 
-		// Valores simples con math exacto (19% * 10000 = 1900).
-		// VLR02 exige NA ≤ DS ref (DS = 4225.07 COP); 119 COP está muy por debajo.
+		// Simple values with exact math (19% * 10000 = 1900).
+		// Validation rule VLR02 requires NA <= referenced Support Document (DS = 4225.07 COP);
+		// 119 COP is well below that.
 		HeaderTaxes: []domain.Tax{
 			{TaxableAmountCents: 10000, TaxAmountCents: 1900, Percent: 19, TypeCode: "01", TypeName: "IVA"},
 		},
@@ -188,13 +192,14 @@ func TestSendBillSync_AdjustmentNote_Real(t *testing.T) {
 
 	outputsDir := filepath.Join(dir, "outputs")
 	if err := os.MkdirAll(outputsDir, 0o755); err != nil {
-		t.Fatalf("crear outputs/: %v", err)
+		t.Fatalf("create outputs/: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(outputsDir, "_realsend_adjustment_note.xml"), xmlBytes, 0o644); err != nil {
-		t.Fatalf("guardar copia local del XML: %v", err)
+	if err := os.WriteFile(filepath.Join(outputsDir, "_adjustment_note.xml"), xmlBytes, 0o644); err != nil {
+		t.Fatalf("save local copy of the XML: %v", err)
 	}
 
-	// NA usa el NIT del ABS (Customer) para el nombre del ZIP, igual que DS.
+	// The Adjustment Note uses the ABS's (Customer's) NIT for the ZIP file name, same as the
+	// Support Document.
 	companyNIT := an.Customer.Identification.Number
 	fileName := zip.DocumentFileName(zip.KindAdjustmentNote, companyNIT, zip.SoftwarePropioCode, now.Year(), uint32(time.Now().Unix()%0xFFFFFFFF))
 	zipBytes, err := zip.Build([]zip.File{{Name: fileName, Content: xmlBytes}})
@@ -203,9 +208,10 @@ func TestSendBillSync_AdjustmentNote_Real(t *testing.T) {
 	}
 	zipFileName := zip.PackageFileName(companyNIT, zip.SoftwarePropioCode, now.Year(), uint32(time.Now().Unix()%0xFFFFFFFF))
 
-	client := New(HabilitacionURL, cert, key)
+	client := soap.New(soap.HabilitacionURL, cert, key)
 
-	// Habilitación libre — SendBillSync sin test_set_id (igual que NC/ND confirmados).
+	// Unrestricted certification endpoint — SendBillSync with no test_set_id (same as the
+	// confirmed Credit Note / Debit Note flows).
 	resp, err := client.SendBillSync(zipFileName, zipBytes)
 	if err != nil {
 		t.Fatalf("SendBillSync: %v", err)
@@ -220,6 +226,6 @@ func TestSendBillSync_AdjustmentNote_Real(t *testing.T) {
 	}
 
 	if !resp.IsValid {
-		t.Fatalf("la DIAN rechazó la NA: %s — %s", resp.StatusCode, resp.StatusDescription)
+		t.Fatalf("DIAN rejected the NA: %s — %s", resp.StatusCode, resp.StatusDescription)
 	}
 }

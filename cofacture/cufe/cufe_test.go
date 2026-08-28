@@ -6,9 +6,9 @@ import (
 	"github.com/diegofxm/cofacture/domain"
 )
 
-// TestCompute_AnexoTecnicoExample usa el ejemplo oficial de la sección 11.2.1 del Anexo
-// Técnico 1.9 (Resolución DIAN 000165/2023) — mismos valores de entrada y mismo hash
-// esperado que publica la DIAN, no un caso inventado.
+// TestCompute_AnexoTecnicoExample uses the official example from section 11.2.1 of the
+// Technical Annex 1.9 (DIAN Resolution 000165/2023) — same input values and same expected
+// hash that DIAN publishes, not a made-up case.
 func TestCompute_AnexoTecnicoExample(t *testing.T) {
 	inv := domain.Invoice{
 		Number:          "323200000129",

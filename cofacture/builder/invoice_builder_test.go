@@ -8,10 +8,10 @@ import (
 	"github.com/diegofxm/cofacture/domain"
 )
 
-// update regenera testdata/invoice_golden.xml a partir de la salida actual del builder.
-// Uso: go test ./builder/... -run TestBuildInvoice_Golden -update
-// Después de regenerar, revisar a mano el diff contra la plantilla de referencia antes de
-// dar por buena la nueva versión del golden file.
+// update regenerates testdata/invoice_golden.xml from the builder's current output.
+// Usage: go test ./builder/... -run TestBuildInvoice_Golden -update
+// After regenerating, manually review the diff against the reference template before
+// trusting the new version of the golden file.
 var update = flag.Bool("update", false, "regenera el golden file con la salida actual")
 
 func ptr(s string) *string { return &s }
@@ -99,9 +99,9 @@ func sampleInvoice() domain.Invoice {
 				ItemCode:           "PROD001",
 				ItemTypeCode:       "999",
 				ItemTypeName:       "Estándar de adopción del contribuyente",
-				// ItemTypeAgencyID vacío a propósito — la fila "999" de la tabla 13.3.5 del
-				// Anexo Técnico exige que @schemeAgencyID no se use en absoluto (ver sección
-				// 9.45), no que se mande con un valor "0".
+				// ItemTypeAgencyID intentionally empty — row "999" of table 13.3.5 in the
+				// Technical Annex requires that @schemeAgencyID not be used at all (see
+				// section 9.45), not that it be sent with a value of "0".
 				Taxes: []domain.Tax{
 					{TaxableAmountCents: 126050420, TaxAmountCents: 23949580, Percent: 19, TypeCode: "01", TypeName: "IVA"},
 				},

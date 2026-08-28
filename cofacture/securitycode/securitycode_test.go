@@ -2,9 +2,9 @@ package securitycode
 
 import "testing"
 
-// No hay un ejemplo oficial publicado para validar esta fórmula byte a byte (a diferencia
-// de CUFE) — esta prueba es de regresión/sanidad: longitud correcta, determinismo, y que
-// cada insumo realmente participe del hash.
+// There is no published official example to validate this formula byte-for-byte (unlike
+// CUFE) — this test is a regression/sanity check: correct length, determinism, and that
+// each input actually participates in the hash.
 func TestCompute(t *testing.T) {
 	got := Compute("software-id", "1234", "SETP1")
 	if len(got) != 96 {

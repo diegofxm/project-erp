@@ -1,27 +1,28 @@
-// Package soap implementa el cliente SOAP 1.2 de los webservices de recepción de la DIAN
-// (WcfDianCustomerServices), incluyendo la cabecera WS-Security.
+// Package soap implements the SOAP 1.2 client for DIAN's receiving web services
+// (WcfDianCustomerServices), including the WS-Security header.
 //
-// Verificado contra el servidor real de habilitación (vpfe-hab.dian.gov.co): una factura
-// construida con este cliente fue enviada por SendTestSetAsync y autorizada
+// Verified against the real certification-environment server (vpfe-hab.dian.gov.co): an
+// invoice built with this client was sent via SendTestSetAsync and authorized
 // (StatusCode=00, "ha sido autorizada").
 //
-// La política publicada en el WSDL describe RequireThumbprintReference, pero esa variante
-// dio "An error occurred when verifying security for the message" contra el servidor real.
-// El patrón que sí funciona (igual al de implementaciones reales existentes: Chilkat,
-// soap-dian en PHP) es distinto:
+// The policy published in the WSDL describes RequireThumbprintReference, but that variant
+// produced "An error occurred when verifying security for the message" against the real
+// server. The pattern that does work (matching existing real-world implementations: Chilkat,
+// PHP's soap-dian) is different:
 //
-//   - wsse:BinarySecurityToken embebido + referencia directa (Direct Reference) en KeyInfo,
-//     no por thumbprint.
-//   - C14N exclusivo forzando una lista de namespaces inclusivos "wsa soap wcf" — sin esto,
-//     la firma no coincide con lo que recalcula el servidor al verificar.
-//   - TransportBinding con HttpsToken RequireClientCertificate="false" — HTTPS normal, sin
-//     TLS mutuo, a pesar de que el anexo técnico (sección 7.5) sugiere lo contrario.
-//   - Se firma únicamente el header wsa:To (no el Body ni el Timestamp).
-//   - AlgorithmSuite Basic256Sha256Rsa15 — digest SHA-256, firma RSA-SHA256.
-//   - Layout Strict — dentro de wsse:Security: Timestamp, BinarySecurityToken, Signature.
-//   - Cada elemento que lleve un atributo "wsu:Id" debe declarar xmlns:wsu en sí mismo —
-//     los namespaces de XML no se heredan entre hermanos. Esto causó un 400 vacío (la
-//     petición se rechazaba antes de llegar al procesamiento de seguridad) hasta corregirlo.
+//   - An embedded wsse:BinarySecurityToken with a Direct Reference in KeyInfo, not by
+//     thumbprint.
+//   - Exclusive C14N forcing a fixed list of inclusive namespaces "wsa soap wcf" — without
+//     this, the signature doesn't match what the server recomputes when verifying.
+//   - TransportBinding with HttpsToken RequireClientCertificate="false" — plain HTTPS, no
+//     mutual TLS, despite the technical annex (section 7.5) suggesting otherwise.
+//   - Only the wsa:To header is signed (not the Body or the Timestamp).
+//   - AlgorithmSuite Basic256Sha256Rsa15 — SHA-256 digest, RSA-SHA256 signature.
+//   - Strict Layout — inside wsse:Security: Timestamp, BinarySecurityToken, Signature.
+//   - Every element carrying a "wsu:Id" attribute must declare xmlns:wsu on itself — XML
+//     namespaces declared on one element aren't inherited by its siblings. This caused an
+//     empty 400 response (the request was rejected before reaching security processing) until
+//     it was fixed.
 package soap
 
 import (
@@ -54,20 +55,21 @@ const (
 	signatureMethodRSA256 = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
 	digestMethodSHA256    = "http://www.w3.org/2001/04/xmlenc#sha256"
 
-	// inclusiveNSPrefixList fuerza la declaración de estos prefijos en la forma canónica
-	// aunque el elemento firmado no los "utilice visiblemente" en el sentido estricto del
-	// algoritmo — es exactamente para qué existe el mecanismo InclusiveNamespaces de
-	// EXC-C14N, y es lo que usan las implementaciones reales contra este mismo servicio.
+	// inclusiveNSPrefixList forces these prefixes to be declared in canonical form even though
+	// the signed element doesn't "visibly use" them in the strict sense of the algorithm —
+	// this is exactly what EXC-C14N's InclusiveNamespaces mechanism exists for, and it's what
+	// real implementations against this same service use.
 	inclusiveNSPrefixList = "wsa soap wcf"
 )
 
-// exclusiveCanonicalizer implementa "http://www.w3.org/2001/10/xml-exc-c14n#" — el algoritmo
-// que exige WS-Security, distinto del C14N inclusivo que usa la firma XAdES del documento
-// (paquete signer). No comparten canonicalizador a propósito: son capas de firma distintas.
+// exclusiveCanonicalizer implements "http://www.w3.org/2001/10/xml-exc-c14n#" — the algorithm
+// WS-Security requires, distinct from the inclusive C14N the document's XAdES signature uses
+// (package signer). They intentionally don't share a canonicalizer: these are different
+// signature layers.
 var exclusiveCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(inclusiveNSPrefixList)
 
-// buildEnvelope construye el sobre SOAP 1.2 completo: WS-Addressing + WS-Security (firmando
-// solo wsa:To) + el cuerpo que aporte bodyBuilder.
+// buildEnvelope builds the full SOAP 1.2 envelope: WS-Addressing + WS-Security (signing only
+// wsa:To) + the body bodyBuilder provides.
 func (c *Client) buildEnvelope(action string, bodyBuilder func(body *etree.Element)) (*etree.Document, error) {
 	doc := etree.NewDocument()
 	doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8"`)
@@ -86,9 +88,9 @@ func (c *Client) buildEnvelope(action string, bodyBuilder func(body *etree.Eleme
 	toEl := header.CreateElement("wsa:To")
 	toEl.CreateAttr("xmlns:wsa", nsWSA)
 	toEl.CreateAttr("xmlns:wsu", nsWSU)
-	// xmlns:soap y xmlns:wcf se declaran aquí también, redundantes para el contenido de
-	// wsa:To, pero necesarios para que inclusiveNSPrefixList tenga algo que retener al
-	// canonicalizar este elemento de forma aislada (ver nota en exclusiveCanonicalizer).
+	// xmlns:soap and xmlns:wcf are declared here too — redundant for wsa:To's own content, but
+	// needed so inclusiveNSPrefixList has something to retain when canonicalizing this element
+	// in isolation (see the note on exclusiveCanonicalizer above).
 	toEl.CreateAttr("xmlns:soap", nsSOAP12)
 	toEl.CreateAttr("xmlns:wcf", nsWCF)
 	toEl.CreateAttr("wsu:Id", toID)
@@ -103,7 +105,7 @@ func (c *Client) buildEnvelope(action string, bodyBuilder func(body *etree.Eleme
 	msgID.SetText("urn:uuid:" + uuid.New().String())
 
 	if err := c.appendSecurityHeader(header, toEl, toID); err != nil {
-		return nil, fmt.Errorf("soap: construir wsse:Security: %w", err)
+		return nil, fmt.Errorf("soap: build wsse:Security: %w", err)
 	}
 
 	body := env.CreateElement("soap:Body")
@@ -126,11 +128,11 @@ func (c *Client) appendSecurityHeader(header, toEl *etree.Element, toID string) 
 
 	tokenID := "X509-" + uuid.New().String()
 	bst := sec.CreateElement("wsse:BinarySecurityToken")
-	// xmlns:wsu debe declararse aquí: no se hereda del Timestamp hermano (los namespaces
-	// declarados en XML solo bajan a descendientes, no se comparten entre hermanos). Sin
-	// esto, "wsu:Id" usa un prefijo no declarado y un parser estricto de namespaces (como
-	// el de WCF) rechaza el documento antes de procesar la seguridad — exactamente el 400
-	// vacío que devolvía el servidor real.
+	// xmlns:wsu must be declared here: it isn't inherited from the sibling Timestamp element
+	// (XML namespace declarations only flow down to descendants, never across siblings).
+	// Without this, "wsu:Id" uses an undeclared prefix and a strict namespace parser (like
+	// WCF's) rejects the document before it even processes security — exactly the empty 400
+	// the real server used to return.
 	bst.CreateAttr("xmlns:wsu", nsWSU)
 	bst.CreateAttr("wsu:Id", tokenID)
 	bst.CreateAttr("EncodingType", base64EncodingType)
@@ -140,7 +142,7 @@ func (c *Client) appendSecurityHeader(header, toEl *etree.Element, toID string) 
 	return c.appendSignature(sec, toEl, toID, tokenID)
 }
 
-// appendSignature firma únicamente toEl (el header wsa:To, vía Reference URI="#"+toID).
+// appendSignature signs only toEl (the wsa:To header, via Reference URI="#"+toID).
 func (c *Client) appendSignature(sec, toEl *etree.Element, toID, tokenID string) error {
 	canonTo, err := exclusiveCanonicalizer.Canonicalize(toEl)
 	if err != nil {
@@ -152,9 +154,9 @@ func (c *Client) appendSignature(sec, toEl *etree.Element, toID, tokenID string)
 	sigEl.CreateAttr("xmlns:ds", nsDS)
 
 	signedInfo := sigEl.CreateElement("ds:SignedInfo")
-	// El canonicalizador exclusivo (a diferencia del inclusivo que usa el paquete signer
-	// para XAdES) no hereda namespaces de ancestros: trata el elemento canonicalizado como
-	// si fuera la raíz. xmlns:ds/soap/wcf deben estar declarados dentro de este subárbol.
+	// The exclusive canonicalizer (unlike the inclusive one package signer uses for XAdES)
+	// does not inherit namespaces from ancestors: it treats the canonicalized element as if it
+	// were the root. xmlns:ds/soap/wcf must be declared within this subtree.
 	signedInfo.CreateAttr("xmlns:ds", nsDS)
 	signedInfo.CreateAttr("xmlns:soap", nsSOAP12)
 	signedInfo.CreateAttr("xmlns:wcf", nsWCF)

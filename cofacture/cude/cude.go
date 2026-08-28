@@ -1,8 +1,9 @@
-// Package cude calcula el Código Único de Documento Electrónico (CUDE) de Notas Crédito y
-// Notas Débito, según el Anexo Técnico 1.9 de la DIAN (secciones 11.4.3-11.4.6).
+// Package cude computes the Unique Electronic Document Code (Código Único de Documento
+// Electrónico, CUDE) for Credit Notes and Debit Notes, per DIAN's Technical Annex 1.9
+// (sections 11.4.3-11.4.6).
 //
-// El CUFE (Factura) vive en el paquete cufe, no aquí — son fórmulas casi idénticas, pero
-// identificadores distintos para documentos distintos.
+// The CUFE (Invoice) lives in package cufe, not here — the formulas are nearly identical, but
+// they are distinct identifiers for distinct documents.
 package cude
 
 import (
@@ -13,13 +14,13 @@ import (
 	"github.com/diegofxm/cofacture/internal/dianhash"
 )
 
-// Compute calcula el CUDE de una Nota Crédito o Nota Débito.
+// Compute calculates the CUDE of a Credit Note or Debit Note.
 //
-// La fórmula es idéntica a la del CUFE en estructura y orden de campos (validado contra los
-// dos ejemplos oficiales del anexo, uno por cada tipo de nota) — la única diferencia real es
-// que en vez de la clave técnica del rango de numeración se usa el PIN del software
-// ("Software-PIN", el mismo que se usa para securitycode.Compute). noteBase es el Invoice
-// embebido en domain.CreditNote/domain.DebitNote (campo promovido, ej. creditNote.Invoice).
+// The formula is identical to CUFE's in structure and field order (validated against the two
+// official annex examples, one per note type) — the only real difference is that instead of
+// the numbering range's technical key, the software's PIN is used ("Software-PIN", the same
+// one used for securitycode.Compute). noteBase is the Invoice embedded in
+// domain.CreditNote/domain.DebitNote (the promoted field, e.g. creditNote.Invoice).
 func Compute(noteBase domain.Invoice, softwarePIN string) string {
 	sum := sha512.Sum384([]byte(dianhash.Seed(noteBase, softwarePIN)))
 	return hex.EncodeToString(sum[:])

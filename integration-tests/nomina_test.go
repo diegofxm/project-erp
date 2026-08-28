@@ -1,4 +1,4 @@
-package soap
+package integrationtest
 
 import (
 	"fmt"
@@ -12,25 +12,26 @@ import (
 	"github.com/diegofxm/cofacture/qr"
 	"github.com/diegofxm/cofacture/securitycode"
 	"github.com/diegofxm/cofacture/signer"
+	"github.com/diegofxm/cofacture/soap"
 	"github.com/diegofxm/cofacture/zip"
 )
 
-// TestSendNomina_Real construye, firma, comprime y envía una NominaIndividual real al
-// ambiente de habilitación DIAN usando las credenciales de docs/reference.
-// Solo corre si COFACTURE_TEST_FIXTURES_DIR apunta a esa carpeta.
+// TestSendNomina_Real builds, signs, compresses, and sends a real Individual Payroll document
+// to the DIAN certification environment using the credentials from docs/reference.
+// It only runs if COFACTURE_TEST_FIXTURES_DIR points to that folder.
 func TestSendNomina_Real(t *testing.T) {
 	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")
 	if dir == "" {
-		t.Skip("COFACTURE_TEST_FIXTURES_DIR no configurado, se omite la prueba real contra DIAN")
+		t.Skip("COFACTURE_TEST_FIXTURES_DIR not set, skipping real-DIAN test")
 	}
 
 	certPEM, err := os.ReadFile(filepath.Join(dir, "certificado_cert.pem"))
 	if err != nil {
-		t.Fatalf("leer certificado: %v", err)
+		t.Fatalf("read certificate: %v", err)
 	}
 	keyPEM, err := os.ReadFile(filepath.Join(dir, "certificado_key.pem"))
 	if err != nil {
-		t.Fatalf("leer llave privada: %v", err)
+		t.Fatalf("read private key: %v", err)
 	}
 	cert, key, err := signer.LoadPEM(certPEM, keyPEM)
 	if err != nil {
@@ -41,37 +42,38 @@ func TestSendNomina_Real(t *testing.T) {
 
 	now := time.Now().In(bogota)
 
-	// Consecutivo = solo la parte numérica. Numero = Prefijo + Consecutivo.
+	// Consecutivo = numeric part only. Numero = Prefijo + Consecutivo.
 	consec := fmt.Sprintf("%d", now.Unix()%100000) // e.g. "87614"
 	docNumber := "NE" + consec                     // e.g. "NE87614"
 
-	// Datos del empleador (sujeto obligado) — misma persona natural que en los tests de FE.
+	// Employer data (the party responsible for the payroll) — same natural person used in the
+	// Electronic Sales Invoice tests.
 	const empleadorNIT = "6382356"
 	const empleadorDV = "7"
 
-	// Datos del trabajador (empleado ficticio para prueba de habilitación).
+	// Worker data (a fictitious employee for certification-environment testing).
 	const trabajadorDoc = "1234567890"
 
-	// Montos del periodo (enero 2024, 30 días).
+	// Amounts for the period (January 2024, 30 days).
 	const (
-		sueldo      = 1_423_500.0  // 1 SMLMV 2024 aprox
-		diasTrab    = 30
-		sueldoTrab  = sueldo // 30/30 días
-		auxTransp   = 162_000.0 // auxilio de transporte 2024
-		saludPct    = 4.0
-		saludDed    = sueldoTrab * saludPct / 100
-		pensionPct  = 4.0
-		pensionDed  = sueldoTrab * pensionPct / 100
-		devTotal    = sueldoTrab + auxTransp
-		dedTotal    = saludDed + pensionDed
-		compTotal   = devTotal - dedTotal
+		sueldo     = 1_423_500.0 // approx. 1 SMLMV (minimum monthly wage) for 2024
+		diasTrab   = 30
+		sueldoTrab = sueldo    // 30/30 days worked
+		auxTransp  = 162_000.0 // 2024 transportation allowance
+		saludPct   = 4.0
+		saludDed   = sueldoTrab * saludPct / 100
+		pensionPct = 4.0
+		pensionDed = sueldoTrab * pensionPct / 100
+		devTotal   = sueldoTrab + auxTransp
+		dedTotal   = saludDed + pensionDed
+		compTotal  = devTotal - dedTotal
 	)
 
 	n := payroll.Nomina{
-		Consecutivo: consec,    // solo la parte numérica: "87614"
+		Consecutivo: consec, // numeric part only: "87614"
 		Prefijo:     "NE",
 		Numero:      docNumber, // Prefijo + Consecutivo: "NE87614"
-		TipoXML:     "102", // NominaIndividual
+		TipoXML:     "102",     // Individual Payroll
 		Ambiente:    env["DIAN_ENVIRONMENT"],
 
 		FechaGen:               now.Format("2006-01-02"),
@@ -81,12 +83,12 @@ func TestSendNomina_Real(t *testing.T) {
 		FechaLiquidacionFin:    "2024-01-31",
 		TiempoLaborado:         30,
 
-		Pais:              "CO",
+		Pais:               "CO",
 		DepartamentoEstado: "76",
-		MunicipioCiudad:   "76520",
-		Idioma:            "es",
+		MunicipioCiudad:    "76520",
+		Idioma:             "es",
 
-		PeriodoNomina: 4, // Mensual
+		PeriodoNomina: 4, // Monthly
 		TipoMoneda:    "COP",
 		TRM:           "1.00",
 
@@ -173,11 +175,11 @@ func TestSendNomina_Real(t *testing.T) {
 		ComprobanteTotal: compTotal,
 	}
 
-	// SoftwareSC: SHA-384(SoftwareID + PIN + NroDocumento) — sección 8.2 del Anexo.
+	// SoftwareSC: SHA-384(SoftwareID + PIN + NroDocumento) — Technical Annex section 8.2.
 	softwareSC := securitycode.Compute(n.SoftwareID, n.PIN, n.Numero)
 
 	// CUNE: SHA-384(NumNE + FecNE + HorNE + ValDev + ValDed + ValTolNE + NitNE + DocEmp + TipoXML + PIN + Amb)
-	// NitNE = Empleador/@NIT; DocEmp = Trabajador/@NumeroDocumento (sección 8.1)
+	// NitNE = Empleador/@NIT; DocEmp = Trabajador/@NumeroDocumento (section 8.1)
 	cune := payroll.Cune(
 		n.Numero,
 		n.FechaGen,
@@ -192,20 +194,20 @@ func TestSendNomina_Real(t *testing.T) {
 		n.Ambiente,
 	)
 
-	// CodigoQR: mismo endpoint que FE/DS.
+	// CodigoQR: same endpoint used for the Electronic Sales Invoice / Support Document.
 	codigoQR := qr.URL(n.Ambiente, cune)
 
 	t.Logf("CUNE: %s", cune)
 	t.Logf("SoftwareSC: %s", softwareSC)
 	t.Logf("CodigoQR: %s", codigoQR)
 
-	// Construir árbol XML.
+	// Build the XML tree.
 	doc, err := payroll.Build(n, cune, softwareSC, codigoQR)
 	if err != nil {
 		t.Fatalf("payroll.Build: %v", err)
 	}
 
-	// Localizar placeholder de firma e insertar la firma XAdES-EPES.
+	// Locate the signature placeholder and insert the XAdES-EPES signature.
 	placeholder, err := builder.SignaturePlaceholder(doc)
 	if err != nil {
 		t.Fatalf("SignaturePlaceholder: %v", err)
@@ -219,14 +221,14 @@ func TestSendNomina_Real(t *testing.T) {
 		t.Fatalf("WriteToBytes: %v", err)
 	}
 
-	// Guardar copia del XML firmado para inspección.
+	// Save a copy of the signed XML for inspection.
 	outputsDir := filepath.Join(dir, "outputs")
 	_ = os.MkdirAll(outputsDir, 0o755)
-	outPath := filepath.Join(outputsDir, "_realsend_nomina.xml")
+	outPath := filepath.Join(outputsDir, "_nomina.xml")
 	_ = os.WriteFile(outPath, xmlBytes, 0o644)
-	t.Logf("XML firmado guardado en: %s", outPath)
+	t.Logf("signed XML saved to: %s", outPath)
 
-	// Empaquetar en ZIP.
+	// Package into a ZIP.
 	xmlFileName := payroll.XMLFileName(empleadorNIT, now.Year(), 1)
 	zipBytes, err := zip.Build([]zip.File{{Name: xmlFileName, Content: xmlBytes}})
 	if err != nil {
@@ -235,8 +237,8 @@ func TestSendNomina_Real(t *testing.T) {
 	zipFileName := payroll.ZIPFileName(empleadorNIT, now.Year(), 1)
 	t.Logf("ZIP: %s / XML: %s", zipFileName, xmlFileName)
 
-	// Enviar al servicio SendNominaSync de habilitación.
-	client := New(HabilitacionURL, cert, key)
+	// Send to the certification-environment SendNominaSync service.
+	client := soap.New(soap.HabilitacionURL, cert, key)
 	result, err := client.SendNominaSyncTestSet(zipBytes, env["PAYROLL_TEST_SET_ID"])
 	if err != nil {
 		t.Fatalf("SendNominaSyncTestSet: %v", err)
@@ -255,11 +257,11 @@ func TestSendNomina_Real(t *testing.T) {
 	}
 
 	if !result.IsValid {
-		t.Errorf("la DIAN rechazó el documento — ver errores arriba")
+		t.Errorf("DIAN rejected the document — see errors above")
 	}
 }
 
-// bogota es la zona horaria de Colombia.
+// bogota is Colombia's time zone.
 var bogota = func() *time.Location {
 	loc, err := time.LoadLocation("America/Bogota")
 	if err != nil {

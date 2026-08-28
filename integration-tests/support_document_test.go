@@ -1,4 +1,4 @@
-package soap
+package integrationtest
 
 import (
 	"fmt"
@@ -14,29 +14,30 @@ import (
 	"github.com/diegofxm/cofacture/qr"
 	"github.com/diegofxm/cofacture/securitycode"
 	"github.com/diegofxm/cofacture/signer"
+	"github.com/diegofxm/cofacture/soap"
 	"github.com/diegofxm/cofacture/zip"
 )
 
-// TestSendTestSetAsync_SupportDocument_Real construye, firma, comprime y envía un Documento
-// Soporte real al ambiente de habilitación de la DIAN, igual que TestSendTestSetAsync_Real
-// lo hace para FE. Usa las mismas credenciales (mismo software, mismo PIN) pero el set de
-// pruebas DS (TestSetID distinto) y roles invertidos: Supplier = proveedor no obligado,
-// Customer = empresa emisora.
+// TestSendTestSetAsync_SupportDocument_Real builds, signs, compresses, and sends a real
+// Support Document to the DIAN certification environment, the same way TestSendTestSetAsync_Real
+// does for the Electronic Sales Invoice. It uses the same credentials (same software, same PIN)
+// but the Support Document test set (a different TestSetID) and reversed roles: Supplier = the
+// third party not required to invoice, Customer = the issuing company.
 //
-// El objetivo es aislar si el problema de DSAD06 está en cofacture o en apidian.
+// The goal is to isolate whether the DSAD06 issue lies in cofacture or in apidian.
 func TestSendTestSetAsync_SupportDocument_Real(t *testing.T) {
 	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")
 	if dir == "" {
-		t.Skip("COFACTURE_TEST_FIXTURES_DIR no configurado, se omite la prueba real contra la DIAN")
+		t.Skip("COFACTURE_TEST_FIXTURES_DIR not set, skipping real-DIAN test")
 	}
 
 	certPEM, err := os.ReadFile(filepath.Join(dir, "certificado_cert.pem"))
 	if err != nil {
-		t.Fatalf("leer certificado: %v", err)
+		t.Fatalf("read certificate: %v", err)
 	}
 	keyPEM, err := os.ReadFile(filepath.Join(dir, "certificado_key.pem"))
 	if err != nil {
-		t.Fatalf("leer llave privada: %v", err)
+		t.Fatalf("read private key: %v", err)
 	}
 	cert, key, err := signer.LoadPEM(certPEM, keyPEM)
 	if err != nil {
@@ -47,14 +48,14 @@ func TestSendTestSetAsync_SupportDocument_Real(t *testing.T) {
 
 	now := time.Now().In(domain.Bogota)
 
-	// Número único por ejecución (offset dentro del rango DS) para poder re-correr
-	// el test sin que la DIAN rechace por número duplicado.
+	// Number unique per run (offset within the Support Document range) so the test can be
+	// re-run without the DIAN rejecting it for a duplicate number.
 	number := fmt.Sprintf("%d", 984000000+(time.Now().Unix()%1000000))
 
 	inv := domain.Invoice{
 		ProfileID:         "DIAN 2.1: documento soporte en adquisiciones efectuadas a no obligados a facturar.",
 		EnvironmentCode:   env["DIAN_ENVIRONMENT"],
-		OperationTypeCode: "10", // Residente
+		OperationTypeCode: "10", // Resident
 		DocumentTypeCode:  "05",
 		HashType:          "CUDS-SHA384",
 
@@ -66,8 +67,9 @@ func TestSendTestSetAsync_SupportDocument_Real(t *testing.T) {
 
 		CurrencyCode: "COP",
 
-		// Roles invertidos en DS: Supplier = proveedor NO OBLIGADO (SNO), Customer = empresa emisora (ABS).
-		// La DIAN exige schemeName="31" (NIT) para el SNO — verificado en DS-real.xml.
+		// Roles reversed for the Support Document: Supplier = the third party NOT REQUIRED to
+		// invoice (SNO), Customer = the issuing company (ABS).
+		// The DIAN requires schemeName="31" (NIT) for the SNO — verified against DS-real.xml.
 		Supplier: domain.Party{
 			EntityTypeCode: "2",
 			Identification: domain.Identification{
@@ -91,7 +93,7 @@ func TestSendTestSetAsync_SupportDocument_Real(t *testing.T) {
 			TaxSchemeName:  "No aplica",
 		},
 
-		// Customer = empresa compradora/emisora del DS (Diego).
+		// Customer = the purchasing/issuing company for the Support Document (Diego).
 		Customer: domain.Party{
 			EntityTypeCode: "2",
 			Identification: domain.Identification{
@@ -180,14 +182,15 @@ func TestSendTestSetAsync_SupportDocument_Real(t *testing.T) {
 	}
 	outputsDir := filepath.Join(dir, "outputs")
 	if err := os.MkdirAll(outputsDir, 0o755); err != nil {
-		t.Fatalf("crear outputs/: %v", err)
+		t.Fatalf("create outputs/: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(outputsDir, "_realsend_support_document.xml"), xmlBytes, 0o644); err != nil {
-		t.Fatalf("guardar copia local del XML: %v", err)
+	if err := os.WriteFile(filepath.Join(outputsDir, "_support_document.xml"), xmlBytes, 0o644); err != nil {
+		t.Fatalf("save local copy of the XML: %v", err)
 	}
 
-	// El NIT del emisor (Customer en DS) se usa para el nombre del ZIP — igual que FE usa
-	// el NIT del Supplier (que en FE ES el emisor).
+	// The issuer's NIT (Customer in a Support Document) is used for the ZIP file name — just
+	// like the Electronic Sales Invoice uses the Supplier's NIT (which IS the issuer for that
+	// document type).
 	companyNIT := inv.Customer.Identification.Number
 	fileName := zip.DocumentFileName(zip.KindSupportDocument, companyNIT, zip.SoftwarePropioCode, now.Year(), 1)
 	zipBytes, err := zip.Build([]zip.File{{Name: fileName, Content: xmlBytes}})
@@ -196,9 +199,9 @@ func TestSendTestSetAsync_SupportDocument_Real(t *testing.T) {
 	}
 	zipFileName := zip.PackageFileName(companyNIT, zip.SoftwarePropioCode, now.Year(), 1)
 
-	client := New(HabilitacionURL, cert, key)
+	client := soap.New(soap.HabilitacionURL, cert, key)
 
-	// TestSetID específico para DS — distinto del de FE.
+	// TestSetID specific to the Support Document — different from the invoice's.
 	const dsTestSetID = "ffad5a13-987b-4cab-9f46-8994d6643602"
 
 	result, err := client.SendTestSetAsync(zipFileName, zipBytes, dsTestSetID)
@@ -209,12 +212,12 @@ func TestSendTestSetAsync_SupportDocument_Real(t *testing.T) {
 	t.Logf("ZipKey: %q", result.ZipKey)
 	if result.ErrorMessageList != nil {
 		for _, e := range result.ErrorMessageList.Items {
-			t.Logf("Error inicial: archivo=%s mensaje=%s success=%v", e.XmlFileName, e.ProcessedMessage, e.Success)
+			t.Logf("Initial error: file=%s message=%s success=%v", e.XmlFileName, e.ProcessedMessage, e.Success)
 		}
 	}
 
 	if result.ZipKey == "" {
-		t.Fatal("la DIAN no devolvió ZipKey — revisar ErrorMessageList arriba")
+		t.Fatal("DIAN did not return a ZipKey — check ErrorMessageList above")
 	}
 
 	testSetClosed := false
@@ -222,16 +225,16 @@ func TestSendTestSetAsync_SupportDocument_Real(t *testing.T) {
 		time.Sleep(5 * time.Second)
 		statuses, err := client.GetStatusZip(result.ZipKey)
 		if err != nil {
-			t.Logf("GetStatusZip intento %d: %v", i+1, err)
+			t.Logf("GetStatusZip attempt %d: %v", i+1, err)
 			continue
 		}
 		if len(statuses) == 0 {
-			t.Logf("GetStatusZip intento %d: aún sin resultado", i+1)
+			t.Logf("GetStatusZip attempt %d: no result yet", i+1)
 			continue
 		}
 		inProcess := false
 		for _, st := range statuses {
-			t.Logf("TestSetAsync intento %d → IsValid=%v StatusCode=%q StatusDescription=%s",
+			t.Logf("TestSetAsync attempt %d → IsValid=%v StatusCode=%q StatusDescription=%s",
 				i+1, st.IsValid, st.StatusCode, st.StatusDescription)
 			if st.ErrorMessage != nil {
 				for _, m := range st.ErrorMessage.Items {
@@ -247,20 +250,20 @@ func TestSendTestSetAsync_SupportDocument_Real(t *testing.T) {
 			}
 		}
 		if !inProcess {
-			break // resultado definitivo recibido
+			break // final result received
 		}
-		t.Logf("aún en proceso, reintentando en 5s…")
+		t.Logf("still in progress, retrying in 5s…")
 	}
 
 	if !testSetClosed {
-		t.Log("el set de pruebas no está cerrado — DSAD06 no reproduced via SendBillSync")
+		t.Log("test set is not closed — DSAD06 not reproduced via SendBillSync")
 		return
 	}
 
-	// El set DS ya estaba cerrado (0 documentos requeridos, aceptado automáticamente).
-	// Apidian detecta esto y llama SendBillSync con el mismo XML. Lo replicamos aquí
-	// para ver qué devuelve la DIAN en la validación real del documento.
-	t.Log("set de pruebas cerrado → enviando el mismo XML via SendBillSync (igual que apidian)...")
+	// The Support Document test set was already closed (0 documents required, auto-accepted).
+	// Apidian detects this and calls SendBillSync with the same XML. We replicate that here
+	// to see what the DIAN returns from the document's real validation.
+	t.Log("test set closed → sending the same XML via SendBillSync (same as apidian)...")
 	syncResult, err := client.SendBillSync(zipFileName, zipBytes)
 	if err != nil {
 		t.Fatalf("SendBillSync: %v", err)

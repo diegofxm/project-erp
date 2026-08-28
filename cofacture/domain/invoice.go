@@ -1,48 +1,50 @@
 package domain
 
-// Invoice es el modelo de una Factura Electrónica de Venta (InvoiceTypeCode "01").
+// Invoice is the model for an Electronic Sales Invoice (Factura Electrónica de Venta,
+// InvoiceTypeCode "01").
 //
-// CUFE, SoftwareSecurityCode y QRURL se dejan vacíos al construir el documento: se calculan
-// en pasos posteriores del pipeline (cufe, qr) a partir de estos mismos campos y se inyectan
-// en el XML ya construido antes de firmar.
+// CUFE, SoftwareSecurityCode and QRURL are left empty when building the document: they are
+// computed in later pipeline steps (cufe, qr) from these same fields and injected into the
+// already-built XML before signing.
 type Invoice struct {
 	ProfileID         string // "DIAN 2.1"
-	EnvironmentCode   string // "1" producción, "2" pruebas (también usado como schemeID de UUID)
-	OperationTypeCode string // catálogo de tipos de operación, ej. "10" = Estándar
-	DocumentTypeCode  string // "01" factura de venta nacional
-	HashType          string // "CUFE-SHA384", usado como schemeName de UUID
+	EnvironmentCode   string // "1" production, "2" test/certification (also used as the UUID's schemeID)
+	OperationTypeCode string // operation type catalog, e.g. "10" = Standard
+	DocumentTypeCode  string // "01" national sales invoice
+	HashType          string // "CUFE-SHA384", used as the UUID's schemeName
 
 	Prefix string
 	Number string
 
 	IssueDate string // YYYY-MM-DD
 	IssueTime string // HH:MM:SS-05:00
-	DueDate   string // opcional
+	DueDate   string // optional
 
-	// PeriodStartDate/PeriodEndDate son el periodo de adquisición del DS (cac:InvoicePeriod).
-	// Vacíos → el builder usa IssueDate para ambos.
+	// PeriodStartDate/PeriodEndDate are the acquisition period of the Support Document
+	// (cac:InvoicePeriod). Empty → the builder falls back to IssueDate for both.
 	PeriodStartDate string // YYYY-MM-DD
 	PeriodEndDate   string // YYYY-MM-DD
 
-	Note string // opcional
+	Note string // optional
 
-	CurrencyCode string // catálogo currency_codes, ISO 4217, ej. "COP"
+	CurrencyCode string // currency_codes catalog, ISO 4217, e.g. "COP"
 
-	OrderReferenceNumber string // opcional
+	OrderReferenceNumber string // optional
 
 	Supplier Party
 	Customer Party
 
 	PaymentMeans []PaymentMean
 
-	// HeaderTaxes son los TaxTotal de cabecera (uno por tipo de impuesto, agregando todas
-	// las líneas). El cálculo de estos totales es responsabilidad de quien construye el
-	// modelo, no del builder.
+	// HeaderTaxes are the header-level TaxTotal entries (one per tax type, aggregating all
+	// lines). Computing these totals is the responsibility of whoever builds the model, not
+	// the builder package.
 	HeaderTaxes []Tax
 
-	// WithholdingTaxes son las retenciones (WithholdingTaxTotal) — exclusivo del Documento
-	// Soporte (InvoiceTypeCode "05"). Cada elemento genera un cac:WithholdingTaxTotal
-	// independiente (uno por tipo: ReteIVA="05", ReteRenta="06"). Se ignora en Invoice/NC/ND.
+	// WithholdingTaxes are withholdings (WithholdingTaxTotal) — exclusive to the Support
+	// Document (InvoiceTypeCode "05"). Each element generates an independent
+	// cac:WithholdingTaxTotal (one per type: ReteIVA="05", ReteRenta="06"). Ignored for
+	// Invoice/CreditNote/DebitNote.
 	WithholdingTaxes []Tax
 
 	Totals Totals

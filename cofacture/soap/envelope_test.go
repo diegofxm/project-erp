@@ -38,9 +38,9 @@ func generateTestCert(t *testing.T) (*x509.Certificate, *rsa.PrivateKey) {
 	return cert, key
 }
 
-// TestBuildEnvelope_SignatureVerifies construye un sobre completo y verifica, igual que lo
-// haría un verificador independiente: canonicaliza wsa:To y ds:SignedInfo con C14N
-// exclusivo (no el inclusivo que usa XAdES) y comprueba la firma contra la llave pública.
+// TestBuildEnvelope_SignatureVerifies builds a complete envelope and verifies it the same way
+// an independent verifier would: canonicalize wsa:To and ds:SignedInfo with exclusive C14N
+// (not the inclusive variant used by XAdES) and check the signature against the public key.
 func TestBuildEnvelope_SignatureVerifies(t *testing.T) {
 	cert, key := generateTestCert(t)
 	c := New(HabilitacionURL, cert, key)
@@ -74,8 +74,8 @@ func TestBuildEnvelope_SignatureVerifies(t *testing.T) {
 		t.Fatal("ds:Signature no tiene ds:SignedInfo")
 	}
 
-	// La referencia debe apuntar al wsa:To firmado, nada más (Body y Timestamp NO se
-	// firman — así lo exige sp:SignedParts en la política real del WSDL).
+	// The reference must point only to the signed wsa:To (Body and Timestamp are NOT
+	// signed — that's what sp:SignedParts requires in the WSDL's real policy).
 	refs := signedInfo.SelectElements("ds:Reference")
 	if len(refs) != 1 {
 		t.Fatalf("se esperaba exactamente 1 ds:Reference (solo wsa:To), hay %d", len(refs))
@@ -102,9 +102,9 @@ func TestBuildEnvelope_SignatureVerifies(t *testing.T) {
 		t.Errorf("la firma no verifica contra la llave pública: %v", err)
 	}
 
-	// El certificado va embebido como BinarySecurityToken, referenciado por Direct
-	// Reference desde KeyInfo — no por thumbprint (ver comentario del paquete: la variante
-	// por thumbprint que pide la política publicada del WSDL no la aceptó el servidor real).
+	// The certificate is embedded as a BinarySecurityToken, referenced by Direct
+	// Reference from KeyInfo — not by thumbprint (see the package comment: the
+	// thumbprint variant the WSDL's published policy asks for was rejected by the real server).
 	bst := root.FindElement("//wsse:BinarySecurityToken")
 	if bst == nil {
 		t.Fatal("no se encontró wsse:BinarySecurityToken")

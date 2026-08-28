@@ -50,9 +50,9 @@ func TestDocumentFileName(t *testing.T) {
 		kind DocumentKind
 		want string
 	}{
-		// NIT 800197268 (9 dígitos) -> 0800197268 (10 dígitos), software propio, año 2019,
-		// consecutivo decimal 11 -> hex "0000000B" (no "00000011": ver nota en DocumentFileName
-		// sobre la inconsistencia del propio anexo en su ejemplo ilustrativo).
+		// NIT 800197268 (9 digits) -> 0800197268 (10 digits), in-house software, year 2019,
+		// decimal sequence number 11 -> hex "0000000B" (not "00000011": see the note in
+		// DocumentFileName about the inconsistency in the Annex's own illustrative example).
 		{KindInvoice, "fv0800197268000190000000B.xml"},
 		{KindCreditNote, "nc0800197268000190000000B.xml"},
 		{KindDebitNote, "nd0800197268000190000000B.xml"},

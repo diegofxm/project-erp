@@ -9,7 +9,7 @@ import (
 
 func sampleDebitNote() domain.DebitNote {
 	inv := sampleInvoice()
-	inv.OperationTypeCode = "30" // nota débito que referencia una factura específica
+	inv.OperationTypeCode = "30" // debit note referencing a specific invoice
 	inv.DocumentTypeCode = "92"
 	inv.HashType = "CUDE-SHA384"
 	inv.Prefix = "SETPND"

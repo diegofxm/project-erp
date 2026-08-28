@@ -1,4 +1,4 @@
-package soap
+package integrationtest
 
 import (
 	"os"
@@ -13,26 +13,28 @@ import (
 	"github.com/diegofxm/cofacture/qr"
 	"github.com/diegofxm/cofacture/securitycode"
 	"github.com/diegofxm/cofacture/signer"
+	"github.com/diegofxm/cofacture/soap"
 	"github.com/diegofxm/cofacture/zip"
 )
 
-// TestSendTestSetAsync_CreditNote_Real envía una Nota Crédito real referenciando la factura
-// SETP-990068706 (ya autorizada en una vuelta anterior de esta prueba) — valida el CUDE de
-// notas y la estructura de CreditNote contra el servidor real, no solo con los ejemplos del
-// anexo técnico. Se omite por defecto, igual que las demás pruebas con credenciales reales.
+// TestSendTestSetAsync_CreditNote_Real sends a real Credit Note referencing invoice
+// SETP-990068706 (already authorized in an earlier run of this test) — it validates the CUDE
+// computation for notes and the CreditNote structure against the real server, not just against
+// the Technical Annex examples. Skipped by default, like the other tests that use real
+// credentials.
 func TestSendTestSetAsync_CreditNote_Real(t *testing.T) {
 	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")
 	if dir == "" {
-		t.Skip("COFACTURE_TEST_FIXTURES_DIR no configurado, se omite la prueba real contra la DIAN")
+		t.Skip("COFACTURE_TEST_FIXTURES_DIR not set, skipping real-DIAN test")
 	}
 
 	certPEM, err := os.ReadFile(filepath.Join(dir, "certificado_cert.pem"))
 	if err != nil {
-		t.Fatalf("leer certificado: %v", err)
+		t.Fatalf("read certificate: %v", err)
 	}
 	keyPEM, err := os.ReadFile(filepath.Join(dir, "certificado_key.pem"))
 	if err != nil {
-		t.Fatalf("leer llave privada: %v", err)
+		t.Fatalf("read private key: %v", err)
 	}
 	cert, key, err := signer.LoadPEM(certPEM, keyPEM)
 	if err != nil {
@@ -44,15 +46,15 @@ func TestSendTestSetAsync_CreditNote_Real(t *testing.T) {
 	now := time.Now().In(domain.Bogota)
 	rangeFromInt, err := strconv.ParseInt(env["DIAN_RANGE_FROM"], 10, 64)
 	if err != nil {
-		t.Fatalf("parsear DIAN_RANGE_FROM: %v", err)
+		t.Fatalf("parse DIAN_RANGE_FROM: %v", err)
 	}
-	// Mismo rango que la factura, pero un consecutivo distinto para no chocar con ella.
+	// Same range as the invoice, but a different consecutive number so it doesn't collide with it.
 	number := strconv.FormatInt(rangeFromInt+1+time.Now().Unix()%100000, 10)
 
 	base := domain.Invoice{
 		ProfileID:         "DIAN 2.1: Nota Crédito de Factura Electrónica de Venta",
 		EnvironmentCode:   env["DIAN_ENVIRONMENT"],
-		OperationTypeCode: "20", // nota crédito que referencia una factura específica
+		OperationTypeCode: "20", // credit note referencing a specific invoice
 		DocumentTypeCode:  "91",
 		HashType:          "CUDE-SHA384",
 
@@ -133,10 +135,10 @@ func TestSendTestSetAsync_CreditNote_Real(t *testing.T) {
 
 	cn := domain.CreditNote{
 		Invoice:            base,
-		CreditNoteTypeCode: "91", // código fijo DIAN para NC; el concepto (2 = anulación) va en DiscrepancyResponse.ResponseCode
+		CreditNoteTypeCode: "91", // fixed DIAN code for Credit Notes; the reason code (2 = cancellation) goes in DiscrepancyResponse.ResponseCode
 		BillingReference: domain.BillingReference{
 			Prefix:    env["DIAN_PREFIX"],
-			Number:    "990068706", // la factura real autorizada en TestSendTestSetAsync_Real
+			Number:    "990068706", // the real invoice authorized in TestSendTestSetAsync_Real
 			CUFE:      "853657dcf2841c55c04338b24cc4db9dfbf87042f1ce1798e53f7b1f0502d00df9bd3f371dea47b02766424976d60ba2",
 			IssueDate: "2026-06-20",
 		},
@@ -170,10 +172,10 @@ func TestSendTestSetAsync_CreditNote_Real(t *testing.T) {
 	}
 	outputsDir := filepath.Join(dir, "outputs")
 	if err := os.MkdirAll(outputsDir, 0o755); err != nil {
-		t.Fatalf("crear outputs/: %v", err)
+		t.Fatalf("create outputs/: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(outputsDir, "_realsend_creditnote.xml"), xmlBytes, 0o644); err != nil {
-		t.Fatalf("guardar copia local: %v", err)
+	if err := os.WriteFile(filepath.Join(outputsDir, "_credit_note.xml"), xmlBytes, 0o644); err != nil {
+		t.Fatalf("save local copy: %v", err)
 	}
 
 	fileName := zip.DocumentFileName(zip.KindCreditNote, cn.Supplier.Identification.Number, zip.SoftwarePropioCode, now.Year(), 1)
@@ -183,7 +185,7 @@ func TestSendTestSetAsync_CreditNote_Real(t *testing.T) {
 	}
 	zipFileName := zip.PackageFileName(cn.Supplier.Identification.Number, zip.SoftwarePropioCode, now.Year(), 1)
 
-	client := New(HabilitacionURL, cert, key)
+	client := soap.New(soap.HabilitacionURL, cert, key)
 	result, err := client.SendTestSetAsync(zipFileName, zipBytes, env["DIAN_TEST_SET_ID"])
 	if err != nil {
 		t.Fatalf("SendTestSetAsync: %v", err)
@@ -193,26 +195,26 @@ func TestSendTestSetAsync_CreditNote_Real(t *testing.T) {
 	t.Logf("ZipKey: %q", result.ZipKey)
 	if result.ErrorMessageList != nil {
 		for _, e := range result.ErrorMessageList.Items {
-			t.Logf("Error inicial: archivo=%s mensaje=%s success=%v", e.XmlFileName, e.ProcessedMessage, e.Success)
+			t.Logf("Initial error: file=%s message=%s success=%v", e.XmlFileName, e.ProcessedMessage, e.Success)
 		}
 	}
 	if result.ZipKey == "" {
-		t.Fatal("la DIAN no devolvió ZipKey — revisar ErrorMessageList arriba")
+		t.Fatal("DIAN did not return a ZipKey — check ErrorMessageList above")
 	}
 
 	for i := 0; i < 6; i++ {
 		time.Sleep(5 * time.Second)
 		statuses, err := client.GetStatusZip(result.ZipKey)
 		if err != nil {
-			t.Logf("GetStatusZip intento %d: %v", i+1, err)
+			t.Logf("GetStatusZip attempt %d: %v", i+1, err)
 			continue
 		}
 		if len(statuses) == 0 {
-			t.Logf("GetStatusZip intento %d: aún sin resultado", i+1)
+			t.Logf("GetStatusZip attempt %d: no result yet", i+1)
 			continue
 		}
 		for _, st := range statuses {
-			t.Logf("Resultado: IsValid=%v StatusCode=%s StatusMessage=%s StatusDescription=%s",
+			t.Logf("Result: IsValid=%v StatusCode=%s StatusMessage=%s StatusDescription=%s",
 				st.IsValid, st.StatusCode, st.StatusMessage, st.StatusDescription)
 			if st.ErrorMessage != nil {
 				for _, m := range st.ErrorMessage.Items {
@@ -222,5 +224,5 @@ func TestSendTestSetAsync_CreditNote_Real(t *testing.T) {
 		}
 		return
 	}
-	t.Log("no se obtuvo resultado de GetStatusZip dentro del tiempo de espera de esta prueba")
+	t.Log("no result from GetStatusZip within this test's wait time")
 }

@@ -8,10 +8,10 @@ import (
 	ubl "github.com/diegofxm/cofacture/xml"
 )
 
-// BuildDebitNote construye el árbol XML de una Nota Débito. Casi idéntico a BuildCreditNote
-// — las diferencias reales son: no hay equivalente a cbc:CreditNoteTypeCode, el bloque de
-// totales se llama cac:RequestedMonetaryTotal en vez de cac:LegalMonetaryTotal, y el
-// receptor sí lleva PhysicalLocation (a diferencia de Invoice/CreditNote, donde no aplica).
+// BuildDebitNote builds the XML tree of a Debit Note. Nearly identical to BuildCreditNote —
+// the real differences are: there's no equivalent to cbc:CreditNoteTypeCode, the totals block
+// is named cac:RequestedMonetaryTotal instead of cac:LegalMonetaryTotal, and the customer does
+// carry PhysicalLocation (unlike Invoice/CreditNote, where it doesn't apply).
 func BuildDebitNote(dn domain.DebitNote) (*etree.Document, error) {
 	doc := etree.NewDocument()
 	doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8" standalone="no"`)
@@ -39,7 +39,7 @@ func BuildDebitNote(dn domain.DebitNote) (*etree.Document, error) {
 	uuid := root.CreateElement("cbc:UUID")
 	uuid.CreateAttr("schemeID", dn.EnvironmentCode)
 	uuid.CreateAttr("schemeName", dn.HashType)
-	uuid.SetText(dn.CUFE) // el CUDE de esta nota, ver nota en domain.DebitNote
+	uuid.SetText(dn.CUFE) // this note's CUDE, see the note on domain.DebitNote
 
 	root.CreateElement("cbc:IssueDate").SetText(dn.IssueDate)
 	root.CreateElement("cbc:IssueTime").SetText(dn.IssueTime)

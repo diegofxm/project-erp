@@ -7,17 +7,17 @@ import (
 	"github.com/diegofxm/cofacture/domain"
 )
 
-// appendDocumentLine agrega un renglón de detalle — compartido por Invoice ("InvoiceLine"/
-// "InvoicedQuantity"), CreditNote ("CreditNoteLine"/"CreditedQuantity") y DebitNote
-// ("DebitNoteLine"/"DebitedQuantity"); node/nodeQty eligen cuál.
+// appendDocumentLine adds a detail line — shared by Invoice ("InvoiceLine"/
+// "InvoicedQuantity"), CreditNote ("CreditNoteLine"/"CreditedQuantity") and DebitNote
+// ("DebitNoteLine"/"DebitedQuantity"); node/nodeQty select which.
 //
-// Para Invoice (documentTypeCode == "01") el Item lleva StandardItemIdentification. Para
-// notas lleva en su lugar InformationContentProviderParty/PowerOfAttorney/AgentParty con la
-// identificación del "Mandante" — en la práctica, la del propio emisor (mandanteID) cuando
-// no hay un mandante distinto; verificado contra el anexo técnico (grupo FBA0x/CBA0x) y
-// contra un generador de referencia en uso real.
-// invoicePeriodStartDate: si no es vacío, agrega cac:InvoicePeriod al renglón — requerido
-// en cada línea del Documento Soporte (DSFC01). Vacío en FE/NC/ND.
+// For Invoice (documentTypeCode == "01") the Item carries StandardItemIdentification. For
+// notes it instead carries InformationContentProviderParty/PowerOfAttorney/AgentParty with the
+// "Mandante" (principal)'s identification — in practice, the issuer's own identification
+// (mandanteID) when there is no distinct principal; verified against the technical annex
+// (group FBA0x/CBA0x) and against a reference generator in real-world use.
+// invoicePeriodStartDate: when not empty, adds cac:InvoicePeriod to the line — required on
+// every line of the Support Document (DSFC01). Empty for Invoice/CreditNote/DebitNote.
 func appendDocumentLine(parent *etree.Element, node, nodeQty string, index int, line domain.Line, currency, documentTypeCode string, mandanteID domain.Identification, invoicePeriodStartDate string) {
 	el := parent.CreateElement("cac:" + node)
 	el.CreateElement("cbc:ID").SetText(strconv.Itoa(index))
@@ -57,10 +57,10 @@ func appendDocumentLine(parent *etree.Element, node, nodeQty string, index int, 
 		sii := item.CreateElement("cac:StandardItemIdentification").CreateElement("cbc:ID")
 		sii.CreateAttr("schemeID", line.ItemTypeCode)
 		sii.CreateAttr("schemeName", line.ItemTypeName)
-		// schemeAgencyID solo se agrega si viene informado — la fila "999" (estándar propio
-		// del contribuyente, tabla 13.3.5 del Anexo Técnico) exige explícitamente que este
-		// atributo NO se use, ni siquiera vacío (mismo criterio que cac:Country en
-		// appendAddressFields, sección 9.44/9.45).
+		// schemeAgencyID is only added when provided — code "999" (the taxpayer's own
+		// standard, table 13.3.5 of the Technical Annex) explicitly requires this attribute be
+		// omitted entirely, not even left empty (same rule as cac:Country in
+		// appendAddressFields).
 		if line.ItemTypeAgencyID != "" {
 			sii.CreateAttr("schemeAgencyID", line.ItemTypeAgencyID)
 		}

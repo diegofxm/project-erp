@@ -1,5 +1,6 @@
-// Package builder construye documentos UBL 2.1 + extensiones DIAN a partir de los modelos
-// de dominio. No firma, no calcula CUFE/QR y no conoce HTTP ni DB — solo ensambla el XML.
+// Package builder assembles UBL 2.1 + DIAN extension documents from the domain models. It
+// does not sign, does not compute CUFE/QR, and knows nothing about HTTP or a database — it
+// only assembles the XML.
 package builder
 
 import (
@@ -10,11 +11,11 @@ import (
 	ubl "github.com/diegofxm/cofacture/xml"
 )
 
-// BuildInvoice construye el árbol XML de una Factura Electrónica de Venta.
+// BuildInvoice builds the XML tree of an Electronic Sales Invoice.
 //
-// El documento resultante todavía no tiene CUFE, SoftwareSecurityCode ni QRURL reales si
-// el Invoice recibido los trae vacíos — esos valores se calculan en pasos posteriores del
-// pipeline (cufe, qr) a partir de este mismo modelo y se inyectan antes de firmar.
+// The resulting document still has no real CUFE, SoftwareSecurityCode or QRURL if the Invoice
+// it received had them empty — those values are computed in later pipeline steps (cufe, qr)
+// from this same model and injected before signing.
 func BuildInvoice(inv domain.Invoice) (*etree.Document, error) {
 	doc := etree.NewDocument()
 	doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8" standalone="no"`)
@@ -77,7 +78,7 @@ func BuildInvoice(inv domain.Invoice) (*etree.Document, error) {
 	appendMonetaryTotal(root, "LegalMonetaryTotal", inv.Totals, inv.CurrencyCode, inv.DocumentTypeCode)
 
 	for i, line := range inv.Lines {
-		// mandanteID no aplica a Invoice (solo lo usan las notas); se pasa vacío.
+		// mandanteID does not apply to Invoice (only notes use it); passed empty.
 		appendDocumentLine(root, "InvoiceLine", "InvoicedQuantity", i+1, line, inv.CurrencyCode, inv.DocumentTypeCode, domain.Identification{}, "")
 	}
 

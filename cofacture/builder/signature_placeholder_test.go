@@ -2,9 +2,9 @@ package builder
 
 import "testing"
 
-// Estas pruebas confirman que SignaturePlaceholder funciona igual para los tres tipos de
-// documento — los tres reutilizan appendUBLExtensions, pero esto deja una alarma temprana
-// si algún builder llega a divergir esa estructura.
+// These tests confirm that SignaturePlaceholder behaves the same way for all three
+// document types — all three reuse appendUBLExtensions, but this provides an early
+// warning if any builder's structure ever diverges.
 
 func TestSignaturePlaceholder_Invoice(t *testing.T) {
 	doc, err := BuildInvoice(sampleInvoice())

@@ -8,10 +8,10 @@ import (
 	ubl "github.com/diegofxm/cofacture/xml"
 )
 
-// BuildCreditNote construye el árbol XML de una Nota Crédito. Reutiliza la misma
-// infraestructura que Invoice (extensiones DIAN, partes, impuestos, totales, líneas) — la
-// estructura es casi idéntica, lo que cambia es el elemento raíz, el tipo de documento y la
-// referencia obligatoria a la factura corregida.
+// BuildCreditNote builds the XML tree of a Credit Note. Reuses the same infrastructure as
+// Invoice (DIAN extensions, parties, taxes, totals, lines) — the structure is nearly
+// identical; what changes is the root element, the document type, and the required reference
+// to the corrected invoice.
 func BuildCreditNote(cn domain.CreditNote) (*etree.Document, error) {
 	doc := etree.NewDocument()
 	doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8" standalone="no"`)
@@ -39,7 +39,7 @@ func BuildCreditNote(cn domain.CreditNote) (*etree.Document, error) {
 	uuid := root.CreateElement("cbc:UUID")
 	uuid.CreateAttr("schemeID", cn.EnvironmentCode)
 	uuid.CreateAttr("schemeName", cn.HashType)
-	uuid.SetText(cn.CUFE) // el CUDE de esta nota, ver nota en domain.CreditNote
+	uuid.SetText(cn.CUFE) // this note's CUDE, see the note on domain.CreditNote
 
 	root.CreateElement("cbc:IssueDate").SetText(cn.IssueDate)
 	root.CreateElement("cbc:IssueTime").SetText(cn.IssueTime)

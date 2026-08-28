@@ -35,7 +35,7 @@ func TestSupportDocumentContent(t *testing.T) {
 			LineExtensionCents: 10_000_000,
 			PayableCents:       11_900_000,
 		},
-		// DS: Supplier = tercero no obligado (supplier), Customer = emisor.
+		// DS: Supplier = non-obligated third party (supplier), Customer = issuer.
 		Supplier: domain.Party{Identification: domain.Identification{Number: "1020304050"}},
 		Customer: domain.Party{Identification: domain.Identification{Number: "900123456"}},
 	}
@@ -45,7 +45,7 @@ func TestSupportDocumentContent(t *testing.T) {
 
 	got := SupportDocumentContent(inv, cuds, pin)
 
-	// Las 12 etiquetas obligatorias del QR del Documento Soporte (Anexo 1.9, sección 11.7.1).
+	// The 12 mandatory tags of the Support Document QR (Annex 1.9, section 11.7.1).
 	required := []string{
 		"N°DocSoporte=DS1",
 		"Fecha=2024-03-15",
@@ -66,7 +66,7 @@ func TestSupportDocumentContent(t *testing.T) {
 		}
 	}
 
-	// La última línea debe ser "URL=<searchqr>" — mismo endpoint que FE (FindDocument no redirige).
+	// The last line must be "URL=<searchqr>" — same endpoint as FE (FindDocument does not redirect).
 	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
 	wantURL := "URL=https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey=" + cuds
 	if lines[len(lines)-1] != wantURL {
@@ -74,7 +74,7 @@ func TestSupportDocumentContent(t *testing.T) {
 	}
 }
 
-// TestSupportDocumentContent_Produccion verifica que el ambiente "1" usa el dominio de producción.
+// TestSupportDocumentContent_Produccion verifies that environment "1" uses the production domain.
 func TestSupportDocumentContent_Produccion(t *testing.T) {
 	inv := domain.Invoice{
 		Number:          "99",

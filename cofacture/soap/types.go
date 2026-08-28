@@ -1,18 +1,18 @@
 package soap
 
-// Tipos que reflejan los esquemas reales descargados del WSDL de habilitación
-// (https://vpfe-hab.dian.gov.co/WcfDianCustomerServices.svc?xsd=xsd3, xsd5, xsd6) — no son
-// una traducción del anexo técnico, son el contrato real tal cual lo expone el servicio.
+// Types that mirror the real schemas downloaded from the certification-environment WSDL
+// (https://vpfe-hab.dian.gov.co/WcfDianCustomerServices.svc?xsd=xsd3, xsd5, xsd6) — they are
+// not a translation of the technical annex, they are the service's actual contract as exposed.
 //
-// Los tags xml no califican namespace: encoding/xml empareja por nombre local cuando el
-// tag no especifica uno, y aquí no hay colisión posible de nombres entre namespaces.
+// The xml tags do not qualify a namespace: encoding/xml matches by local name when the tag
+// specifies none, and there is no possible name collision across namespaces here.
 
 type stringArray struct {
 	Items []string `xml:"string"`
 }
 
-// DianResponse es el resultado de validar un documento (SendBillSyncResult,
-// GetStatusResult, cada elemento de GetStatusZipResult).
+// DianResponse is the result of validating a document (SendBillSyncResult,
+// GetStatusResult, each element of GetStatusZipResult).
 type DianResponse struct {
 	ErrorMessage      *stringArray `xml:"ErrorMessage"`
 	IsValid           bool         `xml:"IsValid"`
@@ -25,8 +25,8 @@ type DianResponse struct {
 	XmlFileName       string       `xml:"XmlFileName"`
 }
 
-// XMLParamsResponseTrackId es un error de validación inicial del ZIP (no llegó a ponerse
-// en cola de validación).
+// XMLParamsResponseTrackId is an initial ZIP validation error (it never made it into the
+// validation queue).
 type XMLParamsResponseTrackId struct {
 	DocumentKey      string `xml:"DocumentKey"`
 	ProcessedMessage string `xml:"ProcessedMessage"`
@@ -35,9 +35,9 @@ type XMLParamsResponseTrackId struct {
 	XmlFileName      string `xml:"XmlFileName"`
 }
 
-// UploadDocumentResponse es el resultado de SendBillAsync/SendTestSetAsync/
-// SendBillAttachmentAsync: o hay errores iniciales (ErrorMessageList) o hay un ZipKey para
-// consultar después con GetStatusZip.
+// UploadDocumentResponse is the result of SendBillAsync/SendTestSetAsync/
+// SendBillAttachmentAsync: either there are initial errors (ErrorMessageList) or there is a
+// ZipKey to query later with GetStatusZip.
 type UploadDocumentResponse struct {
 	ErrorMessageList *struct {
 		Items []XMLParamsResponseTrackId `xml:"XmlParamsResponseTrackId"`
@@ -45,10 +45,10 @@ type UploadDocumentResponse struct {
 	ZipKey string `xml:"ZipKey"`
 }
 
-// NumberRangeResponse es un rango de numeración individual devuelto por GetNumberingRange
-// (namespace http://schemas.datacontract.org/2004/07/NumberRangeResponse en el WSDL real).
-// Fechas en formato string tal como las devuelve la DIAN ("2019-01-19T00:00:00") — el
-// llamador convierte según necesite.
+// NumberRangeResponse is a single numbering range returned by GetNumberingRange (namespace
+// http://schemas.datacontract.org/2004/07/NumberRangeResponse in the real WSDL). Dates are
+// plain strings exactly as DIAN returns them ("2019-01-19T00:00:00") — the caller converts as
+// needed.
 type NumberRangeResponse struct {
 	ResolutionNumber string `xml:"ResolutionNumber"`
 	ResolutionDate   string `xml:"ResolutionDate"`
@@ -60,23 +60,22 @@ type NumberRangeResponse struct {
 	TechnicalKey     string `xml:"TechnicalKey"`
 }
 
-// NumberRangeResponseList es el resultado completo de GetNumberingRange — una lista de
-// rangos autorizados para el emisor + software dados (namespace
-// http://schemas.datacontract.org/2004/07/NumberRangeResponseList).
-// OperationCode "0" indica éxito; cualquier otro código indica error de la DIAN.
+// NumberRangeResponseList is the full result of GetNumberingRange — a list of ranges
+// authorized for the given issuer + software pair (namespace
+// http://schemas.datacontract.org/2004/07/NumberRangeResponseList). OperationCode "0" means
+// success; any other code indicates a DIAN-side error.
 type NumberRangeResponseList struct {
 	OperationCode        string                `xml:"OperationCode"`
 	OperationDescription string                `xml:"OperationDescription"`
 	ResponseList         []NumberRangeResponse `xml:"ResponseList>NumberRangeResponse"`
 }
 
-// AcquirerResponse es el resultado de GetAcquirer (namespace
-// Gosocket.Dian.Services.Utils.Common en el WSDL real) — consulta el registro de
-// intercambio/notificación de la DIAN para un tercero dado, no un RUT completo: solo trae
-// ReceiverName/ReceiverEmail si ese identificationNumber ya tiene un nombre/correo registrados
-// para recibir documentos electrónicos. StatusCode/Message vacíos (o un StatusCode de error) es
-// el resultado normal y esperado para la mayoría de cédulas — no significa que la consulta
-// falló, ver docs/apidian-architecture.md sección 9.41.
+// AcquirerResponse is the result of GetAcquirer (namespace
+// Gosocket.Dian.Services.Utils.Common in the real WSDL) — it queries DIAN's exchange/
+// notification registry for a given third party, not a full RUT lookup: it only returns
+// ReceiverName/ReceiverEmail if that identificationNumber already has a name/email registered
+// to receive electronic documents. Empty StatusCode/Message (or an error StatusCode) is the
+// normal, expected result for most national IDs — it does not mean the query failed.
 type AcquirerResponse struct {
 	Message       string `xml:"Message"`
 	StatusCode    string `xml:"StatusCode"`

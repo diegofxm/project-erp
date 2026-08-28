@@ -9,7 +9,7 @@ import (
 
 func sampleCreditNote() domain.CreditNote {
 	inv := sampleInvoice()
-	inv.OperationTypeCode = "20" // nota crédito que referencia una factura específica
+	inv.OperationTypeCode = "20" // credit note referencing a specific invoice
 	inv.DocumentTypeCode = "91"
 	inv.HashType = "CUDE-SHA384"
 	inv.Prefix = "SETPNC"
@@ -17,7 +17,7 @@ func sampleCreditNote() domain.CreditNote {
 
 	return domain.CreditNote{
 		Invoice:            inv,
-		CreditNoteTypeCode: "91", // código fijo DIAN para NC (tipo de documento); el concepto List 22 va en DiscrepancyResponse
+		CreditNoteTypeCode: "91", // fixed DIAN code for a Credit Note (document type); the List 22 concept goes in DiscrepancyResponse
 		BillingReference: domain.BillingReference{
 			Prefix:    "SETP",
 			Number:    "1",

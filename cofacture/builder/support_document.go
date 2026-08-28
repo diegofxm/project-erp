@@ -9,18 +9,19 @@ import (
 	ubl "github.com/diegofxm/cofacture/xml"
 )
 
-// BuildSupportDocument construye el árbol XML de un Documento Soporte en adquisiciones
-// efectuadas a no obligados a facturar (InvoiceTypeCode "05", CUDS-SHA384).
+// BuildSupportDocument builds the XML tree of a Support Document for purchases made from
+// non-obligated third parties (InvoiceTypeCode "05", CUDS-SHA384).
 //
-// La estructura es Invoice (mismo elemento raíz y namespaces que BuildInvoice) con tres
-// diferencias clave:
-//  1. Roles invertidos: Supplier = tercero no obligado (quien vende al emisor),
-//     Customer = la empresa emisora (quien adquiere y genera el documento).
-//  2. WithholdingTaxTotal en lugar de (o además de) TaxTotal para retenciones.
-//  3. InvoiceControl presente (el DS tiene resolución DIAN propia, igual que la Factura).
+// The structure is Invoice (same root element and namespaces as BuildInvoice) with three key
+// differences:
+//  1. Inverted roles: Supplier = non-obligated third party (who sells to the issuer),
+//     Customer = the issuing company (who acquires and generates the document).
+//  2. WithholdingTaxTotal instead of (or in addition to) TaxTotal for withholdings.
+//  3. InvoiceControl present (the Support Document has its own DIAN resolution, just like the
+//     Invoice).
 //
-// El llamador es responsable de calcular CUDS (paquete cuds), SoftwareSecurityCode y QRURL
-// (paquete qr) antes de llamar esta función — los campos de inv se serializan tal cual.
+// The caller is responsible for computing the CUDS (package cuds), SoftwareSecurityCode and
+// QRURL (package qr) before calling this function — inv's fields are serialized as-is.
 func BuildSupportDocument(inv domain.Invoice) (*etree.Document, error) {
 	doc := etree.NewDocument()
 	doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8" standalone="no"`)
@@ -37,11 +38,11 @@ func BuildSupportDocument(inv domain.Invoice) (*etree.Document, error) {
 	root.CreateAttr("xmlns:xsi", ubl.NSXsi)
 	root.CreateAttr("xsi:schemaLocation", ubl.SchemaLocationInvoice)
 
-	// appendUBLExtensions maneja InvoiceControl para DocumentTypeCode "05"
+	// appendUBLExtensions handles InvoiceControl for DocumentTypeCode "05"
 	appendUBLExtensions(root, inv)
 
 	root.CreateElement("cbc:UBLVersionID").SetText("UBL 2.1")
-	root.CreateElement("cbc:CustomizationID").SetText(inv.OperationTypeCode) // "10" o "11"
+	root.CreateElement("cbc:CustomizationID").SetText(inv.OperationTypeCode) // "10" or "11"
 	root.CreateElement("cbc:ProfileID").SetText(inv.ProfileID)
 	root.CreateElement("cbc:ProfileExecutionID").SetText(inv.EnvironmentCode)
 	root.CreateElement("cbc:ID").SetText(inv.Prefix + inv.Number)
@@ -49,7 +50,7 @@ func BuildSupportDocument(inv domain.Invoice) (*etree.Document, error) {
 	uuid := root.CreateElement("cbc:UUID")
 	uuid.CreateAttr("schemeID", inv.EnvironmentCode)
 	uuid.CreateAttr("schemeName", inv.HashType) // "CUDS-SHA384"
-	uuid.SetText(inv.CUFE)                      // almacenamos el CUDS en el campo CUFE del modelo
+	uuid.SetText(inv.CUFE)                      // the CUDS is stored in the model's CUFE field
 
 	root.CreateElement("cbc:IssueDate").SetText(inv.IssueDate)
 	root.CreateElement("cbc:IssueTime").SetText(inv.IssueTime)
@@ -61,13 +62,13 @@ func BuildSupportDocument(inv domain.Invoice) (*etree.Document, error) {
 		root.CreateElement("cbc:Note").SetText(inv.Note)
 	}
 
-	// DS: DocumentCurrencyCode sin atributos de lista (DSFC03 — el esquema DS los rechaza).
+	// Support Document: DocumentCurrencyCode with no list attributes (DSFC03 — the DS schema rejects them).
 	root.CreateElement("cbc:DocumentCurrencyCode").SetText(inv.CurrencyCode)
 
 	root.CreateElement("cbc:LineCountNumeric").SetText(strconv.Itoa(len(inv.Lines)))
 
-	// Roles invertidos: Supplier = no-obligado, Customer = empresa compradora/emisora.
-	// DS usa estructuras de partes más simples que FE — funciones dedicadas por tipo.
+	// Inverted roles: Supplier = non-obligated third party, Customer = the purchasing/issuing company.
+	// The Support Document uses simpler party structures than the Invoice — dedicated functions per type.
 	appendDSSupplierParty(root, inv.Supplier)
 	appendDSCustomerParty(root, inv.Customer)
 
@@ -79,8 +80,8 @@ func BuildSupportDocument(inv domain.Invoice) (*etree.Document, error) {
 	appendWithholdingTaxTotal(root, inv.WithholdingTaxes, inv.CurrencyCode)
 	appendMonetaryTotal(root, "LegalMonetaryTotal", inv.Totals, inv.CurrencyCode, inv.DocumentTypeCode)
 
-	// Fecha de periodo por línea: PeriodStartDate del documento si se especificó, o IssueDate.
-	// cac:InvoicePeriod es obligatorio en cada InvoiceLine del DS (DSFC01).
+	// Per-line period date: the document's PeriodStartDate if specified, otherwise IssueDate.
+	// cac:InvoicePeriod is required on every InvoiceLine of the Support Document (DSFC01).
 	linePeriodDate := inv.PeriodStartDate
 	if linePeriodDate == "" {
 		linePeriodDate = inv.IssueDate
@@ -92,10 +93,11 @@ func BuildSupportDocument(inv domain.Invoice) (*etree.Document, error) {
 	return doc, nil
 }
 
-// appendDSSupplierParty genera el AccountingSupplierParty del Documento Soporte.
-// La DIAN exige schemeName="31" (NIT) para el CompanyID del SNO en todos los casos —
-// incluyendo personas naturales — según comportamiento verificado en DS real aceptado por la
-// DIAN (DS-real.xml). TaxLevelCode va sin atributo listName (también verificado en DS real).
+// appendDSSupplierParty generates the Support Document's AccountingSupplierParty.
+// DIAN requires schemeName="31" (NIT) for the non-obligated third party's CompanyID in all
+// cases — including natural persons — based on behavior verified against a real, DIAN-accepted
+// Support Document (DS-real.xml). TaxLevelCode has no listName attribute (also verified against
+// the real document).
 func appendDSSupplierParty(root *etree.Element, p domain.Party) {
 	ap := root.CreateElement("cac:AccountingSupplierParty")
 	ap.CreateElement("cbc:AdditionalAccountID").SetText(p.EntityTypeCode)
@@ -113,7 +115,7 @@ func appendDSSupplierParty(root *etree.Element, p domain.Party) {
 	companyID := taxScheme.CreateElement("cbc:CompanyID")
 	companyID.CreateAttr("schemeAgencyID", ubl.DianSchemeAgencyID)
 	companyID.CreateAttr("schemeAgencyName", ubl.DianSchemeAgencyName)
-	// La DIAN requiere schemeName="31" (NIT) para el SNO; schemeID es el dígito verificador.
+	// DIAN requires schemeName="31" (NIT) for the non-obligated third party; schemeID is the check digit.
 	if p.Identification.VerificationCode != "" {
 		companyID.CreateAttr("schemeID", p.Identification.VerificationCode)
 	}
@@ -127,11 +129,11 @@ func appendDSSupplierParty(root *etree.Element, p domain.Party) {
 	scheme.CreateElement("cbc:Name").SetText(p.TaxSchemeName)
 }
 
-// appendDSCustomerParty genera el AccountingCustomerParty del Documento Soporte.
-// La empresa compradora/emisora lleva SOLO PartyTaxScheme — sin PartyIdentification,
-// PhysicalLocation, RegistrationAddress, PartyLegalEntity ni Contact.
-// TaxLevelCode NO lleva el atributo listName.
-// Verificado contra la caja de herramientas DIAN DS v1.1.
+// appendDSCustomerParty generates the Support Document's AccountingCustomerParty.
+// The purchasing/issuing company carries ONLY PartyTaxScheme — no PartyIdentification,
+// PhysicalLocation, RegistrationAddress, PartyLegalEntity or Contact.
+// TaxLevelCode carries no listName attribute.
+// Verified against DIAN's Support Document Toolkit v1.1.
 func appendDSCustomerParty(root *etree.Element, p domain.Party) {
 	ap := root.CreateElement("cac:AccountingCustomerParty")
 	ap.CreateElement("cbc:AdditionalAccountID").SetText(p.EntityTypeCode)

@@ -2,51 +2,52 @@ package zip
 
 import "fmt"
 
-// DocumentKind identifica el tipo de documento para el nombre de archivo XML
-// (Anexo Técnico 1.9, sección 6.5.7).
+// DocumentKind identifies the document type for the XML file name
+// (Technical Annex 1.9, section 6.5.7).
 type DocumentKind string
 
 const (
-	KindInvoice             DocumentKind = "fv" // Factura de Venta
-	KindCreditNote          DocumentKind = "nc" // Nota Crédito
-	KindDebitNote           DocumentKind = "nd" // Nota Débito
-	KindSupportDocument     DocumentKind = "ds" // Documento Soporte
-	KindAdjustmentNote      DocumentKind = "na" // Nota de Ajuste al Documento Soporte
+	KindInvoice             DocumentKind = "fv" // Sales Invoice
+	KindCreditNote          DocumentKind = "nc" // Credit Note
+	KindDebitNote           DocumentKind = "nd" // Debit Note
+	KindSupportDocument     DocumentKind = "ds" // Support Document
+	KindAdjustmentNote      DocumentKind = "na" // Adjustment Note to the Support Document
 	KindApplicationResponse DocumentKind = "ar"
 	KindAttachedDocument    DocumentKind = "ad"
 )
 
-// SoftwarePropioCode es el código de Proveedor Tecnológico ("ppp") para quien factura con
-// software propio en vez de operar como PT de terceros (sección 6.5.8, nota).
+// SoftwarePropioCode is the Technology Provider code ("ppp") for issuers using their own
+// software instead of operating as a Technology Provider for third parties (section 6.5.8,
+// note).
 const SoftwarePropioCode = "000"
 
-// DocumentFileName construye el nombre de archivo XML que exige la sección 6.5.7:
+// DocumentFileName builds the XML file name required by section 6.5.7:
 //
-//	{kind}{NIT sin DV, 10 dígitos}{código PT, 3 dígitos}{año, 2 dígitos}{consecutivo, 8 hex}.xml
+//	{kind}{NIT without check digit, 10 digits}{PT code, 3 digits}{year, 2 digits}{consecutive, 8 hex}.xml
 //
-// nit debe venir sin dígito de verificación. ptCode es el código de 3 dígitos asignado por
-// la DIAN al proveedor tecnológico (SoftwarePropioCode si es software propio). year son los
-// últimos 2 dígitos del año calendario. consecutive es el consecutivo de archivos enviados
-// del tipo correspondiente — el anexo exige reiniciarlo a 1 cada 1 de enero; llevar la
-// cuenta es responsabilidad de quien orquesta el envío (estado persistente), no de este
-// paquete, que solo formatea.
+// nit must be passed without the check digit. ptCode is the 3-digit Technology Provider code
+// assigned by DIAN (SoftwarePropioCode for own software). year is the last 2 digits of the
+// calendar year. consecutive is the running count of files sent for the corresponding type —
+// the annex requires resetting it to 1 every January 1st; keeping track of it is the
+// responsibility of whoever orchestrates the sending (persistent state), not this package,
+// which only formats.
 //
-// Nota: el texto de la sección 6.5.7/6.5.8 describe el consecutivo como hexadecimal
-// ("en el rango 00000001 <= FFFFFFFF"), pero el ejemplo ilustrativo que trae el propio
-// anexo para la "décima primera factura" muestra "00000011" — que en hexadecimal sería la
-// 17ª, no la 11ª. Es una inconsistencia del documento, no algo que se pueda resolver desde
-// aquí. Esta función sigue el texto de la regla (hex) porque es lo normativo; si al enviar
-// contra habilitación la DIAN espera decimal, hay que ajustar esto.
+// Note: the text of section 6.5.7/6.5.8 describes the consecutive as hexadecimal ("in the
+// range 00000001 <= FFFFFFFF"), but the illustrative example the annex itself gives for the
+// "eleventh invoice" shows "00000011" — which in hexadecimal would be the 17th, not the 11th.
+// This is an inconsistency in the document, not something that can be resolved from here. This
+// function follows the rule's text (hex) because that is the normative reading; if DIAN's
+// certification environment turns out to expect decimal, this will need adjusting.
 func DocumentFileName(kind DocumentKind, nit, ptCode string, year int, consecutive uint32) string {
 	return fmt.Sprintf("%s%010s%s%02d%08X.xml", kind, nit, ptCode, year%100, consecutive)
 }
 
-// PackageFileName construye el nombre del ZIP que exige la sección 6.5.8:
+// PackageFileName builds the ZIP file name required by section 6.5.8:
 //
-//	z{NIT sin DV, 10 dígitos}{código PT, 3 dígitos}{año, 2 dígitos}{consecutivo, 8 hex}.zip
+//	z{NIT without check digit, 10 digits}{PT code, 3 digits}{year, 2 digits}{consecutive, 8 hex}.zip
 //
-// El consecutivo aquí es el del paquete comprimido enviado, distinto del consecutivo de
-// archivos XML individuales de DocumentFileName.
+// The consecutive here is the compressed package's own, distinct from the individual XML
+// files' consecutive in DocumentFileName.
 func PackageFileName(nit, ptCode string, year int, consecutive uint32) string {
 	return fmt.Sprintf("z%010s%s%02d%08X.zip", nit, ptCode, year%100, consecutive)
 }

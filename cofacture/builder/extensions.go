@@ -8,32 +8,32 @@ import (
 	ubl "github.com/diegofxm/cofacture/xml"
 )
 
-// SignaturePlaceholder ubica el ext:ExtensionContent vacío reservado para la firma XAdES
-// (el último ext:UBLExtension de ext:UBLExtensions) en un documento ya construido por
-// BuildInvoice o equivalente. El paquete signer lo usa como punto de inserción.
+// SignaturePlaceholder locates the empty ext:ExtensionContent reserved for the XAdES signature
+// (the last ext:UBLExtension of ext:UBLExtensions) in a document already built by BuildInvoice
+// or an equivalent. The signer package uses it as the insertion point.
 func SignaturePlaceholder(doc *etree.Document) (*etree.Element, error) {
 	extensions := doc.FindElement("//ext:UBLExtensions")
 	if extensions == nil {
-		return nil, errors.New("builder: el documento no tiene ext:UBLExtensions")
+		return nil, errors.New("builder: the document has no ext:UBLExtensions")
 	}
 	children := extensions.SelectElements("ext:UBLExtension")
 	if len(children) == 0 {
-		return nil, errors.New("builder: ext:UBLExtensions no tiene ningún ext:UBLExtension")
+		return nil, errors.New("builder: ext:UBLExtensions has no ext:UBLExtension")
 	}
 	last := children[len(children)-1]
 	content := last.SelectElement("ext:ExtensionContent")
 	if content == nil {
-		return nil, errors.New("builder: el último ext:UBLExtension no tiene ext:ExtensionContent")
+		return nil, errors.New("builder: the last ext:UBLExtension has no ext:ExtensionContent")
 	}
 	if len(content.ChildElements()) > 0 {
-		return nil, errors.New("builder: el placeholder de firma ya tiene contenido")
+		return nil, errors.New("builder: the signature placeholder already has content")
 	}
 	return content, nil
 }
 
-// appendUBLExtensions agrega ext:UBLExtensions con las extensiones DIAN (sts:DianExtensions)
-// y una segunda ext:UBLExtension vacía, reservada para la firma XAdES que agrega el
-// paquete signer en un paso posterior del pipeline.
+// appendUBLExtensions adds ext:UBLExtensions with the DIAN extensions (sts:DianExtensions) and
+// a second, empty ext:UBLExtension, reserved for the XAdES signature that the signer package
+// adds in a later pipeline step.
 func appendUBLExtensions(parent *etree.Element, inv domain.Invoice) {
 	extensions := parent.CreateElement("ext:UBLExtensions")
 
@@ -80,7 +80,7 @@ func appendUBLExtensions(parent *etree.Element, inv domain.Invoice) {
 
 	dianExt.CreateElement("sts:QRCode").SetText(inv.QRURL)
 
-	// Reservado para la firma XAdES (signer.Sign la completa más adelante).
+	// Reserved for the XAdES signature (signer.Sign fills it in later).
 	extensions.CreateElement("ext:UBLExtension").CreateElement("ext:ExtensionContent")
 }
 

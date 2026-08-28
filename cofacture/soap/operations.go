@@ -6,10 +6,10 @@ import (
 	"github.com/beevik/etree"
 )
 
-// SendTestSetAsync envía un ZIP del set de pruebas de habilitación. Devuelve el
-// UploadDocumentResponse — si ZipKey viene vacío, revisar ErrorMessageList (la DIAN rechazó
-// el ZIP en validaciones iniciales, antes de encolarlo). El resultado de validación real se
-// consulta después con GetStatusZip(ZipKey).
+// SendTestSetAsync sends a ZIP for the certification test set. Returns the
+// UploadDocumentResponse — if ZipKey comes back empty, check ErrorMessageList (DIAN rejected
+// the ZIP during initial validation, before queueing it). The actual validation result is
+// queried afterward with GetStatusZip(ZipKey).
 func (c *Client) SendTestSetAsync(fileName string, content []byte, testSetID string) (*UploadDocumentResponse, error) {
 	var result struct {
 		Result UploadDocumentResponse `xml:"SendTestSetAsyncResult"`
@@ -26,10 +26,10 @@ func (c *Client) SendTestSetAsync(fileName string, content []byte, testSetID str
 	return &result.Result, nil
 }
 
-// SendBillSync envía un ZIP con un único documento UBL y devuelve el resultado de
-// validación de inmediato (proceso síncrono, sección 7.10 del Anexo Técnico 1.9) — a
-// diferencia de SendTestSetAsync/SendBillAsync, no hay ZipKey ni paso posterior de consulta;
-// el propio DianResponse ya trae StatusCode/IsValid.
+// SendBillSync sends a ZIP with a single UBL document and returns the validation result
+// immediately (a synchronous process, Technical Annex 1.9 section 7.10) — unlike
+// SendTestSetAsync/SendBillAsync, there is no ZipKey or later query step; the DianResponse
+// itself already carries StatusCode/IsValid.
 func (c *Client) SendBillSync(fileName string, content []byte) (*DianResponse, error) {
 	var result struct {
 		Result DianResponse `xml:"SendBillSyncResult"`
@@ -45,10 +45,10 @@ func (c *Client) SendBillSync(fileName string, content []byte) (*DianResponse, e
 	return &result.Result, nil
 }
 
-// SendBillAsync envía un ZIP con uno o varios documentos UBL de forma asíncrona (sección 7.8
-// del Anexo Técnico 1.9) — mismo patrón que SendTestSetAsync (devuelve ZipKey, el resultado
-// real se consulta después con GetStatusZip), pero sin testSetId: es para envío normal, no
-// para el set de pruebas de habilitación.
+// SendBillAsync sends a ZIP with one or more UBL documents asynchronously (Technical Annex 1.9
+// section 7.8) — same pattern as SendTestSetAsync (returns a ZipKey, the actual result is
+// queried later with GetStatusZip), but without testSetId: it's for normal submissions, not
+// the certification test set.
 func (c *Client) SendBillAsync(fileName string, content []byte) (*UploadDocumentResponse, error) {
 	var result struct {
 		Result UploadDocumentResponse `xml:"SendBillAsyncResult"`
@@ -64,8 +64,27 @@ func (c *Client) SendBillAsync(fileName string, content []byte) (*UploadDocument
 	return &result.Result, nil
 }
 
-// GetStatusZip consulta el resultado de validación de un ZIP enviado por SendBillAsync o
-// SendTestSetAsync. Un ZIP puede contener varios documentos, por eso devuelve un slice.
+// SendBillAttachmentAsync sends a ZIP asynchronously, same request/response shape as
+// SendBillAsync (fileName + contentFile -> UploadDocumentResponse, poll with GetStatusZip).
+// Confirmed present in the real certification-environment WSDL
+// (WcfDianCustomerServices.svc?singleWsdl) as its own operation, distinct from SendBillAsync.
+func (c *Client) SendBillAttachmentAsync(fileName string, content []byte) (*UploadDocumentResponse, error) {
+	var result struct {
+		Result UploadDocumentResponse `xml:"SendBillAttachmentAsyncResult"`
+	}
+	err := c.call("SendBillAttachmentAsync", func(body *etree.Element) {
+		el := body.CreateElement("wcf:SendBillAttachmentAsync")
+		el.CreateElement("wcf:fileName").SetText(fileName)
+		el.CreateElement("wcf:contentFile").SetText(base64.StdEncoding.EncodeToString(content))
+	}, &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Result, nil
+}
+
+// GetStatusZip queries the validation result of a ZIP sent via SendBillAsync or
+// SendTestSetAsync. A ZIP can contain several documents, hence the slice return.
 func (c *Client) GetStatusZip(trackID string) ([]DianResponse, error) {
 	var result struct {
 		Result struct {
@@ -82,8 +101,7 @@ func (c *Client) GetStatusZip(trackID string) ([]DianResponse, error) {
 	return result.Result.Items, nil
 }
 
-// GetStatus consulta el resultado de validación de un único documento enviado por
-// SendBillSync.
+// GetStatus queries the validation result of a single document sent via SendBillSync.
 func (c *Client) GetStatus(trackID string) (*DianResponse, error) {
 	var result struct {
 		Result DianResponse `xml:"GetStatusResult"`
@@ -98,12 +116,12 @@ func (c *Client) GetStatus(trackID string) (*DianResponse, error) {
 	return &result.Result, nil
 }
 
-// GetNumberingRange consulta los rangos de numeración autorizados por la DIAN para un
-// emisor + software dados. accountCode y accountCodeT son el NIT del emisor (en integración
-// directa son iguales); softwareCode es el UUID del software registrado.
-// Devuelve todos los rangos activos e históricos que la DIAN tiene para ese par
-// emisor/software, cada uno con su resolución, prefijo, from/to, fechas de vigencia y la
-// clave técnica (TechnicalKey) necesaria para calcular el CUFE.
+// GetNumberingRange queries the numbering ranges DIAN has authorized for a given issuer +
+// software pair. accountCode and accountCodeT are the issuer's NIT (identical in direct
+// integration); softwareCode is the UUID of the registered software.
+// Returns every active and historical range DIAN has for that issuer/software pair, each with
+// its resolution, prefix, from/to, validity dates and the TechnicalKey needed to compute the
+// CUFE.
 func (c *Client) GetNumberingRange(accountCode, accountCodeT, softwareCode string) (*NumberRangeResponseList, error) {
 	var result struct {
 		Result NumberRangeResponseList `xml:"GetNumberingRangeResult"`
@@ -120,9 +138,9 @@ func (c *Client) GetNumberingRange(accountCode, accountCodeT, softwareCode strin
 	return &result.Result, nil
 }
 
-// SendNominaSync envía un ZIP con un NominaIndividual (o NominaIndividualDeAjuste) firmado
-// y devuelve el resultado de validación de forma síncrona (Anexo Técnico Nómina, sección 9.7).
-// A diferencia de SendBillSync, solo recibe contentFile (sin fileName).
+// SendNominaSync sends a ZIP with a signed NominaIndividual (or NominaIndividualDeAjuste) and
+// returns the validation result synchronously (Payroll Technical Annex, section 9.7). Unlike
+// SendBillSync, it only takes contentFile (no fileName).
 func (c *Client) SendNominaSync(content []byte) (*DianResponse, error) {
 	var result struct {
 		Result DianResponse `xml:"SendNominaSyncResult"`
@@ -137,8 +155,8 @@ func (c *Client) SendNominaSync(content []byte) (*DianResponse, error) {
 	return &result.Result, nil
 }
 
-// SendNominaSyncTestSet envía un ZIP de nómina al set de pruebas de habilitación.
-// Combina la lógica de SendNominaSync con el testSetId requerido para habilitación.
+// SendNominaSyncTestSet sends a payroll ZIP to the certification test set. Combines
+// SendNominaSync's logic with the testSetId required for certification.
 func (c *Client) SendNominaSyncTestSet(content []byte, testSetID string) (*DianResponse, error) {
 	var result struct {
 		Result DianResponse `xml:"SendNominaSyncResult"`
@@ -154,9 +172,44 @@ func (c *Client) SendNominaSyncTestSet(content []byte, testSetID string) (*DianR
 	return &result.Result, nil
 }
 
-// GetAcquirer consulta el registro de intercambio/notificación de la DIAN para un tercero —
-// ver AcquirerResponse. Ayuda opcional al capturar un NIT, nunca bloqueante: un resultado vacío
-// (sin ReceiverName/ReceiverEmail) es normal y esperado para la mayoría de identificaciones.
+// SendEventUpdateStatus submits a signed ApplicationResponse event (Acuse de Recibo, Reclamo,
+// Recibo del Bien, Aceptación Expresa/Tácita — see package event and builder.BuildAcuseRecibo
+// and friends) and returns the validation result synchronously, same response shape as
+// SendBillSync/SendNominaSync. Confirmed present in the real certification-environment WSDL
+// (WcfDianCustomerServices.svc?singleWsdl) as its own operation.
+func (c *Client) SendEventUpdateStatus(content []byte) (*DianResponse, error) {
+	var result struct {
+		Result DianResponse `xml:"SendEventUpdateStatusResult"`
+	}
+	err := c.call("SendEventUpdateStatus", func(body *etree.Element) {
+		el := body.CreateElement("wcf:SendEventUpdateStatus")
+		el.CreateElement("wcf:contentFile").SetText(base64.StdEncoding.EncodeToString(content))
+	}, &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Result, nil
+}
+
+// GetStatusEvent queries the validation result of an event sent via SendEventUpdateStatus, same
+// pattern as GetStatus for SendBillSync.
+func (c *Client) GetStatusEvent(trackID string) (*DianResponse, error) {
+	var result struct {
+		Result DianResponse `xml:"GetStatusEventResult"`
+	}
+	err := c.call("GetStatusEvent", func(body *etree.Element) {
+		el := body.CreateElement("wcf:GetStatusEvent")
+		el.CreateElement("wcf:trackId").SetText(trackID)
+	}, &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Result, nil
+}
+
+// GetAcquirer queries DIAN's exchange/notification registry for a third party — see
+// AcquirerResponse. An optional aid when capturing a NIT, never blocking: an empty result (no
+// ReceiverName/ReceiverEmail) is normal and expected for most identification numbers.
 func (c *Client) GetAcquirer(identificationType, identificationNumber string) (*AcquirerResponse, error) {
 	var result struct {
 		Result AcquirerResponse `xml:"GetAcquirerResult"`

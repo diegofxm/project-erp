@@ -1,4 +1,4 @@
-package soap
+package integrationtest
 
 import (
 	"os"
@@ -6,33 +6,34 @@ import (
 	"testing"
 
 	"github.com/diegofxm/cofacture/signer"
+	"github.com/diegofxm/cofacture/soap"
 )
 
-// realClient devuelve un Client apuntando al endpoint real de habilitación de la DIAN,
-// cargando el certificado desde COFACTURE_TEST_FIXTURES_DIR. Llama t.Skip si la variable
-// no está configurada; llama t.Fatal si el certificado no carga.
-func realClient(t *testing.T) *Client {
+// realClient returns a Client pointing at the DIAN's real certification-environment endpoint,
+// loading the certificate from COFACTURE_TEST_FIXTURES_DIR. Calls t.Skip if the variable
+// isn't set; calls t.Fatal if the certificate fails to load.
+func realClient(t *testing.T) *soap.Client {
 	t.Helper()
 	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")
 	if dir == "" {
-		t.Skip("COFACTURE_TEST_FIXTURES_DIR no configurado, se omite la prueba real contra la DIAN")
+		t.Skip("COFACTURE_TEST_FIXTURES_DIR not set, skipping real-DIAN test")
 	}
 	certPEM, err := os.ReadFile(filepath.Join(dir, "certificado_cert.pem"))
 	if err != nil {
-		t.Fatalf("leer certificado_cert.pem: %v", err)
+		t.Fatalf("read certificado_cert.pem: %v", err)
 	}
 	keyPEM, err := os.ReadFile(filepath.Join(dir, "certificado_key.pem"))
 	if err != nil {
-		t.Fatalf("leer certificado_key.pem: %v", err)
+		t.Fatalf("read certificado_key.pem: %v", err)
 	}
 	cert, key, err := signer.LoadPEM(certPEM, keyPEM)
 	if err != nil {
 		t.Fatalf("LoadPEM: %v", err)
 	}
-	return New(HabilitacionURL, cert, key)
+	return soap.New(soap.HabilitacionURL, cert, key)
 }
 
-// queryRanges llama GetNumberingRange en el endpoint dado e imprime los rangos devueltos.
+// queryRanges calls GetNumberingRange against the given endpoint and logs the returned ranges.
 func queryRanges(t *testing.T, label, baseURL, nit, softwareCode string) {
 	t.Helper()
 	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")
@@ -42,7 +43,7 @@ func queryRanges(t *testing.T, label, baseURL, nit, softwareCode string) {
 	if err != nil {
 		t.Fatalf("LoadPEM: %v", err)
 	}
-	c := New(baseURL, cert, key)
+	c := soap.New(baseURL, cert, key)
 
 	got, err := c.GetNumberingRange(nit, nit, softwareCode)
 	if err != nil {
@@ -51,9 +52,9 @@ func queryRanges(t *testing.T, label, baseURL, nit, softwareCode string) {
 	}
 	t.Logf("[%s] OperationCode        : %s", label, got.OperationCode)
 	t.Logf("[%s] OperationDescription : %s", label, got.OperationDescription)
-	t.Logf("[%s] Rangos encontrados   : %d", label, len(got.ResponseList))
+	t.Logf("[%s] Ranges found         : %d", label, len(got.ResponseList))
 	for i, r := range got.ResponseList {
-		t.Logf("[%s] --- Rango %d ---", label, i+1)
+		t.Logf("[%s] --- Range %d ---", label, i+1)
 		t.Logf("[%s]   ResolutionNumber : %s", label, r.ResolutionNumber)
 		t.Logf("[%s]   ResolutionDate   : %s", label, r.ResolutionDate)
 		t.Logf("[%s]   Prefix           : %s", label, r.Prefix)
@@ -65,35 +66,37 @@ func queryRanges(t *testing.T, label, baseURL, nit, softwareCode string) {
 	}
 }
 
-// TestGetNumberingRange_Real consulta ambos ambientes (habilitación y producción) para el
-// mismo NIT y software. Los entornos son bases de datos separadas en la DIAN: una resolución
-// autorizada en producción no aparece en habilitación y viceversa. Si SETP (FE) solo aparece
-// en producción y SEDS (DS) solo en habilitación, eso es el comportamiento correcto.
+// TestGetNumberingRange_Real queries both environments (certification and production) for the
+// same NIT and software. The environments are separate databases on the DIAN side: a resolution
+// authorized in production does not appear in certification, and vice versa. If SETP (Electronic
+// Sales Invoice) only appears in production and SEDS (Support Document) only in certification,
+// that is the expected behavior.
 func TestGetNumberingRange_Real(t *testing.T) {
 	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")
 	if dir == "" {
-		t.Skip("COFACTURE_TEST_FIXTURES_DIR no configurado, se omite la prueba real contra la DIAN")
+		t.Skip("COFACTURE_TEST_FIXTURES_DIR not set, skipping real-DIAN test")
 	}
 	env := parseEnvFile(t, filepath.Join(dir, "credenciales.txt"))
 
 	nit := "6382356"
 	softwareCode := env["DIAN_SOFTWARE_ID"]
 	if softwareCode == "" {
-		t.Fatal("DIAN_SOFTWARE_ID no está en credenciales.txt")
+		t.Fatal("DIAN_SOFTWARE_ID missing from credenciales.txt")
 	}
 
-	t.Log("=== HABILITACIÓN ===")
-	queryRanges(t, "HAB", HabilitacionURL, nit, softwareCode)
+	t.Log("=== CERTIFICATION ===")
+	queryRanges(t, "HAB", soap.HabilitacionURL, nit, softwareCode)
 
-	t.Log("=== PRODUCCIÓN ===")
-	queryRanges(t, "PRD", ProduccionURL, nit, softwareCode)
+	t.Log("=== PRODUCTION ===")
+	queryRanges(t, "PRD", soap.ProduccionURL, nit, softwareCode)
 }
 
-// TestGetAcquirer_Real llama al webservice real de la DIAN con la cédula del emisor de
-// prueba (6382356, tipo "13") — confirmado en la sesión 9.41 que responde StatusCode "404"
-// con Message "El adquirente No existe en la base de datos" (resultado normal: no tiene
-// correo/nombre registrado para recibir documentos electrónicos). El test pasa si la llamada
-// no devuelve un error de Go — el StatusCode del body es informativo, no un fallo.
+// TestGetAcquirer_Real calls the DIAN's real web service with the test issuer's ID number
+// (6382356, type "13") — confirmed to respond with StatusCode "404" and Message "El adquirente
+// No existe en la base de datos" ("The acquirer does not exist in the database") — a normal
+// result: no email/name registered to receive electronic documents. The test passes as long as
+// the call doesn't return a Go error — the StatusCode in the body is informational, not a
+// failure.
 func TestGetAcquirer_Real(t *testing.T) {
 	c := realClient(t)
 

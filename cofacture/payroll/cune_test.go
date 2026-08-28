@@ -7,25 +7,25 @@ import (
 	"testing"
 )
 
-// TestCune busca exhaustivamente el formato que produce el CUNE del ejemplo oficial
-// (Anexo Técnico DIAN sección 8.1). El Anexo extrae el texto del PDF y la cadena
-// de composición puede tener caracteres faltantes por artefactos de conversión.
+// TestCune exhaustively searches for the format that produces the CUNE from the official
+// example (DIAN Technical Annex section 8.1). The Annex's text was extracted from a PDF,
+// and the composition string may have missing characters due to conversion artifacts.
 func TestCune(t *testing.T) {
 	const want = "16560dc8956122e84ffb743c817fe7d494e058a44d9ca3fa4c234c268b4f766003253fbee7ea4af9682dd57210f3bac2"
 
-	// Variantes de HorNE
+	// HorNE variants
 	horVariants := []string{
-		"10:53:10-05:00", // estándar ISO 8601 HH:MM:SS±HH:MM
-		"1053:10-05:00",  // literal del Anexo (sin primer ":")
-		"105310-05:00",   // sin colons entre HH/MM/SS
-		"10:53:10",       // sin timezone
-		"105310",         // solo HHMMSS
+		"10:53:10-05:00", // standard ISO 8601 HH:MM:SS±HH:MM
+		"1053:10-05:00",  // literal from the Annex (without the first ":")
+		"105310-05:00",   // without colons between HH/MM/SS
+		"10:53:10",       // without timezone
+		"105310",         // HHMMSS only
 	}
-	// Variantes de ValDev/ValDed/ValTolNE (con o sin decimales)
+	// ValDev/ValDed/ValTolNE variants (with or without decimals)
 	type moneyCase struct{ dev, ded, tot string }
 	moneyVariants := []moneyCase{
-		{"3500000.00", "1000000.00", "2500000.00"}, // con 2 decimales
-		{"3500000", "1000000", "2500000"},           // sin decimales
+		{"3500000.00", "1000000.00", "2500000.00"}, // with 2 decimals
+		{"3500000", "1000000", "2500000"},          // without decimals
 	}
 
 	tried := 0
@@ -42,7 +42,7 @@ func TestCune(t *testing.T) {
 		}
 	}
 
-	// Probar también con la cadena literal tal como aparece en el Anexo
+	// Also try the literal string as it appears in the Annex
 	raw := "N000012020-01-161053:10-05:003500000.001000000.002500000.007000853718001994361026931"
 	sum := sha512.Sum384([]byte(raw))
 	rawHash := fmt.Sprintf("%x", sum)
@@ -51,11 +51,11 @@ func TestCune(t *testing.T) {
 		return
 	}
 
-	// Probar con cadena incluida posible espacio antes del PIN o TipAmb
+	// Try strings with a possible space before PIN or TipAmb
 	variants := []string{
-		// espacio antes del PIN
+		// space before PIN
 		"N000012020-01-1610:53:10-05:003500000.001000000.002500000.0070008537180019943610 2693 1",
-		// TipoXML sin ceros "2" en lugar de "102"
+		// TipoXML without leading zeros: "2" instead of "102"
 		"N000012020-01-1610:53:10-05:003500000.001000000.002500000.00700085371800199436 2693 1",
 	}
 	for _, v := range variants {
@@ -67,12 +67,12 @@ func TestCune(t *testing.T) {
 		}
 	}
 
-	// Si llegamos aquí, el ejemplo del Anexo puede tener errores conocidos.
-	// Documentar los hashes obtenidos para referencia.
+	// If we get here, the Annex example may have known errors.
+	// Log the computed hashes for reference.
 	t.Logf("ninguna de %d variantes coincide con el CUNE del Anexo", tried)
 	t.Logf("hash de la cadena literal del Anexo: %s", rawHash)
 
-	// hash con formato estándar (el que probablemente acepta DIAN)
+	// hash using the standard format (the one DIAN likely accepts)
 	stdInput := "N00001" + "2020-01-16" + "10:53:10-05:00" +
 		"3500000.00" + "1000000.00" + "2500000.00" +
 		"700085371" + "800199436" + "102" + "693" + "1"
@@ -80,7 +80,7 @@ func TestCune(t *testing.T) {
 	t.Logf("hash con formato estándar (HH:MM:SS±HH:MM, 2 dec): %s", fmt.Sprintf("%x", stdSum))
 	t.Logf("cadena usada: %s", strings.ReplaceAll(stdInput, "", ""))
 
-	// No fallamos el test — el ejemplo del Anexo puede tener el hash equivocado
-	// (error conocido de la documentación DIAN). La validación real es el envío a DIAN.
+	// We don't fail the test — the Annex example may have the wrong hash
+	// (a known error in DIAN's documentation). The real validation is submission to DIAN.
 	t.Log("AVISO: el hash del Anexo puede ser incorrecto. Se procede con formato HH:MM:SS±HH:MM.")
 }

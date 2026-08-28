@@ -12,7 +12,7 @@ func TestParseMessage(t *testing.T) {
 		raw  string
 		want Message
 	}{
-		// Mensajes reales devueltos por la DIAN (ambiente de habilitación).
+		// Real messages returned by DIAN (certification/testing environment).
 		{
 			raw: "Regla: ZE02, Rechazo: Valor de la firma inválido.",
 			want: Message{
@@ -29,8 +29,8 @@ func TestParseMessage(t *testing.T) {
 			},
 		},
 		{
-			// Texto que no sigue el patrón: se conserva en Raw, el resto queda vacío en
-			// vez de fallar.
+			// Text that doesn't follow the pattern: it is preserved in Raw, the rest is left
+			// empty instead of failing.
 			raw:  "algo que no sigue el formato esperado",
 			want: Message{Raw: "algo que no sigue el formato esperado"},
 		},
@@ -54,9 +54,9 @@ func TestMessage_IsRejection(t *testing.T) {
 }
 
 func TestInterpret_DecodesDoubleBase64ApplicationResponse(t *testing.T) {
-	// XmlBase64Bytes trae doble codificación: encoding/xml ya decodifica la primera capa
-	// (es xs:base64Binary), pero lo que queda adentro es a su vez texto base64 — verificado
-	// contra una respuesta real de GetStatusZip.
+	// XmlBase64Bytes carries double encoding: encoding/xml already decodes the first layer
+	// (it's xs:base64Binary), but what remains inside is itself base64 text — verified
+	// against a real GetStatusZip response.
 	innerXML := `<?xml version="1.0" encoding="utf-8"?><ApplicationResponse><cbc:UUID>cude-de-prueba</cbc:UUID></ApplicationResponse>`
 	doubleEncoded := base64.StdEncoding.EncodeToString([]byte(innerXML))
 
@@ -122,7 +122,7 @@ func TestResult_HasRejectionsAndToValidationResult(t *testing.T) {
 }
 
 func TestResult_IsTestSetClosed(t *testing.T) {
-	// Respuesta real que produjo el rechazo en la sección 9.43 — sin Messages, solo
+	// Real response that produced the rejection in section 9.43 — no Messages, just
 	// StatusDescription.
 	closed := Result{
 		StatusCode:        "2",
@@ -132,7 +132,7 @@ func TestResult_IsTestSetClosed(t *testing.T) {
 		t.Error("debería detectar el set de pruebas cerrado")
 	}
 
-	// Un rechazo normal de contenido no debe confundirse con esto, aunque también tenga
+	// A normal content rejection must not be confused with this, even though it also has
 	// StatusCode "2".
 	contentRejection := Result{
 		StatusCode:        "2",

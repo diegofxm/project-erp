@@ -5,14 +5,14 @@ import (
 	"fmt"
 )
 
-// Cune calcula el Código Único de Nómina Electrónica (CUNE) según la sección 8.1
-// del Anexo Técnico DIAN:
+// Cune computes the Unique Electronic Payroll Code (Código Único de Nómina Electrónica, CUNE)
+// per section 8.1 of DIAN's Technical Annex:
 //
 //	SHA-384(NumNE + FecNE + HorNE + ValDev + ValDed + ValTolNE + NitNE + DocEmp + TipoXML + SoftwarePIN + TipAmb)
 //
-// Todos los valores monetarios deben formatearse con dos decimales antes de llamar
-// esta función (e.g. "3500000.00", no "3500000"). El resultado es el hex SHA-384
-// de 96 caracteres que va en InformacionGeneral/@CUNE.
+// All monetary values must be formatted with two decimals before calling this function (e.g.
+// "3500000.00", not "3500000"). The result is the 96-character hex SHA-384 that goes into
+// InformacionGeneral/@CUNE.
 func Cune(numNE, fecNE, horNE, valDev, valDed, valTolNE, nitNE, docEmp, tipoXML, softwarePIN, tipAmb string) string {
 	input := numNE + fecNE + horNE + valDev + valDed + valTolNE + nitNE + docEmp + tipoXML + softwarePIN + tipAmb
 	sum := sha512.Sum384([]byte(input))
