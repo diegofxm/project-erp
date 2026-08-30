@@ -35,11 +35,11 @@ Notes:
 - **Attached Document** is never submitted to DIAN by SOAP — it's built *after* DIAN has already validated the document it wraps (it embeds that validation response) and is delivered directly to the acquirer instead. There is no `Send*` operation that takes one.
 - **Aceptación Tácita** is a sworn statement that a fixed number of business days passed since a prior Recibo del Bien event with no response. Submitting one for a document minutes old, referencing an event that doesn't exist, would assert something false into DIAN's system — even in the certification environment. The test that exercises it (in the sibling `integration-tests` module) builds, hashes and signs it against real material and stops there, deliberately.
 - **Documento Equivalente Electrónico** reuses this library's Invoice/Credit Note/Debit Note builders and `cude`'s CUDE formula field-for-field — confirmed against the Documento Equivalente Electrónico Technical Annex V1.0 (Resolution 000165/2023). Only the POS ticket and its two adjustment note types have a dedicated test; the other 9 sub-types share the same mechanism but have not been exercised individually.
-- The DIAN web service (`WcfDianCustomerServices`) also exposes `GetXmlByDocumentKey`, `GetReferenceNotes`, `GetDocumentInfo`, and `GetExchangeEmails`, which this library does not implement.
+- `GetXmlByDocumentKey`, `GetReferenceNotes`, `GetDocumentInfo`, and `GetExchangeEmails` — the 4 operations of `WcfDianCustomerServices`'s 16 that weren't wired up before — parse correctly against the real WSDL's own schema (extracted from `WcfDianCustomerServices.svc?singleWsdl`, not guessed from the technical annex), but have not been exercised against a real DIAN response: `GetReferenceNotes` reuses `DianResponse` in a way that's unusual for a query operation, and `GetDocumentInfo`'s deeply nested response (`DocumentInfoResponse` → `Documento` → `Nota`/`Evento`/etc.) has only been tested with one level of real data.
 
 ### SOAP operations implemented (package `soap`)
 
-`SendBillSync` · `SendBillAsync` · `SendBillAttachmentAsync` · `SendTestSetAsync` · `GetStatus` · `GetStatusZip` · `GetNumberingRange` · `SendNominaSync` · `SendNominaSyncTestSet` · `SendEventUpdateStatus` · `GetStatusEvent` · `GetAcquirer`
+All 16 operations `WcfDianCustomerServices` exposes: `SendBillSync` · `SendBillAsync` · `SendBillAttachmentAsync` · `SendTestSetAsync` · `GetStatus` · `GetStatusZip` · `GetNumberingRange` · `SendNominaSync` · `SendNominaSyncTestSet` · `SendEventUpdateStatus` · `GetStatusEvent` · `GetAcquirer` · `GetXmlByDocumentKey` · `GetReferenceNotes` · `GetDocumentInfo` · `GetExchangeEmails`.
 
 ### Design boundaries (not gaps)
 

@@ -53,19 +53,20 @@ func TestMessage_IsRejection(t *testing.T) {
 	}
 }
 
-func TestInterpret_DecodesDoubleBase64ApplicationResponse(t *testing.T) {
-	// XmlBase64Bytes carries double encoding: encoding/xml already decodes the first layer
-	// (it's xs:base64Binary), but what remains inside is itself base64 text — verified
-	// against a real GetStatusZip response.
+func TestInterpret_DecodesBase64ApplicationResponse(t *testing.T) {
+	// XmlBase64Bytes arrives as base64 text — encoding/xml never decodes it on its own (it
+	// only copies character data verbatim into a []byte field), so decodeEmbeddedXML's one
+	// base64.StdEncoding.DecodeString call is the only decode step, not a "second layer" of
+	// one Go already did — verified against a real GetStatusZip response.
 	innerXML := `<?xml version="1.0" encoding="utf-8"?><ApplicationResponse><cbc:UUID>cude-de-prueba</cbc:UUID></ApplicationResponse>`
-	doubleEncoded := base64.StdEncoding.EncodeToString([]byte(innerXML))
+	encoded := base64.StdEncoding.EncodeToString([]byte(innerXML))
 
 	resp := soap.DianResponse{
 		IsValid:        true,
 		StatusCode:     "00",
 		StatusMessage:  "ha sido autorizada",
 		XmlDocumentKey: "cufe-de-prueba",
-		XmlBase64Bytes: []byte(doubleEncoded),
+		XmlBase64Bytes: []byte(encoded),
 	}
 
 	result, err := Interpret(resp)

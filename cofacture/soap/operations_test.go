@@ -445,3 +445,209 @@ func TestGetAcquirer_HTTP404WithValidBodyIsNotAnError(t *testing.T) {
 		t.Errorf("expected empty fields, got %+v", got)
 	}
 }
+
+const getXmlByDocumentKeyResponseXML = `<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Body>
+    <GetXmlByDocumentKeyResponse xmlns="http://wcf.dian.colombia">
+      <GetXmlByDocumentKeyResult xmlns:b="http://schemas.datacontract.org/2004/07/EventResponse"
+                                  xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+        <b:Code>00</b:Code>
+        <b:Message>OK</b:Message>
+        <b:ValidationDate>2026-06-29T10:00:00</b:ValidationDate>
+        <b:XmlBytesBase64>PEludm9pY2UvPg==</b:XmlBytesBase64>
+      </GetXmlByDocumentKeyResult>
+    </GetXmlByDocumentKeyResponse>
+  </s:Body>
+</s:Envelope>`
+
+// TestGetXmlByDocumentKey_ParsesResponse confirms GetXmlByDocumentKey sends trackId (same
+// request shape as GetStatus) and parses its own <GetXmlByDocumentKeyResult> element.
+// XmlBytesBase64 arrives as the raw base64 text, not decoded — encoding/xml only copies
+// character data verbatim into a []byte field, it never base64-decodes it (verified directly:
+// there is no such behavior in the standard library, despite what an earlier, incorrect
+// comment in package dian used to claim about DianResponse's equivalent field).
+func TestGetXmlByDocumentKey_ParsesResponse(t *testing.T) {
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/soap+xml; charset=utf-8")
+		_, _ = w.Write([]byte(getXmlByDocumentKeyResponseXML))
+	}))
+	defer server.Close()
+
+	cert, key := generateTestCert(t)
+	c := &Client{BaseURL: server.URL, Cert: cert, Key: key, HTTPClient: server.Client()}
+
+	got, err := c.GetXmlByDocumentKey("some-track-id")
+	if err != nil {
+		t.Fatalf("GetXmlByDocumentKey: %v", err)
+	}
+	if got.Code != "00" {
+		t.Errorf("Code = %q, want %q", got.Code, "00")
+	}
+	if want := "PEludm9pY2UvPg=="; string(got.XmlBytesBase64) != want {
+		t.Errorf("XmlBytesBase64 = %q, want %q (raw base64 text, not decoded)", got.XmlBytesBase64, want)
+	}
+	if !strings.Contains(string(gotBody), "<wcf:trackId>some-track-id</wcf:trackId>") {
+		t.Errorf("request body missing trackId: %s", gotBody)
+	}
+}
+
+const getReferenceNotesResponseXML = `<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Body>
+    <GetReferenceNotesResponse xmlns="http://wcf.dian.colombia">
+      <GetReferenceNotesResult xmlns:b="http://schemas.datacontract.org/2004/07/DianResponse"
+                                xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+        <b:IsValid>true</b:IsValid>
+        <b:StatusCode>00</b:StatusCode>
+      </GetReferenceNotesResult>
+    </GetReferenceNotesResponse>
+  </s:Body>
+</s:Envelope>`
+
+// TestGetReferenceNotes_ParsesResponse confirms GetReferenceNotes sends trackId and parses its
+// own <GetReferenceNotesResult> element into the shared DianResponse type — matching the real
+// WSDL's schema exactly, however unusual that reuse is for a query operation (see the doc
+// comment on GetReferenceNotes).
+func TestGetReferenceNotes_ParsesResponse(t *testing.T) {
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/soap+xml; charset=utf-8")
+		_, _ = w.Write([]byte(getReferenceNotesResponseXML))
+	}))
+	defer server.Close()
+
+	cert, key := generateTestCert(t)
+	c := &Client{BaseURL: server.URL, Cert: cert, Key: key, HTTPClient: server.Client()}
+
+	got, err := c.GetReferenceNotes("some-track-id")
+	if err != nil {
+		t.Fatalf("GetReferenceNotes: %v", err)
+	}
+	if !got.IsValid {
+		t.Errorf("IsValid = %v, want true", got.IsValid)
+	}
+	if !strings.Contains(string(gotBody), "<wcf:GetReferenceNotes>") {
+		t.Errorf("request body missing wcf:GetReferenceNotes element: %s", gotBody)
+	}
+}
+
+const getExchangeEmailsResponseXML = `<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Body>
+    <GetExchangeEmailsResponse xmlns="http://wcf.dian.colombia">
+      <GetExchangeEmailsResult xmlns:b="http://schemas.datacontract.org/2004/07/ExchangeEmailResponse"
+                                xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+        <b:CsvBase64Bytes>bmFtZSxlbWFpbA==</b:CsvBase64Bytes>
+        <b:Message>OK</b:Message>
+        <b:StatusCode>00</b:StatusCode>
+        <b:Success>true</b:Success>
+      </GetExchangeEmailsResult>
+    </GetExchangeEmailsResponse>
+  </s:Body>
+</s:Envelope>`
+
+// TestGetExchangeEmails_ParsesResponse confirms GetExchangeEmails sends no parameters (an empty
+// self-closing <wcf:GetExchangeEmails/> element, per the WSDL's empty request schema) and
+// parses its own <GetExchangeEmailsResult> element. CsvBase64Bytes arrives as raw base64 text —
+// see XmlBytesBase64's test for why it isn't decoded automatically.
+func TestGetExchangeEmails_ParsesResponse(t *testing.T) {
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/soap+xml; charset=utf-8")
+		_, _ = w.Write([]byte(getExchangeEmailsResponseXML))
+	}))
+	defer server.Close()
+
+	cert, key := generateTestCert(t)
+	c := &Client{BaseURL: server.URL, Cert: cert, Key: key, HTTPClient: server.Client()}
+
+	got, err := c.GetExchangeEmails()
+	if err != nil {
+		t.Fatalf("GetExchangeEmails: %v", err)
+	}
+	if !got.Success {
+		t.Errorf("Success = %v, want true", got.Success)
+	}
+	if want := "bmFtZSxlbWFpbA=="; string(got.CsvBase64Bytes) != want {
+		t.Errorf("CsvBase64Bytes = %q, want %q (raw base64 text, not decoded)", got.CsvBase64Bytes, want)
+	}
+	if !strings.Contains(string(gotBody), "<wcf:GetExchangeEmails/>") {
+		t.Errorf("request body missing self-closing wcf:GetExchangeEmails element: %s", gotBody)
+	}
+}
+
+const getDocumentInfoResponseXML = `<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Body>
+    <GetDocumentInfoResponse xmlns="http://wcf.dian.colombia">
+      <GetDocumentInfoResult xmlns:b="http://schemas.datacontract.org/2004/07/DocumentInfoResponse"
+                              xmlns:c="http://schemas.datacontract.org/2004/07/Documento"
+                              xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+        <b:StatusCode>00</b:StatusCode>
+        <b:StatusDescription>Proceso Exitoso</b:StatusDescription>
+        <b:DocumentInfo>
+          <c:Documento>
+            <c:DocumentCode>SETP990000001</c:DocumentCode>
+            <c:DocumentTypeId>01</c:DocumentTypeId>
+            <c:DocumentTypeName>Factura Electrónica de Venta</c:DocumentTypeName>
+            <c:Emisor>
+              <Nombre xmlns="http://schemas.datacontract.org/2004/07/Entidad">MI EMPRESA S.A.S.</Nombre>
+              <NumeroDoc xmlns="http://schemas.datacontract.org/2004/07/Entidad">900123456</NumeroDoc>
+            </c:Emisor>
+            <c:TotalEImpuestos>
+              <Iva xmlns="http://schemas.datacontract.org/2004/07/TotalEImpuestos">239495.80</Iva>
+              <Total xmlns="http://schemas.datacontract.org/2004/07/TotalEImpuestos">1500000.00</Total>
+            </c:TotalEImpuestos>
+            <c:UUID>18015e1f4f6b1eb55cf6d5eaa1f752bed3b0402e0cf11eb515c1ce5ccbe9bca120cd4776ee3b1e5c281e0fd2711d40d1</c:UUID>
+          </c:Documento>
+        </b:DocumentInfo>
+      </GetDocumentInfoResult>
+    </GetDocumentInfoResponse>
+  </s:Body>
+</s:Envelope>`
+
+// TestGetDocumentInfo_ParsesResponse confirms GetDocumentInfo sends uuid (not trackId, unlike
+// most other queries) and parses the nested DocumentInfoResponse/Documento/Emisor/
+// TotalEImpuestos structure — proving at least one full level of nesting decodes correctly,
+// without exhaustively exercising every leaf type declared in the WSDL.
+func TestGetDocumentInfo_ParsesResponse(t *testing.T) {
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/soap+xml; charset=utf-8")
+		_, _ = w.Write([]byte(getDocumentInfoResponseXML))
+	}))
+	defer server.Close()
+
+	cert, key := generateTestCert(t)
+	c := &Client{BaseURL: server.URL, Cert: cert, Key: key, HTTPClient: server.Client()}
+
+	got, err := c.GetDocumentInfo("18015e1f4f6b1eb55cf6d5eaa1f752bed3b0402e0cf11eb515c1ce5ccbe9bca120cd4776ee3b1e5c281e0fd2711d40d1")
+	if err != nil {
+		t.Fatalf("GetDocumentInfo: %v", err)
+	}
+	if got.StatusCode != "00" {
+		t.Errorf("StatusCode = %q, want %q", got.StatusCode, "00")
+	}
+	if len(got.DocumentInfo) != 1 {
+		t.Fatalf("len(DocumentInfo) = %d, want 1", len(got.DocumentInfo))
+	}
+	doc := got.DocumentInfo[0]
+	if doc.DocumentCode != "SETP990000001" {
+		t.Errorf("DocumentCode = %q, want %q", doc.DocumentCode, "SETP990000001")
+	}
+	if doc.Emisor.Nombre != "MI EMPRESA S.A.S." {
+		t.Errorf("Emisor.Nombre = %q, want %q", doc.Emisor.Nombre, "MI EMPRESA S.A.S.")
+	}
+	if doc.TotalEImpuestos.Total != 1500000.00 {
+		t.Errorf("TotalEImpuestos.Total = %v, want %v", doc.TotalEImpuestos.Total, 1500000.00)
+	}
+	if !strings.Contains(string(gotBody), "<wcf:uuid>") {
+		t.Errorf("request body missing wcf:uuid element (GetDocumentInfo uses uuid, not trackId): %s", gotBody)
+	}
+}

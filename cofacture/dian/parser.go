@@ -1,11 +1,12 @@
 // Package dian interprets DIAN's validation responses (soap.DianResponse) and turns them into
 // something the rest of the pipeline can use directly.
 //
-// Verified against a real GetStatusZip response: the XmlBase64Bytes field arrives
-// double-base64-encoded — encoding/xml already decodes the first layer (it's an
-// xs:base64Binary field), but the resulting content is itself base64 text that must be
-// decoded a second time to reach the actual ApplicationResponse. XmlBytes, when DIAN uses it
-// instead of XmlBase64Bytes, should not need that second pass.
+// Verified against a real GetStatusZip response: the XmlBase64Bytes field arrives as base64
+// text that must be decoded to reach the actual ApplicationResponse — encoding/xml does not
+// decode base64 on its own (it only copies an element's character data verbatim into a []byte
+// field, confirmed directly against the standard library), so this one decode step is entirely
+// this package's own doing, not something Go already did for us. XmlBytes, when DIAN uses it
+// instead of XmlBase64Bytes, arrives already as the final content and needs no decode step.
 package dian
 
 import (
@@ -130,7 +131,7 @@ func decodeEmbeddedXML(resp soap.DianResponse) ([]byte, error) {
 	if len(resp.XmlBase64Bytes) > 0 {
 		decoded, err := base64.StdEncoding.DecodeString(string(resp.XmlBase64Bytes))
 		if err != nil {
-			return nil, fmt.Errorf("decode XmlBase64Bytes second layer: %w", err)
+			return nil, fmt.Errorf("decode XmlBase64Bytes: %w", err)
 		}
 		return decoded, nil
 	}

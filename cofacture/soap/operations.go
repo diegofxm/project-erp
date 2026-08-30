@@ -224,3 +224,74 @@ func (c *Client) GetAcquirer(identificationType, identificationNumber string) (*
 	}
 	return &result.Result, nil
 }
+
+// GetXmlByDocumentKey retrieves the original signed XML (base64-encoded, in
+// XMLByDocumentKeyResponse.XmlBytesBase64) of a document previously submitted via
+// SendBillSync/SendBillAsync/SendTestSetAsync, given the TrackId/document key returned at
+// submission time.
+func (c *Client) GetXmlByDocumentKey(trackID string) (*XMLByDocumentKeyResponse, error) {
+	var result struct {
+		Result XMLByDocumentKeyResponse `xml:"GetXmlByDocumentKeyResult"`
+	}
+	err := c.call("GetXmlByDocumentKey", func(body *etree.Element) {
+		el := body.CreateElement("wcf:GetXmlByDocumentKey")
+		el.CreateElement("wcf:trackId").SetText(trackID)
+	}, &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Result, nil
+}
+
+// GetReferenceNotes queries which Credit/Debit Notes reference the document identified by
+// trackID — a reverse lookup. Its result is shaped as DianResponse in the real WSDL (the same
+// type SendBillSync/GetStatus use), which is unusual for a query operation; this has not been
+// exercised against DIAN's certification environment, so which of DianResponse's fields
+// actually carry data here (as opposed to being left empty) is unconfirmed.
+func (c *Client) GetReferenceNotes(trackID string) (*DianResponse, error) {
+	var result struct {
+		Result DianResponse `xml:"GetReferenceNotesResult"`
+	}
+	err := c.call("GetReferenceNotes", func(body *etree.Element) {
+		el := body.CreateElement("wcf:GetReferenceNotes")
+		el.CreateElement("wcf:trackId").SetText(trackID)
+	}, &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Result, nil
+}
+
+// GetDocumentInfo queries full metadata for a document identified by UUID (parties, taxes,
+// referencing notes/events, validations) without downloading its XML — a heavier query than
+// GetStatus, lighter than GetXmlByDocumentKey. See DocumentInfoResponse's doc comment for the
+// same not-yet-confirmed-against-real-DIAN caveat as GetReferenceNotes.
+func (c *Client) GetDocumentInfo(documentUUID string) (*DocumentInfoResponse, error) {
+	var result struct {
+		Result DocumentInfoResponse `xml:"GetDocumentInfoResult"`
+	}
+	err := c.call("GetDocumentInfo", func(body *etree.Element) {
+		el := body.CreateElement("wcf:GetDocumentInfo")
+		el.CreateElement("wcf:uuid").SetText(documentUUID)
+	}, &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Result, nil
+}
+
+// GetExchangeEmails queries the email addresses configured to exchange electronic documents
+// with DIAN's registry, as a base64-encoded CSV (ExchangeEmailResponse.CsvBase64Bytes). Takes
+// no parameters — confirmed in the real WSDL's schema (an empty sequence).
+func (c *Client) GetExchangeEmails() (*ExchangeEmailResponse, error) {
+	var result struct {
+		Result ExchangeEmailResponse `xml:"GetExchangeEmailsResult"`
+	}
+	err := c.call("GetExchangeEmails", func(body *etree.Element) {
+		body.CreateElement("wcf:GetExchangeEmails")
+	}, &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Result, nil
+}
