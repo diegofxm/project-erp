@@ -5,8 +5,14 @@ package domain
 type BillingReference struct {
 	Prefix    string
 	Number    string
-	CUFE      string // CUFE of the referenced invoice (not this note's own CUFE)
+	CUFE      string // hash of the referenced document (not this note's own CUFE/CUDE)
 	IssueDate string
+
+	// HashType is the referenced document's own hash scheme — "CUFE-SHA384" when a Credit/Debit
+	// Note corrects a regular Invoice, "CUDE-SHA384" when it corrects a Documento Equivalente
+	// Electrónico (e.g. a POS ticket, DocumentTypeCode "93"/"94"). It must match the referenced
+	// document's actual HashType, not this note's own — the two can differ.
+	HashType string
 }
 
 // DiscrepancyResponse is the note's reason (cac:DiscrepancyResponse) — required when the note

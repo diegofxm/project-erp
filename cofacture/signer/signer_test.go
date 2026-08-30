@@ -85,7 +85,7 @@ func verifySignature(t *testing.T, root *etree.Element, pub *rsa.PublicKey) {
 	}
 
 	if err := rsa.VerifyPKCS1v15(pub, crypto.SHA256, hashed[:], sigValue); err != nil {
-		t.Errorf("la firma no verifica contra la llave pública: %v", err)
+		t.Errorf("signature does not verify against the public key: %v", err)
 	}
 
 	refs := signedInfo.SelectElements("ds:Reference")

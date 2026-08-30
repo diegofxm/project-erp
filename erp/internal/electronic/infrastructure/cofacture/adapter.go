@@ -329,7 +329,7 @@ func (a *Adapter) BuildEmailZip(doc *domain.Document, company *domain.CompanyInf
 			TaxSchemeCode:  company.TaxSchemeCode,
 			TaxSchemeName:  company.TaxSchemeName,
 		},
-		Receiver: receiver,
+		Receiver:      receiver,
 		AttachmentXML: doc.SignedXML,
 		ValidationResults: []cofdom.ValidationResult{
 			{

@@ -105,7 +105,7 @@ func TestGetNumberingRange_EmptyList(t *testing.T) {
 
 	got, err := c.GetNumberingRange("6382356", "6382356", "any-software-id")
 	if err != nil {
-		t.Fatalf("GetNumberingRange lista vacía: %v", err)
+		t.Fatalf("GetNumberingRange with empty list: %v", err)
 	}
 	if len(got.ResponseList) != 0 {
 		t.Errorf("len(ResponseList) = %d, want 0", len(got.ResponseList))
@@ -303,10 +303,101 @@ func TestGetAcquirer_NotFoundIsNotAnError(t *testing.T) {
 
 	got, err := c.GetAcquirer("13", "1122334455")
 	if err != nil {
-		t.Fatalf("GetAcquirer no debería fallar cuando no hay registro: %v", err)
+		t.Fatalf("GetAcquirer should not fail when there is no record: %v", err)
 	}
 	if got.ReceiverName != "" || got.ReceiverEmail != "" {
-		t.Errorf("se esperaban campos vacíos, got %+v", got)
+		t.Errorf("expected empty fields, got %+v", got)
+	}
+}
+
+const getStatusResponseXML = `<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Body>
+    <GetStatusResponse xmlns="http://wcf.dian.colombia">
+      <GetStatusResult xmlns:b="http://schemas.datacontract.org/2004/07/"
+                        xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+        <b:IsValid>true</b:IsValid>
+        <b:StatusCode>00</b:StatusCode>
+        <b:StatusDescription>La Factura electrónica ha sido autorizada</b:StatusDescription>
+      </GetStatusResult>
+    </GetStatusResponse>
+  </s:Body>
+</s:Envelope>`
+
+// TestGetStatus_ParsesResponse confirms GetStatus sends trackId (same request shape as
+// GetStatusEvent) and parses its own <GetStatusResult> element — the query counterpart of
+// SendBillSync, which this package had never exercised with a test of its own.
+func TestGetStatus_ParsesResponse(t *testing.T) {
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/soap+xml; charset=utf-8")
+		_, _ = w.Write([]byte(getStatusResponseXML))
+	}))
+	defer server.Close()
+
+	cert, key := generateTestCert(t)
+	c := &Client{BaseURL: server.URL, Cert: cert, Key: key, HTTPClient: server.Client()}
+
+	got, err := c.GetStatus("some-track-id")
+	if err != nil {
+		t.Fatalf("GetStatus: %v", err)
+	}
+	if !got.IsValid {
+		t.Errorf("IsValid = %v, want true", got.IsValid)
+	}
+	if got.StatusCode != "00" {
+		t.Errorf("StatusCode = %q, want %q", got.StatusCode, "00")
+	}
+	if !strings.Contains(string(gotBody), "<wcf:trackId>some-track-id</wcf:trackId>") {
+		t.Errorf("request body missing trackId: %s", gotBody)
+	}
+}
+
+const sendNominaSyncResponseXML = `<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Body>
+    <SendNominaSyncResponse xmlns="http://wcf.dian.colombia">
+      <SendNominaSyncResult xmlns:b="http://schemas.datacontract.org/2004/07/"
+                             xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+        <b:IsValid>true</b:IsValid>
+        <b:StatusCode>00</b:StatusCode>
+        <b:StatusDescription>La Nómina Electrónica ha sido autorizada</b:StatusDescription>
+      </SendNominaSyncResult>
+    </SendNominaSyncResponse>
+  </s:Body>
+</s:Envelope>`
+
+// TestSendNominaSync_ParsesResponse confirms SendNominaSync sends only contentFile (no fileName,
+// no testSetId — unlike SendNominaSyncTestSet) and parses the shared <SendNominaSyncResult>
+// element both functions use.
+func TestSendNominaSync_ParsesResponse(t *testing.T) {
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/soap+xml; charset=utf-8")
+		_, _ = w.Write([]byte(sendNominaSyncResponseXML))
+	}))
+	defer server.Close()
+
+	cert, key := generateTestCert(t)
+	c := &Client{BaseURL: server.URL, Cert: cert, Key: key, HTTPClient: server.Client()}
+
+	got, err := c.SendNominaSync([]byte("<NominaIndividual/>"))
+	if err != nil {
+		t.Fatalf("SendNominaSync: %v", err)
+	}
+	if !got.IsValid {
+		t.Errorf("IsValid = %v, want true", got.IsValid)
+	}
+	if got.StatusCode != "00" {
+		t.Errorf("StatusCode = %q, want %q", got.StatusCode, "00")
+	}
+	if !strings.Contains(string(gotBody), "<wcf:SendNominaSync>") {
+		t.Errorf("request body missing wcf:SendNominaSync element: %s", gotBody)
+	}
+	if strings.Contains(string(gotBody), "<wcf:testSetId>") {
+		t.Errorf("request body should not contain testSetId (that's SendNominaSyncTestSet's job): %s", gotBody)
 	}
 }
 
@@ -342,15 +433,15 @@ func TestGetAcquirer_HTTP404WithValidBodyIsNotAnError(t *testing.T) {
 
 	got, err := c.GetAcquirer("13", "6382356")
 	if err != nil {
-		t.Fatalf("GetAcquirer no debería fallar con HTTP 404 si el body es válido: %v", err)
+		t.Fatalf("GetAcquirer should not fail on HTTP 404 when the body is valid: %v", err)
 	}
 	if got.StatusCode != "404" {
 		t.Errorf("StatusCode = %q, want %q", got.StatusCode, "404")
 	}
 	if got.Message != "El adquirente No existe en la base de datos" {
-		t.Errorf("Message = %q, no coincide con la respuesta real", got.Message)
+		t.Errorf("Message = %q, does not match the real response", got.Message)
 	}
 	if got.ReceiverName != "" || got.ReceiverEmail != "" {
-		t.Errorf("se esperaban campos vacíos, got %+v", got)
+		t.Errorf("expected empty fields, got %+v", got)
 	}
 }

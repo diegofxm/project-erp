@@ -95,13 +95,23 @@ type PaymentMean struct {
 	PaymentReference  string
 }
 
-// Totals are the document's legal totals (LegalMonetaryTotal).
+// Totals are the document's legal totals (LegalMonetaryTotal). The builder package renders
+// these fields as given — it does not recompute or cross-check them against Line.LineExtensionCents
+// or Line.Taxes. Getting LineExtensionCents/TaxExclusiveCents/TaxInclusiveCents/PayableCents to
+// actually add up to the sum of the document's lines is the caller's responsibility, same as
+// every other value in this package (see the no-catalog-validation note above).
 type Totals struct {
 	LineExtensionCents int64
 	TaxExclusiveCents  int64
 	TaxInclusiveCents  int64
 	PrepaidCents       int64 // only serialized when > 0 and the document is an Invoice
-	PayableCents       int64
+
+	// RoundingCents is cbc:PayableRoundingAmount — the only monetary field the Technical Annex
+	// allows to be negative (e.g. rounding a POS total to the nearest 50/100 pesos). Only
+	// serialized when non-zero.
+	RoundingCents int64
+
+	PayableCents int64
 }
 
 // NumberingRange is the DIAN-authorized numbering resolution range that covers this document

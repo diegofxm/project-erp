@@ -70,7 +70,7 @@ func TestSupportDocumentContent(t *testing.T) {
 	lines := strings.Split(strings.TrimRight(got, "\n"), "\n")
 	wantURL := "URL=https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey=" + cuds
 	if lines[len(lines)-1] != wantURL {
-		t.Errorf("última línea = %q, want %q", lines[len(lines)-1], wantURL)
+		t.Errorf("last line = %q, want %q", lines[len(lines)-1], wantURL)
 	}
 }
 
@@ -90,7 +90,7 @@ func TestSupportDocumentContent_Produccion(t *testing.T) {
 
 	wantURL := "URL=https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=abc"
 	if !strings.Contains(got, wantURL) {
-		t.Errorf("esperaba URL de producción en el contenido, got:\n%s", got)
+		t.Errorf("expected the production URL in the content, got:\n%s", got)
 	}
 	if !strings.Contains(got, "Amb:1") {
 		t.Errorf("esperaba Amb:1 en el contenido, got:\n%s", got)

@@ -145,14 +145,14 @@ func TestBuildInvoice_Golden(t *testing.T) {
 		if err := os.WriteFile(goldenPath, []byte(got), 0o644); err != nil {
 			t.Fatalf("write golden: %v", err)
 		}
-		t.Skip("golden file regenerado, revisar a mano antes de confiar en él")
+		t.Skip("golden file regenerated, review by hand before trusting it")
 	}
 
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {
-		t.Fatalf("read golden (¿falta correr con -update?): %v", err)
+		t.Fatalf("read golden (missing -update run?): %v", err)
 	}
 	if got != string(want) {
-		t.Errorf("XML generado no coincide con %s\n--- got ---\n%s", goldenPath, got)
+		t.Errorf("generated XML does not match %s\n--- got ---\n%s", goldenPath, got)
 	}
 }

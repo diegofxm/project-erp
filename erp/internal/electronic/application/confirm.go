@@ -722,6 +722,10 @@ func billingRefFrom(b domain.BillingReferenceInput) cofdom.BillingReference {
 		Number:    b.Number,
 		CUFE:      b.CUFE,
 		IssueDate: b.IssueDate,
+		// erp only issues Credit/Debit Notes against a regular Invoice (DocumentTypeCode "01");
+		// Documento Equivalente Electrónico (POS) is not yet wired into the sales flow, so
+		// CUFE-SHA384 is always correct here. Revisit if/when POS adjustment notes are added.
+		HashType: "CUFE-SHA384",
 	}
 }
 

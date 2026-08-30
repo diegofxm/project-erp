@@ -16,7 +16,7 @@ func TestCune(t *testing.T) {
 	const want = "dae35b4dfdf10939502c96278feb97be1af6cd5653bd662ca29b5c9cdf2729464b51d272ba0008586cf153b46f87a2bd"
 
 	got := Cune("N00001", "2020-01-16", "10:53:10-05:00",
-		"3500000.00", "1000000.00", "2500000.00",
+		350_000_000, 100_000_000, 250_000_000,
 		"700085371", "800199436", "102", "693", "1")
 
 	if got != want {
@@ -40,6 +40,12 @@ func TestCune(t *testing.T) {
 // above (regression) and, for real payroll submissions, by whether DIAN's certification
 // environment accepts a document built with it — see integration-tests/nomina_test.go, which
 // does fail (t.Errorf) on a real DIAN rejection, gated behind COFACTURE_TEST_FIXTURES_DIR.
+//
+// Cune's public signature only accepts cents (int64), so it can only ever produce the
+// two-decimal money format — it can no longer be asked to try a "without decimals" variant like
+// earlier versions of this search did. That variant is still worth checking (the Annex text is
+// ambiguous about it), so it's built and hashed manually below via sha384Hex instead of through
+// Cune itself.
 func TestCune_AnexoTecnicoExample(t *testing.T) {
 	const want = "16560dc8956122e84ffb743c817fe7d494e058a44d9ca3fa4c234c268b4f766003253fbee7ea4af9682dd57210f3bac2"
 
@@ -50,21 +56,23 @@ func TestCune_AnexoTecnicoExample(t *testing.T) {
 		"10:53:10",       // without timezone
 		"105310",         // HHMMSS only
 	}
-	type moneyCase struct{ dev, ded, tot string }
-	moneyVariants := []moneyCase{
-		{"3500000.00", "1000000.00", "2500000.00"}, // with 2 decimals
-		{"3500000", "1000000", "2500000"},          // without decimals
-	}
 
 	for _, hor := range horVariants {
-		for _, mv := range moneyVariants {
-			got := Cune("N00001", "2020-01-16", hor,
-				mv.dev, mv.ded, mv.tot,
-				"700085371", "800199436", "102", "693", "1")
-			if got == want {
-				t.Logf("match found: HorNE=%q ValDev=%q reproduces the Annex's published CUNE", hor, mv.dev)
-				return
-			}
+		// With 2 decimals (the format Cune's real signature enforces).
+		got := Cune("N00001", "2020-01-16", hor,
+			350_000_000, 100_000_000, 250_000_000,
+			"700085371", "800199436", "102", "693", "1")
+		if got == want {
+			t.Logf("match found: HorNE=%q with 2-decimal amounts reproduces the Annex's published CUNE", hor)
+			return
+		}
+
+		// Without decimals — Cune can't produce this anymore, so build it by hand.
+		raw := "N00001" + "2020-01-16" + hor + "3500000" + "1000000" + "2500000" +
+			"700085371" + "800199436" + "102" + "693" + "1"
+		if sha384Hex(raw) == want {
+			t.Logf("match found: HorNE=%q without decimals reproduces the Annex's published CUNE", hor)
+			return
 		}
 	}
 

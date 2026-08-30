@@ -74,10 +74,10 @@ type Nomina struct {
 	Deducciones Deducciones
 
 	// Totals (if zero, they are computed from Devengados/Deducciones in Build).
-	Redondeo         float64
-	DevengadosTotal  float64
-	DeduccionesTotal float64
-	ComprobanteTotal float64
+	RedondeoCents         int64
+	DevengadosTotalCents  int64
+	DeduccionesTotalCents int64
+	ComprobanteTotalCents int64
 }
 
 // Empleador identifies the company or person paying the payroll.
@@ -112,9 +112,9 @@ type Trabajador struct {
 	LugarMunicipio    string // DIAN code
 	LugarDireccion    string
 	SalarioIntegral   bool
-	TipoContrato      string  // "1" fixed-term, "2" indefinite, "3" apprenticeship, "4" internship
-	Sueldo            float64 // base monthly salary
-	CodigoTrabajador  string  // internal employee code
+	TipoContrato      string // "1" fixed-term, "2" indefinite, "3" apprenticeship, "4" internship
+	SueldoCents       int64  // base monthly salary
+	CodigoTrabajador  string // internal employee code
 }
 
 // Pago describes the payroll's payment method to the worker.
@@ -134,35 +134,35 @@ type Devengados struct {
 
 // Basico is the base salary for the period (required).
 type Basico struct {
-	DiasTrabajados  int
-	SueldoTrabajado float64
+	DiasTrabajados       int
+	SueldoTrabajadoCents int64
 }
 
 // Transporte covers the transportation allowance and per diems.
 type Transporte struct {
-	AuxilioTransporte float64
-	ViaticoManuAlojS  float64 // salary-affecting
-	ViaticoManuAlojNS float64 // non-salary-affecting
+	AuxilioTransporteCents int64
+	ViaticoManuAlojSCents  int64 // salary-affecting
+	ViaticoManuAlojNSCents int64 // non-salary-affecting
 }
 
 // Deducciones groups the worker's deductions for the period.
 type Deducciones struct {
-	Salud           *DeduccionPct // nil = not applicable
-	FondoPension    *DeduccionPct // nil = not applicable
-	FondoSP         *FondoSP      // nil = not applicable (only for salaries > 4 SMLMV)
-	RetencionFuente float64
+	Salud                *DeduccionPct // nil = not applicable
+	FondoPension         *DeduccionPct // nil = not applicable
+	FondoSP              *FondoSP      // nil = not applicable (only for salaries > 4 SMLMV)
+	RetencionFuenteCents int64
 }
 
 // DeduccionPct is a deduction defined by percentage and amount.
 type DeduccionPct struct {
-	Porcentaje float64
-	Deduccion  float64
+	Porcentaje     float64
+	DeduccionCents int64
 }
 
 // FondoSP is the deduction for the Solidarity Pension Fund (Fondo de Solidaridad Pensional).
 type FondoSP struct {
-	Porcentaje    float64
-	DeduccionSP   float64
-	PorcentajeSub float64
-	DeduccionSub  float64
+	Porcentaje        float64
+	DeduccionSPCents  int64
+	PorcentajeSub     float64
+	DeduccionSubCents int64
 }

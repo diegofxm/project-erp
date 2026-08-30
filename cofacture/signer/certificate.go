@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 
 	"software.sslmate.com/src/go-pkcs12"
 )
@@ -18,7 +19,7 @@ func LoadPEM(certPEM, keyPEM []byte) (*x509.Certificate, *rsa.PrivateKey, error)
 	}
 	cert, err := x509.ParseCertificate(certBlock.Bytes)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("signer: %w", err)
 	}
 
 	keyBlock, _ := pem.Decode(keyPEM)
@@ -38,7 +39,7 @@ func LoadPEM(certPEM, keyPEM []byte) (*x509.Certificate, *rsa.PrivateKey, error)
 func LoadPKCS12(data []byte, password string) (*x509.Certificate, *rsa.PrivateKey, error) {
 	key, cert, err := pkcs12.Decode(data, password)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("signer: %w", err)
 	}
 	rsaKey, ok := key.(*rsa.PrivateKey)
 	if !ok {
@@ -55,5 +56,9 @@ func parsePrivateKey(der []byte) (*rsa.PrivateKey, error) {
 		}
 		return rsaKey, nil
 	}
-	return x509.ParsePKCS1PrivateKey(der)
+	key, err := x509.ParsePKCS1PrivateKey(der)
+	if err != nil {
+		return nil, fmt.Errorf("signer: %w", err)
+	}
+	return key, nil
 }

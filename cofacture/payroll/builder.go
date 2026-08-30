@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/beevik/etree"
+	"github.com/diegofxm/cofacture/domain"
 	ubl "github.com/diegofxm/cofacture/xml"
 )
 
@@ -150,7 +151,7 @@ func Build(n Nomina, cune, softwareSC, codigoQR string) (*etree.Document, error)
 	trab.CreateAttr("LugarTrabajoDireccion", n.Trabajador.LugarDireccion)
 	trab.CreateAttr("SalarioIntegral", boolStr(n.Trabajador.SalarioIntegral))
 	trab.CreateAttr("TipoContrato", n.Trabajador.TipoContrato)
-	trab.CreateAttr("Sueldo", money(n.Trabajador.Sueldo))
+	trab.CreateAttr("Sueldo", domain.FormatCents(n.Trabajador.SueldoCents))
 	trab.CreateAttr("CodigoTrabajador", n.Trabajador.CodigoTrabajador)
 
 	// Pago
@@ -174,17 +175,17 @@ func Build(n Nomina, cune, softwareSC, codigoQR string) (*etree.Document, error)
 	dev := root.CreateElement("Devengados")
 	basico := dev.CreateElement("Basico")
 	basico.CreateAttr("DiasTrabajados", strconv.Itoa(n.Devengados.Basico.DiasTrabajados))
-	basico.CreateAttr("SueldoTrabajado", money(n.Devengados.Basico.SueldoTrabajado))
+	basico.CreateAttr("SueldoTrabajado", domain.FormatCents(n.Devengados.Basico.SueldoTrabajadoCents))
 
 	if t := n.Devengados.Transporte; t != nil {
 		tr := dev.CreateElement("Transporte")
-		tr.CreateAttr("AuxilioTransporte", money(t.AuxilioTransporte))
+		tr.CreateAttr("AuxilioTransporte", domain.FormatCents(t.AuxilioTransporteCents))
 		// ViaticoManuAlojS/NS are only emitted when > 0 (NIE072/073 rejects zeros).
-		if t.ViaticoManuAlojS > 0 {
-			tr.CreateAttr("ViaticoManuAlojS", money(t.ViaticoManuAlojS))
+		if t.ViaticoManuAlojSCents > 0 {
+			tr.CreateAttr("ViaticoManuAlojS", domain.FormatCents(t.ViaticoManuAlojSCents))
 		}
-		if t.ViaticoManuAlojNS > 0 {
-			tr.CreateAttr("ViaticoManuAlojNS", money(t.ViaticoManuAlojNS))
+		if t.ViaticoManuAlojNSCents > 0 {
+			tr.CreateAttr("ViaticoManuAlojNS", domain.FormatCents(t.ViaticoManuAlojNSCents))
 		}
 	}
 
@@ -193,35 +194,34 @@ func Build(n Nomina, cune, softwareSC, codigoQR string) (*etree.Document, error)
 	if s := n.Deducciones.Salud; s != nil {
 		sal := ded.CreateElement("Salud")
 		sal.CreateAttr("Porcentaje", pct(s.Porcentaje))
-		sal.CreateAttr("Deduccion", money(s.Deduccion))
+		sal.CreateAttr("Deduccion", domain.FormatCents(s.DeduccionCents))
 	}
 	if fp := n.Deducciones.FondoPension; fp != nil {
 		pension := ded.CreateElement("FondoPension")
 		pension.CreateAttr("Porcentaje", pct(fp.Porcentaje))
-		pension.CreateAttr("Deduccion", money(fp.Deduccion))
+		pension.CreateAttr("Deduccion", domain.FormatCents(fp.DeduccionCents))
 	}
 	if fsp := n.Deducciones.FondoSP; fsp != nil {
 		fondoSP := ded.CreateElement("FondoSP")
 		fondoSP.CreateAttr("Porcentaje", pct(fsp.Porcentaje))
-		fondoSP.CreateAttr("DeduccionSP", money(fsp.DeduccionSP))
+		fondoSP.CreateAttr("DeduccionSP", domain.FormatCents(fsp.DeduccionSPCents))
 		fondoSP.CreateAttr("PorcentajeSub", pct(fsp.PorcentajeSub))
-		fondoSP.CreateAttr("DeduccionSub", money(fsp.DeduccionSub))
+		fondoSP.CreateAttr("DeduccionSub", domain.FormatCents(fsp.DeduccionSubCents))
 	}
-	if n.Deducciones.RetencionFuente != 0 {
-		ded.CreateElement("RetencionFuente").SetText(money(n.Deducciones.RetencionFuente))
+	if n.Deducciones.RetencionFuenteCents != 0 {
+		ded.CreateElement("RetencionFuente").SetText(domain.FormatCents(n.Deducciones.RetencionFuenteCents))
 	}
 
 	// Totales
-	root.CreateElement("Redondeo").SetText(money(n.Redondeo))
-	root.CreateElement("DevengadosTotal").SetText(money(n.DevengadosTotal))
-	root.CreateElement("DeduccionesTotal").SetText(money(n.DeduccionesTotal))
-	root.CreateElement("ComprobanteTotal").SetText(money(n.ComprobanteTotal))
+	root.CreateElement("Redondeo").SetText(domain.FormatCents(n.RedondeoCents))
+	root.CreateElement("DevengadosTotal").SetText(domain.FormatCents(n.DevengadosTotalCents))
+	root.CreateElement("DeduccionesTotal").SetText(domain.FormatCents(n.DeduccionesTotalCents))
+	root.CreateElement("ComprobanteTotal").SetText(domain.FormatCents(n.ComprobanteTotalCents))
 
 	return doc, nil
 }
 
-func money(v float64) string { return fmt.Sprintf("%.2f", v) }
-func pct(v float64) string   { return fmt.Sprintf("%.2f", v) }
+func pct(v float64) string { return fmt.Sprintf("%.2f", v) }
 func boolStr(b bool) string {
 	if b {
 		return "true"

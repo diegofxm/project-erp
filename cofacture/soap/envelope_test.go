@@ -99,7 +99,7 @@ func TestBuildEnvelope_SignatureVerifies(t *testing.T) {
 		t.Fatalf("decodificar SignatureValue: %v", err)
 	}
 	if err := rsa.VerifyPKCS1v15(&key.PublicKey, crypto.SHA256, hashed[:], sigValue); err != nil {
-		t.Errorf("la firma no verifica contra la llave pública: %v", err)
+		t.Errorf("signature does not verify against the public key: %v", err)
 	}
 
 	// The certificate is embedded as a BinarySecurityToken, referenced by Direct

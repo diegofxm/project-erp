@@ -76,7 +76,7 @@ func TestInterpret_DecodesDoubleBase64ApplicationResponse(t *testing.T) {
 		t.Errorf("ApplicationResponseXML = %q, want %q", result.ApplicationResponseXML, innerXML)
 	}
 	if !result.IsValid || result.StatusCode != "00" {
-		t.Errorf("campos básicos no se copiaron correctamente: %+v", result)
+		t.Errorf("basic fields were not copied correctly: %+v", result)
 	}
 }
 
@@ -117,7 +117,7 @@ func TestResult_HasRejectionsAndToValidationResult(t *testing.T) {
 		t.Errorf("ValidatorID = %q, want %q", vr.ValidatorID, ValidatorID)
 	}
 	if vr.ApplicationResponseXML != "<ApplicationResponse/>" {
-		t.Errorf("ApplicationResponseXML no se propagó: %q", vr.ApplicationResponseXML)
+		t.Errorf("ApplicationResponseXML was not propagated: %q", vr.ApplicationResponseXML)
 	}
 }
 

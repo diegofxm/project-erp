@@ -29,6 +29,14 @@ func appendMonetaryTotal(parent *etree.Element, node string, t domain.Totals, cu
 		prepaid.SetText(formatAmount(t.PrepaidCents))
 	}
 
+	// PayableRoundingAmount is the only monetary field the annex allows negative (e.g. a POS
+	// total rounded to the nearest 50/100 pesos) — omitted entirely when zero, same as Prepaid.
+	if t.RoundingCents != 0 {
+		rounding := el.CreateElement("cbc:PayableRoundingAmount")
+		rounding.CreateAttr("currencyID", currency)
+		rounding.SetText(formatAmount(t.RoundingCents))
+	}
+
 	payable := el.CreateElement("cbc:PayableAmount")
 	payable.CreateAttr("currencyID", currency)
 	payable.SetText(formatAmount(t.PayableCents))

@@ -54,19 +54,19 @@ func TestSendNomina_Real(t *testing.T) {
 	// Worker data (a fictitious employee for certification-environment testing).
 	const trabajadorDoc = "1234567890"
 
-	// Amounts for the period (January 2024, 30 days).
+	// Amounts for the period (January 2024, 30 days), in cents.
 	const (
-		sueldo     = 1_423_500.0 // approx. 1 SMLMV (minimum monthly wage) for 2024
-		diasTrab   = 30
-		sueldoTrab = sueldo    // 30/30 days worked
-		auxTransp  = 162_000.0 // 2024 transportation allowance
-		saludPct   = 4.0
-		saludDed   = sueldoTrab * saludPct / 100
-		pensionPct = 4.0
-		pensionDed = sueldoTrab * pensionPct / 100
-		devTotal   = sueldoTrab + auxTransp
-		dedTotal   = saludDed + pensionDed
-		compTotal  = devTotal - dedTotal
+		sueldoCents     = 142_350_000 // approx. 1 SMLMV (minimum monthly wage) for 2024
+		diasTrab        = 30
+		sueldoTrabCents = sueldoCents // 30/30 days worked
+		auxTranspCents  = 16_200_000  // 2024 transportation allowance
+		saludPct        = 4.0
+		saludDedCents   = sueldoTrabCents * 4 / 100
+		pensionPct      = 4.0
+		pensionDedCents = sueldoTrabCents * 4 / 100
+		devTotalCents   = sueldoTrabCents + auxTranspCents
+		dedTotalCents   = saludDedCents + pensionDedCents
+		compTotalCents  = devTotalCents - dedTotalCents
 	)
 
 	n := payroll.Nomina{
@@ -135,7 +135,7 @@ func TestSendNomina_Real(t *testing.T) {
 			LugarDireccion:    "CL 1 2 3",
 			SalarioIntegral:   false,
 			TipoContrato:      "2",
-			Sueldo:            sueldo,
+			SueldoCents:       sueldoCents,
 			CodigoTrabajador:  "001",
 		},
 
@@ -149,30 +149,30 @@ func TestSendNomina_Real(t *testing.T) {
 
 		Devengados: payroll.Devengados{
 			Basico: payroll.Basico{
-				DiasTrabajados:  diasTrab,
-				SueldoTrabajado: sueldoTrab,
+				DiasTrabajados:       diasTrab,
+				SueldoTrabajadoCents: sueldoTrabCents,
 			},
 			Transporte: &payroll.Transporte{
-				AuxilioTransporte: auxTransp,
-				ViaticoManuAlojS:  0,
-				ViaticoManuAlojNS: 0,
+				AuxilioTransporteCents: auxTranspCents,
+				ViaticoManuAlojSCents:  0,
+				ViaticoManuAlojNSCents: 0,
 			},
 		},
 
 		Deducciones: payroll.Deducciones{
 			Salud: &payroll.DeduccionPct{
-				Porcentaje: saludPct,
-				Deduccion:  saludDed,
+				Porcentaje:     saludPct,
+				DeduccionCents: saludDedCents,
 			},
 			FondoPension: &payroll.DeduccionPct{
-				Porcentaje: pensionPct,
-				Deduccion:  pensionDed,
+				Porcentaje:     pensionPct,
+				DeduccionCents: pensionDedCents,
 			},
 		},
 
-		DevengadosTotal:  devTotal,
-		DeduccionesTotal: dedTotal,
-		ComprobanteTotal: compTotal,
+		DevengadosTotalCents:  devTotalCents,
+		DeduccionesTotalCents: dedTotalCents,
+		ComprobanteTotalCents: compTotalCents,
 	}
 
 	// SoftwareSC: SHA-384(SoftwareID + PIN + NroDocumento) — Technical Annex section 8.2.
@@ -184,9 +184,9 @@ func TestSendNomina_Real(t *testing.T) {
 		n.Numero,
 		n.FechaGen,
 		n.HoraGen,
-		fmt.Sprintf("%.2f", n.DevengadosTotal),
-		fmt.Sprintf("%.2f", n.DeduccionesTotal),
-		fmt.Sprintf("%.2f", n.ComprobanteTotal),
+		n.DevengadosTotalCents,
+		n.DeduccionesTotalCents,
+		n.ComprobanteTotalCents,
 		n.Empleador.NIT,
 		n.Trabajador.NumeroDocumento,
 		n.TipoXML,

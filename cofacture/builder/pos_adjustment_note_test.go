@@ -27,6 +27,7 @@ func samplePOSCreditAdjustment() domain.CreditNote {
 		Number:    "1",
 		CUFE:      "db07502cd11c006f4666e2e299fd77e5a47bd790d9da18786dace4b4d0c4b8972643843e8b7444fe23a0fc8aa1fdf5f2",
 		IssueDate: "2024-01-20",
+		HashType:  "CUDE-SHA384", // references a Documento Equivalente Electrónico (POS), not an Invoice
 	}
 	return cn
 }
@@ -43,6 +44,7 @@ func samplePOSDebitAdjustment() domain.DebitNote {
 		Number:    "1",
 		CUFE:      "db07502cd11c006f4666e2e299fd77e5a47bd790d9da18786dace4b4d0c4b8972643843e8b7444fe23a0fc8aa1fdf5f2",
 		IssueDate: "2024-01-20",
+		HashType:  "CUDE-SHA384", // references a Documento Equivalente Electrónico (POS), not an Invoice
 	}
 	return dn
 }
@@ -68,15 +70,15 @@ func TestBuildCreditNote_POSAdjustment_Golden(t *testing.T) {
 		if err := os.WriteFile(goldenPath, []byte(got), 0o644); err != nil {
 			t.Fatalf("write golden: %v", err)
 		}
-		t.Skip("golden file regenerado, revisar a mano antes de confiar en él")
+		t.Skip("golden file regenerated, review by hand before trusting it")
 	}
 
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {
-		t.Fatalf("read golden (¿falta correr con -update?): %v", err)
+		t.Fatalf("read golden (missing -update run?): %v", err)
 	}
 	if got != string(want) {
-		t.Errorf("XML generado no coincide con %s\n--- got ---\n%s", goldenPath, got)
+		t.Errorf("generated XML does not match %s\n--- got ---\n%s", goldenPath, got)
 	}
 }
 
@@ -97,14 +99,14 @@ func TestBuildDebitNote_POSAdjustment_Golden(t *testing.T) {
 		if err := os.WriteFile(goldenPath, []byte(got), 0o644); err != nil {
 			t.Fatalf("write golden: %v", err)
 		}
-		t.Skip("golden file regenerado, revisar a mano antes de confiar en él")
+		t.Skip("golden file regenerated, review by hand before trusting it")
 	}
 
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {
-		t.Fatalf("read golden (¿falta correr con -update?): %v", err)
+		t.Fatalf("read golden (missing -update run?): %v", err)
 	}
 	if got != string(want) {
-		t.Errorf("XML generado no coincide con %s\n--- got ---\n%s", goldenPath, got)
+		t.Errorf("generated XML does not match %s\n--- got ---\n%s", goldenPath, got)
 	}
 }

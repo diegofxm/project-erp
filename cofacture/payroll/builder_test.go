@@ -51,7 +51,7 @@ func validNomina() Nomina {
 			LugarMunicipio:    "001",
 			LugarDireccion:    "Calle 1 # 2-3",
 			TipoContrato:      "1",
-			Sueldo:            3500000,
+			SueldoCents:       350_000_000,
 			CodigoTrabajador:  "1",
 		},
 		Pago: Pago{
@@ -62,11 +62,11 @@ func validNomina() Nomina {
 			NumeroCuenta: "123456789",
 		},
 		Devengados: Devengados{
-			Basico: Basico{DiasTrabajados: 31, SueldoTrabajado: 3500000},
+			Basico: Basico{DiasTrabajados: 31, SueldoTrabajadoCents: 350_000_000},
 		},
-		DevengadosTotal:  3500000,
-		DeduccionesTotal: 0,
-		ComprobanteTotal: 3500000,
+		DevengadosTotalCents:  350_000_000,
+		DeduccionesTotalCents: 0,
+		ComprobanteTotalCents: 350_000_000,
 	}
 }
 

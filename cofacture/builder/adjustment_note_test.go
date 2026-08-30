@@ -28,6 +28,7 @@ func sampleAdjustmentNote() domain.AdjustmentNote {
 			Number:    "1",
 			CUFE:      "18015e1f4f6b1eb55cf6d5eaa1f752bed3b0402e0cf11eb515c1ce5ccbe9bca120cd4776ee3b1e5c281e0fd2711d40d1",
 			IssueDate: "2024-01-20",
+			HashType:  "CUDS-SHA384", // references the original Support Document (unused by appendNABillingReference, which hardcodes this correctly — set here for clarity)
 		},
 		DiscrepancyResponse: &domain.DiscrepancyResponse{
 			ReferenceID:  "SEDS1",
@@ -57,14 +58,14 @@ func TestBuildAdjustmentNote_Golden(t *testing.T) {
 		if err := os.WriteFile(goldenPath, []byte(got), 0o644); err != nil {
 			t.Fatalf("write golden: %v", err)
 		}
-		t.Skip("golden file regenerado, revisar a mano antes de confiar en él")
+		t.Skip("golden file regenerated, review by hand before trusting it")
 	}
 
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {
-		t.Fatalf("read golden (¿falta correr con -update?): %v", err)
+		t.Fatalf("read golden (missing -update run?): %v", err)
 	}
 	if got != string(want) {
-		t.Errorf("XML generado no coincide con %s\n--- got ---\n%s", goldenPath, got)
+		t.Errorf("generated XML does not match %s\n--- got ---\n%s", goldenPath, got)
 	}
 }

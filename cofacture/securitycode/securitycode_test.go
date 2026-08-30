@@ -11,7 +11,7 @@ func TestCompute(t *testing.T) {
 		t.Fatalf("longitud esperada 96 (SHA-384 en hex), got %d: %s", len(got), got)
 	}
 	if again := Compute("software-id", "1234", "SETP1"); again != got {
-		t.Errorf("Compute no es determinístico")
+		t.Errorf("Compute is not deterministic")
 	}
 	if other := Compute("software-id", "1234", "SETP2"); other == got {
 		t.Error("cambiar documentID debería cambiar el resultado")
