@@ -6,8 +6,8 @@ import (
 	"github.com/diegofxm/cofacture/domain"
 )
 
-// TestCompute_CreditNote usa el ejemplo oficial de la sección 11.4.3/11.4.4 del Anexo
-// Técnico 1.9 — mismos valores de entrada y mismo hash esperado que publica la DIAN.
+// TestCompute_CreditNote uses the official example from section 11.4.3/11.4.4 of the
+// Technical Annex 1.9 — same input values and same expected hash that DIAN publishes.
 func TestCompute_CreditNote(t *testing.T) {
 	note := domain.Invoice{
 		Number:          "8110007871",
@@ -33,17 +33,17 @@ func TestCompute_CreditNote(t *testing.T) {
 	}
 }
 
-// TestCompute_DebitNote usa los datos de entrada del ejemplo oficial de la sección
-// 11.4.5/11.4.6 — pero NO el hash que el anexo dice que da.
+// TestCompute_DebitNote uses the input data from the official example in section
+// 11.4.5/11.4.6 — but NOT the hash the annex claims it produces.
 //
-// El anexo tiene un error de transcripción en este ejemplo puntual: publica la cadena de
-// composición "ND10012019-01-1810:58:00-05:0030000.00010.00042400.00030.0032400.009001972
-// 6410254102102012" y dice que su SHA-384 es "b9483dc2...", pero el SHA-384 real de esa
-// cadena (verificado aparte, fuera de este paquete, con sha512.Sum384 directo) es
-// "3fa73a86...". El campo a campo (XPath de la sección 11.4.6) y la fórmula coinciden
-// exactamente con el CUFE y con el ejemplo de Nota Crédito de la sección 11.4.3/11.4.4, que
-// sí reproduce su propio hash correctamente — por eso se confía en la fórmula y se usa aquí
-// el hash matemáticamente correcto, no el publicado.
+// The annex has a transcription error in this specific example: it publishes the
+// composition string "ND10012019-01-1810:58:00-05:0030000.00010.00042400.00030.0032400.009001972
+// 6410254102102012" and states its SHA-384 is "b9483dc2...", but the actual SHA-384 of that
+// string (verified separately, outside this package, with sha512.Sum384 directly) is
+// "3fa73a86...". The field-by-field mapping (XPath from section 11.4.6) and the formula
+// match exactly with CUFE and with the Credit Note example from section 11.4.3/11.4.4, which
+// does reproduce its own hash correctly — that's why we trust the formula and use the
+// mathematically correct hash here, not the published one.
 func TestCompute_DebitNote(t *testing.T) {
 	note := domain.Invoice{
 		Number:          "ND1001",

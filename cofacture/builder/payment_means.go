@@ -5,8 +5,8 @@ import (
 	"github.com/diegofxm/cofacture/domain"
 )
 
-// appendPaymentMean agrega cac:PaymentMeans — compartido por Invoice, CreditNote y
-// DebitNote (mismo elemento, mismo contenido en los tres).
+// appendPaymentMean adds cac:PaymentMeans — shared by Invoice, CreditNote and DebitNote (same
+// element, same content in all three).
 func appendPaymentMean(parent *etree.Element, pm domain.PaymentMean) {
 	el := parent.CreateElement("cac:PaymentMeans")
 	el.CreateElement("cbc:ID").SetText(pm.Code)

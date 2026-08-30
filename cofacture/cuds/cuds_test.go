@@ -6,10 +6,10 @@ import (
 	"github.com/diegofxm/cofacture/domain"
 )
 
-// TestCompute verifica la fórmula del CUDS: SHA-384 sobre
+// TestCompute verifies the CUDS formula: SHA-384 over
 // Prefix+Number+Date+Time+ValDS+CodImp+ValImp+ValTot+NitSNO+NitABS+PIN+Env.
-// El hash esperado fue derivado de la implementación verificada en TestCompute_EjemplosOficial_DS
-// y sirve como regression guard para la fórmula.
+// The expected hash was derived from the implementation verified in TestCompute_EjemplosOficial_DS
+// and serves as a regression guard for the formula.
 func TestCompute(t *testing.T) {
 	doc := domain.Invoice{
 		Number:          "8110007871",
@@ -23,7 +23,7 @@ func TestCompute(t *testing.T) {
 		HeaderTaxes: []domain.Tax{
 			{TypeCode: "01", TaxAmountCents: 95_000},
 		},
-		// En DS: Supplier = tercero no obligado (supplier), Customer = emisor.
+		// In DS: Supplier = non-obligated third party (supplier), Customer = issuer.
 		Supplier: domain.Party{Identification: domain.Identification{Number: "900373076"}},
 		Customer: domain.Party{Identification: domain.Identification{Number: "8355990"}},
 	}
@@ -40,19 +40,19 @@ func TestCompute(t *testing.T) {
 	}
 }
 
-// TestCompute_Ejemplo_Oficial_DS verifica la fórmula del CUDS con el ejemplo oficial de la
-// Caja de Herramientas DS v1.1 (DocumentoSoporte-OperacionConResidente.xml). Este ejemplo
-// tiene un CUDS real calculado por la DIAN, lo que nos permite verificar empíricamente el
-// orden correcto de los NITs en la cadena de hash.
+// TestCompute_Ejemplo_Oficial_DS verifies the CUDS formula against the official example from
+// the DS v1.1 Toolkit (DocumentoSoporte-OperacionConResidente.xml). This example carries a
+// real CUDS value computed by DIAN, which lets us empirically verify the correct order of
+// the NITs in the hash string.
 //
-// Valores del ejemplo:
+// Example values:
 //   - Prefix+Number: DS236000000
 //   - IssueDate: 2022-02-18, IssueTime: 13:34:59-05:00
 //   - LineExtension: 3899000.00, IVA: 322430.00, INC: 110100.00, ICA: 0.00, Payable: 4152176.00
 //   - SNO NIT (AccountingSupplierParty): "1020"
 //   - ABS NIT (AccountingCustomerParty): "800197268"
 //   - PIN: "12345", EnvCode: "2"
-//   - CUDS esperado: c96a728f4453822bfc69b94253880d21d29dd1a9424444da07610799c203506d33fa4f16830dbd6ee0febb4711bfa23a
+//   - Expected CUDS: c96a728f4453822bfc69b94253880d21d29dd1a9424444da07610799c203506d33fa4f16830dbd6ee0febb4711bfa23a
 func TestCompute_EjemplosOficial_DS(t *testing.T) {
 	doc := domain.Invoice{
 		Prefix:          "DS",
@@ -64,21 +64,21 @@ func TestCompute_EjemplosOficial_DS(t *testing.T) {
 			LineExtensionCents: 389_900_000, // 3899000.00
 			PayableCents:       415_217_600, // 4152176.00
 		},
-		// Ambos TaxSubtotal tienen TypeCode="01" (IVA), pero solo el primero entra en el CUDS
-		// (igual que en el QR: un solo par CodImp+ValImp). El segundo se ignora.
+		// Both TaxSubtotal entries have TypeCode="01" (IVA), but only the first one is included
+		// in the CUDS (same as in the QR: a single CodImp+ValImp pair). The second one is ignored.
 		HeaderTaxes: []domain.Tax{
 			{TypeCode: "01", TaxAmountCents: 32_243_000}, // IVA 19% = 322430.00
 			{TypeCode: "01", TaxAmountCents: 11_010_000}, // IVA 5%  = 110100.00
 		},
-		// Supplier = SNO (no obligado, quien vende al emisor)
+		// Supplier = SNO (not obligated, the party selling to the issuer)
 		Supplier: domain.Party{Identification: domain.Identification{Number: "1020"}},
-		// Customer = ABS (empresa emisora del DS)
+		// Customer = ABS (company issuing the DS)
 		Customer: domain.Party{Identification: domain.Identification{Number: "800197268"}},
 	}
 
 	const softwarePIN = "12345"
-	// CUDS del XML oficial. Verificado que el primer TaxSubtotal (IVA 19%, 322430.00) es
-	// el único que entra en la fórmula — el segundo (IVA 5%, 110100.00) no se acumula.
+	// CUDS from the official XML. Verified that the first TaxSubtotal (IVA 19%, 322430.00) is
+	// the only one included in the formula — the second one (IVA 5%, 110100.00) is not accumulated.
 	const want = "c96a728f4453822bfc69b94253880d21d29dd1a9424444da07610799c203506d33fa4f16830dbd6ee0febb4711bfa23a"
 
 	if got := Compute(doc, softwarePIN); got != want {

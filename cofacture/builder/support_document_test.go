@@ -9,15 +9,15 @@ import (
 
 func sampleSupportDocument() domain.Invoice {
 	sup := sampleInvoice()
-	sup.OperationTypeCode = "10" // Residente
+	sup.OperationTypeCode = "10" // Resident
 	sup.DocumentTypeCode = "05"
 	sup.HashType = "CUDS-SHA384"
 	sup.ProfileID = "DIAN 2.1: documento soporte en adquisiciones efectuadas a no obligados a facturar."
 	sup.Prefix = "DS"
 	sup.Number = "1"
 
-	// Roles invertidos: Supplier = tercero no obligado (SNO), Customer = emisor.
-	// La DIAN exige schemeName="31" (NIT) para el SNO — verificado en DS-real.xml.
+	// Roles reversed: Supplier = third party not obligated to invoice (SNO), Customer = issuer.
+	// DIAN requires schemeName="31" (NIT) for the SNO — verified in DS-real.xml.
 	sup.Supplier = domain.Party{
 		EntityTypeCode: "2",
 		Identification: domain.Identification{
@@ -40,7 +40,7 @@ func sampleSupportDocument() domain.Invoice {
 			CountryName: "Colombia",
 		},
 	}
-	// Customer = la empresa emisora (mismos datos que el Supplier original de sampleInvoice).
+	// Customer = the issuing company (same data as the original Supplier in sampleInvoice).
 	sup.Customer = domain.Party{
 		EntityTypeCode: "2",
 		Identification: domain.Identification{
@@ -64,7 +64,7 @@ func sampleSupportDocument() domain.Invoice {
 		TaxSchemeName:  "IVA",
 	}
 
-	// Una retención de ReteRenta del 3.5% sobre los 126.050.420 de base.
+	// A ReteRenta withholding of 3.5% on a base of 126,050,420.
 	sup.WithholdingTaxes = []domain.Tax{
 		{
 			TypeCode:           "06",
@@ -95,14 +95,14 @@ func TestBuildSupportDocument_Golden(t *testing.T) {
 		if err := os.WriteFile(goldenPath, []byte(got), 0o644); err != nil {
 			t.Fatalf("write golden: %v", err)
 		}
-		t.Skip("golden file regenerado, revisar a mano antes de confiar en él")
+		t.Skip("golden file regenerated, review by hand before trusting it")
 	}
 
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {
-		t.Fatalf("read golden (¿falta correr con -update?): %v", err)
+		t.Fatalf("read golden (missing -update run?): %v", err)
 	}
 	if got != string(want) {
-		t.Errorf("XML generado no coincide con %s\n--- got ---\n%s", goldenPath, got)
+		t.Errorf("generated XML does not match %s\n--- got ---\n%s", goldenPath, got)
 	}
 }

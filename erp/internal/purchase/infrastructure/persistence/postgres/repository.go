@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -28,11 +29,15 @@ func (r *Repository) Save(ctx context.Context, o domain.PurchaseOrder) (*domain.
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	paymentMeans, err := json.Marshal(o.PaymentMeans)
+	if err != nil {
+		return nil, fmt.Errorf("serializar payment_means: %w", err)
+	}
 	_, err = tx.Exec(ctx, `
-		INSERT INTO purchase.orders (id, company_id, supplier_id, number, status, issue_date, due_date, notes, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		INSERT INTO purchase.orders (id, company_id, supplier_id, number, status, issue_date, due_date, notes, payment_means, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 		o.ID, o.CompanyID, o.SupplierID, o.Number, string(o.Status),
-		o.IssueDate, o.DueDate, o.Notes, o.CreatedAt, o.UpdatedAt,
+		o.IssueDate, o.DueDate, o.Notes, paymentMeans, o.CreatedAt, o.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("guardar orden: %w", err)
@@ -43,10 +48,10 @@ func (r *Repository) Save(ctx context.Context, o domain.PurchaseOrder) (*domain.
 		l.ID = uuid.New()
 		l.PurchaseOrderID = o.ID
 		_, err = tx.Exec(ctx, `
-			INSERT INTO purchase.order_lines (id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+			INSERT INTO purchase.order_lines (id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount, unit_code)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 			l.ID, l.PurchaseOrderID, l.ProductID, l.Description,
-			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount,
+			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount, l.UnitCode,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("guardar línea: %w", err)
@@ -62,12 +67,13 @@ func (r *Repository) Save(ctx context.Context, o domain.PurchaseOrder) (*domain.
 func (r *Repository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*domain.PurchaseOrder, error) {
 	var o domain.PurchaseOrder
 	var status string
+	var paymentMeans []byte
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, company_id, supplier_id, number, status, issue_date, due_date, notes, created_at, updated_at, support_document_id
+		SELECT id, company_id, supplier_id, number, status, issue_date, due_date, notes, payment_means, created_at, updated_at, support_document_id
 		FROM purchase.orders WHERE id=$1 AND company_id=$2`,
 		id, companyID,
 	).Scan(&o.ID, &o.CompanyID, &o.SupplierID, &o.Number, &status,
-		&o.IssueDate, &o.DueDate, &o.Notes, &o.CreatedAt, &o.UpdatedAt, &o.SupportDocumentID)
+		&o.IssueDate, &o.DueDate, &o.Notes, &paymentMeans, &o.CreatedAt, &o.UpdatedAt, &o.SupportDocumentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrPurchaseNotFound
 	}
@@ -75,6 +81,9 @@ func (r *Repository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*dom
 		return nil, fmt.Errorf("obtener orden: %w", err)
 	}
 	o.Status = domain.PurchaseStatus(status)
+	if err := json.Unmarshal(paymentMeans, &o.PaymentMeans); err != nil {
+		return nil, fmt.Errorf("deserializar payment_means: %w", err)
+	}
 
 	lines, err := r.loadLines(ctx, o.ID)
 	if err != nil {
@@ -92,7 +101,7 @@ func (r *Repository) GetByID(ctx context.Context, companyID, id uuid.UUID) (*dom
 
 func (r *Repository) List(ctx context.Context, companyID uuid.UUID) ([]domain.PurchaseOrder, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, company_id, supplier_id, number, status, issue_date, due_date, notes, created_at, updated_at, support_document_id
+		SELECT id, company_id, supplier_id, number, status, issue_date, due_date, notes, payment_means, created_at, updated_at, support_document_id
 		FROM purchase.orders WHERE company_id=$1 ORDER BY created_at DESC`,
 		companyID,
 	)
@@ -105,11 +114,15 @@ func (r *Repository) List(ctx context.Context, companyID uuid.UUID) ([]domain.Pu
 	for rows.Next() {
 		var o domain.PurchaseOrder
 		var status string
+		var paymentMeans []byte
 		if err := rows.Scan(&o.ID, &o.CompanyID, &o.SupplierID, &o.Number, &status,
-			&o.IssueDate, &o.DueDate, &o.Notes, &o.CreatedAt, &o.UpdatedAt, &o.SupportDocumentID); err != nil {
+			&o.IssueDate, &o.DueDate, &o.Notes, &paymentMeans, &o.CreatedAt, &o.UpdatedAt, &o.SupportDocumentID); err != nil {
 			return nil, fmt.Errorf("leer orden: %w", err)
 		}
 		o.Status = domain.PurchaseStatus(status)
+		if err := json.Unmarshal(paymentMeans, &o.PaymentMeans); err != nil {
+			return nil, fmt.Errorf("deserializar payment_means: %w", err)
+		}
 		out = append(out, o)
 	}
 	if err := rows.Err(); err != nil {
@@ -140,6 +153,61 @@ func (r *Repository) SetSupportDocumentID(ctx context.Context, companyID, id, do
 		documentID, id, companyID,
 	)
 	return err
+}
+
+func (r *Repository) Update(ctx context.Context, companyID, id uuid.UUID, o domain.PurchaseOrder) (*domain.PurchaseOrder, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("iniciar transacción: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var status string
+	err = tx.QueryRow(ctx, `SELECT status FROM purchase.orders WHERE id=$1 AND company_id=$2 FOR UPDATE`, id, companyID).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrPurchaseNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("consultar orden: %w", err)
+	}
+	if status != string(domain.StatusDraft) {
+		return nil, domain.ErrPurchaseNotDraft
+	}
+
+	paymentMeans, err := json.Marshal(o.PaymentMeans)
+	if err != nil {
+		return nil, fmt.Errorf("serializar payment_means: %w", err)
+	}
+	now := time.Now()
+	_, err = tx.Exec(ctx,
+		`UPDATE purchase.orders SET supplier_id=$3, issue_date=$4, due_date=$5, notes=$6, payment_means=$7, updated_at=$8 WHERE id=$1 AND company_id=$2`,
+		id, companyID, o.SupplierID, o.IssueDate, o.DueDate, o.Notes, paymentMeans, now,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("actualizar orden: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM purchase.order_lines WHERE purchase_order_id=$1`, id); err != nil {
+		return nil, fmt.Errorf("limpiar líneas: %w", err)
+	}
+	for i := range o.Lines {
+		l := &o.Lines[i]
+		l.ID = uuid.New()
+		l.PurchaseOrderID = id
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO purchase.order_lines (id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount, unit_code)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+			l.ID, l.PurchaseOrderID, l.ProductID, l.Description,
+			l.Quantity, l.UnitPrice, l.TaxRate, l.Subtotal, l.TaxAmount, l.Total, l.Discount, l.UnitCode,
+		); err != nil {
+			return nil, fmt.Errorf("guardar línea: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
+	}
+	return r.GetByID(ctx, companyID, id)
 }
 
 func (r *Repository) Delete(ctx context.Context, companyID, id uuid.UUID) error {
@@ -179,7 +247,7 @@ func (r *Repository) loadWithholdings(ctx context.Context, orderID uuid.UUID) ([
 
 func (r *Repository) loadLines(ctx context.Context, orderID uuid.UUID) ([]domain.PurchaseLine, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount
+		SELECT id, purchase_order_id, product_id, description, quantity, unit_price, tax_rate, subtotal, tax_amount, total, discount, unit_code
 		FROM purchase.order_lines WHERE purchase_order_id=$1`,
 		orderID,
 	)
@@ -192,7 +260,7 @@ func (r *Repository) loadLines(ctx context.Context, orderID uuid.UUID) ([]domain
 	for rows.Next() {
 		var l domain.PurchaseLine
 		if err := rows.Scan(&l.ID, &l.PurchaseOrderID, &l.ProductID, &l.Description,
-			&l.Quantity, &l.UnitPrice, &l.TaxRate, &l.Subtotal, &l.TaxAmount, &l.Total, &l.Discount); err != nil {
+			&l.Quantity, &l.UnitPrice, &l.TaxRate, &l.Subtotal, &l.TaxAmount, &l.Total, &l.Discount, &l.UnitCode); err != nil {
 			return nil, fmt.Errorf("leer línea: %w", err)
 		}
 		lines = append(lines, l)

@@ -19,28 +19,27 @@ const (
 	debitNoteContainerDocumentType  = "Contenedor de Nota de Débito"
 )
 
-// BuildInvoiceAttachedDocument construye el AttachedDocument (contenedor electrónico) que
-// envuelve una Factura Electrónica de Venta ya firmada, junto con la respuesta de
-// validación de la DIAN.
+// BuildInvoiceAttachedDocument builds the AttachedDocument (electronic container) that wraps
+// an already-signed Electronic Sales Invoice, together with DIAN's validation response.
 //
-// Solo tiene sentido llamarlo después de recibir esa respuesta (GetStatusZip): el anexo
-// técnico exige al menos un cac:ParentDocumentLineReference (AE38, "1..N"), y las dos
-// facturas reales contra las que se verificó esta estructura confirman que el contenedor
-// siempre se entrega con la validación ya embebida, nunca antes — el AttachedDocument no es
-// lo que se envía a la DIAN (eso es el Invoice firmado, dentro de un ZIP, vía
-// SendBillSync/SendBillAsync), es lo que se entrega al adquiriente después.
+// It only makes sense to call this after receiving that response (GetStatusZip): the technical
+// annex requires at least one cac:ParentDocumentLineReference (AE38, "1..N"), and the two real
+// invoices used to verify this structure both confirm the container is always delivered with
+// the validation already embedded, never before — the AttachedDocument is not what gets sent
+// to DIAN (that's the signed Invoice, inside a ZIP, via SendBillSync/SendBillAsync); it's what
+// gets delivered to the acquirer afterward.
 func BuildInvoiceAttachedDocument(ad domain.AttachedDocument) (*etree.Document, error) {
 	return buildAttachedDocument(ad, invoiceContainerProfileID, invoiceContainerDocumentType)
 }
 
-// BuildCreditNoteAttachedDocument construye el AttachedDocument para una Nota de Crédito de
-// Venta ya firmada y aceptada por la DIAN. Mismo contrato que BuildInvoiceAttachedDocument.
+// BuildCreditNoteAttachedDocument builds the AttachedDocument for an already-signed and
+// DIAN-accepted Credit Note. Same contract as BuildInvoiceAttachedDocument.
 func BuildCreditNoteAttachedDocument(ad domain.AttachedDocument) (*etree.Document, error) {
 	return buildAttachedDocument(ad, creditNoteContainerProfileID, creditNoteContainerDocumentType)
 }
 
-// BuildDebitNoteAttachedDocument construye el AttachedDocument para una Nota de Débito de
-// Venta ya firmada y aceptada por la DIAN. Mismo contrato que BuildInvoiceAttachedDocument.
+// BuildDebitNoteAttachedDocument builds the AttachedDocument for an already-signed and
+// DIAN-accepted Debit Note. Same contract as BuildInvoiceAttachedDocument.
 func BuildDebitNoteAttachedDocument(ad domain.AttachedDocument) (*etree.Document, error) {
 	return buildAttachedDocument(ad, debitNoteContainerProfileID, debitNoteContainerDocumentType)
 }
@@ -58,7 +57,7 @@ func buildAttachedDocument(ad domain.AttachedDocument, profileID, docType string
 	root.CreateAttr("xmlns:xades", ubl.NSXades)
 	root.CreateAttr("xmlns:xades141", ubl.NSXades141)
 
-	// Placeholder para la firma del propio AttachedDocument (signer.Sign con role="").
+	// Placeholder for the AttachedDocument's own signature (signer.Sign with role="").
 	root.CreateElement("ext:UBLExtensions").CreateElement("ext:UBLExtension").CreateElement("ext:ExtensionContent")
 
 	root.CreateElement("cbc:UBLVersionID").SetText("UBL 2.1")

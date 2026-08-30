@@ -82,6 +82,24 @@ func (r *EmployeeRepository) ListByCompany(ctx context.Context, companyID uuid.U
 	return out, rows.Err()
 }
 
+func (r *EmployeeRepository) Update(ctx context.Context, id uuid.UUID, in domain.UpdateEmployeeInput) (*domain.Employee, error) {
+	row := r.pool.QueryRow(ctx,
+		`UPDATE payroll.employees SET
+		   first_name = $2, last_name = $3, email = $4, phone = $5,
+		   department_code = $6, municipality_code = $7, address_line = $8,
+		   updated_at = NOW()
+		 WHERE id = $1
+		 RETURNING `+employeeCols,
+		id, in.FirstName, in.LastName, nilStr(in.Email), nilStr(in.Phone),
+		nilStr(in.DepartmentCode), nilStr(in.MunicipalityCode), nilStr(in.AddressLine),
+	)
+	e, err := scanEmployee(row)
+	if err != nil {
+		return nil, fmt.Errorf("employees update: %w", err)
+	}
+	return e, nil
+}
+
 func (r *EmployeeRepository) Deactivate(ctx context.Context, id uuid.UUID) error {
 	tag, err := r.pool.Exec(ctx,
 		`UPDATE payroll.employees SET is_active = false, updated_at = NOW() WHERE id = $1`, id)

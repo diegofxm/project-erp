@@ -202,6 +202,8 @@ type fixedAssetDTO struct {
 	AssetAccount        string `json:"asset_account"`
 	DepreciationAccount string `json:"depreciation_account"`
 	AccumulatedAccount  string `json:"accumulated_account"`
+	GainAccount         string `json:"gain_account,omitempty"`
+	LossAccount         string `json:"loss_account,omitempty"`
 	AcquisitionDate     string `json:"acquisition_date"`
 	AcquisitionCost     int64  `json:"acquisition_cost"`
 	SalvageValue        int64  `json:"salvage_value"`
@@ -217,6 +219,7 @@ func toFixedAssetDTO(a application.AssetWithAccumulated) fixedAssetDTO {
 	return fixedAssetDTO{
 		ID: asset.ID.String(), Code: asset.Code, Name: asset.Name, Description: asset.Description,
 		AssetAccount: asset.AssetAccount, DepreciationAccount: asset.DepreciationAccount, AccumulatedAccount: asset.AccumulatedAccount,
+		GainAccount: asset.GainAccount, LossAccount: asset.LossAccount,
 		AcquisitionDate: asset.AcquisitionDate.Format("2006-01-02"), AcquisitionCost: asset.AcquisitionCost, SalvageValue: asset.SalvageValue,
 		UsefulLifeMonths: asset.UsefulLifeMonths, MonthlyDepreciation: asset.MonthlyDepreciation(), Accumulated: a.Accumulated,
 		Status: string(asset.Status), ThirdPartyNIT: asset.ThirdPartyNIT,

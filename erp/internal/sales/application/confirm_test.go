@@ -23,6 +23,9 @@ type fakeSaleRepo struct {
 }
 
 func (f *fakeSaleRepo) Save(context.Context, domain.Sale) (*domain.Sale, error) { return &f.sale, nil }
+func (f *fakeSaleRepo) Update(context.Context, uuid.UUID, uuid.UUID, domain.Sale) (*domain.Sale, error) {
+	return &f.sale, nil
+}
 func (f *fakeSaleRepo) GetByID(context.Context, uuid.UUID, uuid.UUID) (*domain.Sale, error) {
 	return &f.sale, nil
 }
@@ -85,6 +88,9 @@ func (f *fakeInventoryRepo) ListMovements(context.Context, uuid.UUID, *uuid.UUID
 }
 func (f *fakeInventoryRepo) Transfer(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, float64, string, string) (*inventorydomain.Movement, *inventorydomain.Movement, error) {
 	return nil, nil, nil
+}
+func (f *fakeInventoryRepo) DeleteMovement(context.Context, uuid.UUID, uuid.UUID) error {
+	return nil
 }
 
 type fakeCustomerPort struct {

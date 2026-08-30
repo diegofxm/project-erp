@@ -16,3 +16,9 @@ export function listMovements(productId?: string): Promise<Movement[]> {
 export function createMovement(payload: MovementPayload): Promise<Movement> {
   return apiClient.post<Movement>("/inventory/movements", payload);
 }
+
+// deleteMovement — elimina un movimiento (o el par completo, si es un traslado) y revierte su
+// efecto sobre el stock. El backend rechaza la eliminación (422) si dejaría el stock en negativo.
+export function deleteMovement(id: string): Promise<void> {
+  return apiClient.del(`/inventory/movements/${id}`);
+}

@@ -39,8 +39,8 @@ func generateTestCert(t *testing.T) (*x509.Certificate, *rsa.PrivateKey) {
 	return cert, key
 }
 
-// newTestDoc construye el esqueleto mínimo de un documento UBL: namespaces en la raíz y el
-// placeholder de firma en su posición final, igual que lo deja builder.BuildInvoice.
+// newTestDoc builds the minimal skeleton of a UBL document: namespaces on the root and the
+// signature placeholder in its final position, exactly as builder.BuildInvoice leaves it.
 func newTestDoc() (root, placeholder *etree.Element) {
 	doc := etree.NewDocument()
 	root = doc.CreateElement("Invoice")
@@ -56,8 +56,8 @@ func newTestDoc() (root, placeholder *etree.Element) {
 	return root, placeholder
 }
 
-// verifySignature reconstruye lo que haría un verificador independiente: canonicaliza
-// ds:SignedInfo y comprueba ds:SignatureValue contra la llave pública.
+// verifySignature reconstructs what an independent verifier would do: canonicalize
+// ds:SignedInfo and check ds:SignatureValue against the public key.
 func verifySignature(t *testing.T, root *etree.Element, pub *rsa.PublicKey) {
 	t.Helper()
 	sig := root.FindElement("//ds:Signature")
@@ -85,7 +85,7 @@ func verifySignature(t *testing.T, root *etree.Element, pub *rsa.PublicKey) {
 	}
 
 	if err := rsa.VerifyPKCS1v15(pub, crypto.SHA256, hashed[:], sigValue); err != nil {
-		t.Errorf("la firma no verifica contra la llave pública: %v", err)
+		t.Errorf("signature does not verify against the public key: %v", err)
 	}
 
 	refs := signedInfo.SelectElements("ds:Reference")

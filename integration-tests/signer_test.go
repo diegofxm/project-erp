@@ -1,62 +1,47 @@
-package signer
+package integrationtest
 
 import (
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/base64"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/beevik/etree"
+	dsig "github.com/russellhaering/goxmldsig"
 
 	"github.com/diegofxm/cofacture/builder"
 	"github.com/diegofxm/cofacture/cufe"
 	"github.com/diegofxm/cofacture/domain"
 	"github.com/diegofxm/cofacture/qr"
 	"github.com/diegofxm/cofacture/securitycode"
+	"github.com/diegofxm/cofacture/signer"
 )
 
-// parseEnvFile lee un archivo estilo .env (KEY=VALUE, líneas # son comentarios) sin
-// depender de ninguna librería — solo se usa en este test, nunca en código de producción.
-func parseEnvFile(t *testing.T, path string) map[string]string {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("leer %s: %v", path, err)
-	}
-	vals := map[string]string{}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		vals[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-	}
-	return vals
-}
-
-// TestSign_RealCertificate firma una factura real (datos del RUT 6382356) con el
-// certificado y la clave técnica reales del ambiente de habilitación. Se omite por defecto
-// — solo corre si COFACTURE_TEST_FIXTURES_DIR apunta a una carpeta con certificado_cert.pem,
-// certificado_key.pem y credenciales.txt (mismo patrón que DATABASE_URL en core-bank: el
-// material real nunca se commitea, así que la prueba se salta para cualquier otra persona).
+// TestSign_RealCertificate signs a real invoice (data from RUT 6382356) with the real
+// certificate and technical key from the certification/testing environment. It is skipped
+// by default — it only runs if COFACTURE_TEST_FIXTURES_DIR points to a folder containing
+// certificado_cert.pem, certificado_key.pem, and credenciales.txt (same pattern as
+// DATABASE_URL in core-bank: the real material is never committed, so the test is skipped
+// for anyone else).
 func TestSign_RealCertificate(t *testing.T) {
 	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")
 	if dir == "" {
-		t.Skip("COFACTURE_TEST_FIXTURES_DIR no configurado, se omite la prueba con credenciales reales")
+		t.Skip("COFACTURE_TEST_FIXTURES_DIR not set, skipping real-credential test")
 	}
 
 	certPEM, err := os.ReadFile(filepath.Join(dir, "certificado_cert.pem"))
 	if err != nil {
-		t.Fatalf("leer certificado: %v", err)
+		t.Fatalf("read certificate: %v", err)
 	}
 	keyPEM, err := os.ReadFile(filepath.Join(dir, "certificado_key.pem"))
 	if err != nil {
-		t.Fatalf("leer llave privada: %v", err)
+		t.Fatalf("read private key: %v", err)
 	}
-	cert, key, err := LoadPEM(certPEM, keyPEM)
+	cert, key, err := signer.LoadPEM(certPEM, keyPEM)
 	if err != nil {
 		t.Fatalf("LoadPEM: %v", err)
 	}
@@ -65,11 +50,11 @@ func TestSign_RealCertificate(t *testing.T) {
 
 	rangeFrom, err := time.Parse("02-01-2006", env["DIAN_RANGE_DATE_FROM"])
 	if err != nil {
-		t.Fatalf("parsear DIAN_RANGE_DATE_FROM: %v", err)
+		t.Fatalf("parse DIAN_RANGE_DATE_FROM: %v", err)
 	}
 	rangeTo, err := time.Parse("02-01-2006", env["DIAN_RANGE_DATE_TO"])
 	if err != nil {
-		t.Fatalf("parsear DIAN_RANGE_DATE_TO: %v", err)
+		t.Fatalf("parse DIAN_RANGE_DATE_TO: %v", err)
 	}
 
 	now := time.Now().In(domain.Bogota)
@@ -88,9 +73,9 @@ func TestSign_RealCertificate(t *testing.T) {
 
 		CurrencyCode: "COP",
 
-		// Datos reales del RUT 6382356 (Diego Fernando Montoya Vallejo, persona natural,
-		// sin responsabilidad de IVA — mismo patrón que el caso persona natural verificado
-		// en la factura real FESG27: TaxSchemeCode "ZZ"/"No aplica", TaxLevelCode "R-99-PN").
+		// Real data from RUT 6382356 (Diego Fernando Montoya Vallejo, natural person,
+		// not liable for IVA — same pattern as the natural-person case verified
+		// in the real invoice FESG27: TaxSchemeCode "ZZ"/"No aplica", TaxLevelCode "R-99-PN").
 		Supplier: domain.Party{
 			EntityTypeCode: "1",
 			Identification: domain.Identification{Number: "6382356", TypeCode: "13"},
@@ -168,27 +153,71 @@ func TestSign_RealCertificate(t *testing.T) {
 		t.Fatalf("SignaturePlaceholder: %v", err)
 	}
 
-	s := New(cert, key)
+	s := signer.New(cert, key)
 	if err := s.Sign(doc.Root(), placeholder, "supplier", now); err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
 
 	verifySignature(t, doc.Root(), &key.PublicKey)
 
-	// Sin doc.Indent(): reescribiría el árbol después de firmar, dejando el archivo
-	// guardado distinto de lo que realmente se canonicalizó/firmó (ver nota en
-	// soap/realsend_test.go, donde esto causó un rechazo real de la DIAN).
+	// Without doc.Indent(): it would rewrite the tree after signing, leaving the saved
+	// file different from what was actually canonicalized/signed (see the note in
+	// send_testset_test.go, where this caused a real rejection from DIAN).
 	out, err := doc.WriteToString()
 	if err != nil {
 		t.Fatalf("WriteToString: %v", err)
 	}
 	outputsDir := filepath.Join(dir, "outputs")
 	if err := os.MkdirAll(outputsDir, 0o755); err != nil {
-		t.Fatalf("crear outputs/: %v", err)
+		t.Fatalf("create outputs/: %v", err)
 	}
 	outPath := filepath.Join(outputsDir, "_signed_test_output.xml")
 	if err := os.WriteFile(outPath, []byte(out), 0o644); err != nil {
-		t.Fatalf("escribir salida: %v", err)
+		t.Fatalf("write output: %v", err)
 	}
-	t.Logf("XML firmado escrito en %s (CUFE=%s)", outPath, inv.CUFE)
+	t.Logf("signed XML written to %s (CUFE=%s)", outPath, inv.CUFE)
+}
+
+// canonicalizer matches the one cofacture's own signer package uses (inclusive C14N 1.0) —
+// needed here only to independently re-verify a signature after Sign, the same way a real
+// verifier would. Ported from cofacture/signer's own unit-test helper of the same name, since
+// that file (signer_test.go) stays in cofacture and isn't part of this module.
+var canonicalizer = dsig.MakeC14N10RecCanonicalizer()
+
+// verifySignature reconstructs what an independent verifier would do: canonicalize
+// ds:SignedInfo and check ds:SignatureValue against the public key.
+func verifySignature(t *testing.T, root *etree.Element, pub *rsa.PublicKey) {
+	t.Helper()
+	sig := root.FindElement("//ds:Signature")
+	if sig == nil {
+		t.Fatal("ds:Signature was not inserted")
+	}
+
+	signedInfo := sig.FindElement("ds:SignedInfo")
+	if signedInfo == nil {
+		t.Fatal("ds:Signature has no ds:SignedInfo")
+	}
+	canon, err := canonicalizer.Canonicalize(signedInfo)
+	if err != nil {
+		t.Fatalf("canonicalize SignedInfo: %v", err)
+	}
+	hashed := sha256.Sum256(canon)
+
+	sigValueEl := sig.FindElement("ds:SignatureValue")
+	if sigValueEl == nil {
+		t.Fatal("ds:Signature has no ds:SignatureValue")
+	}
+	sigValue, err := base64.StdEncoding.DecodeString(sigValueEl.Text())
+	if err != nil {
+		t.Fatalf("decode SignatureValue: %v", err)
+	}
+
+	if err := rsa.VerifyPKCS1v15(pub, crypto.SHA256, hashed[:], sigValue); err != nil {
+		t.Errorf("signature does not verify against the public key: %v", err)
+	}
+
+	refs := signedInfo.SelectElements("ds:Reference")
+	if len(refs) != 3 {
+		t.Fatalf("expected 3 ds:Reference (document, KeyInfo, SignedProperties), got %d", len(refs))
+	}
 }

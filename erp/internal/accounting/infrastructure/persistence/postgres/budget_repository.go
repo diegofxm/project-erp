@@ -64,6 +64,53 @@ func (r *BudgetRepository) GetByID(ctx context.Context, companyID, id uuid.UUID)
 	return b, err
 }
 
+func (r *BudgetRepository) Rename(ctx context.Context, companyID, id uuid.UUID, name string) (*domain.Budget, error) {
+	row := r.pool.QueryRow(ctx, `
+		UPDATE accounting.budgets SET name=$3, updated_at=NOW()
+		WHERE id=$1 AND company_id=$2 AND status='DRAFT'
+		RETURNING id, company_id, year, name, status, created_at, updated_at`,
+		id, companyID, name,
+	)
+	b, err := scanBudget(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Puede ser que no exista o que no esté en DRAFT -- distinguir para dar el error correcto.
+		if _, getErr := r.GetByID(ctx, companyID, id); getErr != nil {
+			return nil, getErr
+		}
+		return nil, domain.ErrBudgetNotDraft
+	}
+	return b, err
+}
+
+func (r *BudgetRepository) Delete(ctx context.Context, companyID, id uuid.UUID) error {
+	var status string
+	err := r.pool.QueryRow(ctx, `SELECT status FROM accounting.budgets WHERE id=$1 AND company_id=$2`, id, companyID).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.ErrBudgetNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("consultar presupuesto: %w", err)
+	}
+	if status != string(domain.BudgetDraft) {
+		return domain.ErrBudgetNotDraft
+	}
+	if _, err := r.pool.Exec(ctx, `DELETE FROM accounting.budget_lines WHERE budget_id=$1`, id); err != nil {
+		return fmt.Errorf("eliminar líneas: %w", err)
+	}
+	if _, err := r.pool.Exec(ctx, `DELETE FROM accounting.budgets WHERE id=$1 AND company_id=$2`, id, companyID); err != nil {
+		return fmt.Errorf("eliminar presupuesto: %w", err)
+	}
+	return nil
+}
+
+func (r *BudgetRepository) DeleteLine(ctx context.Context, budgetID, accountID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM accounting.budget_lines WHERE budget_id=$1 AND account_id=$2`, budgetID, accountID)
+	if err != nil {
+		return fmt.Errorf("eliminar línea de presupuesto: %w", err)
+	}
+	return nil
+}
+
 func (r *BudgetRepository) UpdateStatus(ctx context.Context, companyID, id uuid.UUID, status domain.BudgetStatus) error {
 	_, err := r.pool.Exec(ctx, "UPDATE accounting.budgets SET status=$1, updated_at=NOW() WHERE id=$2 AND company_id=$3", string(status), id, companyID)
 	return err

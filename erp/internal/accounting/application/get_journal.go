@@ -54,6 +54,17 @@ func (uc *GetJournalUseCase) ListVoucherTypes(ctx context.Context, companyID uui
 	return uc.journals.ListVoucherTypes(ctx, companyID)
 }
 
+// DeactivateVoucherType reutiliza RegisterVoucherType (upsert) preservando name/resets_annually
+// ya guardados -- solo cambia is_active, para no tener que exigirlos de nuevo en el request.
+func (uc *GetJournalUseCase) DeactivateVoucherType(ctx context.Context, companyID uuid.UUID, code string) (*domain.VoucherTypeConfig, error) {
+	cfg, err := uc.journals.GetVoucherType(ctx, companyID, code)
+	if err != nil {
+		return nil, err
+	}
+	cfg.IsActive = false
+	return uc.journals.RegisterVoucherType(ctx, *cfg)
+}
+
 // SetVoucherCounter fija el próximo consecutivo a emitir para un tipo de comprobante — pensado
 // para migrar una empresa que ya traía su propia numeración de otro sistema. Valida el código
 // igual que PostJournalUseCase.Execute: los tipos estándar del sistema siempre son válidos, los

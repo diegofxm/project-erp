@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { CalendarClock, Lock, LockOpen, Plus, Receipt } from "lucide-react";
-import { closePeriod, createVoucherType, listPeriods, listVoucherTypes, reopenPeriod } from "../lib/accounting";
+import { CalendarClock, Lock, LockOpen, Plus, Receipt, Pencil, Archive } from "lucide-react";
+import { closePeriod, createVoucherType, deactivateVoucherType, listPeriods, listVoucherTypes, reopenPeriod, updateVoucherType } from "../lib/accounting";
 import { ApiError } from "../lib/apiClient";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
@@ -28,6 +28,10 @@ export function AccountingPeriodsPage() {
   const [vtCode, setVtCode] = useState("");
   const [vtName, setVtName] = useState("");
   const [savingVt, setSavingVt] = useState(false);
+
+  const [editingVt, setEditingVt] = useState<VoucherType | null>(null);
+  const [editVtName, setEditVtName] = useState("");
+  const [savingEditVt, setSavingEditVt] = useState(false);
 
   function refresh() {
     listPeriods()
@@ -87,6 +91,32 @@ export function AccountingPeriodsPage() {
       toast.error(err instanceof ApiError ? err.message : "No se pudo crear el tipo de comprobante");
     } finally {
       setSavingVt(false);
+    }
+  }
+
+  async function handleSaveEditVt() {
+    if (!editingVt || !editVtName) return;
+    setSavingEditVt(true);
+    try {
+      await updateVoucherType(editingVt.code, { name: editVtName, resets_annually: editingVt.resets_annually });
+      toast.success("Tipo de comprobante actualizado.");
+      setEditingVt(null);
+      listVoucherTypes().then(setVoucherTypes);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo actualizar el tipo de comprobante");
+    } finally {
+      setSavingEditVt(false);
+    }
+  }
+
+  async function handleDeactivateVt(v: VoucherType) {
+    if (!(await confirmDialog(`¿Eliminar el tipo de comprobante "${v.code} — ${v.name}"?`, { tone: "danger" }))) return;
+    try {
+      await deactivateVoucherType(v.code);
+      toast.success("Tipo de comprobante eliminado.");
+      listVoucherTypes().then(setVoucherTypes);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar el tipo de comprobante");
     }
   }
 
@@ -186,8 +216,31 @@ export function AccountingPeriodsPage() {
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {voucherTypes.map((v) => (
-            <span key={v.id} className="rounded bg-(--bg-tertiary) px-2 py-1 text-[11px] text-(--text-secondary)">{v.code} — {v.name}</span>
+            <span key={v.id} className="flex items-center gap-1 rounded bg-(--bg-tertiary) py-1 pl-2 pr-1 text-[11px] text-(--text-secondary)">
+              {v.code} — {v.name}
+              <button type="button" title="Editar" aria-label={`Editar ${v.code}`} onClick={() => { setEditingVt(v); setEditVtName(v.name); }}
+                className="rounded p-0.5 text-(--text-muted) transition-colors hover:bg-(--bg-hover) hover:text-(--text-primary)">
+                <Pencil className="h-3 w-3" />
+              </button>
+              <button type="button" title="Eliminar" aria-label={`Eliminar ${v.code}`} onClick={() => handleDeactivateVt(v)}
+                className="rounded p-0.5 text-(--color-danger) transition-colors hover:bg-(--bg-hover)">
+                <Archive className="h-3 w-3" />
+              </button>
+            </span>
           ))}
+        </div>
+      )}
+
+      {editingVt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditingVt(null)}>
+          <Card className="w-full max-w-sm p-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-3 text-xs font-semibold text-(--text-primary)">Editar tipo de comprobante ({editingVt.code})</h3>
+            <Input label="Nombre" required value={editVtName} onChange={(e) => setEditVtName(e.target.value)} />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setEditingVt(null)}>Cancelar</Button>
+              <Button type="button" loading={savingEditVt} disabled={!editVtName} onClick={handleSaveEditVt}>Guardar</Button>
+            </div>
+          </Card>
         </div>
       )}
     </div>

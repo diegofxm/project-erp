@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	cofdom "github.com/diegofxm/cofacture/domain"
 )
 
 type PurchaseStatus string
@@ -27,6 +29,10 @@ type PurchaseOrder struct {
 	DueDate    *time.Time // fecha esperada de recepción
 	Notes      string
 	Lines      []PurchaseLine
+	// PaymentMeans -- mismo tipo/catálogos DIAN que Sale.PaymentMeans y que electronic; se
+	// hereda al Documento Soporte generado desde esta orden (ver electronic/application/
+	// from_purchase.go, que antes forzaba "Contado/Efectivo" sin importar lo pactado).
+	PaymentMeans []cofdom.PaymentMean
 	// SupportDocumentID — Documento Soporte ya generado desde esta orden, si alguno
 	// (electronic.documents.id, sin FK — cada módulo es dueño de su schema). nil = todavía no
 	// se ha generado. Evita generar dos veces desde la misma orden (ver electronic
@@ -73,13 +79,15 @@ type PurchaseLine struct {
 	PurchaseOrderID uuid.UUID
 	ProductID       uuid.UUID
 	Description     string
-	Quantity        float64
-	UnitPrice       float64
-	Discount        float64 // porcentaje 0-100, aplicado antes de impuestos
-	TaxRate         float64
-	Subtotal        float64 // Quantity * UnitPrice - descuento
-	TaxAmount       float64 // Subtotal * TaxRate / 100
-	Total           float64 // Subtotal + TaxAmount
+	// UnitCode -- ver el mismo campo en sales.domain.SaleLine.
+	UnitCode  string
+	Quantity  float64
+	UnitPrice float64
+	Discount  float64 // porcentaje 0-100, aplicado antes de impuestos
+	TaxRate   float64
+	Subtotal  float64 // Quantity * UnitPrice - descuento
+	TaxAmount float64 // Subtotal * TaxRate / 100
+	Total     float64 // Subtotal + TaxAmount
 }
 
 func (o *PurchaseOrder) CalculateTotals() {

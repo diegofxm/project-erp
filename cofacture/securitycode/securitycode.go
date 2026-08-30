@@ -1,7 +1,7 @@
-// Package securitycode calcula sts:SoftwareSecurityCode según la sección 11.8 del Anexo
-// Técnico 1.9. No es un CUFE ni un CUDE — es la huella del software autorizado por la DIAN,
-// aplica por igual a Invoice/CreditNote/DebitNote, y por eso tiene su propio paquete en vez
-// de vivir dentro de cufe o cude.
+// Package securitycode computes sts:SoftwareSecurityCode per section 11.8 of Technical
+// Annex 1.9. It is neither a CUFE nor a CUDE — it is the fingerprint of the DIAN-authorized
+// software, applies equally to Invoice/CreditNote/DebitNote, and therefore has its own
+// package instead of living inside cufe or cude.
 package securitycode
 
 import (
@@ -9,12 +9,12 @@ import (
 	"encoding/hex"
 )
 
-// Compute calcula sts:SoftwareSecurityCode.
+// Compute calculates sts:SoftwareSecurityCode.
 //
-// softwareID y pin son datos sensibles asignados por la DIAN al activar el software; nunca
-// deben loguearse ni persistirse en texto plano fuera de donde ya estén protegidos.
-// documentID es el cbc:ID del documento (Invoice/CreditNote/DebitNote/ApplicationResponse),
-// es decir Prefijo+Número.
+// softwareID and pin are sensitive values assigned by DIAN when the software is activated;
+// they must never be logged or persisted in plain text outside of wherever they are already
+// protected. documentID is the document's cbc:ID (Invoice/CreditNote/DebitNote/
+// ApplicationResponse), i.e. Prefix+Number.
 func Compute(softwareID, pin, documentID string) string {
 	sum := sha512.Sum384([]byte(softwareID + pin + documentID))
 	return hex.EncodeToString(sum[:])

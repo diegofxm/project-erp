@@ -7,6 +7,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/payroll/employees", h.handleListEmployees)
 	mux.HandleFunc("POST /api/v1/payroll/employees", h.handleCreateEmployee)
 	mux.HandleFunc("GET /api/v1/payroll/employees/{id}", h.handleGetEmployee)
+	mux.HandleFunc("PUT /api/v1/payroll/employees/{id}", h.handleUpdateEmployee)
 	mux.HandleFunc("DELETE /api/v1/payroll/employees/{id}", h.handleDeactivateEmployee)
 
 	// Contratos por empleado

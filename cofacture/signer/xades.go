@@ -8,17 +8,17 @@ import (
 	"github.com/beevik/etree"
 )
 
-// Política de firma de la DIAN. Es única y fija para todos los documentos electrónicos —
-// confirmado contra dos facturas reales de proveedores distintos (2023 y 2026), mismo hash.
+// DIAN's signature policy. It is unique and fixed for all electronic documents — confirmed
+// against two real invoices from different providers (2023 and 2026), same hash.
 const (
 	PolicyURL           = "https://facturaelectronica.dian.gov.co/politicadefirma/v2/politicadefirmav2.pdf"
 	PolicyDescription   = "Política de firma para facturas electrónicas de la República de Colombia."
 	PolicyHashSHA256B64 = "dMoMvtcG5aIzgYo0tIsSQeVJBDnUnfSOfBpxXrmor0Y="
 )
 
-// buildKeyInfo agrega ds:KeyInfo (con el certificado X.509 en DER+base64) como hijo de
-// parent y lo retorna. parent debe ya estar insertado en su posición final dentro del
-// documento para que la canonicalización herede el contexto de namespaces correcto.
+// buildKeyInfo appends ds:KeyInfo (with the X.509 certificate in DER+base64) as a child of
+// parent and returns it. parent must already be inserted in its final position within the
+// document so canonicalization inherits the correct namespace context.
 func (s *Signer) buildKeyInfo(parent *etree.Element, id string) *etree.Element {
 	keyInfo := parent.CreateElement("ds:KeyInfo")
 	keyInfo.CreateAttr("Id", id+"-keyinfo")
@@ -27,9 +27,9 @@ func (s *Signer) buildKeyInfo(parent *etree.Element, id string) *etree.Element {
 	return keyInfo
 }
 
-// buildSignedProperties agrega ds:Object/xades:QualifyingProperties/xades:SignedProperties
-// como hijo de parent y retorna el elemento SignedProperties. role es el valor de
-// xades:ClaimedRole ("supplier" para Invoice/CreditNote/DebitNote, "" para AttachedDocument).
+// buildSignedProperties appends ds:Object/xades:QualifyingProperties/xades:SignedProperties
+// as a child of parent and returns the SignedProperties element. role is the value of
+// xades:ClaimedRole ("supplier" for Invoice/CreditNote/DebitNote, "" for AttachedDocument).
 func (s *Signer) buildSignedProperties(parent *etree.Element, id, role string, signingTime time.Time) *etree.Element {
 	object := parent.CreateElement("ds:Object")
 	qualifying := object.CreateElement("xades:QualifyingProperties")

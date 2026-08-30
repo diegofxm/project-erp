@@ -1,11 +1,11 @@
-// Package cuds calcula el Código Único de Documento Soporte (CUDS) según el Anexo
-// Técnico 1.9 de la DIAN, sección 11.5.
+// Package cuds computes the Unique Support Document Code (Código Único de Documento Soporte,
+// CUDS) per DIAN's Technical Annex 1.9, section 11.5.
 //
-// La fórmula del CUDS difiere del CUFE/CUDE: en lugar de tres slots fijos de impuesto
-// (IVA+"01", INC+"04", ICA+"03"), el CUDS usa un único par CodImp+ValImp tomado del
-// primer elemento de HeaderTaxes. Este comportamiento fue verificado contra el ejemplo
-// oficial de la Caja de Herramientas DS v1.1 (DocumentoSoporte-OperacionConResidente.xml,
-// CUDS=c96a728f…23a) y coincide con la estructura del contenido del QR del DS.
+// The CUDS formula differs from CUFE/CUDE's: instead of three fixed tax slots (VAT+"01",
+// INC+"04", ICA+"03"), the CUDS uses a single CodImp+ValImp pair taken from the first element
+// of HeaderTaxes. This behavior was verified against the official DIAN Support Document
+// Toolkit v1.1 example (DocumentoSoporte-OperacionConResidente.xml, CUDS=c96a728f…23a) and
+// matches the structure of the Support Document's QR content.
 package cuds
 
 import (
@@ -15,10 +15,10 @@ import (
 	"github.com/diegofxm/cofacture/domain"
 )
 
-// Compute calcula el CUDS de un Documento Soporte (InvoiceTypeCode "05").
+// Compute calculates the CUDS of a Support Document (InvoiceTypeCode "05").
 //
-// softwarePIN es el PIN del software autorizado por la DIAN — el mismo valor que aparece en
-// el campo PIN del contenido del QR y en sts:QRCode.
+// softwarePIN is the DIAN-authorized software PIN — the same value that appears in the QR
+// content's PIN field and in sts:QRCode.
 func Compute(doc domain.Invoice, softwarePIN string) string {
 	var taxCode string
 	var taxCents int64

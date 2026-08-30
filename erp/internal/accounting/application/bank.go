@@ -51,6 +51,23 @@ func (uc *ManageBankUseCase) ListAccounts(ctx context.Context, companyID uuid.UU
 	return uc.accounts.List(ctx, companyID)
 }
 
+type UpdateBankAccountRequest struct {
+	Name      string
+	BankName  string
+	AccountNo string
+}
+
+func (uc *ManageBankUseCase) UpdateAccount(ctx context.Context, companyID, id uuid.UUID, req UpdateBankAccountRequest) (*domain.BankAccount, error) {
+	if req.Name == "" || req.AccountNo == "" {
+		return nil, fmt.Errorf("nombre y número de cuenta son obligatorios")
+	}
+	return uc.accounts.Update(ctx, companyID, id, req.Name, req.BankName, req.AccountNo)
+}
+
+func (uc *ManageBankUseCase) DeactivateAccount(ctx context.Context, companyID, id uuid.UUID) error {
+	return uc.accounts.Deactivate(ctx, companyID, id)
+}
+
 type AddStatementLineRequest struct {
 	Date        time.Time
 	Description string

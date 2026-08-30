@@ -766,6 +766,7 @@ export interface ListDocumentsFilter {
 export interface SalesLineInput {
   product_id: string;
   description: string;
+  unit_code: string;
   quantity: number;
   unit_price: number;
   discount: number; // porcentaje 0-100, aplicado antes de impuestos
@@ -786,6 +787,7 @@ export interface CreateQuotePayload {
   lines: SalesLineInput[];
   valid_until?: string; // YYYY-MM-DD, opcional
   notes: string;
+  payment_means?: PaymentMean[];
 }
 
 export interface Quote {
@@ -798,20 +800,25 @@ export interface Quote {
   valid_until?: string;
   notes: string;
   lines: SalesLine[];
+  payment_means?: PaymentMean[];
   created_at: string;
   updated_at: string;
 }
 
 export type SaleStatus = "draft" | "confirmed" | "cancelled";
 
+// El consecutivo (number) lo asigna siempre el backend (VTA-YYYY-NNNNN) -- nunca se manda desde
+// el cliente, ni al crear ni al editar, así que Create/Update comparten exactamente esta forma.
 export interface CreateSalePayload {
   customer_id: string;
-  number: string;
   issue_date: string; // YYYY-MM-DD
   due_date?: string;  // YYYY-MM-DD, vencimiento de cartera
   notes: string;
   lines: SalesLineInput[];
+  payment_means?: PaymentMean[];
 }
+
+export type UpdateSalePayload = CreateSalePayload;
 
 export interface Sale {
   id: string;
@@ -823,6 +830,7 @@ export interface Sale {
   due_date?: string;
   notes: string;
   lines: SalesLine[];
+  payment_means?: PaymentMean[];
   // Factura electrónica ya generada desde esta venta, si alguna — cuando está presente, no se
   // puede volver a generar (ver electronic CreateFromSaleUseCase).
   invoice_document_id?: string;
@@ -870,6 +878,7 @@ export interface ReceivableBalance {
 export interface PurchaseLineInput {
   product_id: string;
   description: string;
+  unit_code: string;
   quantity: number;
   unit_price: number;
   discount: number; // porcentaje 0-100, aplicado antes de impuestos
@@ -885,14 +894,18 @@ export interface PurchaseLine extends PurchaseLineInput {
 
 export type PurchaseStatus = "draft" | "confirmed" | "received" | "cancelled";
 
+// El consecutivo (number) lo asigna siempre el backend (OC-YYYY-NNNNN) -- nunca se manda desde
+// el cliente, ni al crear ni al editar, así que Create/Update comparten exactamente esta forma.
 export interface CreatePurchasePayload {
   supplier_id: string;
-  number: string;
   issue_date: string; // YYYY-MM-DD
   due_date?: string;  // YYYY-MM-DD, recepción esperada
   notes: string;
   lines: PurchaseLineInput[];
+  payment_means?: PaymentMean[];
 }
+
+export type UpdatePurchasePayload = CreatePurchasePayload;
 
 export interface Purchase {
   id: string;
@@ -904,6 +917,7 @@ export interface Purchase {
   due_date?: string;
   notes: string;
   lines: PurchaseLine[];
+  payment_means?: PaymentMean[];
   withholdings: PurchaseWithholding[];
   // Documento Soporte ya generado desde esta orden, si alguno — cuando está presente, no se
   // puede volver a generar (ver electronic CreateFromPurchaseUseCase).
@@ -1230,6 +1244,8 @@ export interface FixedAsset {
   asset_account: string;
   depreciation_account: string;
   accumulated_account: string;
+  gain_account?: string;
+  loss_account?: string;
   acquisition_date: string;
   acquisition_cost: number;
   salvage_value: number;

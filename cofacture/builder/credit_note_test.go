@@ -9,7 +9,7 @@ import (
 
 func sampleCreditNote() domain.CreditNote {
 	inv := sampleInvoice()
-	inv.OperationTypeCode = "20" // nota crédito que referencia una factura específica
+	inv.OperationTypeCode = "20" // credit note referencing a specific invoice
 	inv.DocumentTypeCode = "91"
 	inv.HashType = "CUDE-SHA384"
 	inv.Prefix = "SETPNC"
@@ -17,12 +17,13 @@ func sampleCreditNote() domain.CreditNote {
 
 	return domain.CreditNote{
 		Invoice:            inv,
-		CreditNoteTypeCode: "91", // código fijo DIAN para NC (tipo de documento); el concepto List 22 va en DiscrepancyResponse
+		CreditNoteTypeCode: "91", // fixed DIAN code for a Credit Note (document type); the List 22 concept goes in DiscrepancyResponse
 		BillingReference: domain.BillingReference{
 			Prefix:    "SETP",
 			Number:    "1",
 			CUFE:      "8bb918b19ba22a694f1da11c643b5e9de39adf60311cf179179e9b33381030bcd4c3c3f156c506ed5908f9276f5bd9b4",
 			IssueDate: "2024-01-20",
+			HashType:  "CUFE-SHA384", // references a regular Invoice
 		},
 		DiscrepancyResponse: &domain.DiscrepancyResponse{
 			ReferenceID:  "SETP1",
@@ -49,14 +50,14 @@ func TestBuildCreditNote_Golden(t *testing.T) {
 		if err := os.WriteFile(goldenPath, []byte(got), 0o644); err != nil {
 			t.Fatalf("write golden: %v", err)
 		}
-		t.Skip("golden file regenerado, revisar a mano antes de confiar en él")
+		t.Skip("golden file regenerated, review by hand before trusting it")
 	}
 
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {
-		t.Fatalf("read golden (¿falta correr con -update?): %v", err)
+		t.Fatalf("read golden (missing -update run?): %v", err)
 	}
 	if got != string(want) {
-		t.Errorf("XML generado no coincide con %s\n--- got ---\n%s", goldenPath, got)
+		t.Errorf("generated XML does not match %s\n--- got ---\n%s", goldenPath, got)
 	}
 }

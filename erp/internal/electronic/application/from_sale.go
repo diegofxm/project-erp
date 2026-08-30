@@ -44,7 +44,20 @@ func (uc *CreateFromSaleUseCase) Execute(ctx context.Context, req FromSaleReques
 		return nil, fmt.Errorf("from-sale: la venta debe estar confirmada")
 	}
 	if sale.InvoiceDocumentID != nil {
-		return nil, fmt.Errorf("from-sale: esta venta ya generó la factura %s", *sale.InvoiceDocumentID)
+		existing, err := uc.draft.documents.GetByID(ctx, *sale.InvoiceDocumentID)
+		if err != nil {
+			return nil, fmt.Errorf("from-sale: verificar factura existente: %w", err)
+		}
+		// La factura ya generada solo bloquea un reintento si sigue viva (borrador, construida,
+		// enviada, aceptada) o si quedó en StatusSendUnknown (ambiguo -- puede haber llegado a la
+		// DIAN, reintentar a ciegas arriesga doble facturación, ver domain.StatusSendUnknown). Si
+		// quedó en un estado terminal donde el consecutivo ya se liberó (mismo criterio que
+		// confirm.go finish()), es seguro generar una factura nueva -- el usuario corrige lo que
+		// causó el rechazo y reintenta (bug real reportado 2026-08-11: la venta quedaba con "Ver
+		// factura" apuntando para siempre a una factura rechazada, sin forma de corregir y reenviar).
+		if !isRetryableFailure(existing.Status) {
+			return nil, fmt.Errorf("from-sale: esta venta ya generó la factura %s", *sale.InvoiceDocumentID)
+		}
 	}
 
 	customer, err := uc.customers.GetByID(ctx, req.CompanyID, sale.CustomerID)
@@ -69,7 +82,7 @@ func (uc *CreateFromSaleUseCase) Execute(ctx context.Context, req FromSaleReques
 		NumberingRangeID: req.NumberingRangeID,
 		Customer:         saleCustomerToParty(customer),
 		Lines:            saleLinesТoСof(sale.Lines, productMap),
-		PaymentMeans:     []cofdom.PaymentMean{{Code: "1", PaymentMethodCode: "1"}},
+		PaymentMeans:     salePaymentMeansOrDefault(sale.PaymentMeans),
 		Note:             sale.Notes,
 		CurrencyCode:     "COP",
 		CustomerID:       &sale.CustomerID,
@@ -119,6 +132,17 @@ func saleCustomerToParty(c *domain.Party) cofdom.Party {
 	}
 }
 
+// salePaymentMeansOrDefault usa los medios de pago realmente pactados en la venta -- antes esta
+// función siempre forzaba "Contado/Efectivo" (código 1/1) sin importar cómo se vendió. Si la venta
+// no trae ninguno (ventas creadas antes de este cambio, o el vendedor dejó el campo vacío), se
+// conserva ese mismo default como último recurso para no romper la generación del documento.
+func salePaymentMeansOrDefault(pms []cofdom.PaymentMean) []cofdom.PaymentMean {
+	if len(pms) == 0 {
+		return []cofdom.PaymentMean{{Code: "1", PaymentMethodCode: "1"}}
+	}
+	return pms
+}
+
 func saleLinesТoСof(lines []salesdomain.SaleLine, products map[uuid.UUID]*productdomain.Product) []cofdom.Line {
 	out := make([]cofdom.Line, len(lines))
 	for i, l := range lines {
@@ -127,34 +151,67 @@ func saleLinesТoСof(lines []salesdomain.SaleLine, products map[uuid.UUID]*prod
 		itemCode := ""
 		itemTypeCode := ""
 		itemTypeName := ""
+		itemTypeAgencyID := ""
 		taxCode := "01"
 		taxName := "IVA"
 		if p != nil {
 			if p.UnitMeasureCode != "" {
 				unitCode = p.UnitMeasureCode
 			}
-			itemCode = p.Code
-			itemTypeCode = p.StandardCodeType
-			itemTypeName = p.StandardCode
+			// StandardCode/StandardCodeID van al <cbc:ID schemeID= schemeName=> de
+			// StandardItemIdentification (ver cofacture/builder/line_items.go) -- StandardCodeID es
+			// el CÓDIGO de catálogo DIAN (ej. "999"), no el nombre. Antes este mapeo mandaba
+			// StandardCodeType (texto libre del producto, ej. "Estándar propio") como schemeID, y
+			// la DIAN rechazaba con FAZ12 "Codigo informado en @schemID no es valido" (bug real
+			// encontrado 2026-08-11). schemeName/schemeAgencyID se resuelven contra itemStandards
+			// (tabla oficial 13.3.5 del Anexo Técnico, ver create_draft.go) en vez de confiar en el
+			// texto libre que el producto tenga guardado -- así el XML siempre queda con el nombre
+			// oficial exacto sin importar qué se haya escrito al crear el producto.
+			itemCode = p.StandardCode
+			if itemCode == "" {
+				itemCode = p.Code // nunca dejar el <cbc:ID> vacío si el producto no definió StandardCode
+			}
+			itemTypeCode = p.StandardCodeID
+			if itemTypeCode == "" {
+				itemTypeCode = "999"
+			}
+			if std, ok := itemStandards[itemTypeCode]; ok {
+				itemTypeName = std.name
+				itemTypeAgencyID = std.agencyID
+			} else {
+				itemTypeName = p.StandardCodeType
+				itemTypeAgencyID = p.StandardCodeAgencyID
+			}
 			if p.TaxSchemeCode != "" {
 				taxCode = p.TaxSchemeCode
 				taxName = p.TaxSchemeName
 			}
 		}
-		var taxes []cofdom.Tax
-		if l.TaxRate > 0 {
-			taxes = []cofdom.Tax{{
-				TypeCode:           taxCode,
-				TypeName:           taxName,
-				Percent:            l.TaxRate,
-				TaxableAmountCents: int64(l.Subtotal * 100),
-				TaxAmountCents:     int64(l.TaxAmount * 100),
-			}}
+		// La unidad elegida en la propia línea de venta (SalesLineItemsEditor.tsx) manda sobre la
+		// del producto -- el vendedor puede vender el mismo producto en una unidad distinta a la
+		// registrada en su ficha (ej. producto en caja vendido por unidad suelta).
+		if l.UnitCode != "" {
+			unitCode = l.UnitCode
 		}
+		// Siempre se arma la entrada de impuesto, incluso al 0% -- igual que LinesFromInput
+		// (create_draft.go, ruta de creación directa). Antes esto se omitía por completo cuando
+		// TaxRate era 0, dejando la línea sin ningún <cac:TaxTotal> y, por lo tanto, su base fuera
+		// del <cac:TaxTotal> de cabecera (aggregateTaxes solo suma lo que hay en l.Taxes) -- la
+		// DIAN rechaza eso con FAU04 "Base Imponible es distinto a la suma de los valores de las
+		// bases imponibles de todas líneas de detalle" en cuanto la factura mezcla líneas
+		// gravadas y no gravadas (bug real encontrado 2026-08-11).
+		taxes := []cofdom.Tax{{
+			TypeCode:           taxCode,
+			TypeName:           taxName,
+			Percent:            l.TaxRate,
+			TaxableAmountCents: int64(l.Subtotal * 100),
+			TaxAmountCents:     int64(l.TaxAmount * 100),
+		}}
 		out[i] = cofdom.Line{
 			ItemCode:           itemCode,
 			ItemTypeCode:       itemTypeCode,
 			ItemTypeName:       itemTypeName,
+			ItemTypeAgencyID:   itemTypeAgencyID,
 			Description:        l.Description,
 			Quantity:           l.Quantity,
 			UnitCode:           unitCode,

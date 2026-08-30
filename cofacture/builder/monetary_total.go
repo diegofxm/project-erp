@@ -5,10 +5,9 @@ import (
 	"github.com/diegofxm/cofacture/domain"
 )
 
-// appendMonetaryTotal agrega el bloque de totales — compartido por Invoice, CreditNote y
-// DebitNote. node es "LegalMonetaryTotal" para Invoice/CreditNote, "RequestedMonetaryTotal"
-// para DebitNote (mismo contenido, distinto nombre de elemento — verificado en la sección
-// 8.4 del anexo técnico).
+// appendMonetaryTotal adds the totals block — shared by Invoice, CreditNote and DebitNote.
+// node is "LegalMonetaryTotal" for Invoice/CreditNote, "RequestedMonetaryTotal" for DebitNote
+// (same content, different element name — verified in section 8.4 of the technical annex).
 func appendMonetaryTotal(parent *etree.Element, node string, t domain.Totals, currency, documentTypeCode string) {
 	el := parent.CreateElement("cac:" + node)
 
@@ -28,6 +27,14 @@ func appendMonetaryTotal(parent *etree.Element, node string, t domain.Totals, cu
 		prepaid := el.CreateElement("cbc:PrepaidAmount")
 		prepaid.CreateAttr("currencyID", currency)
 		prepaid.SetText(formatAmount(t.PrepaidCents))
+	}
+
+	// PayableRoundingAmount is the only monetary field the annex allows negative (e.g. a POS
+	// total rounded to the nearest 50/100 pesos) — omitted entirely when zero, same as Prepaid.
+	if t.RoundingCents != 0 {
+		rounding := el.CreateElement("cbc:PayableRoundingAmount")
+		rounding.CreateAttr("currencyID", currency)
+		rounding.SetText(formatAmount(t.RoundingCents))
 	}
 
 	payable := el.CreateElement("cbc:PayableAmount")

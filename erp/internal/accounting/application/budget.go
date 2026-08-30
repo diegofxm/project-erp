@@ -32,6 +32,36 @@ func (uc *BudgetUseCase) List(ctx context.Context, companyID uuid.UUID, year int
 	return uc.budgets.List(ctx, companyID, year)
 }
 
+func (uc *BudgetUseCase) Rename(ctx context.Context, companyID, id uuid.UUID, name string) (*domain.Budget, error) {
+	if name == "" {
+		return nil, fmt.Errorf("el nombre del presupuesto es obligatorio")
+	}
+	return uc.budgets.Rename(ctx, companyID, id, name)
+}
+
+func (uc *BudgetUseCase) Delete(ctx context.Context, companyID, id uuid.UUID) error {
+	return uc.budgets.Delete(ctx, companyID, id)
+}
+
+// DeleteLine quita una cuenta del presupuesto -- solo mientras sigue en DRAFT (mismo criterio
+// que SetLine, verificado acá porque Repository.DeleteLine no conoce el estado del presupuesto).
+// Recibe accountCode (no accountID) por el mismo motivo que SetLine: el frontend solo maneja
+// códigos PUC, nunca UUIDs de cuenta.
+func (uc *BudgetUseCase) DeleteLine(ctx context.Context, companyID, budgetID uuid.UUID, accountCode string) error {
+	budget, err := uc.budgets.GetByID(ctx, companyID, budgetID)
+	if err != nil {
+		return err
+	}
+	if budget.Status != domain.BudgetDraft {
+		return domain.ErrBudgetNotDraft
+	}
+	acct, err := uc.accounts.GetPostable(ctx, accountCode)
+	if err != nil {
+		return err
+	}
+	return uc.budgets.DeleteLine(ctx, budgetID, acct.ID)
+}
+
 type SetBudgetLineRequest struct {
 	BudgetID    uuid.UUID
 	AccountCode string

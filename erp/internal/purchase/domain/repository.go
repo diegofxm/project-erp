@@ -8,6 +8,9 @@ import (
 
 type Repository interface {
 	Save(ctx context.Context, o PurchaseOrder) (*PurchaseOrder, error)
+	// Update reemplaza proveedor/fecha/notas/líneas de una orden EN BORRADOR -- devuelve
+	// ErrPurchaseNotDraft si ya está confirmada/recibida (se reversa con Cancel, no se edita).
+	Update(ctx context.Context, companyID, id uuid.UUID, o PurchaseOrder) (*PurchaseOrder, error)
 	GetByID(ctx context.Context, companyID, id uuid.UUID) (*PurchaseOrder, error)
 	List(ctx context.Context, companyID uuid.UUID) ([]PurchaseOrder, error)
 	UpdateStatus(ctx context.Context, companyID, id uuid.UUID, status PurchaseStatus) error

@@ -1,9 +1,9 @@
-// Package signer firma documentos UBL con XAdES-EPES, tal como lo exige la DIAN.
+// Package signer signs UBL documents with XAdES-EPES, as required by DIAN.
 //
-// La estructura (tres ds:Reference — documento, KeyInfo y SignedProperties — más la
-// política de firma fija de la DIAN) fue verificada byte a byte contra dos facturas
-// electrónicas reales y aceptadas, de dos proveedores tecnológicos distintos, no inferida
-// solo del anexo técnico.
+// The structure (three ds:Reference elements — document, KeyInfo and SignedProperties — plus
+// DIAN's fixed signature policy) was verified byte-for-byte against two real, accepted
+// electronic invoices from two different technology providers, not inferred solely from the
+// technical annex.
 package signer
 
 import (
@@ -28,36 +28,37 @@ const (
 	signedPropertiesRefType  = "http://uri.etsi.org/01903#SignedProperties"
 )
 
-// canonicalizer implementa exactamente "http://www.w3.org/TR/2001/REC-xml-c14n-20010315"
-// (C14N 1.0 inclusivo) — el algoritmo que usa la DIAN, distinto del exclusivo (xml-exc-c14n).
+// canonicalizer implements exactly "http://www.w3.org/TR/2001/REC-xml-c14n-20010315"
+// (inclusive C14N 1.0) — the algorithm DIAN uses, distinct from the exclusive one
+// (xml-exc-c14n).
 var canonicalizer = dsig.MakeC14N10RecCanonicalizer()
 
-// Signer firma documentos UBL con un certificado y llave privada RSA concretos.
+// Signer signs UBL documents with a concrete RSA certificate and private key.
 type Signer struct {
 	cert *x509.Certificate
 	key  *rsa.PrivateKey
 }
 
-// New crea un Signer a partir de un certificado y llave ya cargados (ver LoadPEM/LoadPKCS12).
+// New creates a Signer from an already-loaded certificate and key (see LoadPEM/LoadPKCS12).
 func New(cert *x509.Certificate, key *rsa.PrivateKey) *Signer {
 	return &Signer{cert: cert, key: key}
 }
 
-// Sign firma root insertando un ds:Signature XAdES-EPES dentro de placeholder.
+// Sign signs root by inserting an XAdES-EPES ds:Signature inside placeholder.
 //
-// placeholder debe ser un ext:ExtensionContent vacío ya ubicado en su posición final dentro
-// del documento (el último ext:UBLExtension de ext:UBLExtensions, tal como lo deja
-// builder.BuildInvoice) — la firma necesita estar en su posición final para que la
-// canonicalización inclusiva (C14N 1.0 REC) herede correctamente los namespaces del
-// documento. root es el elemento raíz del documento (Invoice/CreditNote/DebitNote/
-// AttachedDocument); su digest (ds:Reference URI="") se calcula antes de tocar el árbol.
+// placeholder must be an empty ext:ExtensionContent already located in its final position
+// within the document (the last ext:UBLExtension of ext:UBLExtensions, exactly as
+// builder.BuildInvoice leaves it) — the signature needs to be in its final position for
+// inclusive canonicalization (C14N 1.0 REC) to correctly inherit the document's namespaces.
+// root is the document's root element (Invoice/CreditNote/DebitNote/AttachedDocument); its
+// digest (ds:Reference URI="") is computed before the tree is touched further.
 //
-// role es el valor de xades:ClaimedRole: "supplier" para Invoice/CreditNote/DebitNote,
-// "" para la firma del AttachedDocument (verificado contra ambos casos en facturas reales).
+// role is the value of xades:ClaimedRole: "supplier" for Invoice/CreditNote/DebitNote, "" for
+// the AttachedDocument's own signature (verified against both cases in real invoices).
 func (s *Signer) Sign(root, placeholder *etree.Element, role string, signingTime time.Time) error {
 	docDigest, err := digestValue(root)
 	if err != nil {
-		return fmt.Errorf("signer: digest del documento: %w", err)
+		return fmt.Errorf("signer: document digest: %w", err)
 	}
 
 	id := "xmldsig-" + uuid.New().String()
@@ -67,26 +68,26 @@ func (s *Signer) Sign(root, placeholder *etree.Element, role string, signingTime
 	keyInfoEl := s.buildKeyInfo(sigEl, id)
 	keyInfoDigest, err := digestValue(keyInfoEl)
 	if err != nil {
-		return fmt.Errorf("signer: digest de KeyInfo: %w", err)
+		return fmt.Errorf("signer: KeyInfo digest: %w", err)
 	}
 
 	signedPropsEl := s.buildSignedProperties(sigEl, id, role, signingTime)
 	signedPropsDigest, err := digestValue(signedPropsEl)
 	if err != nil {
-		return fmt.Errorf("signer: digest de SignedProperties: %w", err)
+		return fmt.Errorf("signer: SignedProperties digest: %w", err)
 	}
 
 	signedInfoEl := buildSignedInfo(id, docDigest, keyInfoDigest, signedPropsDigest)
-	sigEl.InsertChildAt(0, signedInfoEl) // orden de esquema: SignedInfo, SignatureValue, KeyInfo, Object
+	sigEl.InsertChildAt(0, signedInfoEl) // schema order: SignedInfo, SignatureValue, KeyInfo, Object
 
 	canonSignedInfo, err := canonicalizer.Canonicalize(signedInfoEl)
 	if err != nil {
-		return fmt.Errorf("signer: canonicalizar SignedInfo: %w", err)
+		return fmt.Errorf("signer: canonicalize SignedInfo: %w", err)
 	}
 	hashed := sha256.Sum256(canonSignedInfo)
 	signature, err := rsa.SignPKCS1v15(rand.Reader, s.key, crypto.SHA256, hashed[:])
 	if err != nil {
-		return fmt.Errorf("signer: firmar SignedInfo: %w", err)
+		return fmt.Errorf("signer: sign SignedInfo: %w", err)
 	}
 
 	sigValueEl := etree.NewElement("ds:SignatureValue")
@@ -124,8 +125,8 @@ func buildSignedInfo(id, docDigest, keyInfoDigest, signedPropsDigest string) *et
 	return signedInfo
 }
 
-// digestValue canonicaliza el (ya posicionado en el árbol) y retorna el SHA-256 en base64,
-// listo para un ds:DigestValue.
+// digestValue canonicalizes el (already positioned in the tree) and returns its SHA-256 in
+// base64, ready for a ds:DigestValue.
 func digestValue(el *etree.Element) (string, error) {
 	canon, err := canonicalizer.Canonicalize(el)
 	if err != nil {

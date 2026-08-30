@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	cofdom "github.com/diegofxm/cofacture/domain"
 )
 
 type SaleStatus string
@@ -28,6 +30,11 @@ type Sale struct {
 	DueDate    *time.Time // fecha vencimiento cartera
 	Notes      string
 	Lines      []SaleLine
+	// PaymentMeans -- mismo tipo y catálogos DIAN que usa electronic (payment_terms/
+	// payment_methods) para no inventar una segunda clasificación. Se hereda tal cual a la
+	// factura electrónica generada desde esta venta (ver electronic/application/from_sale.go) --
+	// antes esa función forzaba "Contado/Efectivo" sin importar cómo se pactó la venta.
+	PaymentMeans []cofdom.PaymentMean
 	// InvoiceDocumentID — factura electrónica ya generada desde esta venta, si alguna
 	// (electronic.documents.id, sin FK — cada módulo es dueño de su schema). nil = todavía no
 	// se ha facturado.
@@ -41,13 +48,16 @@ type SaleLine struct {
 	SaleID      uuid.UUID
 	ProductID   uuid.UUID
 	Description string
-	Quantity    float64
-	UnitPrice   float64
-	Discount    float64 // porcentaje 0-100, aplicado antes de impuestos
-	TaxRate     float64
-	Subtotal    float64
-	TaxAmount   float64
-	Total       float64
+	// UnitCode -- código de unidad de medida (catálogo DIAN, ej. "94" = Servicio), mismo campo
+	// que electronic.documents ya pedía en su formulario -- ver electronic/application/from_sale.go.
+	UnitCode  string
+	Quantity  float64
+	UnitPrice float64
+	Discount  float64 // porcentaje 0-100, aplicado antes de impuestos
+	TaxRate   float64
+	Subtotal  float64
+	TaxAmount float64
+	Total     float64
 }
 
 // SaleConfirmed es el evento publicado al confirmar una venta.

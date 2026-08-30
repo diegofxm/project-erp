@@ -8,10 +8,11 @@ import (
 	ubl "github.com/diegofxm/cofacture/xml"
 )
 
-// BuildAdjustmentNote construye el árbol XML de una Nota de Ajuste al Documento Soporte
-// (InvoiceTypeCode "95"). Usa CreditNote como elemento raíz (igual que NC/91) con
-// namespace CreditNote-2 — verificado contra el ejemplo oficial DIAN NotaDeAjuste.xml.
-// Roles invertidos iguales al DS: Supplier = SNO, Customer = ABS.
+// BuildAdjustmentNote builds the XML tree of an Adjustment Note to the Support Document
+// (InvoiceTypeCode "95"). Uses CreditNote as the root element (same as a regular Credit
+// Note/91) with the CreditNote-2 namespace — verified against DIAN's official
+// NotaDeAjuste.xml example. Roles are inverted just like the Support Document: Supplier = SNO
+// (non-obligated third party), Customer = ABS.
 func BuildAdjustmentNote(an domain.AdjustmentNote) (*etree.Document, error) {
 	doc := etree.NewDocument()
 	doc.CreateProcInst("xml", `version="1.0" encoding="UTF-8" standalone="no"`)
@@ -28,7 +29,7 @@ func BuildAdjustmentNote(an domain.AdjustmentNote) (*etree.Document, error) {
 	root.CreateAttr("xmlns:xsi", ubl.NSXsi)
 	root.CreateAttr("xsi:schemaLocation", ubl.NSCreditNote+" http://docs.oasis-open.org/ubl/os-UBL-2.1/xsd/maindoc/UBL-CreditNote-2.1.xsd")
 
-	// appendUBLExtensions maneja InvoiceControl para tipo "05"/"95" (familia DS).
+	// appendUBLExtensions handles InvoiceControl for type "05"/"95" (Support Document family).
 	appendUBLExtensions(root, an.Invoice)
 
 	root.CreateElement("cbc:UBLVersionID").SetText("UBL 2.1")
@@ -49,20 +50,22 @@ func BuildAdjustmentNote(an domain.AdjustmentNote) (*etree.Document, error) {
 		root.CreateElement("cbc:Note").SetText(an.Note)
 	}
 
-	// NA: DocumentCurrencyCode sin atributos de lista (igual que DS — DSFC03).
+	// N/A: DocumentCurrencyCode with no list attributes (same as the Support Document — DSFC03).
 	root.CreateElement("cbc:DocumentCurrencyCode").SetText(an.CurrencyCode)
 
 	root.CreateElement("cbc:LineCountNumeric").SetText(strconv.Itoa(len(an.Lines)))
 
-	// DiscrepancyResponse va antes de BillingReference (mismo orden que NC/ND).
+	// DiscrepancyResponse goes before BillingReference (same order as Credit/Debit Note).
 	if an.DiscrepancyResponse != nil {
 		appendDiscrepancyResponse(root, *an.DiscrepancyResponse)
 	}
 
-	// BillingReference apunta al DS original — el UUID lleva schemeName="CUDS-SHA384".
+	// BillingReference points to the original Support Document — the UUID carries
+	// schemeName="CUDS-SHA384".
 	appendNABillingReference(root, an.BillingReference)
 
-	// Roles invertidos iguales al DS: Supplier = tercero no obligado, Customer = ABS.
+	// Roles inverted just like the Support Document: Supplier = non-obligated third party,
+	// Customer = ABS.
 	appendDSSupplierParty(root, an.Supplier)
 	appendDSCustomerParty(root, an.Customer)
 
@@ -85,8 +88,9 @@ func BuildAdjustmentNote(an domain.AdjustmentNote) (*etree.Document, error) {
 	return doc, nil
 }
 
-// appendNABillingReference agrega cac:BillingReference al DS original con schemeName
-// "CUDS-SHA384" — distinto de NC/ND que referencian una FE con "CUFE-SHA384".
+// appendNABillingReference adds cac:BillingReference to the original Support Document with
+// schemeName "CUDS-SHA384" — unlike Credit/Debit Note, which reference an Invoice with
+// "CUFE-SHA384".
 func appendNABillingReference(parent *etree.Element, br domain.BillingReference) {
 	ref := parent.CreateElement("cac:BillingReference").CreateElement("cac:InvoiceDocumentReference")
 	ref.CreateElement("cbc:ID").SetText(br.Prefix + br.Number)

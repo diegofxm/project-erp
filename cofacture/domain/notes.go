@@ -1,46 +1,50 @@
 package domain
 
-// BillingReference identifica la factura que una Nota Crédito/Débito corrige
-// (cac:BillingReference) — siempre obligatoria en ambas, a diferencia de
-// DiscrepancyResponse.
+// BillingReference identifies the invoice that a Credit/Debit Note corrects
+// (cac:BillingReference) — always required in both, unlike DiscrepancyResponse.
 type BillingReference struct {
 	Prefix    string
 	Number    string
-	CUFE      string // CUFE de la factura referenciada (no el de esta nota)
+	CUFE      string // hash of the referenced document (not this note's own CUFE/CUDE)
 	IssueDate string
+
+	// HashType is the referenced document's own hash scheme — "CUFE-SHA384" when a Credit/Debit
+	// Note corrects a regular Invoice, "CUDE-SHA384" when it corrects a Documento Equivalente
+	// Electrónico (e.g. a POS ticket, DocumentTypeCode "93"/"94"). It must match the referenced
+	// document's actual HashType, not this note's own — the two can differ.
+	HashType string
 }
 
-// DiscrepancyResponse es el motivo de la nota (cac:DiscrepancyResponse) — obligatorio
-// cuando la nota referencia una factura específica (operación "20" para Nota Crédito, "30"
-// para Nota Débito, catálogo de tipos de operación). ResponseCode usa el catálogo de
-// conceptos de nota crédito/débito.
+// DiscrepancyResponse is the note's reason (cac:DiscrepancyResponse) — required when the note
+// references a specific invoice (operation "20" for Credit Note, "30" for Debit Note,
+// operation type catalog). ResponseCode uses the credit/debit note concept catalog.
 type DiscrepancyResponse struct {
-	ReferenceID  string // normalmente Prefix+Number de la factura referenciada
+	ReferenceID  string // normally Prefix+Number of the referenced invoice
 	ResponseCode string
 	Description  string
 }
 
-// CreditNote es una Nota Crédito. Comparte casi todos los campos con Invoice — UBL las
-// trata como documentos distintos, pero lo que de verdad cambia es el tipo de documento, la
-// referencia a la factura corregida y el motivo. Por eso se reutiliza Invoice en vez de
-// repetir ~20 campos.
+// CreditNote is a Credit Note. It shares almost every field with Invoice — UBL treats them as
+// distinct documents, but what actually changes is the document type, the reference to the
+// corrected invoice, and the reason. That's why Invoice is reused instead of repeating ~20
+// fields.
 //
-// El campo heredado CUFE guarda en realidad el CUDE de esta nota (mismo slot que usa la
-// DIAN — cbc:UUID — para cualquiera de los documentos electrónicos; HashType es lo que
-// distingue "CUFE-SHA384" de "CUDE-SHA384", no el nombre del campo en este modelo).
+// The inherited CUFE field actually holds this note's CUDE (the same slot DIAN uses —
+// cbc:UUID — for any of the electronic documents; HashType is what distinguishes
+// "CUFE-SHA384" from "CUDE-SHA384", not the field name in this model).
 type CreditNote struct {
 	Invoice
 
-	CreditNoteTypeCode  string // catálogo de tipo de Nota Crédito (cbc:CreditNoteTypeCode)
+	CreditNoteTypeCode  string // Credit Note type catalog (cbc:CreditNoteTypeCode)
 	BillingReference    BillingReference
-	DiscrepancyResponse *DiscrepancyResponse // nil si la operación no exige motivo
+	DiscrepancyResponse *DiscrepancyResponse // nil if the operation does not require a reason
 }
 
-// DebitNote es una Nota Débito. Estructuralmente igual a CreditNote — la única diferencia
-// de fondo con el builder es que usa cac:RequestedMonetaryTotal en vez de
-// cac:LegalMonetaryTotal, y el anexo técnico no define un equivalente a
-// cbc:CreditNoteTypeCode para Nota Débito (verificado: no hay tal elemento entre
-// DocumentCurrencyCode y LineCountNumeric en la sección 8.4 del anexo).
+// DebitNote is a Debit Note. Structurally identical to CreditNote — the real differences from
+// the builder's perspective are that it uses cac:RequestedMonetaryTotal instead of
+// cac:LegalMonetaryTotal, and the technical annex defines no equivalent to
+// cbc:CreditNoteTypeCode for Debit Note (verified: no such element appears between
+// DocumentCurrencyCode and LineCountNumeric in section 8.4 of the annex).
 type DebitNote struct {
 	Invoice
 
@@ -48,14 +52,15 @@ type DebitNote struct {
 	DiscrepancyResponse *DiscrepancyResponse
 }
 
-// AdjustmentNote es la Nota de Ajuste al Documento Soporte (InvoiceTypeCode "95").
-// Es al DS (tipo 05) lo que NC/ND son a la Factura: permite corregir o anular un DS emitido.
-// Los roles son los mismos que en DS: Supplier = tercero no obligado (SNO),
-// Customer = empresa compradora/emisora (ABS). Usa CUDS-SHA384 (misma fórmula que DS).
-// El campo heredado CUFE guarda el CUDS de esta nota (schemeName "CUDS-SHA384").
+// AdjustmentNote is the Adjustment Note to the Support Document (InvoiceTypeCode "95").
+// It is to the Support Document (type 05) what Credit/Debit Notes are to the Invoice: it
+// allows correcting or voiding a previously issued Support Document. The roles are the same
+// as in the Support Document: Supplier = non-obligated third party (SNO), Customer = the
+// purchasing/issuing company (ABS). Uses CUDS-SHA384 (same formula as the Support Document).
+// The inherited CUFE field holds this note's CUDS (schemeName "CUDS-SHA384").
 type AdjustmentNote struct {
 	Invoice
 
-	BillingReference    BillingReference    // Referencia al DS original (UUID con schemeName CUDS-SHA384)
+	BillingReference    BillingReference // Reference to the original Support Document (UUID with schemeName CUDS-SHA384)
 	DiscrepancyResponse *DiscrepancyResponse
 }

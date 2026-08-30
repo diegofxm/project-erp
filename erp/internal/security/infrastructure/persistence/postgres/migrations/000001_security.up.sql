@@ -15,6 +15,11 @@ CREATE TABLE IF NOT EXISTS security.users (
     invite_token            UUID        UNIQUE,
     invite_token_expires_at TIMESTAMPTZ,
     invite_accepted_at      TIMESTAMPTZ,
+    -- reset_token/reset_token_expires_at: recuperación de contraseña por correo (forgot-password),
+    -- mismo patrón que invite_token pero para un usuario que YA tiene cuenta activa (ver
+    -- ForgotPasswordUseCase/ResetPasswordUseCase).
+    reset_token             UUID        UNIQUE,
+    reset_token_expires_at  TIMESTAMPTZ,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

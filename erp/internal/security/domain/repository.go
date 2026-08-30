@@ -38,6 +38,12 @@ type Repository interface {
 	// emitido deja de pasar la verificación en el próximo request (ver SessionVerifier). Se usa en
 	// logout y al cambiar contraseña.
 	IncrementTokenVersion(ctx context.Context, userID uuid.UUID) error
+	// GetByResetToken/SetResetToken/ClearResetToken -- ver ForgotPasswordUseCase/
+	// ResetPasswordUseCase. SetResetToken sobrescribe cualquier token de reset previo (así pedir
+	// "olvidé mi contraseña" varias veces solo deja vivo el último enlace enviado).
+	GetByResetToken(ctx context.Context, token uuid.UUID) (*User, error)
+	SetResetToken(ctx context.Context, userID uuid.UUID, token uuid.UUID, expiresAt time.Time) error
+	ClearResetToken(ctx context.Context, userID uuid.UUID) error
 
 	// Vínculos usuario↔empresa (company_id es UUID puro; FK a company schema se añade cuando exista)
 	AddCompany(ctx context.Context, userID, companyID uuid.UUID, role string) error

@@ -28,6 +28,8 @@ interface AuthContextValue {
   retryConnection: () => Promise<void>;
   login: (payload: LoginPayload) => Promise<void>;
   acceptInvite: (token: string, password: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, password: string) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
   listCompanies: () => Promise<Company[]>;
@@ -107,6 +109,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const acceptInvite = useCallback(
     async (token: string, password: string) => {
       const result = await apiClient.post<AuthResult>("/auth/accept-invite", { token, password });
+      await applyAuthResult(result);
+    },
+    [applyAuthResult],
+  );
+
+  // forgotPassword nunca lanza por "correo no existe" -- el backend responde 200 con un mensaje
+  // genérico exista o no la cuenta (ver ForgotPasswordUseCase), así que solo hay que manejar
+  // errores reales (ej. demasiadas solicitudes) en el catch de quien llame a esto.
+  const forgotPassword = useCallback(async (email: string) => {
+    await apiClient.post("/auth/forgot-password", { email });
+  }, []);
+
+  const resetPassword = useCallback(
+    async (token: string, password: string) => {
+      const result = await apiClient.post<AuthResult>("/auth/reset-password", { token, password });
       await applyAuthResult(result);
     },
     [applyAuthResult],
@@ -308,6 +325,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       retryConnection,
       login,
       acceptInvite,
+      forgotPassword,
+      resetPassword,
       register,
       logout,
       listCompanies,
@@ -330,6 +349,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       retryConnection,
       login,
       acceptInvite,
+      forgotPassword,
+      resetPassword,
       register,
       logout,
       listCompanies,

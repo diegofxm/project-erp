@@ -1,4 +1,4 @@
-package soap
+package integrationtest
 
 import (
 	"os"
@@ -14,14 +14,17 @@ import (
 	"github.com/diegofxm/cofacture/qr"
 	"github.com/diegofxm/cofacture/securitycode"
 	"github.com/diegofxm/cofacture/signer"
+	"github.com/diegofxm/cofacture/soap"
 	"github.com/diegofxm/cofacture/zip"
 )
 
+// parseEnvFile reads a .env-style file (KEY=VALUE, lines starting with # are comments)
+// without depending on any library — it is used only in this test, never in production code.
 func parseEnvFile(t *testing.T, path string) map[string]string {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("leer %s: %v", path, err)
+		t.Fatalf("read %s: %v", path, err)
 	}
 	vals := map[string]string{}
 	for _, line := range strings.Split(string(data), "\n") {
@@ -38,28 +41,28 @@ func parseEnvFile(t *testing.T, path string) map[string]string {
 	return vals
 }
 
-// TestSendTestSetAsync_Real construye, firma, comprime y envía una factura real al
-// ambiente de habilitación de la DIAN, usando las credenciales reales de
-// docs/reference. Se omite por defecto (mismo patrón que core-bank con DATABASE_URL) —
-// solo corre si COFACTURE_TEST_FIXTURES_DIR apunta a esa carpeta.
+// TestSendTestSetAsync_Real builds, signs, compresses, and sends a real invoice to the DIAN
+// certification environment, using the real credentials from docs/reference. Skipped by
+// default (same pattern as core-bank's DATABASE_URL) — it only runs if
+// COFACTURE_TEST_FIXTURES_DIR points to that folder.
 //
-// Esto NO completa el proceso de habilitación por sí solo — eso requiere enviar el "set de
-// pruebas" completo que la DIAN define para cada participante, no una factura inventada.
-// El objetivo aquí es validar que el pipeline propio (build → CUFE → firma → zip → envío)
-// es aceptado por el servidor real, no terminar la habilitación de una vez.
+// This does NOT complete the certification process by itself — that requires submitting the
+// complete "test set" that the DIAN defines for each participant, not a single made-up invoice.
+// The goal here is to validate that our own pipeline (build -> CUFE -> sign -> zip -> submit)
+// is accepted by the real server, not to finish certification in one shot.
 func TestSendTestSetAsync_Real(t *testing.T) {
 	dir := os.Getenv("COFACTURE_TEST_FIXTURES_DIR")
 	if dir == "" {
-		t.Skip("COFACTURE_TEST_FIXTURES_DIR no configurado, se omite la prueba real contra la DIAN")
+		t.Skip("COFACTURE_TEST_FIXTURES_DIR not set, skipping real-DIAN test")
 	}
 
 	certPEM, err := os.ReadFile(filepath.Join(dir, "certificado_cert.pem"))
 	if err != nil {
-		t.Fatalf("leer certificado: %v", err)
+		t.Fatalf("read certificate: %v", err)
 	}
 	keyPEM, err := os.ReadFile(filepath.Join(dir, "certificado_key.pem"))
 	if err != nil {
-		t.Fatalf("leer llave privada: %v", err)
+		t.Fatalf("read private key: %v", err)
 	}
 	cert, key, err := signer.LoadPEM(certPEM, keyPEM)
 	if err != nil {
@@ -70,21 +73,21 @@ func TestSendTestSetAsync_Real(t *testing.T) {
 
 	rangeFrom, err := time.Parse("02-01-2006", env["DIAN_RANGE_DATE_FROM"])
 	if err != nil {
-		t.Fatalf("parsear DIAN_RANGE_DATE_FROM: %v", err)
+		t.Fatalf("parse DIAN_RANGE_DATE_FROM: %v", err)
 	}
 	rangeTo, err := time.Parse("02-01-2006", env["DIAN_RANGE_DATE_TO"])
 	if err != nil {
-		t.Fatalf("parsear DIAN_RANGE_DATE_TO: %v", err)
+		t.Fatalf("parse DIAN_RANGE_DATE_TO: %v", err)
 	}
 
 	now := time.Now().In(domain.Bogota)
-	// El número debe caer dentro del rango autorizado (DIAN_RANGE_FROM..DIAN_RANGE_TO) — la
-	// DIAN rechazó la primera vuelta de esta prueba con FAD05b al usar "1". Se suma un
-	// desplazamiento pequeño basado en la hora para poder re-correr esta prueba varias
-	// veces sin repetir el mismo número de factura.
+	// The number must fall inside the authorized range (DIAN_RANGE_FROM..DIAN_RANGE_TO) — the
+	// DIAN rejected the first run of this test with FAD05b when using "1". A small time-based
+	// offset is added so this test can be re-run several times without repeating the same
+	// invoice number.
 	rangeFromInt, err := strconv.ParseInt(env["DIAN_RANGE_FROM"], 10, 64)
 	if err != nil {
-		t.Fatalf("parsear DIAN_RANGE_FROM: %v", err)
+		t.Fatalf("parse DIAN_RANGE_FROM: %v", err)
 	}
 	number := strconv.FormatInt(rangeFromInt+time.Now().Unix()%100000, 10)
 
@@ -135,10 +138,11 @@ func TestSendTestSetAsync_Real(t *testing.T) {
 
 		PaymentMeans: []domain.PaymentMean{{Code: "1", PaymentMethodCode: "10"}},
 
-		// HeaderTaxes con IVA al 0% (en vez de omitir TaxTotal por completo) — la DIAN
-		// rechazó la primera vuelta de esta prueba con "FAU04: Base Imponible es distinto
-		// a la suma de los valores de las bases imponibles de todas líneas de detalle"
-		// cuando no se informaba ningún TaxTotal.
+		// HeaderTaxes with 0% VAT (instead of omitting TaxTotal entirely) — the DIAN rejected
+		// the first run of this test with "FAU04: Base Imponible es distinto a la suma de los
+		// valores de las bases imponibles de todas líneas de detalle" ("Taxable amount differs
+		// from the sum of the taxable amounts of all detail lines") when no TaxTotal was reported
+		// at all.
 		HeaderTaxes: []domain.Tax{
 			{TaxableAmountCents: 10000, TaxAmountCents: 0, Percent: 0, TypeCode: "01", TypeName: "IVA"},
 		},
@@ -173,10 +177,10 @@ func TestSendTestSetAsync_Real(t *testing.T) {
 			EndDate:        rangeTo.Format("2006-01-02"),
 		},
 
-		// La DIAN exige schemeName="31" (NIT) para el ProviderID del proveedor tecnológico
-		// incluso cuando, como aquí, el emisor es persona natural con cédula en el resto
-		// del documento (regla FAB23) — y el DV sí debe quedar correctamente calculado
-		// (FAB22b), por eso "7" y no un valor cualquiera.
+		// The DIAN requires schemeName="31" (NIT) for the technology provider's ProviderID
+		// even when, as here, the issuer is a natural person identified by cédula elsewhere in
+		// the document (rule FAB23) — and the DV must be correctly computed too (rule FAB22b),
+		// which is why it's "7" and not an arbitrary value.
 		SoftwareProvider: domain.SoftwareProvider{
 			ProviderIdentification: domain.Identification{Number: "6382356", TypeCode: "31", VerificationCode: "7"},
 			SoftwareID:             env["DIAN_SOFTWARE_ID"],
@@ -200,22 +204,23 @@ func TestSendTestSetAsync_Real(t *testing.T) {
 		t.Fatalf("Sign: %v", err)
 	}
 
-	// OJO: nunca llamar doc.Indent() (ni nada que reescriba el árbol) después de firmar — eso
-	// inserta texto en blanco en la estructura y el documento que se transmite deja de ser
-	// el mismo que se canonicalizó/firmó. Eso fue exactamente la causa de un "Valor de la
-	// firma inválido" real de la DIAN en una vuelta anterior de esta prueba.
+	// WARNING: never call doc.Indent() (or anything else that rewrites the tree) after signing —
+	// that inserts whitespace text into the structure, and the document that gets transmitted
+	// is no longer the same one that was canonicalized/signed. That was exactly the cause of a
+	// real "Valor de la firma inválido" ("Invalid signature value") rejection from the DIAN in
+	// an earlier run of this test.
 	xmlBytes, err := doc.WriteToBytes()
 	if err != nil {
 		t.Fatalf("WriteToBytes: %v", err)
 	}
-	// Guardamos copia local del XML firmado que se envía, para poder inspeccionarlo aparte
-	// si la DIAN lo rechaza (docs/reference/outputs está en .gitignore, no se commitea).
+	// Save a local copy of the signed XML being sent, so it can be inspected separately if the
+	// DIAN rejects it (docs/reference/outputs is in .gitignore, it isn't committed).
 	outputsDir := filepath.Join(dir, "outputs")
 	if err := os.MkdirAll(outputsDir, 0o755); err != nil {
-		t.Fatalf("crear outputs/: %v", err)
+		t.Fatalf("create outputs/: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(outputsDir, "_realsend_invoice.xml"), xmlBytes, 0o644); err != nil {
-		t.Fatalf("guardar copia local del XML: %v", err)
+	if err := os.WriteFile(filepath.Join(outputsDir, "_send_testset_invoice.xml"), xmlBytes, 0o644); err != nil {
+		t.Fatalf("save local copy of the XML: %v", err)
 	}
 
 	fileName := zip.DocumentFileName(zip.KindInvoice, inv.Supplier.Identification.Number, zip.SoftwarePropioCode, now.Year(), 1)
@@ -225,7 +230,7 @@ func TestSendTestSetAsync_Real(t *testing.T) {
 	}
 	zipFileName := zip.PackageFileName(inv.Supplier.Identification.Number, zip.SoftwarePropioCode, now.Year(), 1)
 
-	client := New(HabilitacionURL, cert, key)
+	client := soap.New(soap.HabilitacionURL, cert, key)
 	result, err := client.SendTestSetAsync(zipFileName, zipBytes, env["DIAN_TEST_SET_ID"])
 	if err != nil {
 		t.Fatalf("SendTestSetAsync: %v", err)
@@ -235,29 +240,29 @@ func TestSendTestSetAsync_Real(t *testing.T) {
 	t.Logf("ZipKey: %q", result.ZipKey)
 	if result.ErrorMessageList != nil {
 		for _, e := range result.ErrorMessageList.Items {
-			t.Logf("Error inicial: archivo=%s mensaje=%s success=%v", e.XmlFileName, e.ProcessedMessage, e.Success)
+			t.Logf("Initial error: file=%s message=%s success=%v", e.XmlFileName, e.ProcessedMessage, e.Success)
 		}
 	}
 
 	if result.ZipKey == "" {
-		t.Fatal("la DIAN no devolvió ZipKey — revisar ErrorMessageList arriba")
+		t.Fatal("DIAN did not return a ZipKey — check ErrorMessageList above")
 	}
 
-	// La validación es asíncrona; reintentamos GetStatusZip unos segundos antes de darnos
-	// por vencidos a esperar el resultado dentro de esta misma prueba.
+	// Validation is asynchronous; we retry GetStatusZip a few times before giving up on
+	// waiting for the result within this same test run.
 	for i := 0; i < 6; i++ {
 		time.Sleep(5 * time.Second)
 		statuses, err := client.GetStatusZip(result.ZipKey)
 		if err != nil {
-			t.Logf("GetStatusZip intento %d: %v", i+1, err)
+			t.Logf("GetStatusZip attempt %d: %v", i+1, err)
 			continue
 		}
 		if len(statuses) == 0 {
-			t.Logf("GetStatusZip intento %d: aún sin resultado", i+1)
+			t.Logf("GetStatusZip attempt %d: no result yet", i+1)
 			continue
 		}
 		for _, st := range statuses {
-			t.Logf("Resultado: IsValid=%v StatusCode=%s StatusMessage=%s StatusDescription=%s",
+			t.Logf("Result: IsValid=%v StatusCode=%s StatusMessage=%s StatusDescription=%s",
 				st.IsValid, st.StatusCode, st.StatusMessage, st.StatusDescription)
 			if st.ErrorMessage != nil {
 				for _, m := range st.ErrorMessage.Items {
@@ -267,5 +272,5 @@ func TestSendTestSetAsync_Real(t *testing.T) {
 		}
 		return
 	}
-	t.Log("no se obtuvo resultado de GetStatusZip dentro del tiempo de espera de esta prueba; el ZipKey queda registrado arriba para consultarlo después")
+	t.Log("no result from GetStatusZip within this test's wait time; the ZipKey above can be queried later")
 }

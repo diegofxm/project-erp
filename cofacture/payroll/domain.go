@@ -1,51 +1,61 @@
-// Package payroll construye, firma y envía documentos de Nómina Individual Electrónica
-// (NominaIndividual) al servicio web de la DIAN (SendNominaSync).
+// Package payroll builds, signs and sends Individual Electronic Payroll documents
+// (NominaIndividual) to DIAN's web service (SendNominaSync).
 //
-// No genera sus propios clientes SOAP — delega en cofacture/soap, cuyo Client ya sabe
-// hablar con WcfDianCustomerServices. Sí contiene su propio builder XML porque la
-// estructura de NominaIndividual no es UBL 2.1 y no comparte los helpers de builder/.
+// It does not create its own SOAP clients — it delegates to cofacture/soap, whose Client
+// already knows how to talk to WcfDianCustomerServices. It does contain its own XML builder
+// because NominaIndividual's structure is not UBL 2.1 and does not share the builder/ helpers.
+//
+// Field names below intentionally mirror DIAN's own Spanish XML attribute names
+// (NominaIndividualElectronicaXSD.xsd) so the mapping between this struct and the wire format
+// stays obvious — only the doc comments are in English.
 package payroll
 
-// Nomina reúne todos los datos necesarios para generar, firmar y enviar
-// un NominaIndividual o NominaIndividualDeAjuste.
+// Nomina gathers all the data needed to generate, sign and send a NominaIndividual or
+// NominaIndividualDeAjuste.
 type Nomina struct {
-	// Secuencia y tipo.
+	// Sequence and type.
 	Consecutivo string // e.g. "1"
 	Prefijo     string // e.g. "NE"
-	Numero      string // número completo = Prefijo + Consecutivo
+	Numero      string // full number = Prefijo + Consecutivo
 
-	TipoXML string // "102" NominaIndividual, "103" Ajuste-Reemplazar, "104" Ajuste-Eliminar
+	TipoXML string // "102" NominaIndividual, "103" Adjustment-Replace, "104" Adjustment-Delete
 
-	// Ambiente DIAN: "1" producción, "2" habilitación.
+	// CUNENovedad is the CUNE of the original NominaIndividual this document adjusts. Required
+	// when TipoXML is "103" (Adjustment-Replace) or "104" (Adjustment-Delete); Build rejects an
+	// adjustment with this left empty. Ignored (and must be left empty) for a normal "102"
+	// payroll — DIAN's Novedad/@CUNENov pair only applies to adjustments.
+	CUNENovedad string
+
+	// DIAN environment: "1" production, "2" certification/testing.
 	Ambiente string
 
-	// Fechas y horas del periodo y de generación del documento.
+	// Period and document-generation dates/times.
 	FechaGen               string // "2024-01-31"
 	HoraGen                string // "09:00:00-05:00"
 	FechaIngreso           string // "2020-01-01"
-	FechaRetiro            string // "" vacío = no aplica
+	FechaRetiro            string // "" empty = not applicable
 	FechaLiquidacionInicio string // "2024-01-01"
 	FechaLiquidacionFin    string // "2024-01-31"
-	TiempoLaborado         int    // días laborados en el periodo
+	TiempoLaborado         int    // days worked in the period
 
-	// Lugar de generación.
-	Pais              string // "CO"
-	DepartamentoEstado string // código DIAN, e.g. "11"
-	MunicipioCiudad   string // código DIAN, e.g. "001"
-	Idioma            string // ISO 639-1, e.g. "es"
+	// Place of generation.
+	Pais               string // "CO"
+	DepartamentoEstado string // DIAN code, e.g. "11"
+	MunicipioCiudad    string // DIAN code, e.g. "001"
+	Idioma             string // ISO 639-1, e.g. "es"
 
-	// Metadatos del comprobante.
-	PeriodoNomina int    // 1=Semanal 2=Decenal 3=Quincenal 4=Mensual ...
+	// Document metadata.
+	PeriodoNomina int    // 1=Weekly 2=Ten-day 3=Biweekly 4=Monthly ...
 	TipoMoneda    string // "COP"
-	TRM           string // "1.00" (tasa de cambio; "1.00" para COP→COP)
-	Notas         string // texto libre opcional
+	TRM           string // "1.00" (exchange rate; "1.00" for COP→COP)
+	Notas         string // optional free text
 
-	// Software propio / PT.
-	SoftwareID string // UUID registrado en la DIAN
-	PIN        string // PIN numérico del software
+	// Own software / Technology Provider (PT).
+	SoftwareID string // UUID registered with DIAN
+	PIN        string // numeric software PIN
 
-	// Proveedor XML (quien genera el documento — empresa o PT).
-	// Para personas naturales usar PrimerApellido/PrimerNombre; para empresas RazonSocial.
+	// XML provider (who generates the document — company or PT).
+	// For natural persons use PrimerApellido/PrimerNombre; for companies use RazonSocial.
 	ProveedorNIT         string
 	ProveedorDV          string
 	ProveedorRazonSocial string
@@ -54,7 +64,7 @@ type Nomina struct {
 	ProveedorNombre1     string
 	ProveedorNombre2     string // OtrosNombres
 
-	// Fechas de pago de la nómina.
+	// Payroll payment dates.
 	FechasPago []string // []"2024-01-31"
 
 	Empleador   Empleador
@@ -63,15 +73,15 @@ type Nomina struct {
 	Devengados  Devengados
 	Deducciones Deducciones
 
-	// Totales (si son cero se calculan a partir de Devengados/Deducciones en Build).
-	Redondeo          float64
-	DevengadosTotal   float64
-	DeduccionesTotal  float64
-	ComprobanteTotal  float64
+	// Totals (if zero, they are computed from Devengados/Deducciones in Build).
+	RedondeoCents         int64
+	DevengadosTotalCents  int64
+	DeduccionesTotalCents int64
+	ComprobanteTotalCents int64
 }
 
-// Empleador identifica a la empresa o persona que paga la nómina.
-// Para personas naturales usar PrimerApellido/PrimerNombre/etc.; para empresas usar RazonSocial.
+// Empleador identifies the company or person paying the payroll.
+// For natural persons use PrimerApellido/PrimerNombre/etc.; for companies use RazonSocial.
 type Empleador struct {
 	RazonSocial     string
 	PrimerApellido  string
@@ -81,78 +91,78 @@ type Empleador struct {
 	NIT             string
 	DV              string
 	Pais            string // "CO"
-	Departamento    string // código DIAN
-	Municipio       string // código DIAN
+	Departamento    string // DIAN code
+	Municipio       string // DIAN code
 	Direccion       string
 }
 
-// Trabajador identifica al empleado.
+// Trabajador identifies the employee.
 type Trabajador struct {
-	TipoTrabajador    string // "01" empleado, etc.
-	SubTipoTrabajador string // "00" no aplica, "01" dependiente, etc.
+	TipoTrabajador    string // "01" employee, etc.
+	SubTipoTrabajador string // "00" not applicable, "01" dependent, etc.
 	AltoRiesgoPension bool
-	TipoDocumento     string // "13" CC, "31" NIT, etc.
+	TipoDocumento     string // "13" national ID, "31" NIT, etc.
 	NumeroDocumento   string
 	PrimerApellido    string
 	SegundoApellido   string
 	PrimerNombre      string
 	OtrosNombres      string
 	LugarPais         string // "CO"
-	LugarDepartamento string // código DIAN
-	LugarMunicipio    string // código DIAN
+	LugarDepartamento string // DIAN code
+	LugarMunicipio    string // DIAN code
 	LugarDireccion    string
 	SalarioIntegral   bool
-	TipoContrato      string  // "1" fijo, "2" indefinido, "3" aprendizaje, "4" practicante
-	Sueldo            float64 // salario base mensual
-	CodigoTrabajador  string  // código interno del empleado
+	TipoContrato      string // "1" fixed-term, "2" indefinite, "3" apprenticeship, "4" internship
+	SueldoCents       int64  // base monthly salary
+	CodigoTrabajador  string // internal employee code
 }
 
-// Pago describe el método de pago de la nómina al trabajador.
+// Pago describes the payroll's payment method to the worker.
 type Pago struct {
-	Forma        string // "1" contado, "2" crédito
-	Metodo       string // "10" efectivo, "42" transferencia bancaria, etc.
+	Forma        string // "1" cash, "2" credit
+	Metodo       string // "10" cash, "42" bank transfer, etc.
 	Banco        string
-	TipoCuenta   string // "AHORRO", "CORRIENTE"
+	TipoCuenta   string // "AHORRO" (savings), "CORRIENTE" (checking)
 	NumeroCuenta string
 }
 
-// Devengados agrupa los conceptos de ingreso del trabajador en el periodo.
+// Devengados groups the worker's earnings for the period.
 type Devengados struct {
 	Basico     Basico
-	Transporte *Transporte // nil = no aplica
+	Transporte *Transporte // nil = not applicable
 }
 
-// Basico es el sueldo básico del periodo (obligatorio).
+// Basico is the base salary for the period (required).
 type Basico struct {
-	DiasTrabajados  int
-	SueldoTrabajado float64
+	DiasTrabajados       int
+	SueldoTrabajadoCents int64
 }
 
-// Transporte cubre el auxilio de transporte y viáticos.
+// Transporte covers the transportation allowance and per diems.
 type Transporte struct {
-	AuxilioTransporte float64
-	ViaticoManuAlojS  float64 // salariales
-	ViaticoManuAlojNS float64 // no salariales
+	AuxilioTransporteCents int64
+	ViaticoManuAlojSCents  int64 // salary-affecting
+	ViaticoManuAlojNSCents int64 // non-salary-affecting
 }
 
-// Deducciones agrupa los descuentos al trabajador en el periodo.
+// Deducciones groups the worker's deductions for the period.
 type Deducciones struct {
-	Salud           *DeduccionPct // nil = no aplica
-	FondoPension    *DeduccionPct // nil = no aplica
-	FondoSP         *FondoSP     // nil = no aplica (solo para salarios > 4 SMLMV)
-	RetencionFuente float64
+	Salud                *DeduccionPct // nil = not applicable
+	FondoPension         *DeduccionPct // nil = not applicable
+	FondoSP              *FondoSP      // nil = not applicable (only for salaries > 4 SMLMV)
+	RetencionFuenteCents int64
 }
 
-// DeduccionPct es una deducción definida por porcentaje y monto.
+// DeduccionPct is a deduction defined by percentage and amount.
 type DeduccionPct struct {
-	Porcentaje float64
-	Deduccion  float64
+	Porcentaje     float64
+	DeduccionCents int64
 }
 
-// FondoSP es la deducción al Fondo de Solidaridad Pensional.
+// FondoSP is the deduction for the Solidarity Pension Fund (Fondo de Solidaridad Pensional).
 type FondoSP struct {
-	Porcentaje    float64
-	DeduccionSP   float64
-	PorcentajeSub float64
-	DeduccionSub  float64
+	Porcentaje        float64
+	DeduccionSPCents  int64
+	PorcentajeSub     float64
+	DeduccionSubCents int64
 }

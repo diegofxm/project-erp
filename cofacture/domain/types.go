@@ -1,20 +1,22 @@
-// Package domain contiene los tipos de dominio que alimentan los builders de cofacture.
-// Son structs planos sin persistencia (sin tags db/gorm, sin SQL) — el equivalente a un DTO.
+// Package domain contains the domain types that feed cofacture's builders.
+// They are plain structs with no persistence concerns (no db/gorm tags, no SQL) — the
+// equivalent of a DTO.
 //
-// Estos tipos no validan códigos de catálogo DIAN (tipo de documento, impuesto, medio de
-// pago, etc.) — reciben los códigos ya validados por quien los construya (el orquestador).
-// El core solo sabe en qué nodo del XML va cada código, no si el código es válido.
+// These types do not validate DIAN catalog codes (document type, tax, payment method, etc.)
+// — they receive codes that have already been validated by whoever constructs them (the
+// orchestrator). The core only knows which XML node a code belongs in, not whether the code
+// itself is valid.
 package domain
 
-// Identification representa el número de identificación de un tercero (NIT, CC, etc.)
-// junto con los atributos que la DIAN exige en los esquemas schemeID/schemeName.
+// Identification represents a third party's identification number (NIT, national ID, etc.)
+// along with the attributes DIAN requires in the schemeID/schemeName schemas.
 type Identification struct {
-	Number           string // ej. "900123456"
-	TypeCode         string // catálogo identification_types, ej. "31" = NIT
-	VerificationCode string // dígito de verificación, solo aplica cuando TypeCode == "31"
+	Number           string // e.g. "900123456"
+	TypeCode         string // identification_types catalog, e.g. "31" = NIT
+	VerificationCode string // check digit, only applies when TypeCode == "31"
 }
 
-// Address es la dirección física/de registro de un Party.
+// Address is the physical/registered address of a Party.
 type Address struct {
 	Line        string
 	CityCode    string
@@ -26,84 +28,94 @@ type Address struct {
 	CountryName string
 }
 
-// Party es un emisor o receptor (AccountingSupplierParty / AccountingCustomerParty).
+// Party is a supplier or customer (AccountingSupplierParty / AccountingCustomerParty).
 type Party struct {
-	EntityTypeCode string // "1" persona natural, "2" persona jurídica
+	EntityTypeCode string // "1" natural person, "2" legal entity
 	Identification Identification
 	Name           string
-	Address        Address // se omite del XML si Line está vacío
-	TaxRegimeCode  string  // catálogo type_regimes, va como listName de TaxLevelCode
-	// LiabilityCodes son las responsabilidades tributarias (catálogo tax_level_codes,
-	// ej. O-13, O-15, O-47). La DIAN permite más de una por tercero — se serializan
-	// concatenadas con ";" en un único cbc:TaxLevelCode, no un elemento por código.
+	Address        Address // omitted from the XML if Line is empty
+	TaxRegimeCode  string  // type_regimes catalog, used as the listName of TaxLevelCode
+	// LiabilityCodes are the tax liability responsibilities (tax_level_codes catalog,
+	// e.g. O-13, O-15, O-47). DIAN allows more than one per third party — they are
+	// serialized joined with ";" in a single cbc:TaxLevelCode, not one element per code.
 	LiabilityCodes []string
-	// IndustryClassificationCodes son los códigos CIIU (catálogo DANE, no DIAN — por eso no
-	// hay tabla de catálogo que los valide, solo un límite de cardinalidad que aplica quien
-	// construya el Party, ver companies.Service.validateCompany). Solo aplica al emisor, nunca
-	// al receptor (el Anexo Técnico lo describe como "código de actividad económica del
-	// emisor"). Se serializan concatenados con ";" en un único cbc:IndustryClassificationCode.
+	// IndustryClassificationCodes are the CIIU codes (DANE catalog, not DIAN — hence there is
+	// no catalog table validating them, only a cardinality limit enforced by whoever builds
+	// the Party, see companies.Service.validateCompany). Only applies to the supplier, never
+	// to the customer (the Technical Annex describes it as "the issuer's economic activity
+	// code"). Serialized joined with ";" in a single cbc:IndustryClassificationCode.
 	IndustryClassificationCodes []string
 	TaxSchemeCode               string
 	TaxSchemeName               string
 	Phone                       string
 	Email                       string
-	// MerchantRegistrationNumber es el número de matrícula mercantil (Cámara de Comercio).
-	// nil si no aplica (siempre nil para el receptor; opcional para el emisor — ej. una
-	// persona natural sin registro mercantil no lo trae). El cbc:ID de
-	// CorporateRegistrationScheme no es este número: es el prefijo de la factura.
+	// MerchantRegistrationNumber is the Chamber of Commerce ("Cámara de Comercio")
+	// registration number. nil if not applicable (always nil for the customer; optional for
+	// the supplier — e.g. a natural person without a mercantile registration won't have one).
+	// The cbc:ID of CorporateRegistrationScheme is NOT this number: it is the invoice prefix.
 	MerchantRegistrationNumber *string
 }
 
-// Tax es un subtotal de impuesto, a nivel de línea o de cabecera.
+// Tax is a tax subtotal, at either line or header level.
 type Tax struct {
 	TaxableAmountCents int64
 	TaxAmountCents     int64
 	Percent            float64
-	TypeCode           string // catálogo tax_types, ej. "01" = IVA
+	TypeCode           string // tax_types catalog, e.g. "01" = VAT
 	TypeName           string
 }
 
-// ReferencePrice se usa en muestras comerciales o ítems sin cargo (PricingReference).
+// ReferencePrice is used for free samples or no-charge items (PricingReference).
 type ReferencePrice struct {
 	PriceAmountCents int64
 	TypeCode         string
 }
 
-// Line es un renglón de detalle (InvoiceLine / CreditNoteLine / DebitNoteLine).
+// Line is a detail line (InvoiceLine / CreditNoteLine / DebitNoteLine).
 type Line struct {
 	Description        string
 	Quantity           float64
-	UnitCode           string // catálogo unit_codes, ej. "94"
+	UnitCode           string // unit_codes catalog, e.g. "94"
 	LineExtensionCents int64
 	UnitPriceCents     int64
 	FreeOfCharge       bool
-	ReferencePrice     *ReferencePrice // requerido cuando FreeOfCharge == true
+	ReferencePrice     *ReferencePrice // required when FreeOfCharge == true
 	ItemCode           string
-	ItemTypeCode       string // catálogo de estandares de codificación de producto (ej. "999")
+	ItemTypeCode       string // product coding standard catalog (e.g. "999")
 	ItemTypeName       string
 	ItemTypeAgencyID   string
 	Taxes              []Tax
 }
 
-// PaymentMean es un medio de pago (PaymentMeans).
+// PaymentMean is a payment method (PaymentMeans).
 type PaymentMean struct {
-	Code              string // forma de pago: contado/crédito (catálogo "payment_terms" del orquestador)
-	PaymentMethodCode string // medio de pago propiamente: efectivo, transferencia... (catálogo "payment_methods" del orquestador)
-	DueDate           string // solo aplica cuando Code == "2" (a crédito)
+	Code              string // payment term: cash/credit (the orchestrator's "payment_terms" catalog)
+	PaymentMethodCode string // the payment method itself: cash, transfer... (the orchestrator's "payment_methods" catalog)
+	DueDate           string // only applies when Code == "2" (credit)
 	PaymentReference  string
 }
 
-// Totals son los totales legales del documento (LegalMonetaryTotal).
+// Totals are the document's legal totals (LegalMonetaryTotal). The builder package renders
+// these fields as given — it does not recompute or cross-check them against Line.LineExtensionCents
+// or Line.Taxes. Getting LineExtensionCents/TaxExclusiveCents/TaxInclusiveCents/PayableCents to
+// actually add up to the sum of the document's lines is the caller's responsibility, same as
+// every other value in this package (see the no-catalog-validation note above).
 type Totals struct {
 	LineExtensionCents int64
 	TaxExclusiveCents  int64
 	TaxInclusiveCents  int64
-	PrepaidCents       int64 // solo se serializa cuando > 0 y el documento es Invoice
-	PayableCents       int64
+	PrepaidCents       int64 // only serialized when > 0 and the document is an Invoice
+
+	// RoundingCents is cbc:PayableRoundingAmount — the only monetary field the Technical Annex
+	// allows to be negative (e.g. rounding a POS total to the nearest 50/100 pesos). Only
+	// serialized when non-zero.
+	RoundingCents int64
+
+	PayableCents int64
 }
 
-// NumberingRange es la resolución de numeración autorizada por la DIAN para el rango
-// que cubre este documento (InvoiceControl).
+// NumberingRange is the DIAN-authorized numbering resolution range that covers this document
+// (InvoiceControl).
 type NumberingRange struct {
 	AuthorizedCode string
 	Prefix         string
@@ -113,7 +125,7 @@ type NumberingRange struct {
 	EndDate        string // YYYY-MM-DD
 }
 
-// SoftwareProvider identifica al proveedor tecnológico y al software autorizado por la DIAN.
+// SoftwareProvider identifies the technology provider and the software authorized by DIAN.
 type SoftwareProvider struct {
 	ProviderIdentification Identification
 	SoftwareID             string

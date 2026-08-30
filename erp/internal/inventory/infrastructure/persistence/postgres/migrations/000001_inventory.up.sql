@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS inventory.movements (
     reference         TEXT NOT NULL DEFAULT '',
     description       TEXT NOT NULL DEFAULT '',
     transfer_group_id UUID,
+    -- is_addition: true si este movimiento SUMÓ al stock (entry, adjust, lado destino de un
+    -- transfer), false si RESTÓ (exit, lado origen de un transfer). "type" no alcanza para saber
+    -- el signo en un transfer -- las dos filas del mismo transfer_group_id comparten type=transfer
+    -- pero una resta y la otra suma. Se usa para revertir el efecto en stock al eliminar un
+    -- movimiento (ver Repository.DeleteMovement) sin tener que adivinar la dirección.
+    is_addition       BOOLEAN NOT NULL,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

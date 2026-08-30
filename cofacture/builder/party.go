@@ -8,24 +8,25 @@ import (
 	ubl "github.com/diegofxm/cofacture/xml"
 )
 
-// appendAccountingParty agrega AccountingSupplierParty o AccountingCustomerParty.
-// showMerchantRegistration solo debe ser true para el emisor (CorporateRegistrationScheme
-// es el registro ante Cámara de Comercio, no aplica al receptor). invoicePrefix se ignora
-// cuando showMerchantRegistration es false.
+// appendAccountingParty adds AccountingSupplierParty or AccountingCustomerParty.
+// showMerchantRegistration should only be true for the supplier (CorporateRegistrationScheme
+// is the Chamber of Commerce registration, it doesn't apply to the customer). invoicePrefix is
+// ignored when showMerchantRegistration is false.
 //
-// Verificado contra facturas reales: cac:CorporateRegistrationScheme/cbc:ID es el prefijo
-// de la factura (no un dato propio del tercero), y cbc:Name es el número de matrícula
-// mercantil — se omite si el tercero no lo tiene (ej. persona natural sin registro).
+// Verified against real invoices: cac:CorporateRegistrationScheme/cbc:ID is the invoice
+// prefix (not something intrinsic to the third party), and cbc:Name is the mercantile
+// registration number — omitted if the third party doesn't have one (e.g. a natural person
+// with no mercantile registration).
 func appendAccountingParty(parent *etree.Element, node string, p domain.Party, showMerchantRegistration bool, invoicePrefix string, showPhysicalLocation bool) {
 	root := parent.CreateElement("cac:" + node)
 	root.CreateElement("cbc:AdditionalAccountID").SetText(p.EntityTypeCode)
 
 	party := root.CreateElement("cac:Party")
 
-	// cbc:IndustryClassificationCode (CIIU) va antes de PartyIdentification/PartyName en la
-	// secuencia de cac:Party — confirmado contra UBL-CommonAggregateComponents-2.1.xsd. Solo
-	// el emisor lo trae (showMerchantRegistration es el mismo indicador que distingue emisor
-	// de receptor en esta función).
+	// cbc:IndustryClassificationCode (CIIU) goes before PartyIdentification/PartyName in the
+	// cac:Party sequence — confirmed against UBL-CommonAggregateComponents-2.1.xsd. Only the
+	// supplier carries it (showMerchantRegistration is the same flag that distinguishes
+	// supplier from customer in this function).
 	if showMerchantRegistration && len(p.IndustryClassificationCodes) > 0 {
 		party.CreateElement("cbc:IndustryClassificationCode").SetText(strings.Join(p.IndustryClassificationCodes, ";"))
 	}

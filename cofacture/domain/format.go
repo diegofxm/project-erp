@@ -2,9 +2,9 @@ package domain
 
 import "fmt"
 
-// FormatCents renderiza centavos como el string decimal de 2 cifras que exige la DIAN
-// (sin separador de miles, punto como separador decimal) — usado tanto al serializar XML
-// como al componer las cadenas de entrada del CUFE/CUDE, que comparten el mismo formato.
+// FormatCents renders cents as the 2-decimal string DIAN requires (no thousands separator,
+// dot as the decimal separator) — used both when serializing XML and when composing the
+// CUFE/CUDE hash input strings, which share the same format.
 func FormatCents(cents int64) string {
 	neg := cents < 0
 	if neg {

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { ShoppingBag, Check, Ban, PackageCheck, Trash2, FileText, Mail, Receipt, Plus } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
-import { addWithholding, cancelPurchase, confirmPurchase, createPurchase, deletePurchase, fetchPurchase, getPurchasePdfBlobUrl, receivePurchase, sendPurchaseEmail } from "../lib/purchases";
+import { addWithholding, cancelPurchase, confirmPurchase, createPurchase, deletePurchase, fetchPurchase, getPurchasePdfBlobUrl, receivePurchase, sendPurchaseEmail, updatePurchase } from "../lib/purchases";
 import { listSuppliers } from "../lib/suppliers";
 import { listNumberingRanges } from "../lib/numberingRanges";
 import { listWithholdingConcepts } from "../lib/accounting";
-import { createSupportDocFromPurchase } from "../lib/documents";
+import { createSupportDocFromPurchase, getDocument } from "../lib/documents";
+import { listPaymentMethods, listPaymentTerms } from "../lib/catalogs";
+import { useCatalog } from "../lib/useCatalog";
 import { ApiError } from "../lib/apiClient";
 import { openInNewTab } from "../lib/openInNewTab";
 import { useConfirm } from "../context/ConfirmContext";
@@ -13,7 +15,7 @@ import { useCanManage } from "../hooks/useCanManage";
 import { useToast } from "../context/ToastContext";
 import { formatCOP } from "../lib/currency";
 import { formatDateOnly, todayColombiaISO } from "../lib/dateFormat";
-import type { Purchase, PurchaseStatus, PurchaseLineInput, NumberingRange, Supplier, WithholdingConcept } from "../lib/types";
+import type { Purchase, PurchaseStatus, PurchaseLineInput, DocumentStatus, NumberingRange, PaymentMean, Supplier, WithholdingConcept } from "../lib/types";
 import { Banner } from "../components/ui/Banner";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -23,7 +25,9 @@ import { Spinner } from "../components/ui/Spinner";
 import { Breadcrumbs } from "../components/ui/Breadcrumbs";
 import { SendEmailModal } from "../components/ui/SendEmailModal";
 import { StatusPill, type StatusTone } from "../components/ui/StatusPill";
-import { SalesLineItemsEditor, salesLinesTotal } from "../components/sales/SalesLineItemsEditor";
+import { SalesLineItemsEditor } from "../components/sales/SalesLineItemsEditor";
+import { SalesTotalsSummary } from "../components/sales/SalesTotalsSummary";
+import { PaymentMeansEditor } from "../components/invoice-form/PaymentMeansEditor";
 
 const STATUS_LABEL: Record<PurchaseStatus, string> = {
   draft: "Borrador", confirmed: "Confirmada", received: "Recibida", cancelled: "Cancelada",
@@ -33,11 +37,12 @@ const STATUS_TONE: Record<PurchaseStatus, StatusTone> = {
 };
 const SUPPORT_DOC_DIAN_TYPE = "05";
 const today = () => todayColombiaISO();
+// Ver el mismo comentario en SaleEditorPage.tsx.
+const RETRYABLE_DOC_STATUSES: DocumentStatus[] = ["rejected", "send_error", "environment_mismatch"];
 
-// Igual que SaleEditorPage: purchase/ no tiene endpoint de actualización (solo Create/Confirm/
-// Receive/Cancel/Delete), así que una orden ya creada es de solo lectura salvo transiciones de
-// estado. A diferencia de una venta, el ciclo tiene un paso extra: Confirmar (compromiso con el
-// proveedor) y luego Recibir (entra a inventario y se contabiliza) son pasos separados.
+// Editable mientras está en borrador (crear o corregir proveedor/fecha/notas/líneas). A
+// diferencia de una venta, el ciclo tiene un paso extra: Confirmar (compromiso con el proveedor)
+// y luego Recibir (entra a inventario y se contabiliza) son pasos separados.
 export function PurchaseOrderEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -57,16 +62,20 @@ export function PurchaseOrderEditorPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [supplierId, setSupplierId] = useState("");
-  const [number, setNumber] = useState("");
   const [issueDate, setIssueDate] = useState(today());
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<PurchaseLineInput[]>([]);
+  const [paymentMeans, setPaymentMeans] = useState<PaymentMean[]>([]);
   const [rangeId, setRangeId] = useState("");
+  const [linkedSupportDocStatus, setLinkedSupportDocStatus] = useState<DocumentStatus | null>(null);
   const [concepts, setConcepts] = useState<WithholdingConcept[]>([]);
   const [whConceptId, setWhConceptId] = useState("");
   const [whBase, setWhBase] = useState("");
   const [addingWh, setAddingWh] = useState(false);
+
+  const { data: paymentTerms } = useCatalog(listPaymentTerms);
+  const { data: paymentMethods } = useCatalog(listPaymentMethods);
 
   useEffect(() => {
     listSuppliers().then(setSuppliers).catch(() => setSuppliers([]));
@@ -77,10 +86,22 @@ export function PurchaseOrderEditorPage() {
     if (isNew || !id) return;
     setLoading(true);
     fetchPurchase(id)
-      .then(setPurchase)
+      .then((p) => {
+        setPurchase(p);
+        if (p.status === "draft") {
+          setSupplierId(p.supplier_id);
+          setIssueDate(p.issue_date);
+          setDueDate(p.due_date ?? "");
+          setNotes(p.notes);
+          setLines(p.lines);
+          setPaymentMeans(p.payment_means ?? []);
+        }
+      })
       .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la orden de compra"))
       .finally(() => setLoading(false));
   }, [id, isNew]);
+
+  const isEditable = isNew || purchase?.status === "draft";
 
   // Rangos activos de Documento Soporte — solo hacen falta si la orden ya está recibida (para
   // "Generar Documento Soporte"), no tiene sentido cargarlos antes.
@@ -91,6 +112,19 @@ export function PurchaseOrderEditorPage() {
       .catch(() => setRanges([]));
   }, [purchase?.status]);
 
+  // Ver el mismo comentario en SaleEditorPage.tsx.
+  useEffect(() => {
+    if (!purchase?.support_document_id) {
+      setLinkedSupportDocStatus(null);
+      return;
+    }
+    getDocument(purchase.support_document_id)
+      .then((doc) => setLinkedSupportDocStatus(doc.status))
+      .catch(() => setLinkedSupportDocStatus(null));
+  }, [purchase?.support_document_id]);
+
+  const supportDocIsRetryable = linkedSupportDocStatus !== null && RETRYABLE_DOC_STATUSES.includes(linkedSupportDocStatus);
+
   const supplierOptions = suppliers.map((s) => ({ value: s.id, label: s.name }));
   const supplierName = (sid: string) => suppliers.find((s) => s.id === sid)?.name ?? "—";
 
@@ -99,13 +133,31 @@ export function PurchaseOrderEditorPage() {
     setSaving(true);
     try {
       const created = await createPurchase({
-        supplier_id: supplierId, number, issue_date: issueDate,
-        due_date: dueDate || undefined, notes, lines,
+        supplier_id: supplierId, issue_date: issueDate,
+        due_date: dueDate || undefined, notes, lines, payment_means: paymentMeans,
       });
       toast.success(`Orden de compra ${created.number || ""} creada.`);
       navigate(`/purchases/${created.id}`, { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo crear la orden de compra");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveEdit() {
+    if (!purchase) return;
+    setError(null);
+    setSaving(true);
+    try {
+      const updated = await updatePurchase(purchase.id, {
+        supplier_id: supplierId, issue_date: issueDate,
+        due_date: dueDate || undefined, notes, lines, payment_means: paymentMeans,
+      });
+      setPurchase(updated);
+      toast.success("Orden de compra actualizada.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo actualizar la orden de compra");
     } finally {
       setSaving(false);
     }
@@ -227,7 +279,6 @@ export function PurchaseOrderEditorPage() {
   }
 
   const title = isNew ? "Nueva orden de compra" : purchase ? `Orden ${purchase.number || "(borrador)"}` : "Orden de compra";
-  const total = isNew ? salesLinesTotal(lines) : purchase ? salesLinesTotal(purchase.lines) : 0;
   const canSendEmail = purchase?.status === "confirmed" || purchase?.status === "received";
 
   return (
@@ -240,11 +291,6 @@ export function PurchaseOrderEditorPage() {
         </h1>
         <div className="flex flex-wrap items-center gap-1.5">
           {purchase && <StatusPill tone={STATUS_TONE[purchase.status]} label={STATUS_LABEL[purchase.status]} />}
-          {isNew && (
-            <Button type="button" loading={saving} disabled={!supplierId || !number || lines.length === 0} onClick={handleCreate}>
-              Guardar orden
-            </Button>
-          )}
           {!isNew && purchase && (
             <Button type="button" variant="secondary" icon={<FileText className="h-3.5 w-3.5" />} loading={loadingPdf} onClick={handleViewPdf}>
               Ver PDF
@@ -280,22 +326,19 @@ export function PurchaseOrderEditorPage() {
 
       {error && <Banner tone="danger">{error}</Banner>}
 
-      <Card className="p-4">
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {isNew ? (
+      <Card className="flex flex-col gap-4 p-4">
+        {/* Datos del documento */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {isEditable ? (
             <>
-              <Combobox label="Proveedor" value={supplierId} onChange={setSupplierId} options={supplierOptions} placeholder="Buscar proveedor…" />
-              <Input label="Número interno" required value={number} onChange={(e) => setNumber(e.target.value)} placeholder="Ej. OC-001" />
               <Input label="Fecha" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
               <Input label="Recepción esperada (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-              <Input label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <div className="sm:col-span-3">
+                <Input label="Notas" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </div>
             </>
           ) : purchase ? (
             <>
-              <div>
-                <p className="text-xs font-medium text-(--text-secondary)">Proveedor</p>
-                <p className="text-xs text-(--text-primary)">{supplierName(purchase.supplier_id)}</p>
-              </div>
               <div>
                 <p className="text-xs font-medium text-(--text-secondary)">Fecha</p>
                 <p className="text-xs text-(--text-primary)">{formatDateOnly(purchase.issue_date)}</p>
@@ -314,13 +357,65 @@ export function PurchaseOrderEditorPage() {
           ) : null}
         </div>
 
-        <SalesLineItemsEditor lines={isNew ? lines : purchase?.lines ?? []} onChange={setLines} disabled={!isNew} />
+        {/* Proveedor */}
+        <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Proveedor</h2>
+          {isEditable ? (
+            <Combobox label="Proveedor" value={supplierId} onChange={setSupplierId} options={supplierOptions} placeholder="Buscar proveedor…" />
+          ) : purchase ? (
+            <p className="text-xs text-(--text-primary)">{supplierName(purchase.supplier_id)}</p>
+          ) : null}
+        </section>
 
-        <div className="mt-4 flex justify-end border-t border-(--border-light) pt-3">
-          <span className="text-xs text-(--text-secondary)">
-            Total: <span className="font-mono text-sm font-semibold text-(--text-primary)">{formatCOP.format(total)}</span>
-          </span>
-        </div>
+        {/* Líneas */}
+        <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Líneas</h2>
+          <SalesLineItemsEditor lines={isEditable ? lines : purchase?.lines ?? []} onChange={setLines} disabled={!isEditable} />
+        </section>
+
+        {/* Forma de pago */}
+        <section className="flex flex-col gap-2 border-t border-(--border-color) pt-3">
+          <h2 className="text-xs font-semibold text-(--text-primary)">Forma de pago</h2>
+          {isEditable ? (
+            <PaymentMeansEditor paymentMeans={paymentMeans} onChange={setPaymentMeans} />
+          ) : purchase?.payment_means && purchase.payment_means.length > 0 ? (
+            <p className="text-xs text-(--text-primary)">
+              {purchase.payment_means
+                .map((pm) => {
+                  const term = paymentTerms.find((t) => t.code === pm.code)?.name ?? pm.code;
+                  const method = paymentMethods.find((m) => m.code === pm.payment_method_code)?.name ?? pm.payment_method_code;
+                  return `${term} — ${method}`;
+                })
+                .join(", ")}
+            </p>
+          ) : (
+            <p className="text-xs text-(--text-muted)">—</p>
+          )}
+        </section>
+
+        {/* Totales */}
+        <section className="grid grid-cols-12 gap-3 border-t border-(--border-color) pt-3">
+          <div className="col-span-12 sm:col-span-4 sm:col-start-9">
+            <SalesTotalsSummary lines={isEditable ? lines : purchase?.lines ?? []} />
+          </div>
+        </section>
+
+        {isEditable && (
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={() => navigate("/purchases")} className="flex-1">
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={!supplierId || lines.length === 0}
+              loading={saving}
+              onClick={isNew ? handleCreate : handleSaveEdit}
+              className="flex-1"
+            >
+              {isNew ? "Crear orden" : "Guardar cambios"}
+            </Button>
+          </div>
+        )}
       </Card>
 
       {purchase && (purchase.status === "confirmed" || purchase.status === "received") && (
@@ -375,7 +470,7 @@ export function PurchaseOrderEditorPage() {
         </Card>
       )}
 
-      {purchase?.status === "received" && purchase.support_document_id && (
+      {purchase?.status === "received" && purchase.support_document_id && !supportDocIsRetryable && (
         <Card className="mt-3 p-4">
           <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold text-(--text-primary)">
             <FileText className="h-3.5 w-3.5 text-(--color-success)" />
@@ -387,12 +482,23 @@ export function PurchaseOrderEditorPage() {
         </Card>
       )}
 
-      {purchase?.status === "received" && !purchase.support_document_id && (
+      {purchase?.status === "received" && (!purchase.support_document_id || supportDocIsRetryable) && (
         <Card className="mt-3 p-4">
           <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-(--text-primary)">
             <FileText className="h-3.5 w-3.5 text-(--accent-primary)" />
             Generar Documento Soporte
           </h3>
+          {supportDocIsRetryable && (
+            <div className="mb-3">
+              <Banner tone="danger">
+                El Documento Soporte generado anteriormente fue rechazado por la DIAN y no consumió el consecutivo —{" "}
+                <button type="button" className="underline" onClick={() => navigate(`/documents/support-documents/${purchase.support_document_id}`)}>
+                  revisa el motivo del rechazo
+                </button>
+                , corrige lo necesario y genera uno nuevo.
+              </Banner>
+            </div>
+          )}
           {ranges.length === 0 ? (
             <p className="text-xs text-(--text-secondary)">
               No tienes un rango de numeración activo para Documento Soporte — configúralo en{" "}

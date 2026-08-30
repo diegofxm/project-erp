@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	cofdom "github.com/diegofxm/cofacture/domain"
 	"github.com/diegofxm/erp/internal/purchase/application"
 	"github.com/diegofxm/erp/internal/purchase/domain"
 	"github.com/diegofxm/erp/internal/shared/tenant"
@@ -25,11 +26,17 @@ type AuditLogger interface {
 // acá se mapean a snake_case, igual que sales/interfaces/http (mismo bug real que se encontró
 // ahí: antes este handler mandaba el struct de dominio crudo, con campos en PascalCase).
 
+// formatDate SIEMPRE formatea en UTC -- application.parseDate interpreta "YYYY-MM-DD" del
+// frontend como medianoche UTC (time.Parse sin location = UTC), y pgx devuelve los TIMESTAMPTZ
+// ya escaneados en la zona LOCAL del proceso Go. Sin el .UTC() explícito acá, en cualquier
+// servidor con zona horaria detrás de UTC (Colombia, UTC-5) la medianoche UTC se ve como las
+// 19:00 del día anterior en hora local, y Format("2006-01-02") imprime la fecha equivocada --
+// bug real encontrado 2026-08-11 (una orden guardada el 12 se mostraba de vuelta como el 11).
 func formatDate(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.Format("2006-01-02")
+	return t.UTC().Format("2006-01-02")
 }
 
 func formatDatePtr(t *time.Time) string {
@@ -43,6 +50,7 @@ type purchaseLineDTO struct {
 	ID          uuid.UUID `json:"id"`
 	ProductID   uuid.UUID `json:"product_id"`
 	Description string    `json:"description"`
+	UnitCode    string    `json:"unit_code"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
 	Discount    float64   `json:"discount"`
@@ -71,6 +79,26 @@ func toWithholdingDTO(w domain.PurchaseWithholding) withholdingDTO {
 	}
 }
 
+// paymentMeanDTO -- mismo formato snake_case que electronic/interfaces/http para el mismo tipo
+// cofdom.PaymentMean, así el frontend reutiliza PaymentMeansEditor.tsx sin adaptar nada.
+type paymentMeanDTO struct {
+	Code              string `json:"code"`
+	PaymentMethodCode string `json:"payment_method_code"`
+	DueDate           string `json:"due_date,omitempty"`
+	PaymentReference  string `json:"payment_reference,omitempty"`
+}
+
+func toPaymentMeanDTOs(pms []cofdom.PaymentMean) []paymentMeanDTO {
+	out := make([]paymentMeanDTO, len(pms))
+	for i, pm := range pms {
+		out[i] = paymentMeanDTO{
+			Code: pm.Code, PaymentMethodCode: pm.PaymentMethodCode,
+			DueDate: pm.DueDate, PaymentReference: pm.PaymentReference,
+		}
+	}
+	return out
+}
+
 type purchaseDTO struct {
 	ID                uuid.UUID         `json:"id"`
 	CompanyID         uuid.UUID         `json:"company_id"`
@@ -81,6 +109,7 @@ type purchaseDTO struct {
 	DueDate           string            `json:"due_date,omitempty"`
 	Notes             string            `json:"notes"`
 	Lines             []purchaseLineDTO `json:"lines"`
+	PaymentMeans      []paymentMeanDTO  `json:"payment_means"`
 	Withholdings      []withholdingDTO  `json:"withholdings"`
 	SupportDocumentID *uuid.UUID        `json:"support_document_id,omitempty"`
 	CreatedAt         time.Time         `json:"created_at"`
@@ -91,7 +120,7 @@ func toPurchaseDTO(o *domain.PurchaseOrder) purchaseDTO {
 	lines := make([]purchaseLineDTO, len(o.Lines))
 	for i, l := range o.Lines {
 		lines[i] = purchaseLineDTO{
-			ID: l.ID, ProductID: l.ProductID, Description: l.Description,
+			ID: l.ID, ProductID: l.ProductID, Description: l.Description, UnitCode: l.UnitCode,
 			Quantity: l.Quantity, UnitPrice: l.UnitPrice, Discount: l.Discount, TaxRate: l.TaxRate,
 			Subtotal: l.Subtotal, TaxAmount: l.TaxAmount, Total: l.Total,
 		}
@@ -104,7 +133,8 @@ func toPurchaseDTO(o *domain.PurchaseOrder) purchaseDTO {
 		ID: o.ID, CompanyID: o.CompanyID, SupplierID: o.SupplierID,
 		Number: o.Number, Status: string(o.Status),
 		IssueDate: formatDate(o.IssueDate), DueDate: formatDatePtr(o.DueDate),
-		Notes: o.Notes, Lines: lines, Withholdings: withholdings, SupportDocumentID: o.SupportDocumentID,
+		Notes: o.Notes, Lines: lines, PaymentMeans: toPaymentMeanDTOs(o.PaymentMeans),
+		Withholdings: withholdings, SupportDocumentID: o.SupportDocumentID,
 		CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt,
 	}
 }
@@ -151,6 +181,7 @@ func toPayableDTO(b domain.PayableBalance) payableDTO {
 
 type Handler struct {
 	create      *application.CreateUseCase
+	update      *application.UpdateUseCase
 	get         *application.GetUseCase
 	confirm     *application.ConfirmUseCase
 	cancel      *application.CancelUseCase
@@ -166,6 +197,7 @@ type Handler struct {
 
 func NewHandler(
 	create *application.CreateUseCase,
+	update *application.UpdateUseCase,
 	get *application.GetUseCase,
 	confirm *application.ConfirmUseCase,
 	cancel *application.CancelUseCase,
@@ -179,7 +211,7 @@ func NewHandler(
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
-		create: create, get: get, confirm: confirm, cancel: cancel, receive: receive, delete: del, payment: payment,
+		create: create, update: update, get: get, confirm: confirm, cancel: cancel, receive: receive, delete: del, payment: payment,
 		pdf: pdf, sendEmail: sendEmail, withholding: withholding, setCounter: setCounter, audit: audit,
 	}
 }
@@ -391,6 +423,38 @@ func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, http.StatusCreated, toPurchaseDTO(o))
+}
+
+func (h *Handler) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var req application.CreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	o, err := h.update.Execute(r.Context(), cid, id, req)
+	if err != nil {
+		if errors.Is(err, domain.ErrPurchaseNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrPurchaseNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.logAudit(r.Context(), cid, "purchase.updated", "purchase", o.ID, nil)
+	respond(w, http.StatusOK, toPurchaseDTO(o))
 }
 
 func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {

@@ -67,6 +67,7 @@ func (uc *MoveUseCase) Execute(ctx context.Context, companyID uuid.UUID, req Mov
 		Quantity:    req.Quantity,
 		Reference:   req.Reference,
 		Description: req.Description,
+		IsAddition:  req.Type == domain.MovementEntry || req.Type == domain.MovementAdjust,
 	}
 
 	saved, err := uc.repo.SaveMovement(ctx, m)
@@ -104,4 +105,10 @@ func (uc *MoveUseCase) Execute(ctx context.Context, companyID uuid.UUID, req Mov
 	}
 
 	return saved, nil
+}
+
+// Delete elimina un movimiento (o el par completo, si es un transfer) y revierte su efecto sobre
+// el stock. Ver Repository.DeleteMovement para el detalle de la reversión.
+func (uc *MoveUseCase) Delete(ctx context.Context, companyID, id uuid.UUID) error {
+	return uc.repo.DeleteMovement(ctx, companyID, id)
 }

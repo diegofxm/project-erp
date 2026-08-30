@@ -20,15 +20,17 @@ func NewQuoteUseCase(quoteRepo domain.QuoteRepository, saleRepo domain.Repositor
 }
 
 type CreateQuoteRequest struct {
-	CustomerID uuid.UUID         `json:"customer_id"`
-	Lines      []QuoteLine       `json:"lines"`
-	ValidUntil string            `json:"valid_until"` // YYYY-MM-DD, opcional
-	Notes      string            `json:"notes"`
+	CustomerID   uuid.UUID            `json:"customer_id"`
+	Lines        []QuoteLine          `json:"lines"`
+	ValidUntil   string               `json:"valid_until"` // YYYY-MM-DD, opcional
+	Notes        string               `json:"notes"`
+	PaymentMeans []PaymentMeanRequest `json:"payment_means"`
 }
 
 type QuoteLine struct {
 	ProductID   uuid.UUID `json:"product_id"`
 	Description string    `json:"description"`
+	UnitCode    string    `json:"unit_code"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
 	Discount    float64   `json:"discount"`
@@ -45,13 +47,14 @@ func (uc *QuoteUseCase) Create(ctx context.Context, companyID uuid.UUID, req Cre
 		return nil, fmt.Errorf("asignar consecutivo: %w", err)
 	}
 	q := domain.Quote{
-		ID:         uuid.New(),
-		CompanyID:  companyID,
-		CustomerID: req.CustomerID,
-		Number:     fmt.Sprintf("COT-%d-%05d", issueDate.Year(), seq),
-		Status:     domain.QuoteStatusDraft,
-		IssueDate:  issueDate,
-		Notes:      req.Notes,
+		ID:           uuid.New(),
+		CompanyID:    companyID,
+		CustomerID:   req.CustomerID,
+		Number:       fmt.Sprintf("COT-%d-%05d", issueDate.Year(), seq),
+		Status:       domain.QuoteStatusDraft,
+		IssueDate:    issueDate,
+		Notes:        req.Notes,
+		PaymentMeans: paymentMeansToCofdom(req.PaymentMeans),
 	}
 	if req.ValidUntil != "" {
 		t, err := time.Parse("2006-01-02", req.ValidUntil)
@@ -63,6 +66,7 @@ func (uc *QuoteUseCase) Create(ctx context.Context, companyID uuid.UUID, req Cre
 		q.Lines = append(q.Lines, domain.QuoteLine{
 			ProductID:   l.ProductID,
 			Description: l.Description,
+			UnitCode:    l.UnitCode,
 			Quantity:    l.Quantity,
 			UnitPrice:   l.UnitPrice,
 			Discount:    l.Discount,
@@ -71,6 +75,34 @@ func (uc *QuoteUseCase) Create(ctx context.Context, companyID uuid.UUID, req Cre
 	}
 	q.CalculateTotals()
 	return uc.quoteRepo.Save(ctx, q)
+}
+
+// Update corrige cliente/fecha de validez/notas/líneas de una cotización EN BORRADOR -- mismo
+// request que Create (CreateQuoteRequest), ya que el formulario de captura es el mismo.
+func (uc *QuoteUseCase) Update(ctx context.Context, companyID, id uuid.UUID, req CreateQuoteRequest) (*domain.Quote, error) {
+	if len(req.Lines) == 0 {
+		return nil, fmt.Errorf("la cotización debe tener al menos una línea")
+	}
+	q := domain.Quote{CustomerID: req.CustomerID, Notes: req.Notes, PaymentMeans: paymentMeansToCofdom(req.PaymentMeans)}
+	if req.ValidUntil != "" {
+		t, err := time.Parse("2006-01-02", req.ValidUntil)
+		if err == nil {
+			q.ValidUntil = &t
+		}
+	}
+	for _, l := range req.Lines {
+		q.Lines = append(q.Lines, domain.QuoteLine{
+			ProductID:   l.ProductID,
+			Description: l.Description,
+			UnitCode:    l.UnitCode,
+			Quantity:    l.Quantity,
+			UnitPrice:   l.UnitPrice,
+			Discount:    l.Discount,
+			TaxRate:     l.TaxRate,
+		})
+	}
+	q.CalculateTotals()
+	return uc.quoteRepo.Update(ctx, companyID, id, q)
 }
 
 func (uc *QuoteUseCase) List(ctx context.Context, companyID uuid.UUID) ([]domain.Quote, error) {
@@ -150,6 +182,7 @@ func (uc *QuoteUseCase) ConvertToSale(ctx context.Context, companyID, id uuid.UU
 		sale.Lines = append(sale.Lines, domain.SaleLine{
 			ProductID:   ql.ProductID,
 			Description: ql.Description,
+			UnitCode:    ql.UnitCode,
 			Quantity:    ql.Quantity,
 			UnitPrice:   ql.UnitPrice,
 			Discount:    ql.Discount,

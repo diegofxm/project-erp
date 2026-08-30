@@ -27,7 +27,7 @@ function defaultPayload(): ProductPayload {
     description: "",
     unit_measure_code: "94",
     standard_code: "",
-    standard_code_type: "Estándar propio",
+    standard_code_type: "Estándar de adopción del contribuyente",
     standard_code_id: "999",
     standard_code_agency_id: "",
     is_service: false,
@@ -74,7 +74,7 @@ export function ProductForm({ initial, onSubmit, onCancel, loading }: ProductFor
     setForm((prev) => ({
       ...prev,
       standard_code_id: standardId,
-      standard_code_type: std?.name ?? "Estándar propio",
+      standard_code_type: std?.name ?? "Estándar de adopción del contribuyente",
       standard_code_agency_id: std?.agency_id ?? "",
       standard_code: standardId === "999" ? prev.standard_code : "",
     }));

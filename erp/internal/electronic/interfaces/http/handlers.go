@@ -1207,11 +1207,18 @@ type numberingRangeDTO struct {
 	UpdatedAt            time.Time          `json:"updated_at"`
 }
 
+// formatDate SIEMPRE formatea en UTC -- resolution_date/valid_from/valid_to de un rango de
+// numeración se parsean con time.Parse("2006-01-02", ...) (medianoche UTC), y pgx devuelve el
+// TIMESTAMPTZ ya escaneado en la zona LOCAL del proceso Go. Sin el .UTC() explícito acá, en
+// cualquier servidor con zona horaria detrás de UTC (Colombia, UTC-5) la medianoche UTC se ve
+// como las 19:00 del día anterior en hora local, y Format("2006-01-02") imprime la fecha
+// equivocada -- mismo bug encontrado 2026-08-11 en sales/purchase, aplica igual acá porque
+// comparte el patrón exacto de parseo.
 func formatDate(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.Format("2006-01-02")
+	return t.UTC().Format("2006-01-02")
 }
 
 func toNumberingRangeDTO(nr *domain.NumberingRange) numberingRangeDTO {
@@ -1236,7 +1243,7 @@ func toNumberingRangeDTO(nr *domain.NumberingRange) numberingRangeDTO {
 }
 
 func (h *Handler) handleCreateNumberingRange(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -1322,7 +1329,7 @@ func (h *Handler) handleListNumberingRanges(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) handleDeactivateRange(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -1347,7 +1354,7 @@ func (h *Handler) handleDeactivateRange(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) handleActivateRange(w http.ResponseWriter, r *http.Request) {
-	companyID, ok := mustTenant(w, r)
+	companyID, ok := requireManage(w, r)
 	if !ok {
 		return
 	}
@@ -1422,6 +1429,20 @@ func mustTenant(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	id := tenant.GetCompanyID(r.Context())
 	if id == uuid.Nil {
 		http.Error(w, "empresa requerida", http.StatusUnauthorized)
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+// requireManage exige además rol owner/admin -- para mutaciones sobre rangos de numeración DIAN
+// (recurso legalmente sensible: una resolución mal asignada puede invalidar documentos emitidos).
+func requireManage(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, ok := mustTenant(w, r)
+	if !ok {
+		return uuid.Nil, false
+	}
+	if !tenant.CanManage(r.Context()) {
+		http.Error(w, "requiere rol de administrador", http.StatusForbidden)
 		return uuid.Nil, false
 	}
 	return id, true

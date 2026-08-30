@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useNavigate } from "react-router";
+import { Link, Navigate, useNavigate } from "react-router";
 import { LogIn } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../lib/apiClient";
@@ -63,6 +63,9 @@ export function LoginPage() {
           <Button type="submit" icon={<LogIn className="h-3.5 w-3.5" />} loading={loading} className="w-full">
             Iniciar sesión
           </Button>
+          <Link to="/forgot-password" className="text-center text-xs text-(--text-secondary) hover:text-(--accent-primary) hover:underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
         </form>
       </Card>
     </div>

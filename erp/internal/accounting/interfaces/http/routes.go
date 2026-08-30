@@ -11,6 +11,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("POST /api/v1/accounting/bank-accounts", h.handleCreateBankAccount)
 	mux.HandleFunc("GET /api/v1/accounting/bank-accounts", h.handleListBankAccounts)
+	mux.HandleFunc("PUT /api/v1/accounting/bank-accounts/{id}", h.handleUpdateBankAccount)
+	mux.HandleFunc("DELETE /api/v1/accounting/bank-accounts/{id}", h.handleDeactivateBankAccount)
 	mux.HandleFunc("POST /api/v1/accounting/bank-accounts/{id}/statement-lines", h.handleAddStatementLine)
 	mux.HandleFunc("GET /api/v1/accounting/bank-accounts/{id}/statement-lines", h.handleListStatement)
 	mux.HandleFunc("GET /api/v1/accounting/statement-lines/{line_id}/candidates", h.handleCandidates)
@@ -18,12 +20,16 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("POST /api/v1/accounting/fixed-assets", h.handleCreateFixedAsset)
 	mux.HandleFunc("GET /api/v1/accounting/fixed-assets", h.handleListFixedAssets)
+	mux.HandleFunc("POST /api/v1/accounting/fixed-assets/{id}/dispose", h.handleDisposeFixedAsset)
 	mux.HandleFunc("POST /api/v1/accounting/depreciation-runs", h.handleRunDepreciation)
 	mux.HandleFunc("GET /api/v1/accounting/depreciation-runs", h.handleListDepreciationRuns)
 
 	mux.HandleFunc("POST /api/v1/accounting/budgets", h.handleCreateBudget)
 	mux.HandleFunc("GET /api/v1/accounting/budgets", h.handleListBudgets)
+	mux.HandleFunc("PUT /api/v1/accounting/budgets/{id}", h.handleUpdateBudget)
+	mux.HandleFunc("DELETE /api/v1/accounting/budgets/{id}", h.handleDeleteBudget)
 	mux.HandleFunc("POST /api/v1/accounting/budgets/{id}/lines", h.handleSetBudgetLine)
+	mux.HandleFunc("DELETE /api/v1/accounting/budgets/{id}/lines/{account_code}", h.handleDeleteBudgetLine)
 	mux.HandleFunc("GET /api/v1/accounting/budgets/{id}/lines", h.handleListBudgetLines)
 	mux.HandleFunc("GET /api/v1/accounting/budgets/{id}/compare", h.handleBudgetCompare)
 	mux.HandleFunc("POST /api/v1/accounting/budgets/{id}/approve", h.handleApproveBudget)
@@ -49,6 +55,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/accounting/periods/{id}/reopen", h.handleReopenPeriod)
 	mux.HandleFunc("POST /api/v1/accounting/voucher-types", h.handleCreateVoucherType)
 	mux.HandleFunc("GET /api/v1/accounting/voucher-types", h.handleListVoucherTypes)
+	mux.HandleFunc("PUT /api/v1/accounting/voucher-types/{code}", h.handleUpdateVoucherType)
+	mux.HandleFunc("DELETE /api/v1/accounting/voucher-types/{code}", h.handleDeactivateVoucherType)
 	mux.HandleFunc("POST /api/v1/accounting/voucher-counters", h.handleSetVoucherCounter)
 
 	// Asientos contables

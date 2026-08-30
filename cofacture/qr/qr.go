@@ -1,5 +1,5 @@
-// Package qr construye la URL del código QR que exige la representación gráfica de los
-// documentos electrónicos DIAN (Anexo Técnico 1.9, sección 11.7.1).
+// Package qr builds the QR code URL required in the graphic representation of DIAN electronic
+// documents (Technical Annex 1.9, section 11.7.1).
 package qr
 
 import (
@@ -14,10 +14,10 @@ const (
 	produccionBaseURL   = "https://catalogo-vpfe.dian.gov.co/document/searchqr"
 )
 
-// URL construye la URL del QR a partir del CUFE (o CUDE) y el código de ambiente
-// ("1" producción, "2" habilitación — el mismo valor que cbc:ProfileExecutionID). La DIAN
-// usa dominios distintos por ambiente; confirmado contra dos facturas reales de producción
-// y el texto del anexo técnico.
+// URL builds the QR URL from the CUFE (or CUDE) and the environment code ("1" production, "2"
+// certification/testing — the same value as cbc:ProfileExecutionID). DIAN uses different
+// domains per environment; confirmed against two real production invoices and the technical
+// annex text.
 func URL(environmentCode, documentKey string) string {
 	base := produccionBaseURL
 	if environmentCode == "2" {
@@ -26,15 +26,16 @@ func URL(environmentCode, documentKey string) string {
 	return base + "?documentkey=" + documentKey
 }
 
-// SupportDocumentURL construye la URL del QR del Documento Soporte.
-// Usa el mismo endpoint searchqr que FE/NC/ND (verificado: FindDocument no redirige).
+// SupportDocumentURL builds the Support Document's QR URL.
+// Uses the same searchqr endpoint as Invoice/CreditNote/DebitNote (verified: FindDocument does
+// not redirect).
 func SupportDocumentURL(environmentCode, cuds string) string {
 	return URL(environmentCode, cuds)
 }
 
-// AdjustmentNoteContent construye el contenido completo del QR de la Nota de Ajuste al DS
-// (InvoiceTypeCode "95"). Sigue el mismo patrón que SupportDocumentContent (bloque de texto
-// multilinea seguido de la URL), adaptado para el tipo de documento NA.
+// AdjustmentNoteContent builds the full QR content for the Adjustment Note to the Support
+// Document (InvoiceTypeCode "95"). Follows the same pattern as SupportDocumentContent (a
+// multi-line text block followed by the URL), adapted for the Adjustment Note document type.
 func AdjustmentNoteContent(inv domain.Invoice, cuds, softwarePIN string) string {
 	var codImp, valImp string
 	for _, t := range inv.HeaderTaxes {
@@ -80,18 +81,19 @@ func AdjustmentNoteContent(inv domain.Invoice, cuds, softwarePIN string) string 
 	)
 }
 
-// SupportDocumentContent construye el contenido completo del QR del Documento Soporte
-// (InvoiceTypeCode "05"). A diferencia de la Factura/NC/ND cuyo QR es solo una URL, el DS
-// exige un bloque de texto multilinea seguido de la URL (Anexo Técnico 1.9, sección 11.7.1).
+// SupportDocumentContent builds the full QR content for the Support Document (InvoiceTypeCode
+// "05"). Unlike Invoice/CreditNote/DebitNote, whose QR is just a URL, the Support Document
+// requires a multi-line text block followed by the URL (Technical Annex 1.9, section 11.7.1).
 //
-// softwarePIN es el PIN del software autorizado — el mismo usado para calcular el CUDS.
-// cuds es el CUDS ya calculado (hex SHA-384).
+// softwarePIN is the authorized software PIN — the same one used to compute the CUDS.
+// cuds is the already-computed CUDS (hex SHA-384).
 //
-// Roles en DS: Supplier = tercero no obligado (NumSNO), Customer = empresa emisora (NITABS).
+// Roles in the Support Document: Supplier = non-obligated third party (NumSNO), Customer =
+// issuing company (NITABS).
 func SupportDocumentContent(inv domain.Invoice, cuds, softwarePIN string) string {
 	var codImp, valImp string
 	for _, t := range inv.HeaderTaxes {
-		if t.TypeCode == "01" { // IVA
+		if t.TypeCode == "01" { // VAT
 			codImp = t.TypeCode
 			valImp = domain.FormatCents(t.TaxAmountCents)
 			break

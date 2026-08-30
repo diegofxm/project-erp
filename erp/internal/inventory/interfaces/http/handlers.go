@@ -105,6 +105,38 @@ func (h *Handler) handleMove(w http.ResponseWriter, r *http.Request) {
 	respond(w, http.StatusCreated, toMovementDTO(*m))
 }
 
+func (h *Handler) handleDeleteMovement(w http.ResponseWriter, r *http.Request) {
+	companyID, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.move.Delete(r.Context(), companyID, id); err != nil {
+		switch {
+		case errors.Is(err, domain.ErrMovementNotFound):
+			respondError(w, http.StatusNotFound, err.Error())
+		case errors.Is(err, domain.ErrDeleteWouldMakeStockNegative):
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+		default:
+			respondError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	if h.audit != nil {
+		uid := tenant.GetUserID(r.Context())
+		var userID *uuid.UUID
+		if uid != uuid.Nil {
+			userID = &uid
+		}
+		h.audit.Log(r.Context(), companyID, userID, "inventory.movement_deleted", "movement", &id, nil)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) handleListStock(w http.ResponseWriter, r *http.Request) {
 	companyID, ok := requireTenant(w, r)
 	if !ok {

@@ -1,63 +1,62 @@
 package domain
 
-// AttachedPartyInfo es la versión reducida de un tercero que usa el AttachedDocument
-// (SenderParty/ReceiverParty) — solo lleva los datos tributarios básicos, a diferencia de
-// Party (que además tiene dirección, contacto y representación legal, usados en
-// AccountingSupplierParty/AccountingCustomerParty dentro del documento envuelto).
+// AttachedPartyInfo is the reduced version of a third party used by AttachedDocument
+// (SenderParty/ReceiverParty) — it only carries basic tax data, unlike Party (which also has
+// address, contact and legal representation, used in AccountingSupplierParty/
+// AccountingCustomerParty within the wrapped document).
 type AttachedPartyInfo struct {
 	Name           string
 	Identification Identification
-	TaxRegimeCode  string // listName de TaxLevelCode
+	TaxRegimeCode  string // TaxLevelCode's listName
 	LiabilityCodes []string
 	TaxSchemeCode  string
 	TaxSchemeName  string
 }
 
-// ValidationResult es la respuesta de validación de la DIAN para el documento envuelto,
-// embebida en cac:ParentDocumentLineReference. El anexo técnico exige al menos una
-// ocurrencia (AE38, "1..N") — el AttachedDocument es un artefacto posterior a la
-// validación, no algo que se construye antes de tenerla.
+// ValidationResult is DIAN's validation response for the wrapped document, embedded in
+// cac:ParentDocumentLineReference. The technical annex requires at least one occurrence (AE38,
+// "1..N") — the AttachedDocument is an artifact produced after validation, not something built
+// before it.
 type ValidationResult struct {
-	LineID string // consecutivo, normalmente "1"
+	LineID string // sequence number, normally "1"
 
-	DocumentID        string // ID del documento referenciado (Prefijo+Número)
-	DocumentCUFE      string // o CUDE
-	DocumentHashType  string // "CUFE-SHA384" o "CUDE-SHA384"
+	DocumentID        string // ID of the referenced document (Prefix+Number)
+	DocumentCUFE      string // or CUDE
+	DocumentHashType  string // "CUFE-SHA384" or "CUDE-SHA384"
 	DocumentIssueDate string
 
-	// ApplicationResponseXML es el ApplicationResponse completo que devolvió la DIAN,
-	// tal cual, para el CDATA de cac:Attachment/cac:ExternalReference/cbc:Description.
+	// ApplicationResponseXML is the full ApplicationResponse returned by DIAN, verbatim, for
+	// the CDATA of cac:Attachment/cac:ExternalReference/cbc:Description.
 	ApplicationResponseXML string
 
-	ValidatorID          string // fijo: "Unidad Especial Dirección de Impuestos y Aduanas Nacionales"
-	ValidationResultCode string // ej. "02"
+	ValidatorID          string // fixed: "Unidad Especial Dirección de Impuestos y Aduanas Nacionales"
+	ValidationResultCode string // e.g. "02"
 	ValidationDate       string
 	ValidationTime       string
 }
 
-// AttachedDocument es el contenedor electrónico que se entrega al adquiriente: envuelve el
-// documento firmado (Invoice/CreditNote/DebitNote) junto con la respuesta de validación de
-// la DIAN.
+// AttachedDocument is the electronic container delivered to the acquirer: it wraps the signed
+// document (Invoice/CreditNote/DebitNote) together with DIAN's validation response.
 type AttachedDocument struct {
 	EnvironmentCode string
 
-	// ID es el "consecutivo propio del generador del documento" (AE04b) — NO es el CUFE
-	// del documento envuelto, son cosas distintas aunque en la práctica algunos
-	// proveedores las confunden.
+	// ID is the "generator's own consecutive number" (AE04b) — it is NOT the wrapped
+	// document's CUFE; the two are different values even though some providers conflate them
+	// in practice.
 	ID string
 
-	IssueDate string // fecha de generación del contenedor (>= IssueDate del documento envuelto)
+	IssueDate string // container generation date (>= the wrapped document's IssueDate)
 	IssueTime string
 
-	// ParentDocumentID es el cbc:ID del documento envuelto (Prefijo+Número), no del
-	// contenedor.
+	// ParentDocumentID is the cbc:ID of the wrapped document (Prefix+Number), not of the
+	// container itself.
 	ParentDocumentID string
 
 	Sender   AttachedPartyInfo
 	Receiver AttachedPartyInfo
 
-	// AttachmentXML es el XML firmado del documento envuelto (Invoice/CreditNote/
-	// DebitNote), tal cual, para el CDATA de cac:Attachment/cac:ExternalReference/
+	// AttachmentXML is the signed XML of the wrapped document (Invoice/CreditNote/
+	// DebitNote), verbatim, for the CDATA of cac:Attachment/cac:ExternalReference/
 	// cbc:Description.
 	AttachmentXML string
 

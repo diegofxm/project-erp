@@ -7,6 +7,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/auth/register", h.handleRegister)
 	mux.HandleFunc("POST /api/v1/auth/login", h.handleLogin)
 	mux.HandleFunc("POST /api/v1/auth/accept-invite", h.handleAcceptInvite)
+	mux.HandleFunc("POST /api/v1/auth/forgot-password", h.handleForgotPassword)
+	mux.HandleFunc("POST /api/v1/auth/reset-password", h.handleResetPassword)
 
 	// Protegidas (el middleware de tenant verifica el JWT; el handler llama requireAuth)
 	mux.HandleFunc("GET /api/v1/auth/me", h.handleMe)

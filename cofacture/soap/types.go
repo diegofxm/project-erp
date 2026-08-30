@@ -1,18 +1,19 @@
 package soap
 
-// Tipos que reflejan los esquemas reales descargados del WSDL de habilitación
-// (https://vpfe-hab.dian.gov.co/WcfDianCustomerServices.svc?xsd=xsd3, xsd5, xsd6) — no son
-// una traducción del anexo técnico, son el contrato real tal cual lo expone el servicio.
+// Types that mirror the real schemas downloaded from the certification-environment WSDL
+// (https://vpfe-hab.dian.gov.co/WcfDianCustomerServices.svc?xsd=xsd2, xsd3, xsd5, xsd6, xsd9,
+// xsd11-xsd21) — they are not a translation of the technical annex, they are the service's
+// actual contract as exposed.
 //
-// Los tags xml no califican namespace: encoding/xml empareja por nombre local cuando el
-// tag no especifica uno, y aquí no hay colisión posible de nombres entre namespaces.
+// The xml tags do not qualify a namespace: encoding/xml matches by local name when the tag
+// specifies none, and there is no possible name collision across namespaces here.
 
 type stringArray struct {
 	Items []string `xml:"string"`
 }
 
-// DianResponse es el resultado de validar un documento (SendBillSyncResult,
-// GetStatusResult, cada elemento de GetStatusZipResult).
+// DianResponse is the result of validating a document (SendBillSyncResult,
+// GetStatusResult, each element of GetStatusZipResult).
 type DianResponse struct {
 	ErrorMessage      *stringArray `xml:"ErrorMessage"`
 	IsValid           bool         `xml:"IsValid"`
@@ -25,8 +26,8 @@ type DianResponse struct {
 	XmlFileName       string       `xml:"XmlFileName"`
 }
 
-// XMLParamsResponseTrackId es un error de validación inicial del ZIP (no llegó a ponerse
-// en cola de validación).
+// XMLParamsResponseTrackId is an initial ZIP validation error (it never made it into the
+// validation queue).
 type XMLParamsResponseTrackId struct {
 	DocumentKey      string `xml:"DocumentKey"`
 	ProcessedMessage string `xml:"ProcessedMessage"`
@@ -35,9 +36,9 @@ type XMLParamsResponseTrackId struct {
 	XmlFileName      string `xml:"XmlFileName"`
 }
 
-// UploadDocumentResponse es el resultado de SendBillAsync/SendTestSetAsync/
-// SendBillAttachmentAsync: o hay errores iniciales (ErrorMessageList) o hay un ZipKey para
-// consultar después con GetStatusZip.
+// UploadDocumentResponse is the result of SendBillAsync/SendTestSetAsync/
+// SendBillAttachmentAsync: either there are initial errors (ErrorMessageList) or there is a
+// ZipKey to query later with GetStatusZip.
 type UploadDocumentResponse struct {
 	ErrorMessageList *struct {
 		Items []XMLParamsResponseTrackId `xml:"XmlParamsResponseTrackId"`
@@ -45,10 +46,10 @@ type UploadDocumentResponse struct {
 	ZipKey string `xml:"ZipKey"`
 }
 
-// NumberRangeResponse es un rango de numeración individual devuelto por GetNumberingRange
-// (namespace http://schemas.datacontract.org/2004/07/NumberRangeResponse en el WSDL real).
-// Fechas en formato string tal como las devuelve la DIAN ("2019-01-19T00:00:00") — el
-// llamador convierte según necesite.
+// NumberRangeResponse is a single numbering range returned by GetNumberingRange (namespace
+// http://schemas.datacontract.org/2004/07/NumberRangeResponse in the real WSDL). Dates are
+// plain strings exactly as DIAN returns them ("2019-01-19T00:00:00") — the caller converts as
+// needed.
 type NumberRangeResponse struct {
 	ResolutionNumber string `xml:"ResolutionNumber"`
 	ResolutionDate   string `xml:"ResolutionDate"`
@@ -60,26 +61,178 @@ type NumberRangeResponse struct {
 	TechnicalKey     string `xml:"TechnicalKey"`
 }
 
-// NumberRangeResponseList es el resultado completo de GetNumberingRange — una lista de
-// rangos autorizados para el emisor + software dados (namespace
-// http://schemas.datacontract.org/2004/07/NumberRangeResponseList).
-// OperationCode "0" indica éxito; cualquier otro código indica error de la DIAN.
+// NumberRangeResponseList is the full result of GetNumberingRange — a list of ranges
+// authorized for the given issuer + software pair (namespace
+// http://schemas.datacontract.org/2004/07/NumberRangeResponseList). OperationCode "0" means
+// success; any other code indicates a DIAN-side error.
 type NumberRangeResponseList struct {
 	OperationCode        string                `xml:"OperationCode"`
 	OperationDescription string                `xml:"OperationDescription"`
 	ResponseList         []NumberRangeResponse `xml:"ResponseList>NumberRangeResponse"`
 }
 
-// AcquirerResponse es el resultado de GetAcquirer (namespace
-// Gosocket.Dian.Services.Utils.Common en el WSDL real) — consulta el registro de
-// intercambio/notificación de la DIAN para un tercero dado, no un RUT completo: solo trae
-// ReceiverName/ReceiverEmail si ese identificationNumber ya tiene un nombre/correo registrados
-// para recibir documentos electrónicos. StatusCode/Message vacíos (o un StatusCode de error) es
-// el resultado normal y esperado para la mayoría de cédulas — no significa que la consulta
-// falló, ver docs/apidian-architecture.md sección 9.41.
+// AcquirerResponse is the result of GetAcquirer (namespace
+// Gosocket.Dian.Services.Utils.Common in the real WSDL) — it queries DIAN's exchange/
+// notification registry for a given third party, not a full RUT lookup: it only returns
+// ReceiverName/ReceiverEmail if that identificationNumber already has a name/email registered
+// to receive electronic documents. Empty StatusCode/Message (or an error StatusCode) is the
+// normal, expected result for most national IDs — it does not mean the query failed.
 type AcquirerResponse struct {
 	Message       string `xml:"Message"`
 	StatusCode    string `xml:"StatusCode"`
 	ReceiverName  string `xml:"ReceiverName"`
 	ReceiverEmail string `xml:"ReceiverEmail"`
+}
+
+// XMLByDocumentKeyResponse is the result of GetXmlByDocumentKey. DIAN's own WSDL names this
+// datacontract type "EventResponse" (http://schemas.datacontract.org/2004/07/EventResponse) —
+// a naming collision with this library's own event package that has nothing to do with it;
+// this Go type is named for what it actually holds instead of copying that name.
+type XMLByDocumentKeyResponse struct {
+	Code    string `xml:"Code"`
+	Message string `xml:"Message"`
+	// XmlBytesBase64 is the raw base64 text as DIAN sends it — encoding/xml does not decode
+	// []byte fields from base64 (it only copies character data verbatim), so the caller must
+	// call base64.StdEncoding.DecodeString on this before it's usable XML. Same convention as
+	// DianResponse.XmlBase64Bytes.
+	XmlBytesBase64 []byte `xml:"XmlBytesBase64"`
+	ValidationDate string `xml:"ValidationDate"`
+}
+
+// ExchangeEmailResponse is the result of GetExchangeEmails — a CSV of the email addresses
+// configured to exchange electronic documents with DIAN's registry.
+type ExchangeEmailResponse struct {
+	// CsvBase64Bytes is the raw base64 text as DIAN sends it — see XMLByDocumentKeyResponse's
+	// doc comment on XmlBytesBase64 for why this isn't decoded automatically.
+	CsvBase64Bytes []byte `xml:"CsvBase64Bytes"`
+	Message        string `xml:"Message"`
+	StatusCode     string `xml:"StatusCode"`
+	Success        bool   `xml:"Success"`
+}
+
+// DocumentInfoResponse is the result of GetDocumentInfo — full metadata (parties, taxes,
+// notes, referencing events, validations) for a document identified by UUID (namespace
+// http://schemas.datacontract.org/2004/07/DocumentInfoResponse in the real WSDL). This is a
+// heavier query than GetStatus and has not been exercised against DIAN's certification
+// environment — the shape below mirrors the WSDL's own schema exactly, but which fields DIAN
+// actually populates in practice is unconfirmed.
+type DocumentInfoResponse struct {
+	CompressedDocumentInfo string      `xml:"CompressedDocumentInfo"`
+	DocumentInfo           []Documento `xml:"DocumentInfo>Documento"`
+	StatusCode             string      `xml:"StatusCode"`
+	StatusDescription      string      `xml:"StatusDescription"`
+}
+
+// Documento is one entry of DocumentInfoResponse.DocumentInfo.
+type Documento struct {
+	DocumentCode        string                `xml:"DocumentCode"`
+	DocumentDescription string                `xml:"DocumentDescription"`
+	DocumentTags        []Nota                `xml:"DocumentTags>Nota"`
+	DocumentTypeId      string                `xml:"DocumentTypeId"`
+	DocumentTypeName    string                `xml:"DocumentTypeName"`
+	Emisor              Entidad               `xml:"Emisor"`
+	Estado              []intStringPair       `xml:"Estado>KeyValueOfintstring"`
+	Eventos             []Evento              `xml:"Eventos>Evento"`
+	LegitimoTenedor     LegitimoTenedor       `xml:"LegitimoTenedor"`
+	NumeroDocumento     NumeroDocumento       `xml:"NumeroDocumento"`
+	Receptor            Entidad               `xml:"Receptor"`
+	Referencias         []ReferenciaDocumento `xml:"Referencias>ReferenciaDocumento"`
+	TotalEImpuestos     TotalEImpuestos       `xml:"TotalEImpuestos"`
+	UUID                string                `xml:"UUID"`
+	ValidacionesDoc     []ValidacionDoc       `xml:"ValidacionesDoc>ValidacionDoc"`
+}
+
+// intStringPair is Documento.Estado's dictionary entry (ArrayOfKeyValueOfintstring in the WSDL
+// — DIAN represents Estado as an int-keyed dictionary, not a plain string).
+type intStringPair struct {
+	Key   int    `xml:"Key"`
+	Value string `xml:"Value"`
+}
+
+// Nota is an entry of Documento.DocumentTags. Despite the generic name, the real WSDL gives it
+// full party and correction-concept data — it is not free-text.
+type Nota struct {
+	ConceptoCorreccion  ConceptoCorreccion `xml:"ConceptoCorreccion"`
+	Emisor              Entidad            `xml:"Emisor"`
+	LegitimoTenedor     LegitimoTenedor    `xml:"LegitimoTenedor"`
+	NombreTipoDocumento string             `xml:"NombreTipoDocumento"`
+	NumeroDocumento     NumeroDocumento    `xml:"NumeroDocumento"`
+	Receptor            Entidad            `xml:"Receptor"`
+	UUID                string             `xml:"UUID"`
+	ValidacionesDoc     []ValidacionDoc    `xml:"ValidacionesDoc>ValidacionDoc"`
+}
+
+// ConceptoCorreccion is a Credit/Debit Note's correction-concept catalog entry.
+type ConceptoCorreccion struct {
+	Codigo      string `xml:"Codigo"`
+	Descripcion string `xml:"Descripcion"`
+	Nombre      string `xml:"Nombre"`
+}
+
+// Entidad identifies a party (issuer or receiver) in GetDocumentInfo's response — a much
+// smaller shape than domain.Party, since this is DIAN's own summary, not the full UBL party.
+type Entidad struct {
+	Nombre      string `xml:"Nombre"`
+	NumeroDoc   string `xml:"NumeroDoc"`
+	Procedencia string `xml:"Procedencia"`
+	TipoDoc     string `xml:"TipoDoc"`
+}
+
+// LegitimoTenedor is the "legitimate holder" of a title-value document (factura como título
+// valor) — populated only after it has been transferred/endorsed.
+type LegitimoTenedor struct {
+	FechaInscripcionComoTituloValor string `xml:"FechaInscripcionComoTituloValor"`
+	Nombre                          string `xml:"Nombre"`
+}
+
+// NumeroDocumento carries a document's series/folio and its issuance/signature dates.
+type NumeroDocumento struct {
+	FechaEmision string `xml:"FechaEmision"`
+	FechaFirma   string `xml:"FechaFirma"`
+	Folio        string `xml:"Folio"`
+	Serie        string `xml:"Serie"`
+}
+
+// TotalEImpuestos is a document's IVA and total amount, as DIAN's own summary reports them —
+// a bare xs:double from the wire, not this library's int64-cents convention: there is nothing
+// to truncate here, this is DIAN's own already-formatted response, not a value we construct.
+type TotalEImpuestos struct {
+	Iva   float64 `xml:"Iva"`
+	Total float64 `xml:"Total"`
+}
+
+// ValidacionDoc is one validation entry DIAN ran against a document (or one of its events).
+type ValidacionDoc struct {
+	IsNotification bool   `xml:"IsNotification"`
+	IsValida       bool   `xml:"IsValida"`
+	MensajeError   string `xml:"MensajeError"`
+	Nombre         string `xml:"Nombre"`
+	Status         string `xml:"Status"`
+}
+
+// Evento is one lifecycle event recorded against a document (e.g. Acuse de Recibo, Aceptación
+// Tácita) as summarized by GetDocumentInfo — not to be confused with this library's own event
+// package, which builds those events before submission; this type only describes what DIAN
+// already has on file.
+type Evento struct {
+	Codigo               string                `xml:"Codigo"`
+	Descripcion          string                `xml:"Descripcion"`
+	Emisor               Entidad               `xml:"Emisor"`
+	NumeroDocumento      NumeroDocumento       `xml:"NumeroDocumento"`
+	Receptor             Entidad               `xml:"Receptor"`
+	ReferenciasDocumento []ReferenciaDocumento `xml:"ReferenciasDocumento>ReferenciaDocumento"`
+	UUID                 string                `xml:"UUID"`
+	ValidacionesDoc      []ValidacionDoc       `xml:"ValidacionesDoc>ValidacionDoc"`
+}
+
+// ReferenciaDocumento is a reference to another document (e.g. the invoice a Credit Note
+// corrects), as summarized by GetDocumentInfo/Evento.
+type ReferenciaDocumento struct {
+	Descripcion      string  `xml:"Descripcion"`
+	DocumentTypeId   string  `xml:"DocumentTypeId"`
+	DocumentTypeName string  `xml:"DocumentTypeName"`
+	Emisor           Entidad `xml:"Emisor"`
+	Fecha            string  `xml:"Fecha"`
+	Receptor         Entidad `xml:"Receptor"`
+	UUID             string  `xml:"UUID"`
 }

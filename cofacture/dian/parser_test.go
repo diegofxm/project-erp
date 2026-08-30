@@ -12,7 +12,7 @@ func TestParseMessage(t *testing.T) {
 		raw  string
 		want Message
 	}{
-		// Mensajes reales devueltos por la DIAN (ambiente de habilitación).
+		// Real messages returned by DIAN (certification/testing environment).
 		{
 			raw: "Regla: ZE02, Rechazo: Valor de la firma inválido.",
 			want: Message{
@@ -29,8 +29,8 @@ func TestParseMessage(t *testing.T) {
 			},
 		},
 		{
-			// Texto que no sigue el patrón: se conserva en Raw, el resto queda vacío en
-			// vez de fallar.
+			// Text that doesn't follow the pattern: it is preserved in Raw, the rest is left
+			// empty instead of failing.
 			raw:  "algo que no sigue el formato esperado",
 			want: Message{Raw: "algo que no sigue el formato esperado"},
 		},
@@ -53,19 +53,20 @@ func TestMessage_IsRejection(t *testing.T) {
 	}
 }
 
-func TestInterpret_DecodesDoubleBase64ApplicationResponse(t *testing.T) {
-	// XmlBase64Bytes trae doble codificación: encoding/xml ya decodifica la primera capa
-	// (es xs:base64Binary), pero lo que queda adentro es a su vez texto base64 — verificado
-	// contra una respuesta real de GetStatusZip.
+func TestInterpret_DecodesBase64ApplicationResponse(t *testing.T) {
+	// XmlBase64Bytes arrives as base64 text — encoding/xml never decodes it on its own (it
+	// only copies character data verbatim into a []byte field), so decodeEmbeddedXML's one
+	// base64.StdEncoding.DecodeString call is the only decode step, not a "second layer" of
+	// one Go already did — verified against a real GetStatusZip response.
 	innerXML := `<?xml version="1.0" encoding="utf-8"?><ApplicationResponse><cbc:UUID>cude-de-prueba</cbc:UUID></ApplicationResponse>`
-	doubleEncoded := base64.StdEncoding.EncodeToString([]byte(innerXML))
+	encoded := base64.StdEncoding.EncodeToString([]byte(innerXML))
 
 	resp := soap.DianResponse{
 		IsValid:        true,
 		StatusCode:     "00",
 		StatusMessage:  "ha sido autorizada",
 		XmlDocumentKey: "cufe-de-prueba",
-		XmlBase64Bytes: []byte(doubleEncoded),
+		XmlBase64Bytes: []byte(encoded),
 	}
 
 	result, err := Interpret(resp)
@@ -76,7 +77,7 @@ func TestInterpret_DecodesDoubleBase64ApplicationResponse(t *testing.T) {
 		t.Errorf("ApplicationResponseXML = %q, want %q", result.ApplicationResponseXML, innerXML)
 	}
 	if !result.IsValid || result.StatusCode != "00" {
-		t.Errorf("campos básicos no se copiaron correctamente: %+v", result)
+		t.Errorf("basic fields were not copied correctly: %+v", result)
 	}
 }
 
@@ -117,12 +118,12 @@ func TestResult_HasRejectionsAndToValidationResult(t *testing.T) {
 		t.Errorf("ValidatorID = %q, want %q", vr.ValidatorID, ValidatorID)
 	}
 	if vr.ApplicationResponseXML != "<ApplicationResponse/>" {
-		t.Errorf("ApplicationResponseXML no se propagó: %q", vr.ApplicationResponseXML)
+		t.Errorf("ApplicationResponseXML was not propagated: %q", vr.ApplicationResponseXML)
 	}
 }
 
 func TestResult_IsTestSetClosed(t *testing.T) {
-	// Respuesta real que produjo el rechazo en la sección 9.43 — sin Messages, solo
+	// Real response that produced the rejection in section 9.43 — no Messages, just
 	// StatusDescription.
 	closed := Result{
 		StatusCode:        "2",
@@ -132,7 +133,7 @@ func TestResult_IsTestSetClosed(t *testing.T) {
 		t.Error("debería detectar el set de pruebas cerrado")
 	}
 
-	// Un rechazo normal de contenido no debe confundirse con esto, aunque también tenga
+	// A normal content rejection must not be confused with this, even though it also has
 	// StatusCode "2".
 	contentRejection := Result{
 		StatusCode:        "2",

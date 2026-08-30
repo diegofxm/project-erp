@@ -252,6 +252,7 @@ func main() {
 
 	// ── Casos de uso — purchase ─────────────────────────────────────────────────
 	createPurchaseUC := purchaseapp.NewCreateUseCase(purchaseRepo)
+	updatePurchaseUC := purchaseapp.NewUpdateUseCase(purchaseRepo)
 	getPurchaseUC := purchaseapp.NewGetUseCase(purchaseRepo)
 	confirmPurchaseUC := purchaseapp.NewConfirmUseCase(purchaseRepo)
 	cancelPurchaseUC := purchaseapp.NewCancelUseCase(purchaseRepo)
@@ -263,6 +264,7 @@ func main() {
 	issueCertificatesUC := accountingapp.NewIssueWithholdingCertificatesUseCase(purchaseRepo, accountingCertificateRepo)
 	manageBankUC := accountingapp.NewManageBankUseCase(accountingBankAccountRepo, accountingBankStatementRepo, accountingAccountRepo)
 	fixedAssetUC := accountingapp.NewFixedAssetUseCase(accountingFixedAssetRepo, accountingAccountRepo)
+	disposeFixedAssetUC := accountingapp.NewDisposeFixedAssetUseCase(accountingFixedAssetRepo, accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	runDepreciationUC := accountingapp.NewRunDepreciationUseCase(accountingFixedAssetRepo, accountingDepreciationRepo, accountingAccountRepo, accountingPeriodRepo, accountingJournalRepo)
 	budgetUC := accountingapp.NewBudgetUseCase(accountingBudgetRepo, accountingAccountRepo)
 	ivaUC := accountingapp.NewIVAUseCase(accountingIVARepo, accountingJournalRepo, accountingAccountRepo)
@@ -273,9 +275,11 @@ func main() {
 
 	// ── Casos de uso — sales ────────────────────────────────────────────────────
 	createSaleUC := salesapp.NewCreateUseCase(salesRepo)
+	updateSaleUC := salesapp.NewUpdateUseCase(salesRepo)
 	getSaleUC := salesapp.NewGetUseCase(salesRepo)
 	confirmSaleUC := salesapp.NewConfirmUseCase(salesRepo, bus, productRepo, inventoryRepo, salesCustomerPort, paymentRepo, warehouseRepo, auditUC)
 	cancelSaleUC := salesapp.NewCancelUseCase(salesRepo)
+	deleteSaleUC := salesapp.NewDeleteUseCase(salesRepo)
 	quoteUC := salesapp.NewQuoteUseCase(quoteRepo, salesRepo)
 	paymentUC := salesapp.NewPaymentUseCase(paymentRepo, salesRepo, bus, auditUC)
 	setSalesCounterUC := salesapp.NewSetNumberCounterUseCase(salesRepo, quoteRepo)
@@ -368,6 +372,12 @@ func main() {
 		log.Info("notificaciones: modo noop (SMTP_HOST no configurado)")
 	}
 	appURL := os.Getenv("APP_URL")
+	// forgotPasswordLimiter es un contador aparte de loginRateLimiter (declarado más arriba) --
+	// un correo bloqueado para login (contraseñas mal escritas) no debe impedirle pedir un enlace
+	// de recuperación, y viceversa.
+	forgotPasswordLimiter := securityapp.NewLoginRateLimiter()
+	forgotPasswordUC := securityapp.NewForgotPasswordUseCase(securityRepo, notifier, appURL, forgotPasswordLimiter)
+	resetPasswordUC := securityapp.NewResetPasswordUseCase(securityRepo, jwtSvc)
 	electronicSendEmailUC := electronicapp.NewSendDocumentEmailUseCase(electronicDocRepo, electronicCompanyPort, electronicNumRepo, multiRenderer, notifier, electronicAdapter, appURL)
 	saasProspectUC := saasapp.NewProspectUseCase(saasProspectRepo, saasUserPort, saasCompanyPort, notifier, appURL)
 
@@ -420,7 +430,8 @@ func main() {
 	securityhttp.NewHandler(
 		registerUC, loginUC, selectCompanyUC,
 		inviteUserUC, acceptInviteUC,
-		updateProfileUC, getProfileUC, changePasswordUC, logoutUC, auditUC,
+		updateProfileUC, getProfileUC, changePasswordUC, logoutUC,
+		forgotPasswordUC, resetPasswordUC, auditUC,
 	).RegisterRoutes(mux)
 	companyhttp.NewHandler(
 		createCompanyUC, getCompanyUC,
@@ -431,9 +442,9 @@ func main() {
 	thirdpartyhttp.NewSupplierHandler(createPartyUC, getPartyUC, updatePartyUC, deletePartyUC, auditUC).RegisterRoutes(mux)
 	producthttp.NewHandler(createProductUC, getProductUC, updateProductUC, deleteProductUC, auditUC).RegisterRoutes(mux)
 	inventoryhttp.NewHandler(moveInventoryUC, getInventoryUC, auditUC).RegisterRoutes(mux)
-	purchasehttp.NewHandler(createPurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC, deletePurchaseUC, purchasePaymentUC, purchasePDFUC, sendPurchaseEmailUC, purchaseWithholdingUC, setPurchaseCounterUC, auditUC).RegisterRoutes(mux)
-	saleshttp.NewHandler(createSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC, quotePDFUC, sendQuoteEmailUC, setSalesCounterUC, auditUC).RegisterRoutes(mux)
-	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo, accountingWithholdingRepo, issueCertificatesUC, manageBankUC, fixedAssetUC, runDepreciationUC, budgetUC, ivaUC, incomeTaxUC, icaUC, exchangeRateUC, reconciliationUC, auditUC).RegisterRoutes(mux)
+	purchasehttp.NewHandler(createPurchaseUC, updatePurchaseUC, getPurchaseUC, confirmPurchaseUC, cancelPurchaseUC, receivePurchaseUC, deletePurchaseUC, purchasePaymentUC, purchasePDFUC, sendPurchaseEmailUC, purchaseWithholdingUC, setPurchaseCounterUC, auditUC).RegisterRoutes(mux)
+	saleshttp.NewHandler(createSaleUC, updateSaleUC, getSaleUC, confirmSaleUC, cancelSaleUC, quoteUC, paymentUC, quotePDFUC, sendQuoteEmailUC, setSalesCounterUC, deleteSaleUC, auditUC).RegisterRoutes(mux)
+	accountinghttp.NewHandler(postJournalUC, getJournalUC, voidJournalUC, managePeriodUC, accountingAccountRepo, accountingWithholdingRepo, issueCertificatesUC, manageBankUC, fixedAssetUC, disposeFixedAssetUC, runDepreciationUC, budgetUC, ivaUC, incomeTaxUC, icaUC, exchangeRateUC, reconciliationUC, auditUC).RegisterRoutes(mux)
 	electronichttp.NewHandler(electronicCreateDraftUC, electronicConfirmUC, electronicGetUC, electronicListUC, electronicNumberingUC, electronicPDFUC, fromSaleUC, fromPurchaseUC, electronicDianRangesUC, electronicSendEmailUC, auditUC).RegisterRoutes(mux)
 	audithttp.NewHandler(auditUC).RegisterRoutes(mux)
 	notificationhttp.NewHandler(notificationAlertsUC).RegisterRoutes(mux)

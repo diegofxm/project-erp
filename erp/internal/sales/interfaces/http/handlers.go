@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	cofdom "github.com/diegofxm/cofacture/domain"
 	"github.com/diegofxm/erp/internal/sales/application"
 	"github.com/diegofxm/erp/internal/sales/domain"
 	"github.com/diegofxm/erp/internal/shared/tenant"
@@ -25,11 +26,17 @@ type AuditLogger interface {
 // conoce HTTP) — acá se mapean a snake_case, igual que el resto de los módulos (ver
 // electronic/interfaces/http toNumberingRangeDTO).
 
+// formatDate SIEMPRE formatea en UTC -- application.parseDate interpreta "YYYY-MM-DD" del
+// frontend como medianoche UTC (time.Parse sin location = UTC), y pgx devuelve los TIMESTAMPTZ
+// ya escaneados en la zona LOCAL del proceso Go. Sin el .UTC() explícito acá, en cualquier
+// servidor con zona horaria detrás de UTC (Colombia, UTC-5) la medianoche UTC se ve como las
+// 19:00 del día anterior en hora local, y Format("2006-01-02") imprime la fecha equivocada --
+// bug real encontrado 2026-08-11 (una venta guardada el 12 se mostraba de vuelta como el 11).
 func formatDate(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.Format("2006-01-02")
+	return t.UTC().Format("2006-01-02")
 }
 
 func formatDatePtr(t *time.Time) string {
@@ -43,6 +50,7 @@ type saleLineDTO struct {
 	ID          uuid.UUID `json:"id"`
 	ProductID   uuid.UUID `json:"product_id"`
 	Description string    `json:"description"`
+	UnitCode    string    `json:"unit_code"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
 	Discount    float64   `json:"discount"`
@@ -52,26 +60,47 @@ type saleLineDTO struct {
 	Total       float64   `json:"total"`
 }
 
+// paymentMeanDTO -- mismo formato snake_case que electronic/interfaces/http para el mismo tipo
+// cofdom.PaymentMean, así el frontend reutiliza PaymentMeansEditor.tsx sin adaptar nada.
+type paymentMeanDTO struct {
+	Code              string `json:"code"`
+	PaymentMethodCode string `json:"payment_method_code"`
+	DueDate           string `json:"due_date,omitempty"`
+	PaymentReference  string `json:"payment_reference,omitempty"`
+}
+
+func toPaymentMeanDTOs(pms []cofdom.PaymentMean) []paymentMeanDTO {
+	out := make([]paymentMeanDTO, len(pms))
+	for i, pm := range pms {
+		out[i] = paymentMeanDTO{
+			Code: pm.Code, PaymentMethodCode: pm.PaymentMethodCode,
+			DueDate: pm.DueDate, PaymentReference: pm.PaymentReference,
+		}
+	}
+	return out
+}
+
 type saleDTO struct {
-	ID                uuid.UUID     `json:"id"`
-	CompanyID         uuid.UUID     `json:"company_id"`
-	CustomerID        uuid.UUID     `json:"customer_id"`
-	Number            string        `json:"number"`
-	Status            string        `json:"status"`
-	IssueDate         string        `json:"issue_date"`
-	DueDate           string        `json:"due_date,omitempty"`
-	Notes             string        `json:"notes"`
-	Lines             []saleLineDTO `json:"lines"`
-	InvoiceDocumentID *uuid.UUID    `json:"invoice_document_id,omitempty"`
-	CreatedAt         time.Time     `json:"created_at"`
-	UpdatedAt         time.Time     `json:"updated_at"`
+	ID                uuid.UUID        `json:"id"`
+	CompanyID         uuid.UUID        `json:"company_id"`
+	CustomerID        uuid.UUID        `json:"customer_id"`
+	Number            string           `json:"number"`
+	Status            string           `json:"status"`
+	IssueDate         string           `json:"issue_date"`
+	DueDate           string           `json:"due_date,omitempty"`
+	Notes             string           `json:"notes"`
+	Lines             []saleLineDTO    `json:"lines"`
+	PaymentMeans      []paymentMeanDTO `json:"payment_means"`
+	InvoiceDocumentID *uuid.UUID       `json:"invoice_document_id,omitempty"`
+	CreatedAt         time.Time        `json:"created_at"`
+	UpdatedAt         time.Time        `json:"updated_at"`
 }
 
 func toSaleDTO(s *domain.Sale) saleDTO {
 	lines := make([]saleLineDTO, len(s.Lines))
 	for i, l := range s.Lines {
 		lines[i] = saleLineDTO{
-			ID: l.ID, ProductID: l.ProductID, Description: l.Description,
+			ID: l.ID, ProductID: l.ProductID, Description: l.Description, UnitCode: l.UnitCode,
 			Quantity: l.Quantity, UnitPrice: l.UnitPrice, Discount: l.Discount, TaxRate: l.TaxRate,
 			Subtotal: l.Subtotal, TaxAmount: l.TaxAmount, Total: l.Total,
 		}
@@ -80,8 +109,9 @@ func toSaleDTO(s *domain.Sale) saleDTO {
 		ID: s.ID, CompanyID: s.CompanyID, CustomerID: s.CustomerID,
 		Number: s.Number, Status: string(s.Status),
 		IssueDate: formatDate(s.IssueDate), DueDate: formatDatePtr(s.DueDate),
-		Notes: s.Notes, Lines: lines, InvoiceDocumentID: s.InvoiceDocumentID,
-		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
+		Notes: s.Notes, Lines: lines, PaymentMeans: toPaymentMeanDTOs(s.PaymentMeans),
+		InvoiceDocumentID: s.InvoiceDocumentID,
+		CreatedAt:         s.CreatedAt, UpdatedAt: s.UpdatedAt,
 	}
 }
 
@@ -89,6 +119,7 @@ type quoteLineDTO struct {
 	ID          uuid.UUID `json:"id"`
 	ProductID   uuid.UUID `json:"product_id"`
 	Description string    `json:"description"`
+	UnitCode    string    `json:"unit_code"`
 	Quantity    float64   `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
 	Discount    float64   `json:"discount"`
@@ -99,24 +130,25 @@ type quoteLineDTO struct {
 }
 
 type quoteDTO struct {
-	ID         uuid.UUID      `json:"id"`
-	CompanyID  uuid.UUID      `json:"company_id"`
-	CustomerID uuid.UUID      `json:"customer_id"`
-	Number     string         `json:"number"`
-	Status     string         `json:"status"`
-	IssueDate  string         `json:"issue_date"`
-	ValidUntil string         `json:"valid_until,omitempty"`
-	Notes      string         `json:"notes"`
-	Lines      []quoteLineDTO `json:"lines"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
+	ID           uuid.UUID        `json:"id"`
+	CompanyID    uuid.UUID        `json:"company_id"`
+	CustomerID   uuid.UUID        `json:"customer_id"`
+	Number       string           `json:"number"`
+	Status       string           `json:"status"`
+	IssueDate    string           `json:"issue_date"`
+	ValidUntil   string           `json:"valid_until,omitempty"`
+	Notes        string           `json:"notes"`
+	Lines        []quoteLineDTO   `json:"lines"`
+	PaymentMeans []paymentMeanDTO `json:"payment_means"`
+	CreatedAt    time.Time        `json:"created_at"`
+	UpdatedAt    time.Time        `json:"updated_at"`
 }
 
 func toQuoteDTO(q *domain.Quote) quoteDTO {
 	lines := make([]quoteLineDTO, len(q.Lines))
 	for i, l := range q.Lines {
 		lines[i] = quoteLineDTO{
-			ID: l.ID, ProductID: l.ProductID, Description: l.Description,
+			ID: l.ID, ProductID: l.ProductID, Description: l.Description, UnitCode: l.UnitCode,
 			Quantity: l.Quantity, UnitPrice: l.UnitPrice, Discount: l.Discount, TaxRate: l.TaxRate,
 			Subtotal: l.Subtotal, TaxAmount: l.TaxAmount, Total: l.Total,
 		}
@@ -125,7 +157,7 @@ func toQuoteDTO(q *domain.Quote) quoteDTO {
 		ID: q.ID, CompanyID: q.CompanyID, CustomerID: q.CustomerID,
 		Number: q.Number, Status: string(q.Status),
 		IssueDate: formatDate(q.IssueDate), ValidUntil: formatDatePtr(q.ValidUntil),
-		Notes: q.Notes, Lines: lines,
+		Notes: q.Notes, Lines: lines, PaymentMeans: toPaymentMeanDTOs(q.PaymentMeans),
 		CreatedAt: q.CreatedAt, UpdatedAt: q.UpdatedAt,
 	}
 }
@@ -172,6 +204,7 @@ func toReceivableDTO(r domain.ReceivableBalance) receivableDTO {
 
 type Handler struct {
 	create         *application.CreateUseCase
+	update         *application.UpdateUseCase
 	get            *application.GetUseCase
 	confirm        *application.ConfirmUseCase
 	cancel         *application.CancelUseCase
@@ -180,11 +213,13 @@ type Handler struct {
 	quotePDF       *application.GetQuotePDFUseCase
 	sendQuoteEmail *application.SendQuoteEmailUseCase
 	setCounter     *application.SetNumberCounterUseCase
+	delete         *application.DeleteUseCase
 	audit          AuditLogger
 }
 
 func NewHandler(
 	create *application.CreateUseCase,
+	update *application.UpdateUseCase,
 	get *application.GetUseCase,
 	confirm *application.ConfirmUseCase,
 	cancel *application.CancelUseCase,
@@ -193,11 +228,12 @@ func NewHandler(
 	quotePDF *application.GetQuotePDFUseCase,
 	sendQuoteEmail *application.SendQuoteEmailUseCase,
 	setCounter *application.SetNumberCounterUseCase,
+	del *application.DeleteUseCase,
 	audit AuditLogger,
 ) *Handler {
 	return &Handler{
-		create: create, get: get, confirm: confirm, cancel: cancel, quote: quote, payment: payment,
-		quotePDF: quotePDF, sendQuoteEmail: sendQuoteEmail, setCounter: setCounter, audit: audit,
+		create: create, update: update, get: get, confirm: confirm, cancel: cancel, quote: quote, payment: payment,
+		quotePDF: quotePDF, sendQuoteEmail: sendQuoteEmail, setCounter: setCounter, delete: del, audit: audit,
 	}
 }
 
@@ -229,6 +265,40 @@ func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, http.StatusCreated, toSaleDTO(s))
+}
+
+// handleUpdate corrige cliente/fecha/notas/líneas de una venta EN BORRADOR -- el repositorio
+// rechaza (ErrSaleNotDraft) si ya está confirmada.
+func (h *Handler) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var req application.CreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	s, err := h.update.Execute(r.Context(), cid, id, req)
+	if err != nil {
+		if errors.Is(err, domain.ErrSaleNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrSaleNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.logAudit(r.Context(), cid, "sale.updated", "sale", s.ID, nil)
+	respond(w, http.StatusOK, toSaleDTO(s))
 }
 
 func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
@@ -344,6 +414,37 @@ func (h *Handler) handleCreateQuote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, http.StatusCreated, toQuoteDTO(q))
+}
+
+func (h *Handler) handleUpdateQuote(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	var req application.CreateQuoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "cuerpo inválido")
+		return
+	}
+	q, err := h.quote.Update(r.Context(), cid, id, req)
+	if err != nil {
+		if errors.Is(err, domain.ErrQuoteNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrQuoteNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	respond(w, http.StatusOK, toQuoteDTO(q))
 }
 
 func (h *Handler) handleListQuotes(w http.ResponseWriter, r *http.Request) {
@@ -527,6 +628,35 @@ func (h *Handler) handleConvertQuoteToSale(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	respond(w, http.StatusCreated, toSaleDTO(sale))
+}
+
+// handleDeleteSale elimina una venta en borrador -- Repository.Delete ya valida el estado.
+func (h *Handler) handleDeleteSale(w http.ResponseWriter, r *http.Request) {
+	cid, ok := requireTenant(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "id inválido")
+		return
+	}
+	if err := h.delete.Execute(r.Context(), cid, id); err != nil {
+		if errors.Is(err, domain.ErrSaleNotFound) {
+			respondError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		if errors.Is(err, domain.ErrSaleNotDraft) {
+			respondError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if h.audit != nil {
+		h.logAudit(r.Context(), cid, "sale.deleted", "sale", id, nil)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) handleDeleteQuote(w http.ResponseWriter, r *http.Request) {

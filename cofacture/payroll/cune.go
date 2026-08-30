@@ -3,18 +3,23 @@ package payroll
 import (
 	"crypto/sha512"
 	"fmt"
+
+	"github.com/diegofxm/cofacture/domain"
 )
 
-// Cune calcula el Código Único de Nómina Electrónica (CUNE) según la sección 8.1
-// del Anexo Técnico DIAN:
+// Cune computes the Unique Electronic Payroll Code (Código Único de Nómina Electrónica, CUNE)
+// per section 8.1 of DIAN's Technical Annex:
 //
 //	SHA-384(NumNE + FecNE + HorNE + ValDev + ValDed + ValTolNE + NitNE + DocEmp + TipoXML + SoftwarePIN + TipAmb)
 //
-// Todos los valores monetarios deben formatearse con dos decimales antes de llamar
-// esta función (e.g. "3500000.00", no "3500000"). El resultado es el hex SHA-384
-// de 96 caracteres que va en InformacionGeneral/@CUNE.
-func Cune(numNE, fecNE, horNE, valDev, valDed, valTolNE, nitNE, docEmp, tipoXML, softwarePIN, tipAmb string) string {
-	input := numNE + fecNE + horNE + valDev + valDed + valTolNE + nitNE + docEmp + tipoXML + softwarePIN + tipAmb
+// valDevCents, valDedCents and valTolNECents are formatted with domain.FormatCents — the same
+// function Build uses for DevengadosTotal/DeduccionesTotal/ComprobanteTotal — so the hashed
+// amounts and the amounts written to the XML can never drift apart. The result is the
+// 96-character hex SHA-384 that goes into InformacionGeneral/@CUNE.
+func Cune(numNE, fecNE, horNE string, valDevCents, valDedCents, valTolNECents int64, nitNE, docEmp, tipoXML, softwarePIN, tipAmb string) string {
+	input := numNE + fecNE + horNE +
+		domain.FormatCents(valDevCents) + domain.FormatCents(valDedCents) + domain.FormatCents(valTolNECents) +
+		nitNE + docEmp + tipoXML + softwarePIN + tipAmb
 	sum := sha512.Sum384([]byte(input))
 	return fmt.Sprintf("%x", sum)
 }
